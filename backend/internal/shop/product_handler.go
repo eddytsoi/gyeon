@@ -1,0 +1,149 @@
+package shop
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"gyeon/backend/internal/respond"
+)
+
+type ProductHandler struct {
+	svc *ProductService
+}
+
+func NewProductHandler(svc *ProductService) *ProductHandler {
+	return &ProductHandler{svc: svc}
+}
+
+func (h *ProductHandler) Routes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/", h.list)
+	r.Post("/", h.create)
+	r.Get("/{id}", h.getByID)
+	r.Put("/{id}", h.update)
+	r.Delete("/{id}", h.delete)
+
+	// Variant sub-routes
+	r.Get("/{id}/variants", h.listVariants)
+	r.Post("/{id}/variants", h.createVariant)
+
+	// Image sub-routes
+	r.Get("/{id}/images", h.listImages)
+	r.Post("/{id}/images", h.addImage)
+	return r
+}
+
+func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	products, err := h.svc.List(r.Context(), limit, offset)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, products)
+}
+
+func (h *ProductHandler) getByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	product, err := h.svc.GetByID(r.Context(), id)
+	if err != nil {
+		respond.NotFound(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, product)
+}
+
+func (h *ProductHandler) create(w http.ResponseWriter, r *http.Request) {
+	var req CreateProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	product, err := h.svc.Create(r.Context(), req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusCreated, product)
+}
+
+func (h *ProductHandler) update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req UpdateProductRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	product, err := h.svc.Update(r.Context(), id, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, product)
+}
+
+func (h *ProductHandler) delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) listVariants(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	variants, err := h.svc.ListVariants(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variants)
+}
+
+func (h *ProductHandler) createVariant(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req CreateVariantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	variant, err := h.svc.CreateVariant(r.Context(), id, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusCreated, variant)
+}
+
+func (h *ProductHandler) listImages(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	images, err := h.svc.ListImages(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, images)
+}
+
+func (h *ProductHandler) addImage(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req AddImageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	image, err := h.svc.AddImage(r.Context(), id, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusCreated, image)
+}

@@ -1,0 +1,127 @@
+export interface Category {
+  id: string;
+  parent_id?: string;
+  slug: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+export interface Product {
+  id: string;
+  category_id?: string;
+  slug: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Variant {
+  id: string;
+  product_id: string;
+  sku: string;
+  price: number;
+  compare_at_price?: number;
+  stock_qty: number;
+  is_active: boolean;
+}
+
+export interface ProductImage {
+  id: string;
+  product_id: string;
+  variant_id?: string;
+  url: string;
+  alt_text?: string;
+  sort_order: number;
+  is_primary: boolean;
+}
+
+export interface CartItem {
+  id: string;
+  cart_id: string;
+  variant_id: string;
+  quantity: number;
+  added_at: string;
+}
+
+export interface Cart {
+  id: string;
+  customer_id?: string;
+  session_token?: string;
+  items: CartItem[];
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  variant_id?: string;
+  product_name: string;
+  variant_sku: string;
+  variant_attrs?: Record<string, string>;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+}
+
+export interface Order {
+  id: string;
+  customer_id?: string;
+  status: string;
+  subtotal: number;
+  shipping_fee: number;
+  discount_amount: number;
+  total: number;
+  notes?: string;
+  items: OrderItem[];
+  created_at: string;
+}
+
+export interface CmsPage {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  meta_title?: string;
+  meta_desc?: string;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NavItem {
+  id: string;
+  menu_id: string;
+  parent_id?: string;
+  label: string;
+  url: string;
+  target: string;
+  sort_order: number;
+  children: NavItem[];
+}
+
+export interface NavMenu {
+  id: string;
+  handle: string;
+  name: string;
+  items: NavItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CmsPost {
+  id: string;
+  category_id?: string;
+  slug: string;
+  title: string;
+  excerpt?: string;
+  content: string;
+  cover_image_url?: string;
+  is_published: boolean;
+  published_at?: string;
+  created_at: string;
+  updated_at: string;
+}

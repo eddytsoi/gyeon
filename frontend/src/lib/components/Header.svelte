@@ -1,0 +1,91 @@
+<script lang="ts">
+  import { cartStore } from '$lib/stores/cart.svelte';
+  import type { NavItem } from '$lib/types';
+
+  let { navItems = [] }: { navItems?: NavItem[] } = $props();
+
+  let mobileOpen = $state(false);
+
+  // Fallback hardcoded nav when DB has no items yet
+  const fallbackLinks = [
+    { label: 'Home', url: '/', target: '_self' },
+    { label: 'Products', url: '/products', target: '_self' },
+    { label: 'Blog', url: '/blog', target: '_self' },
+  ];
+
+  const links = $derived(
+    navItems.length > 0
+      ? navItems.map(i => ({ label: i.label, url: i.url, target: i.target }))
+      : fallbackLinks
+  );
+</script>
+
+<header class="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16">
+
+      <!-- Logo -->
+      <a href="/" class="text-xl font-bold tracking-tight text-gray-900">
+        Gyeon
+      </a>
+
+      <!-- Desktop nav -->
+      <nav class="hidden md:flex items-center gap-8">
+        {#each links as link}
+          <a href={link.url} target={link.target}
+             class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+            {link.label}
+          </a>
+        {/each}
+      </nav>
+
+      <!-- Cart + mobile toggle -->
+      <div class="flex items-center gap-3">
+        <a href="/cart" class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0
+                 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114
+                 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1
+                 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0
+                 1 1.5 0Z" />
+          </svg>
+          {#if cartStore.itemCount > 0}
+            <span class="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center
+                         justify-center rounded-full bg-gray-900 text-[10px]
+                         font-semibold text-white">
+              {cartStore.itemCount}
+            </span>
+          {/if}
+        </a>
+
+        <!-- Mobile hamburger -->
+        <button class="md:hidden p-2 text-gray-600" onclick={() => mobileOpen = !mobileOpen}
+                aria-label="Toggle menu">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            {#if mobileOpen}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            {:else}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/>
+            {/if}
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile nav -->
+  {#if mobileOpen}
+    <nav class="md:hidden border-t border-gray-100 bg-white px-4 py-3 flex flex-col gap-1">
+      {#each links as link}
+        <a href={link.url} target={link.target}
+           onclick={() => mobileOpen = false}
+           class="py-2 text-sm font-medium text-gray-700 hover:text-gray-900">
+          {link.label}
+        </a>
+      {/each}
+    </nav>
+  {/if}
+</header>

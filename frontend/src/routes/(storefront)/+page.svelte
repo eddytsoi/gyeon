@@ -1,0 +1,56 @@
+<script lang="ts">
+  import type { PageData } from './$types';
+  import ProductCard from '$lib/components/shop/ProductCard.svelte';
+
+  let { data }: { data: PageData } = $props();
+</script>
+
+<svelte:head>
+  <title>Gyeon — Home</title>
+</svelte:head>
+
+<!-- Hero -->
+<section class="bg-gray-900 text-white">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 text-center">
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight">
+      Quality, delivered.
+    </h1>
+    <p class="mt-4 text-lg text-gray-300 max-w-xl mx-auto">
+      Curated products for everyday life.
+    </p>
+    <a href="/products"
+       class="mt-8 inline-block bg-white text-gray-900 font-semibold px-8 py-3
+              rounded-full hover:bg-gray-100 transition-colors">
+      Shop Now
+    </a>
+  </div>
+</section>
+
+<!-- Featured Products -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+  <h2 class="text-2xl font-bold text-gray-900 mb-8">Featured Products</h2>
+
+  {#if data.products.length === 0}
+    <div class="text-center py-20 text-gray-400">
+      <p class="text-lg">No products yet.</p>
+      <a href="/products" class="mt-2 inline-block text-sm underline">Browse all</a>
+    </div>
+  {:else}
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      {#each data.products as item}
+        <ProductCard
+          product={item.product}
+          image={item.primaryImage}
+          variant={item.cheapestVariant}
+        />
+      {/each}
+    </div>
+    <div class="mt-10 text-center">
+      <a href="/products"
+         class="inline-block border border-gray-300 text-gray-700 font-medium px-8 py-3
+                rounded-full hover:border-gray-900 hover:text-gray-900 transition-colors">
+        View All Products
+      </a>
+    </div>
+  {/if}
+</section>

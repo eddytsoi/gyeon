@@ -1,0 +1,27 @@
+# Go
+backend/bin/
+backend/*.env
+
+# SvelteKit
+frontend/.svelte-kit/
+frontend/build/
+frontend/node_modules/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code
+.claude/
