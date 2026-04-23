@@ -1,59 +1,107 @@
 # Gyeon — TODO
 
-## ✅ Completed
+## Backend
 
-### Backend
-- Auth (JWT, middleware, login handler) + multi-user admin auth with roles
-- CMS: pages, posts, post categories, navigation
-- eShop: products, product categories, variants (full CRUD + stock adjust), images (full CRUD)
-- Orders: cart, checkout, order management, fulfillment, cancellation
-- Customers: registration, login, profile, addresses, purchase history
-- Admin: stats, user management (roles: super_admin/admin/editor)
-- Site settings API (key-value store)
-- Media library: file upload + management
-- DB migrations: eshop, orders, cms, navigation, customer auth, settings/media, admin users
-- SQL queries: products, categories, variants, product images, cms pages/posts
+### Auth
+- [x] JWT authentication + middleware
+- [x] Multi-user admin auth with roles (super_admin / admin / editor)
+- [x] Customer auth (registration, login, JWT)
 
-### Frontend (SvelteKit)
-- Admin: dashboard, login/logout (email+password), products list+create/edit, orders list/detail
-- Admin: product variants management (add/edit/delete/stock adjust), product images management
-- Admin: customer management (list + detail with order history)
-- Admin: site settings page, admin users (roles & permissions)
-- Admin CMS: pages, posts, post categories, navigation
-- Storefront: home, blog, blog post, products, product detail, cart, static pages
-- Docker Compose setup
-
----
-
-## 🔲 Backend
+### CMS
+- [x] Pages (CRUD)
+- [x] Posts (CRUD)
+- [x] Post categories
+- [x] Navigation / menus
 
 ### eShop
-- [x] Pricing rules (discount campaigns, coupon codes) — `compare_at_price` already supported on variants
+- [x] Products (CRUD)
+- [x] Product categories
+- [x] Product variants (full CRUD + stock adjust)
+- [x] Product images (full CRUD, set primary)
+- [x] Pricing rules (discount campaigns, coupon codes)
 
-### Localization
+### Orders
+- [x] Cart (add / remove / view)
+- [x] Checkout (order creation)
+- [x] Order management (list, detail)
+- [x] Fulfillment & cancellation
+
+### Customers
+- [x] Registration & login
+- [x] Profile management
+- [x] Addresses (CRUD)
+- [x] Purchase history
+
+### Admin
+- [x] Dashboard stats
+- [x] Admin user management (create / edit / delete with roles)
+
+### Platform
+- [x] Site settings API (key-value store)
+- [x] Media library (file upload + management)
 - [x] i18n support for content (CMS pages, posts, products)
+
+### Database
+- [x] Migration 001 — eShop (products, categories, variants, images)
+- [x] Migration 002 — Orders (orders, order items, cart)
+- [x] Migration 003 — CMS (pages, posts)
+- [x] Migration 004 — Navigation
+- [x] Migration 005 — Customer auth (accounts, addresses)
+- [x] Migration 006 — Settings & media
+- [x] Migration 007 — Admin users
+- [x] Migration 008 — Pricing (campaigns, coupon codes)
+- [x] Migration 009 — i18n
+
+### SQL Queries (sqlc)
+- [x] Products
+- [x] Product categories
+- [x] Product variants
+- [x] Product images
+- [x] CMS pages
+- [x] CMS posts
 
 ---
 
-## 🔲 Frontend
+## Frontend (SvelteKit)
 
 ### Admin
-- [x] Product create/edit page
-- [x] Product variants management UI (add/edit/delete/stock adjust)
-- [x] Product images management UI (add/set primary/delete)
-- [x] Customer management pages (list + detail with order history)
-- [x] Admin settings page
-- [x] User roles & permissions UI (create/edit/delete admin users with roles)
+- [x] Login / logout (email + password)
+- [x] Dashboard (stats overview)
+- [x] Products list
+- [x] Product create / edit
+- [x] Product variants management (add / edit / delete / stock adjust)
+- [x] Product images management (add / set primary / delete)
+- [x] Orders list
+- [x] Order detail (fulfillment, cancellation)
+- [x] Customer list
+- [x] Customer detail (with order history)
+- [x] CMS pages (list + create/edit)
+- [x] CMS posts (list + create/edit)
+- [x] Post categories
+- [x] Navigation management
+- [x] Site settings page
+- [x] Admin user management (roles & permissions)
 
 ### Storefront
+- [x] Home page
+- [x] Products catalog
+- [x] Product detail
+- [x] Blog listing
+- [x] Blog post detail
+- [x] Static CMS pages
+- [x] Shopping cart
 - [ ] Checkout page & flow
-- [x] Customer account pages (register, login, profile, addresses, order history)
+- [x] Customer account: register, login, logout
+- [x] Customer account: profile
+- [x] Customer account: addresses (list / add / edit)
+- [x] Customer account: order history + order detail
 - [ ] Localization / language switcher
 
 ---
 
-## 🔲 Infrastructure & Docs
+## Infrastructure & Docs
 
+- [x] Docker Compose setup (PostgreSQL)
 - [ ] Document environment variables in `CLAUDE.md`
 - [ ] Getting Started / Running Locally guide
 - [ ] Testing setup (backend: Go tests, frontend: Playwright or Vitest)
