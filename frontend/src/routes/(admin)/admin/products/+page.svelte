@@ -3,15 +3,6 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-  let showCreate = $state(false);
-  let creating = $state(false);
-
-  function slugify(s: string) {
-    return s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-  }
-
-  let newName = $state('');
-  let newSlug = $derived(slugify(newName));
 </script>
 
 <svelte:head><title>Products — Gyeon Admin</title></svelte:head>
@@ -19,66 +10,12 @@
 <div class="max-w-5xl">
   <div class="flex items-center justify-between mb-8">
     <h1 class="text-2xl font-bold text-gray-900">Products</h1>
-    <button onclick={() => showCreate = !showCreate}
-            class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
-                   hover:bg-gray-700 transition-colors">
+    <a href="/admin/products/new"
+       class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
+              hover:bg-gray-700 transition-colors">
       + New Product
-    </button>
+    </a>
   </div>
-
-  <!-- Create form -->
-  {#if showCreate}
-    <form method="POST" action="?/create" class="bg-white rounded-2xl border border-gray-100 p-6 mb-6"
-          use:enhance={() => {
-            creating = true;
-            return async ({ update }) => { await update(); creating = false; showCreate = false; };
-          }}>
-      <h2 class="font-semibold text-gray-900 mb-4">New Product</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label for="new-name" class="text-xs font-medium text-gray-600">Name *</label>
-          <input id="new-name" name="name" required bind:value={newName}
-                 class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                        focus:ring-2 focus:ring-gray-900" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label for="new-slug" class="text-xs font-medium text-gray-600">Slug *</label>
-          <input id="new-slug" name="slug" required value={newSlug}
-                 class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                        focus:ring-2 focus:ring-gray-900 bg-gray-50" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label for="new-category" class="text-xs font-medium text-gray-600">Category</label>
-          <select id="new-category" name="category_id"
-                  class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                         focus:ring-2 focus:ring-gray-900">
-            <option value="">— None —</option>
-            {#each data.categories as cat}
-              <option value={cat.id}>{cat.name}</option>
-            {/each}
-          </select>
-        </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="new-desc" class="text-xs font-medium text-gray-600">Description</label>
-          <textarea id="new-desc" name="description" rows="3"
-                    class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                           focus:ring-2 focus:ring-gray-900 resize-none"></textarea>
-        </div>
-      </div>
-      <div class="flex gap-3 mt-4">
-        <button type="submit" disabled={creating}
-                class="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg
-                       hover:bg-gray-700 transition-colors disabled:opacity-50">
-          {creating ? 'Creating…' : 'Create'}
-        </button>
-        <button type="button" onclick={() => showCreate = false}
-                class="px-5 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg
-                       hover:border-gray-400 transition-colors">
-          Cancel
-        </button>
-      </div>
-    </form>
-  {/if}
 
   <!-- Products table -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
@@ -112,21 +49,15 @@
               </span>
             </td>
             <td class="px-5 py-3 text-right">
-              <div class="flex items-center justify-end gap-2">
+              <div class="flex items-center justify-end gap-3">
+                <a href="/admin/products/{product.id}"
+                   class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                  Edit
+                </a>
                 <a href="/products/{product.slug}" target="_blank"
                    class="text-xs text-gray-400 hover:text-gray-700 transition-colors">
                   Preview ↗
                 </a>
-                <form method="POST" action="?/toggle" use:enhance>
-                  <input type="hidden" name="id" value={product.id} />
-                  <input type="hidden" name="slug" value={product.slug} />
-                  <input type="hidden" name="name" value={product.name} />
-                  <input type="hidden" name="is_active" value={product.is_active} />
-                  <button type="submit"
-                          class="text-xs text-gray-400 hover:text-gray-700 transition-colors">
-                    {product.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-                </form>
               </div>
             </td>
           </tr>

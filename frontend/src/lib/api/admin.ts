@@ -1,4 +1,4 @@
-import type { Category, Order, Product, Variant } from '$lib/types';
+import type { Category, Order, Product, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined' ? 'http://localhost:8080/api/v1' : '/api/v1';
@@ -23,13 +23,13 @@ export interface AdminStats {
   pending_orders: number;
 }
 
-export const adminLogin = async (password: string): Promise<string> => {
+export const adminLogin = async (email: string, password: string): Promise<string> => {
   const res = await fetch(`${base()}/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ email, password })
   });
-  if (!res.ok) throw new Error('Invalid password');
+  if (!res.ok) throw new Error('Invalid credentials');
   const data = await res.json();
   return data.token;
 };
@@ -50,11 +50,35 @@ export const adminUpdateProduct = (token: string, id: string, body: Partial<Prod
 export const adminDeleteProduct = (token: string, id: string) =>
   request(`/products/${id}`, token, { method: 'DELETE' });
 
+export const adminGetProduct = (token: string, id: string) =>
+  request<Product>(`/products/${id}`, token);
+
 export const adminGetVariants = (token: string, productID: string) =>
   request<Variant[]>(`/products/${productID}/variants`, token);
 
 export const adminCreateVariant = (token: string, productID: string, body: Partial<Variant>) =>
   request<Variant>(`/products/${productID}/variants`, token, { method: 'POST', body: JSON.stringify(body) });
+
+export const adminUpdateVariant = (token: string, productID: string, variantID: string, body: Partial<Variant> & { is_active: boolean }) =>
+  request<Variant>(`/products/${productID}/variants/${variantID}`, token, { method: 'PUT', body: JSON.stringify(body) });
+
+export const adminDeleteVariant = (token: string, productID: string, variantID: string) =>
+  request(`/products/${productID}/variants/${variantID}`, token, { method: 'DELETE' });
+
+export const adminAdjustStock = (token: string, productID: string, variantID: string, delta: number) =>
+  request<Variant>(`/products/${productID}/variants/${variantID}/stock`, token, { method: 'POST', body: JSON.stringify({ delta }) });
+
+export const adminGetImages = (token: string, productID: string) =>
+  request<ProductImage[]>(`/products/${productID}/images`, token);
+
+export const adminAddImage = (token: string, productID: string, body: Partial<ProductImage>) =>
+  request<ProductImage>(`/products/${productID}/images`, token, { method: 'POST', body: JSON.stringify(body) });
+
+export const adminUpdateImage = (token: string, productID: string, imageID: string, body: Partial<ProductImage>) =>
+  request<ProductImage>(`/products/${productID}/images/${imageID}`, token, { method: 'PUT', body: JSON.stringify(body) });
+
+export const adminDeleteImage = (token: string, productID: string, imageID: string) =>
+  request(`/products/${productID}/images/${imageID}`, token, { method: 'DELETE' });
 
 // Categories
 export const adminGetCategories = (token: string) =>
@@ -197,3 +221,105 @@ export const adminDeleteNavItem = (token: string, menuID: string, itemID: string
 
 export const adminReplaceNavItems = (token: string, menuID: string, items: Partial<NavItem>[]) =>
   request<NavItem[]>(`/admin/cms/nav/${menuID}/items`, token, { method: 'PUT', body: JSON.stringify(items) });
+
+// ── Customers ─────────────────────────────────────────────────────────────────
+
+export interface Customer {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerAddress {
+  id: string;
+  customer_id?: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postal_code: string;
+  country: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface CustomerOrderSummary {
+  id: string;
+  status: string;
+  total: number;
+  created_at: string;
+}
+
+export const adminGetCustomers = (token: string, limit = 50, offset = 0) =>
+  request<Customer[]>(`/admin/customers?limit=${limit}&offset=${offset}`, token);
+
+export const adminGetCustomer = (token: string, id: string) =>
+  request<Customer>(`/admin/customers/${id}`, token);
+
+export const adminGetCustomerOrders = (token: string, id: string) =>
+  request<CustomerOrderSummary[]>(`/customers/me/orders`, token);
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export interface Setting {
+  key: string;
+  value: string;
+  description?: string;
+  updated_at: string;
+}
+
+export const adminGetSettings = (token: string) =>
+  request<Setting[]>('/admin/settings', token);
+
+export const adminBulkUpdateSettings = (token: string, updates: Record<string, string>) =>
+  request<Setting[]>('/admin/settings', token, { method: 'PUT', body: JSON.stringify(updates) });
+
+// ── Admin Users ───────────────────────────────────────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const adminGetUsers = (token: string) =>
+  request<AdminUser[]>('/admin/users', token);
+
+export const adminCreateUser = (token: string, body: { email: string; password: string; name: string; role: string }) =>
+  request<AdminUser>('/admin/users', token, { method: 'POST', body: JSON.stringify(body) });
+
+export const adminUpdateUser = (token: string, id: string, body: { name: string; role: string; is_active: boolean }) =>
+  request<AdminUser>(`/admin/users/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
+
+export const adminDeleteUser = (token: string, id: string) =>
+  request(`/admin/users/${id}`, token, { method: 'DELETE' });
+
+// ── Media ─────────────────────────────────────────────────────────────────────
+
+export interface MediaFile {
+  id: string;
+  filename: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  url: string;
+  created_at: string;
+}
+
+export const adminGetMedia = (token: string) =>
+  request<MediaFile[]>('/admin/media', token);
+
+export const adminDeleteMedia = (token: string, id: string) =>
+  request(`/admin/media/${id}`, token, { method: 'DELETE' });

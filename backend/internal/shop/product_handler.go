@@ -17,6 +17,12 @@ func NewProductHandler(svc *ProductService) *ProductHandler {
 	return &ProductHandler{svc: svc}
 }
 
+func (h *ProductHandler) AdminRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/low-stock", h.lowStock)
+	return r
+}
+
 func (h *ProductHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
@@ -28,10 +34,15 @@ func (h *ProductHandler) Routes() chi.Router {
 	// Variant sub-routes
 	r.Get("/{id}/variants", h.listVariants)
 	r.Post("/{id}/variants", h.createVariant)
+	r.Put("/{id}/variants/{variantID}", h.updateVariant)
+	r.Delete("/{id}/variants/{variantID}", h.deleteVariant)
+	r.Post("/{id}/variants/{variantID}/stock", h.adjustStock)
 
 	// Image sub-routes
 	r.Get("/{id}/images", h.listImages)
 	r.Post("/{id}/images", h.addImage)
+	r.Put("/{id}/images/{imageID}", h.updateImage)
+	r.Delete("/{id}/images/{imageID}", h.deleteImage)
 	return r
 }
 
@@ -123,6 +134,45 @@ func (h *ProductHandler) createVariant(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, variant)
 }
 
+func (h *ProductHandler) updateVariant(w http.ResponseWriter, r *http.Request) {
+	variantID := chi.URLParam(r, "variantID")
+	var req UpdateVariantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	variant, err := h.svc.UpdateVariant(r.Context(), variantID, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variant)
+}
+
+func (h *ProductHandler) deleteVariant(w http.ResponseWriter, r *http.Request) {
+	variantID := chi.URLParam(r, "variantID")
+	if err := h.svc.DeleteVariant(r.Context(), variantID); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) adjustStock(w http.ResponseWriter, r *http.Request) {
+	variantID := chi.URLParam(r, "variantID")
+	var req AdjustStockRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	variant, err := h.svc.AdjustStock(r.Context(), variantID, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variant)
+}
+
 func (h *ProductHandler) listImages(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	images, err := h.svc.ListImages(r.Context(), id)
@@ -146,4 +196,41 @@ func (h *ProductHandler) addImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, image)
+}
+
+func (h *ProductHandler) updateImage(w http.ResponseWriter, r *http.Request) {
+	imageID := chi.URLParam(r, "imageID")
+	var req UpdateImageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	image, err := h.svc.UpdateImage(r.Context(), imageID, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, image)
+}
+
+func (h *ProductHandler) deleteImage(w http.ResponseWriter, r *http.Request) {
+	imageID := chi.URLParam(r, "imageID")
+	if err := h.svc.DeleteImage(r.Context(), imageID); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) lowStock(w http.ResponseWriter, r *http.Request) {
+	threshold, _ := strconv.Atoi(r.URL.Query().Get("threshold"))
+	if threshold <= 0 {
+		threshold = 5
+	}
+	variants, err := h.svc.LowStock(r.Context(), threshold)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variants)
 }

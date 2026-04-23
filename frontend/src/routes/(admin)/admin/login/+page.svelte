@@ -21,12 +21,21 @@
       {/if}
 
       <div class="flex flex-col gap-1.5">
+        <label for="email" class="text-sm font-medium text-gray-700">Email</label>
+        <input id="email" name="email" type="email" required autocomplete="email"
+               class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
+                      placeholder:text-gray-300"
+               placeholder="admin@example.com" />
+      </div>
+
+      <div class="flex flex-col gap-1.5">
         <label for="password" class="text-sm font-medium text-gray-700">Password</label>
         <input id="password" name="password" type="password" required autocomplete="current-password"
                class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm
                       focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
                       placeholder:text-gray-300"
-               placeholder="Enter admin password" />
+               placeholder="••••••••" />
       </div>
 
       <button type="submit" disabled={loading}

@@ -5,10 +5,11 @@ import type { Actions } from './$types';
 export const actions: Actions = {
   default: async ({ request, cookies }) => {
     const form = await request.formData();
+    const email = form.get('email')?.toString() ?? '';
     const password = form.get('password')?.toString() ?? '';
 
     try {
-      const token = await adminLogin(password);
+      const token = await adminLogin(email, password);
       cookies.set('admin_token', token, {
         path: '/',
         httpOnly: true,
@@ -16,7 +17,7 @@ export const actions: Actions = {
         maxAge: 60 * 60 * 24
       });
     } catch {
-      return fail(401, { error: 'Invalid password' });
+      return fail(401, { error: 'Invalid email or password' });
     }
 
     throw redirect(303, '/admin/dashboard');
