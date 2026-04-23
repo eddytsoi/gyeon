@@ -28,10 +28,10 @@
 ## 🔲 Backend
 
 ### eShop
-- [ ] Pricing rules (discount campaigns, coupon codes) — `compare_at_price` already supported on variants
+- [x] Pricing rules (discount campaigns, coupon codes) — `compare_at_price` already supported on variants
 
 ### Localization
-- [ ] i18n support for content (CMS pages, products)
+- [x] i18n support for content (CMS pages, posts, products)
 
 ---
 
@@ -47,7 +47,7 @@
 
 ### Storefront
 - [ ] Checkout page & flow
-- [ ] Customer account pages (register, login, profile, order history)
+- [x] Customer account pages (register, login, profile, addresses, order history)
 - [ ] Localization / language switcher
 
 ---

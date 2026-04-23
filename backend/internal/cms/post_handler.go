@@ -18,7 +18,7 @@ func NewPostHandler(svc *PostService) *PostHandler {
 	return &PostHandler{svc: svc}
 }
 
-// AdminRoutes returns routes protected behind admin middleware (full CRUD).
+// AdminRoutes returns routes protected behind admin middleware (full CRUD + translation management).
 func (h *PostHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
@@ -26,6 +26,10 @@ func (h *PostHandler) AdminRoutes() chi.Router {
 	r.Get("/{id}", h.getByID)
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+
+	r.Get("/{id}/translations", h.listTranslations)
+	r.Put("/{id}/translations/{locale}", h.upsertTranslation)
+	r.Delete("/{id}/translations/{locale}", h.deleteTranslation)
 	return r
 }
 
@@ -39,7 +43,7 @@ func (h *PostHandler) PublicRoutes() chi.Router {
 
 func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pagination(r)
-	posts, err := h.svc.List(r.Context(), limit, offset)
+	posts, err := h.svc.List(r.Context(), r.URL.Query().Get("lang"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -49,7 +53,7 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *PostHandler) listPublished(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pagination(r)
-	posts, err := h.svc.ListPublished(r.Context(), limit, offset)
+	posts, err := h.svc.ListPublished(r.Context(), r.URL.Query().Get("lang"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -59,7 +63,7 @@ func (h *PostHandler) listPublished(w http.ResponseWriter, r *http.Request) {
 
 func (h *PostHandler) getByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	post, err := h.svc.GetByID(r.Context(), id)
+	post, err := h.svc.GetByID(r.Context(), id, r.URL.Query().Get("lang"))
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
 		return
@@ -73,7 +77,7 @@ func (h *PostHandler) getByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *PostHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	post, err := h.svc.GetBySlug(r.Context(), slug)
+	post, err := h.svc.GetBySlug(r.Context(), slug, r.URL.Query().Get("lang"))
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
 		return
@@ -121,6 +125,46 @@ func (h *PostHandler) update(w http.ResponseWriter, r *http.Request) {
 func (h *PostHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.svc.Delete(r.Context(), id); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *PostHandler) listTranslations(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	translations, err := h.svc.ListTranslations(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, translations)
+}
+
+func (h *PostHandler) upsertTranslation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	locale := chi.URLParam(r, "locale")
+	var req UpsertPostTranslationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	t, err := h.svc.UpsertTranslation(r.Context(), id, locale, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, t)
+}
+
+func (h *PostHandler) deleteTranslation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	locale := chi.URLParam(r, "locale")
+	if err := h.svc.DeleteTranslation(r.Context(), id, locale); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			respond.NotFound(w)
+			return
+		}
 		respond.InternalError(w)
 		return
 	}

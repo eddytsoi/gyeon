@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"gyeon/backend/internal/pricing"
 )
 
 type OrderStatus string
@@ -51,6 +53,7 @@ type CheckoutRequest struct {
 	CustomerID        *string `json:"customer_id"`
 	ShippingAddressID *string `json:"shipping_address_id"`
 	ShippingFee       float64 `json:"shipping_fee"`
+	CouponCode        *string `json:"coupon_code"`
 	Notes             *string `json:"notes"`
 }
 
@@ -74,12 +77,13 @@ var allowedTransitions = map[OrderStatus][]OrderStatus{
 }
 
 type OrderService struct {
-	db      *sql.DB
-	cartSvc *CartService
+	db         *sql.DB
+	cartSvc    *CartService
+	pricingSvc *pricing.Service
 }
 
-func NewOrderService(db *sql.DB, cartSvc *CartService) *OrderService {
-	return &OrderService{db: db, cartSvc: cartSvc}
+func NewOrderService(db *sql.DB, cartSvc *CartService, pricingSvc *pricing.Service) *OrderService {
+	return &OrderService{db: db, cartSvc: cartSvc, pricingSvc: pricingSvc}
 }
 
 func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Order, error) {
@@ -91,15 +95,11 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Orde
 		return nil, ErrEmptyCart
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	// Fetch variant prices and decrement stock atomically
+	// Fetch variant prices, product/category info, and decrement stock atomically
 	type lineItem struct {
 		variantID   string
+		productID   string
+		categoryID  *string
 		productName string
 		sku         string
 		price       float64
@@ -109,44 +109,81 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Orde
 	var lines []lineItem
 	var subtotal float64
 
+	// Collect pre-checkout info (outside the transaction so we can compute discounts first)
 	for _, item := range cart.Items {
 		var li lineItem
 		li.variantID = item.VariantID
 		li.quantity = item.Quantity
 
-		err := tx.QueryRowContext(ctx,
-			`UPDATE product_variants
-			 SET stock_qty = stock_qty - $2
-			 WHERE id = $1 AND stock_qty >= $2
-			 RETURNING sku, price`,
-			item.VariantID, item.Quantity).
-			Scan(&li.sku, &li.price)
+		err := s.db.QueryRowContext(ctx,
+			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name
+			 FROM product_variants pv
+			 JOIN products p ON p.id = pv.product_id
+			 WHERE pv.id = $1`, item.VariantID).
+			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName)
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("insufficient stock for variant %s", item.VariantID)
+			return nil, fmt.Errorf("variant %s not found", item.VariantID)
 		}
 		if err != nil {
 			return nil, err
 		}
 
-		// fetch product name
-		tx.QueryRowContext(ctx,
-			`SELECT p.name FROM products p
-			 JOIN product_variants v ON v.product_id = p.id
-			 WHERE v.id = $1`, item.VariantID).Scan(&li.productName)
-
 		subtotal += li.price * float64(li.quantity)
 		lines = append(lines, li)
 	}
 
-	total := subtotal + req.ShippingFee
+	// Compute discounts (campaigns + coupon) before opening the transaction
+	var discountResult pricing.DiscountResult
+	if s.pricingSvc != nil {
+		pricingItems := make([]pricing.LineItem, len(lines))
+		for i, li := range lines {
+			pricingItems[i] = pricing.LineItem{
+				VariantID:  li.variantID,
+				ProductID:  li.productID,
+				CategoryID: li.categoryID,
+				Price:      li.price,
+				Quantity:   li.quantity,
+			}
+		}
+		discountResult, err = s.pricingSvc.ComputeDiscount(ctx, pricingItems, subtotal, req.CouponCode)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	discountAmount := discountResult.TotalDiscount
+	total := subtotal - discountAmount + req.ShippingFee
+	if total < 0 {
+		total = 0
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Decrement stock atomically inside the transaction
+	for _, item := range cart.Items {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE product_variants SET stock_qty = stock_qty - $2
+			 WHERE id = $1 AND stock_qty >= $2`,
+			item.VariantID, item.Quantity)
+		if err != nil {
+			return nil, err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, fmt.Errorf("insufficient stock for variant %s", item.VariantID)
+		}
+	}
 
 	// Create order
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, total, notes)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes, created_at, updated_at`,
-		req.CustomerID, req.ShippingAddressID, subtotal, req.ShippingFee, total, req.Notes).
+		req.CustomerID, req.ShippingAddressID, subtotal, req.ShippingFee, discountAmount, total, req.Notes).
 		Scan(&order.ID, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CreatedAt, &order.UpdatedAt)
@@ -174,6 +211,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Orde
 	// Record initial status in history
 	tx.ExecContext(ctx,
 		`INSERT INTO order_status_history (order_id, status) VALUES ($1, $2)`, order.ID, StatusPending)
+
+	// Increment coupon usage if one was applied
+	if discountResult.CouponID != nil {
+		if err := pricing.IncrementCouponUsage(ctx, tx, *discountResult.CouponID); err != nil {
+			return nil, err
+		}
+	}
 
 	// Clear cart
 	tx.ExecContext(ctx, `DELETE FROM cart_items WHERE cart_id = $1`, req.CartID)
