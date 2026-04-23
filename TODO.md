@@ -3,16 +3,22 @@
 ## ✅ Completed
 
 ### Backend
-- Auth (JWT, middleware, login handler)
+- Auth (JWT, middleware, login handler) + multi-user admin auth with roles
 - CMS: pages, posts, post categories, navigation
-- eShop: products, product categories
-- Orders: cart, order management
-- Admin stats handler
-- DB migrations: eshop, orders, cms, navigation
+- eShop: products, product categories, variants (full CRUD + stock adjust), images (full CRUD)
+- Orders: cart, checkout, order management, fulfillment, cancellation
+- Customers: registration, login, profile, addresses, purchase history
+- Admin: stats, user management (roles: super_admin/admin/editor)
+- Site settings API (key-value store)
+- Media library: file upload + management
+- DB migrations: eshop, orders, cms, navigation, customer auth, settings/media, admin users
 - SQL queries: products, categories, variants, product images, cms pages/posts
 
 ### Frontend (SvelteKit)
-- Admin: dashboard, login/logout, products list, orders list/detail
+- Admin: dashboard, login/logout (email+password), products list+create/edit, orders list/detail
+- Admin: product variants management (add/edit/delete/stock adjust), product images management
+- Admin: customer management (list + detail with order history)
+- Admin: site settings page, admin users (roles & permissions)
 - Admin CMS: pages, posts, post categories, navigation
 - Storefront: home, blog, blog post, products, product detail, cart, static pages
 - Docker Compose setup
@@ -22,28 +28,7 @@
 ## 🔲 Backend
 
 ### eShop
-- [ ] Product variants handler (`/backend/internal/shop/`) — queries already exist
-- [ ] Product images handler — queries already exist
-- [ ] Inventory management (stock tracking, low stock alerts)
-- [ ] Pricing rules (discounts, sale price)
-
-### Orders
-- [ ] Checkout handler (place order from cart)
-- [ ] Order fulfillment (status transitions: pending → processing → shipped → delivered)
-- [ ] Order cancellation
-
-### Customers
-- [ ] Customer registration & login
-- [ ] Customer profile (addresses, account info)
-- [ ] Purchase history API
-
-### Admin
-- [ ] User roles & permissions system
-- [ ] Site settings API
-
-### Media
-- [ ] File/image upload endpoint
-- [ ] Media library management
+- [ ] Pricing rules (discount campaigns, coupon codes) — `compare_at_price` already supported on variants
 
 ### Localization
 - [ ] i18n support for content (CMS pages, products)
@@ -53,12 +38,12 @@
 ## 🔲 Frontend
 
 ### Admin
-- [ ] Product create/edit page (only list page exists)
-- [ ] Product variants management UI
-- [ ] Product images management UI
-- [ ] Customer management pages
-- [ ] Admin settings page
-- [ ] User roles & permissions UI
+- [x] Product create/edit page
+- [x] Product variants management UI (add/edit/delete/stock adjust)
+- [x] Product images management UI (add/set primary/delete)
+- [x] Customer management pages (list + detail with order history)
+- [x] Admin settings page
+- [x] User roles & permissions UI (create/edit/delete admin users with roles)
 
 ### Storefront
 - [ ] Checkout page & flow
