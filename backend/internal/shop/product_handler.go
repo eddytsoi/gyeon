@@ -32,6 +32,9 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 
+	// Single variant by ID (used by checkout for pricing)
+	r.Get("/variants/{variantID}", h.getVariantByID)
+
 	// Variant sub-routes
 	r.Get("/{id}/variants", h.listVariants)
 	r.Post("/{id}/variants", h.createVariant)
@@ -113,6 +116,16 @@ func (h *ProductHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) getVariantByID(w http.ResponseWriter, r *http.Request) {
+	variantID := chi.URLParam(r, "variantID")
+	variant, err := h.svc.GetVariantByID(r.Context(), variantID)
+	if err != nil {
+		respond.NotFound(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variant)
 }
 
 func (h *ProductHandler) listVariants(w http.ResponseWriter, r *http.Request) {

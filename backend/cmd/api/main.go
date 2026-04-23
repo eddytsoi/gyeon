@@ -119,11 +119,8 @@ func main() {
 		// Public coupon validation
 		r.Mount("/pricing", pricingHandler.PublicRoutes())
 
-		// Customer auth (public)
-		r.Mount("/customers", customerHandler.PublicRoutes())
-
-		// Customer authenticated routes
-		r.Mount("/customers", customerHandler.AuthenticatedRoutes())
+		// Customer routes (public + authenticated)
+		r.Mount("/customers", customerHandler.Routes())
 
 		// Admin auth (now uses admin_users table)
 		r.Post("/admin/login", adminUserHandler.Login)

@@ -1,29 +1,5 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { checkout } from '$lib/api';
-  import { goto } from '$app/navigation';
-
-  let placing = $state(false);
-  let error = $state('');
-
-  const subtotal = $derived(
-    cartStore.cart?.items.reduce((sum) => sum, 0) ?? 0
-  );
-
-  async function handleCheckout() {
-    if (!cartStore.cart || cartStore.cart.items.length === 0) return;
-    placing = true;
-    error = '';
-    try {
-      const order = await checkout(cartStore.cart.id);
-      await cartStore.init();
-      goto(`/orders/${order.id}`);
-    } catch (e) {
-      error = e instanceof Error ? e.message : 'Checkout failed. Please try again.';
-    } finally {
-      placing = false;
-    }
-  }
 </script>
 
 <svelte:head>
@@ -102,17 +78,12 @@
             <span>—</span>
           </div>
 
-          {#if error}
-            <p class="text-xs text-red-500">{error}</p>
-          {/if}
-
-          <button
-            onclick={handleCheckout}
-            disabled={placing}
+          <a
+            href="/checkout"
             class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
-                   hover:bg-gray-700 transition-colors disabled:opacity-50">
-            {placing ? 'Placing order…' : 'Checkout'}
-          </button>
+                   hover:bg-gray-700 transition-colors text-center block">
+            Checkout
+          </a>
 
           <a href="/products" class="text-center text-sm text-gray-400 hover:text-gray-700 transition-colors">
             ← Continue Shopping

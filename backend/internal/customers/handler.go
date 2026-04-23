@@ -20,27 +20,29 @@ func NewHandler(svc *Service, jwtSecret string) *Handler {
 	return &Handler{svc: svc, jwtSecret: jwtSecret}
 }
 
-// PublicRoutes — register + login (no auth required)
-func (h *Handler) PublicRoutes() chi.Router {
+// Routes combines public and authenticated customer routes under one router.
+func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/register", h.register)
 	r.Post("/login", h.login)
+	r.Group(func(r chi.Router) {
+		r.Use(auth.CustomerMiddleware(h.jwtSecret))
+		r.Get("/me", h.getProfile)
+		r.Put("/me", h.updateProfile)
+		r.Get("/me/addresses", h.listAddresses)
+		r.Post("/me/addresses", h.createAddress)
+		r.Put("/me/addresses/{addressID}", h.updateAddress)
+		r.Delete("/me/addresses/{addressID}", h.deleteAddress)
+		r.Get("/me/orders", h.listOrders)
+	})
 	return r
 }
 
-// AuthenticatedRoutes — profile, addresses, orders (customer JWT required)
-func (h *Handler) AuthenticatedRoutes() chi.Router {
-	r := chi.NewRouter()
-	r.Use(auth.CustomerMiddleware(h.jwtSecret))
-	r.Get("/me", h.getProfile)
-	r.Put("/me", h.updateProfile)
-	r.Get("/me/addresses", h.listAddresses)
-	r.Post("/me/addresses", h.createAddress)
-	r.Put("/me/addresses/{addressID}", h.updateAddress)
-	r.Delete("/me/addresses/{addressID}", h.deleteAddress)
-	r.Get("/me/orders", h.listOrders)
-	return r
-}
+// PublicRoutes — kept for compatibility; delegates to Routes.
+func (h *Handler) PublicRoutes() chi.Router { return h.Routes() }
+
+// AuthenticatedRoutes — kept for compatibility; routes are embedded in Routes.
+func (h *Handler) AuthenticatedRoutes() chi.Router { return chi.NewRouter() }
 
 // AdminRoutes — list all customers (admin JWT required, mounted separately)
 func (h *Handler) AdminRoutes() chi.Router {

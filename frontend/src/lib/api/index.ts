@@ -19,6 +19,7 @@ export const getProducts = (limit = 20, offset = 0) =>
   request<Product[]>(`/products?limit=${limit}&offset=${offset}`);
 export const getProductByID = (id: string) => request<Product>(`/products/${id}`);
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
+export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);
 export const getProductImages = (id: string) => request<ProductImage[]>(`/products/${id}/images`);
 
 export const getOrCreateCart = (sessionToken: string, customerID?: string) =>
@@ -40,11 +41,33 @@ export const updateCartItem = (cartID: string, itemID: string, quantity: number)
 export const removeCartItem = (cartID: string, itemID: string) =>
   fetch(`${base()}/cart/${cartID}/items/${itemID}`, { method: 'DELETE' });
 
-export const checkout = (cartID: string, shippingAddressID?: string, notes?: string) =>
+export const checkout = (
+  cartID: string,
+  options?: {
+    customerID?: string;
+    shippingAddressID?: string;
+    shippingFee?: number;
+    couponCode?: string;
+    notes?: string;
+  }
+) =>
   request<Order>('/orders/checkout', {
     method: 'POST',
-    body: JSON.stringify({ cart_id: cartID, shipping_address_id: shippingAddressID, notes })
+    body: JSON.stringify({
+      cart_id: cartID,
+      customer_id: options?.customerID ?? null,
+      shipping_address_id: options?.shippingAddressID ?? null,
+      shipping_fee: options?.shippingFee ?? 0,
+      coupon_code: options?.couponCode ?? null,
+      notes: options?.notes ?? null
+    })
   });
+
+export const validateCoupon = (code: string, subtotal: number) =>
+  request<{ valid: boolean; discount_type?: string; discount_value?: number; discount_amount?: number; message?: string }>(
+    '/pricing/validate-coupon',
+    { method: 'POST', body: JSON.stringify({ code, subtotal }) }
+  );
 
 // CMS public API
 export const getBlogPosts = (limit = 20, offset = 0) =>

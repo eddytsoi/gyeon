@@ -90,7 +90,7 @@
 - [x] Blog post detail
 - [x] Static CMS pages
 - [x] Shopping cart
-- [ ] Checkout page & flow
+- [x] Checkout page & flow
 - [x] Customer account: register, login, logout
 - [x] Customer account: profile
 - [x] Customer account: addresses (list / add / edit)

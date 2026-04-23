@@ -209,6 +209,19 @@ func (s *ProductService) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (*Variant, error) {
+	var v Variant
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, product_id, sku, price, compare_at_price, stock_qty, is_active, created_at, updated_at
+		 FROM product_variants WHERE id = $1`, variantID).
+		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Price, &v.CompareAtPrice,
+			&v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
 func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]Variant, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, product_id, sku, price, compare_at_price, stock_qty, is_active, created_at, updated_at
