@@ -18,6 +18,22 @@ type Page struct {
 	UpdatedAt   string  `json:"updated_at"`
 }
 
+type PageTranslation struct {
+	Locale    string  `json:"locale"`
+	Title     string  `json:"title"`
+	Content   string  `json:"content"`
+	MetaTitle *string `json:"meta_title,omitempty"`
+	MetaDesc  *string `json:"meta_desc,omitempty"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
+type UpsertPageTranslationRequest struct {
+	Title     string  `json:"title"`
+	Content   string  `json:"content"`
+	MetaTitle *string `json:"meta_title"`
+	MetaDesc  *string `json:"meta_desc"`
+}
+
 type CreatePageRequest struct {
 	Slug        string  `json:"slug"`
 	Title       string  `json:"title"`
@@ -36,19 +52,39 @@ type PageService struct{ db *sql.DB }
 
 func NewPageService(db *sql.DB) *PageService { return &PageService{db: db} }
 
-func (s *PageService) List(ctx context.Context) ([]Page, error) {
+// localeJoin returns a LEFT JOIN clause that overlays translations for the given locale.
+// Passing an empty locale makes the JOIN never match, so base columns are returned as-is.
+const pageTranslationJoin = `
+	LEFT JOIN cms_page_translations t ON t.page_id = p.id AND t.locale = $1`
+
+const pageSelect = `
+	SELECT p.id, p.slug,
+	       COALESCE(t.title,     p.title)     AS title,
+	       COALESCE(t.content,   p.content)   AS content,
+	       COALESCE(t.meta_title, p.meta_title) AS meta_title,
+	       COALESCE(t.meta_desc,  p.meta_desc)  AS meta_desc,
+	       p.is_published, p.created_at, p.updated_at
+	FROM cms_pages p` + pageTranslationJoin
+
+func scanPage(row interface{ Scan(...any) error }) (Page, error) {
+	var p Page
+	err := row.Scan(&p.ID, &p.Slug, &p.Title, &p.Content,
+		&p.MetaTitle, &p.MetaDesc, &p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+	return p, err
+}
+
+// List returns all pages. locale may be empty for base content.
+func (s *PageService) List(ctx context.Context, locale string) ([]Page, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at
-		 FROM cms_pages ORDER BY created_at DESC`)
+		pageSelect+` ORDER BY p.created_at DESC`, locale)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	pages := make([]Page, 0)
 	for rows.Next() {
-		var p Page
-		if err := rows.Scan(&p.ID, &p.Slug, &p.Title, &p.Content,
-			&p.MetaTitle, &p.MetaDesc, &p.IsPublished, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		p, err := scanPage(rows)
+		if err != nil {
 			return nil, err
 		}
 		pages = append(pages, p)
@@ -56,30 +92,30 @@ func (s *PageService) List(ctx context.Context) ([]Page, error) {
 	return pages, rows.Err()
 }
 
-func (s *PageService) GetBySlug(ctx context.Context, slug string) (*Page, error) {
-	var p Page
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at
-		 FROM cms_pages WHERE slug = $1 AND is_published = TRUE`, slug).
-		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
-			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+// GetBySlug fetches a published page; locale may be empty for base content.
+func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page, error) {
+	p, err := scanPage(s.db.QueryRowContext(ctx,
+		pageSelect+` WHERE p.slug = $2 AND p.is_published = TRUE`, locale, slug))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
-func (s *PageService) GetByID(ctx context.Context, id string) (*Page, error) {
-	var p Page
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at
-		 FROM cms_pages WHERE id = $1`, id).
-		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
-			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+// GetByID fetches any page by ID; locale may be empty for base content.
+func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, error) {
+	p, err := scanPage(s.db.QueryRowContext(ctx,
+		pageSelect+` WHERE p.id = $2`, locale, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 func (s *PageService) Create(ctx context.Context, req CreatePageRequest) (*Page, error) {
@@ -109,4 +145,50 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 func (s *PageService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_pages WHERE id = $1`, id)
 	return err
+}
+
+// --- Translation management ---
+
+func (s *PageService) ListTranslations(ctx context.Context, pageID string) ([]PageTranslation, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT locale, title, content, meta_title, meta_desc, updated_at
+		 FROM cms_page_translations WHERE page_id = $1 ORDER BY locale`, pageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]PageTranslation, 0)
+	for rows.Next() {
+		var t PageTranslation
+		if err := rows.Scan(&t.Locale, &t.Title, &t.Content, &t.MetaTitle, &t.MetaDesc, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *PageService) UpsertTranslation(ctx context.Context, pageID, locale string, req UpsertPageTranslationRequest) (*PageTranslation, error) {
+	var t PageTranslation
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO cms_page_translations (page_id, locale, title, content, meta_title, meta_desc)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (page_id, locale) DO UPDATE
+		   SET title=$3, content=$4, meta_title=$5, meta_desc=$6, updated_at=NOW()
+		 RETURNING locale, title, content, meta_title, meta_desc, updated_at`,
+		pageID, locale, req.Title, req.Content, req.MetaTitle, req.MetaDesc).
+		Scan(&t.Locale, &t.Title, &t.Content, &t.MetaTitle, &t.MetaDesc, &t.UpdatedAt)
+	return &t, err
+}
+
+func (s *PageService) DeleteTranslation(ctx context.Context, pageID, locale string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM cms_page_translations WHERE page_id = $1 AND locale = $2`, pageID, locale)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

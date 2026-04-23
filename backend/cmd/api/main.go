@@ -15,6 +15,7 @@ import (
 	"gyeon/backend/internal/db"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
+	"gyeon/backend/internal/pricing"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shop"
 )
@@ -44,7 +45,8 @@ func main() {
 	categorySvc := shop.NewCategoryService(conn)
 	productSvc := shop.NewProductService(conn)
 	cartSvc := orders.NewCartService(conn)
-	orderSvc := orders.NewOrderService(conn, cartSvc)
+	pricingSvc := pricing.NewService(conn)
+	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc)
 	pageSvc := cms.NewPageService(conn)
 	postSvc := cms.NewPostService(conn)
 	postCatSvc := cms.NewPostCategoryService(conn)
@@ -59,6 +61,7 @@ func main() {
 	}
 
 	// Handlers
+	pricingHandler := pricing.NewHandler(pricingSvc)
 	statsHandler := admin.NewStatsHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
@@ -113,6 +116,9 @@ func main() {
 		// Public settings (storefront config)
 		r.Mount("/settings", settingsHandler.PublicRoutes())
 
+		// Public coupon validation
+		r.Mount("/pricing", pricingHandler.PublicRoutes())
+
 		// Customer auth (public)
 		r.Mount("/customers", customerHandler.PublicRoutes())
 
@@ -148,6 +154,9 @@ func main() {
 
 			// Admin user management
 			r.Mount("/admin/users", adminUserHandler.AdminRoutes())
+
+			// Pricing: campaigns and coupons
+			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
 		})
 	})
 

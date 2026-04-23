@@ -20,6 +20,20 @@ type Post struct {
 	UpdatedAt     string  `json:"updated_at"`
 }
 
+type PostTranslation struct {
+	Locale    string  `json:"locale"`
+	Title     string  `json:"title"`
+	Excerpt   *string `json:"excerpt,omitempty"`
+	Content   string  `json:"content"`
+	UpdatedAt string  `json:"updated_at"`
+}
+
+type UpsertPostTranslationRequest struct {
+	Title   string  `json:"title"`
+	Excerpt *string `json:"excerpt"`
+	Content string  `json:"content"`
+}
+
 type CreatePostRequest struct {
 	CategoryID    *string `json:"category_id"`
 	Slug          string  `json:"slug"`
@@ -37,21 +51,36 @@ type PostService struct{ db *sql.DB }
 
 func NewPostService(db *sql.DB) *PostService { return &PostService{db: db} }
 
-func (s *PostService) List(ctx context.Context, limit, offset int) ([]Post, error) {
+const postTranslationJoin = `
+	LEFT JOIN cms_post_translations t ON t.post_id = p.id AND t.locale = $1`
+
+const postSelect = `
+	SELECT p.id, p.category_id, p.slug,
+	       COALESCE(t.title,   p.title)   AS title,
+	       COALESCE(t.excerpt, p.excerpt) AS excerpt,
+	       COALESCE(t.content, p.content) AS content,
+	       p.cover_image_url, p.is_published, p.published_at, p.created_at, p.updated_at
+	FROM cms_posts p` + postTranslationJoin
+
+func scanPost(row interface{ Scan(...any) error }) (Post, error) {
+	var p Post
+	err := row.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
+		&p.Content, &p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+	return p, err
+}
+
+// List returns all posts (admin). locale may be empty for base content.
+func (s *PostService) List(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, category_id, slug, title, excerpt, content, cover_image_url,
-		        is_published, published_at, created_at, updated_at
-		 FROM cms_posts ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+		postSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, locale, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	posts := make([]Post, 0)
 	for rows.Next() {
-		var p Post
-		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
-			&p.Content, &p.CoverImageURL, &p.IsPublished, &p.PublishedAt,
-			&p.CreatedAt, &p.UpdatedAt); err != nil {
+		p, err := scanPost(rows)
+		if err != nil {
 			return nil, err
 		}
 		posts = append(posts, p)
@@ -59,22 +88,19 @@ func (s *PostService) List(ctx context.Context, limit, offset int) ([]Post, erro
 	return posts, rows.Err()
 }
 
-func (s *PostService) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
+// ListPublished returns published posts for the storefront. locale may be empty.
+func (s *PostService) ListPublished(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, category_id, slug, title, excerpt, content, cover_image_url,
-		        is_published, published_at, created_at, updated_at
-		 FROM cms_posts WHERE is_published = TRUE
-		 ORDER BY published_at DESC NULLS LAST LIMIT $1 OFFSET $2`, limit, offset)
+		postSelect+` WHERE p.is_published = TRUE ORDER BY p.published_at DESC NULLS LAST LIMIT $2 OFFSET $3`,
+		locale, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	posts := make([]Post, 0)
 	for rows.Next() {
-		var p Post
-		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
-			&p.Content, &p.CoverImageURL, &p.IsPublished, &p.PublishedAt,
-			&p.CreatedAt, &p.UpdatedAt); err != nil {
+		p, err := scanPost(rows)
+		if err != nil {
 			return nil, err
 		}
 		posts = append(posts, p)
@@ -82,32 +108,30 @@ func (s *PostService) ListPublished(ctx context.Context, limit, offset int) ([]P
 	return posts, rows.Err()
 }
 
-func (s *PostService) GetByID(ctx context.Context, id string) (*Post, error) {
-	var p Post
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, category_id, slug, title, excerpt, content, cover_image_url,
-		        is_published, published_at, created_at, updated_at
-		 FROM cms_posts WHERE id = $1`, id).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt, &p.Content,
-			&p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+// GetByID fetches any post. locale may be empty for base content.
+func (s *PostService) GetByID(ctx context.Context, id, locale string) (*Post, error) {
+	p, err := scanPost(s.db.QueryRowContext(ctx,
+		postSelect+` WHERE p.id = $2`, locale, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
-func (s *PostService) GetBySlug(ctx context.Context, slug string) (*Post, error) {
-	var p Post
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, category_id, slug, title, excerpt, content, cover_image_url,
-		        is_published, published_at, created_at, updated_at
-		 FROM cms_posts WHERE slug = $1 AND is_published = TRUE`, slug).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt, &p.Content,
-			&p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+// GetBySlug fetches a published post. locale may be empty for base content.
+func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post, error) {
+	p, err := scanPost(s.db.QueryRowContext(ctx,
+		postSelect+` WHERE p.slug = $2 AND p.is_published = TRUE`, locale, slug))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post, error) {
@@ -145,4 +169,50 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 func (s *PostService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_posts WHERE id = $1`, id)
 	return err
+}
+
+// --- Translation management ---
+
+func (s *PostService) ListTranslations(ctx context.Context, postID string) ([]PostTranslation, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT locale, title, excerpt, content, updated_at
+		 FROM cms_post_translations WHERE post_id = $1 ORDER BY locale`, postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]PostTranslation, 0)
+	for rows.Next() {
+		var t PostTranslation
+		if err := rows.Scan(&t.Locale, &t.Title, &t.Excerpt, &t.Content, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *PostService) UpsertTranslation(ctx context.Context, postID, locale string, req UpsertPostTranslationRequest) (*PostTranslation, error) {
+	var t PostTranslation
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO cms_post_translations (post_id, locale, title, excerpt, content)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (post_id, locale) DO UPDATE
+		   SET title=$3, excerpt=$4, content=$5, updated_at=NOW()
+		 RETURNING locale, title, excerpt, content, updated_at`,
+		postID, locale, req.Title, req.Excerpt, req.Content).
+		Scan(&t.Locale, &t.Title, &t.Excerpt, &t.Content, &t.UpdatedAt)
+	return &t, err
+}
+
+func (s *PostService) DeleteTranslation(ctx context.Context, postID, locale string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM cms_post_translations WHERE post_id = $1 AND locale = $2`, postID, locale)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

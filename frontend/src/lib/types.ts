@@ -112,6 +112,33 @@ export interface NavMenu {
   updated_at: string;
 }
 
+export interface Customer {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Address {
+  id: string;
+  customer_id?: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postal_code: string;
+  country: string;
+  is_default: boolean;
+  created_at: string;
+}
+
 export interface CmsPost {
   id: string;
   category_id?: string;

@@ -16,6 +16,18 @@ type Product struct {
 	UpdatedAt   string  `json:"updated_at"`
 }
 
+type ProductTranslation struct {
+	Locale      string  `json:"locale"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	UpdatedAt   string  `json:"updated_at"`
+}
+
+type UpsertProductTranslationRequest struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
 type Variant struct {
 	ID             string   `json:"id"`
 	ProductID      string   `json:"product_id"`
@@ -85,6 +97,25 @@ type AddImageRequest struct {
 	IsPrimary bool    `json:"is_primary"`
 }
 
+// productSelect LEFT JOINs translations so name/description fall back to base when no translation exists.
+// $1 = locale (empty string → JOIN never matches → base content returned).
+const productTranslationJoin = `
+	LEFT JOIN product_translations t ON t.product_id = p.id AND t.locale = $1`
+
+const productSelect = `
+	SELECT p.id, p.category_id, p.slug,
+	       COALESCE(t.name,        p.name)        AS name,
+	       COALESCE(t.description, p.description) AS description,
+	       p.is_active, p.created_at, p.updated_at
+	FROM products p` + productTranslationJoin
+
+func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
+	var p Product
+	err := row.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name,
+		&p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
+	return p, err
+}
+
 type ProductService struct {
 	db *sql.DB
 }
@@ -93,11 +124,11 @@ func NewProductService(db *sql.DB) *ProductService {
 	return &ProductService{db: db}
 }
 
-func (s *ProductService) List(ctx context.Context, limit, offset int) ([]Product, error) {
+// List returns active products. locale may be empty for base content.
+func (s *ProductService) List(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, category_id, slug, name, description, is_active, created_at, updated_at
-		 FROM products WHERE is_active = TRUE ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-		limit, offset)
+		productSelect+` WHERE p.is_active = TRUE ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		locale, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +136,8 @@ func (s *ProductService) List(ctx context.Context, limit, offset int) ([]Product
 
 	products := make([]Product, 0)
 	for rows.Next() {
-		var p Product
-		if err := rows.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name,
-			&p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		p, err := scanProduct(rows)
+		if err != nil {
 			return nil, err
 		}
 		products = append(products, p)
@@ -115,12 +145,31 @@ func (s *ProductService) List(ctx context.Context, limit, offset int) ([]Product
 	return products, rows.Err()
 }
 
-func (s *ProductService) GetByID(ctx context.Context, id string) (*Product, error) {
-	var p Product
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, category_id, slug, name, description, is_active, created_at, updated_at
-		 FROM products WHERE id = $1`, id).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
+// ListAll returns all products regardless of is_active (admin). locale may be empty.
+func (s *ProductService) ListAll(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
+	rows, err := s.db.QueryContext(ctx,
+		productSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		locale, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]Product, 0)
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+	return products, rows.Err()
+}
+
+// GetByID fetches a product by ID. locale may be empty for base content.
+func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Product, error) {
+	p, err := scanProduct(s.db.QueryRowContext(ctx,
+		productSelect+` WHERE p.id = $2`, locale, id))
 	if err != nil {
 		return nil, err
 	}
@@ -308,3 +357,51 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 	}
 	return &img, nil
 }
+
+// --- Translation management ---
+
+func (s *ProductService) ListTranslations(ctx context.Context, productID string) ([]ProductTranslation, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT locale, name, description, updated_at
+		 FROM product_translations WHERE product_id = $1 ORDER BY locale`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ProductTranslation, 0)
+	for rows.Next() {
+		var t ProductTranslation
+		if err := rows.Scan(&t.Locale, &t.Name, &t.Description, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *ProductService) UpsertTranslation(ctx context.Context, productID, locale string, req UpsertProductTranslationRequest) (*ProductTranslation, error) {
+	var t ProductTranslation
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO product_translations (product_id, locale, name, description)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (product_id, locale) DO UPDATE
+		   SET name=$3, description=$4, updated_at=NOW()
+		 RETURNING locale, name, description, updated_at`,
+		productID, locale, req.Name, req.Description).
+		Scan(&t.Locale, &t.Name, &t.Description, &t.UpdatedAt)
+	return &t, err
+}
+
+func (s *ProductService) DeleteTranslation(ctx context.Context, productID, locale string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM product_translations WHERE product_id = $1 AND locale = $2`, productID, locale)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errProductNotFound
+	}
+	return nil
+}
+
+var errProductNotFound = sql.ErrNoRows

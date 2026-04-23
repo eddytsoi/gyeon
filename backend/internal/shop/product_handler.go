@@ -2,6 +2,7 @@ package shop
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -43,6 +44,11 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Post("/{id}/images", h.addImage)
 	r.Put("/{id}/images/{imageID}", h.updateImage)
 	r.Delete("/{id}/images/{imageID}", h.deleteImage)
+
+	// Translation sub-routes (admin-only translation management + public read is via ?lang=)
+	r.Get("/{id}/translations", h.listTranslations)
+	r.Put("/{id}/translations/{locale}", h.upsertTranslation)
+	r.Delete("/{id}/translations/{locale}", h.deleteTranslation)
 	return r
 }
 
@@ -53,7 +59,7 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	products, err := h.svc.List(r.Context(), limit, offset)
+	products, err := h.svc.List(r.Context(), r.URL.Query().Get("lang"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -63,7 +69,7 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProductHandler) getByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	product, err := h.svc.GetByID(r.Context(), id)
+	product, err := h.svc.GetByID(r.Context(), id, r.URL.Query().Get("lang"))
 	if err != nil {
 		respond.NotFound(w)
 		return
@@ -233,4 +239,44 @@ func (h *ProductHandler) lowStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, variants)
+}
+
+func (h *ProductHandler) listTranslations(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	translations, err := h.svc.ListTranslations(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, translations)
+}
+
+func (h *ProductHandler) upsertTranslation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	locale := chi.URLParam(r, "locale")
+	var req UpsertProductTranslationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	t, err := h.svc.UpsertTranslation(r.Context(), id, locale, req)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, t)
+}
+
+func (h *ProductHandler) deleteTranslation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	locale := chi.URLParam(r, "locale")
+	if err := h.svc.DeleteTranslation(r.Context(), id, locale); err != nil {
+		if errors.Is(err, errProductNotFound) {
+			respond.NotFound(w)
+			return
+		}
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
