@@ -209,6 +209,12 @@ func (s *ProductService) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// DeleteAll removes every product (cascades to variants and images).
+func (s *ProductService) DeleteAll(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM products`)
+	return err
+}
+
 func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (*Variant, error) {
 	var v Variant
 	err := s.db.QueryRowContext(ctx,

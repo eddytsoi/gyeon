@@ -35,6 +35,7 @@
 ### Admin
 - [x] Dashboard stats
 - [x] Admin user management (create / edit / delete with roles)
+- [x] WooCommerce product import (connection test → real-time SSE progress → results)
 
 ### Platform
 - [x] Site settings API (key-value store)
@@ -81,6 +82,7 @@
 - [x] Navigation management
 - [x] Site settings page
 - [x] Admin user management (roles & permissions)
+- [x] WooCommerce import page (credentials form, confirm modal, SSE progress bar, skipped/failed details)
 
 ### Storefront
 - [x] Home page

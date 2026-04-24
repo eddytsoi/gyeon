@@ -13,6 +13,7 @@ import (
 	"gyeon/backend/internal/cms"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
+	"gyeon/backend/internal/importer"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/pricing"
@@ -72,6 +73,7 @@ func main() {
 	settingsHandler := settings.NewHandler(settingsSvc)
 	mediaHandler := media.NewHandler(conn, baseURL)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
+	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc))
 	adminMW := auth.Middleware(jwtSecret)
 
 	r := chi.NewRouter()
@@ -154,6 +156,10 @@ func main() {
 
 			// Pricing: campaigns and coupons
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
+
+			// WooCommerce import
+			r.Post("/admin/import/woocommerce/test", importHandler.Test)
+			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
 		})
 	})
 
