@@ -1,7 +1,9 @@
 import type { Address, Cart, CartItem, Category, CmsPage, CmsPost, Customer, NavMenu, Order, Product, ProductImage, Variant } from '$lib/types';
 
 const base = () =>
-  typeof window === 'undefined' ? 'http://localhost:8080/api/v1' : '/api/v1';
+  typeof window === 'undefined'
+    ? (process.env.API_BASE ?? 'http://localhost:8080/api/v1')
+    : '/api/v1';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}${path}`, {
