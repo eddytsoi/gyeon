@@ -17,10 +17,16 @@ export const load: PageServerLoad = async ({ params }) => {
     .filter((p) => p.id !== product.id && p.category_id === product.category_id && p.is_active)
     .slice(0, 4);
 
-  const [variants, images] = await Promise.all([
+  const [variants, images, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
-    getProductImages(product.id).catch(() => [])
+    getProductImages(product.id).catch(() => []),
+    ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
-  return { product, variants, images, category, related };
+  const relatedWithImage = related.map((p, i) => ({
+    ...p,
+    primaryImage: relatedImages[i]?.find((img) => img.is_primary) ?? relatedImages[i]?.[0] ?? null
+  }));
+
+  return { product, variants, images, category, related: relatedWithImage };
 };
