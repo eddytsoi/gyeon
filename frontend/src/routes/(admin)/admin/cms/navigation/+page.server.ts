@@ -20,7 +20,13 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
     ? await adminGetNavMenu(token, selectedID).catch(() => null)
     : null;
 
-  return { menus, selected, selectedID };
+  const sortedMenus = menus.sort((a, b) => {
+    if (a.handle === 'header') return -1;
+    if (b.handle === 'header') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return { menus: sortedMenus, selected, selectedID };
 };
 
 export const actions: Actions = {

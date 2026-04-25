@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import type { PageData } from './$types';
   import type { NavItem } from '$lib/api/admin';
 
@@ -274,7 +274,7 @@
           Cancel
         </button>
         <form method="POST" action="?/deleteItem" class="flex-1"
-              use:enhance={() => { return async ({ update }) => { await update({ invalidateAll: true }); deleteTarget = null; }; }}>
+              use:enhance={() => { return async ({ result }) => { if (result.type === 'success') await invalidateAll(); deleteTarget = null; }; }}>
           <input type="hidden" name="menu_id" value={data.selected.id} />
           <input type="hidden" name="item_id" value={deleteTarget.id} />
           <button type="submit"
