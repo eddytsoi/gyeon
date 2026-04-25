@@ -38,16 +38,16 @@ type UpdateCategoryRequest struct {
 	IsActive bool `json:"is_active"`
 }
 
-const categoryTTL = 5 * time.Minute
 const categoryPrefix = "shop:categories:"
 
 type CategoryService struct {
 	db    *sql.DB
 	cache cache.Store
+	ttl   func(context.Context) time.Duration
 }
 
-func NewCategoryService(db *sql.DB, c cache.Store) *CategoryService {
-	return &CategoryService{db: db, cache: c}
+func NewCategoryService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *CategoryService {
+	return &CategoryService{db: db, cache: c, ttl: ttl}
 }
 
 func scanCategory(row interface{ Scan(...any) error }) (Category, error) {
@@ -85,7 +85,7 @@ func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, cats, categoryTTL)
+	s.cache.Set(key, cats, s.ttl(ctx))
 	return cats, nil
 }
 
@@ -105,7 +105,7 @@ func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, er
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, c, categoryTTL)
+	s.cache.Set(key, c, s.ttl(ctx))
 	return &c, nil
 }
 

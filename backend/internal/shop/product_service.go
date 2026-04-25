@@ -124,16 +124,16 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	return p, err
 }
 
-const productTTL = 5 * time.Minute
 const productPrefix = "shop:products:"
 
 type ProductService struct {
 	db    *sql.DB
 	cache cache.Store
+	ttl   func(context.Context) time.Duration
 }
 
-func NewProductService(db *sql.DB, c cache.Store) *ProductService {
-	return &ProductService{db: db, cache: c}
+func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *ProductService {
+	return &ProductService{db: db, cache: c, ttl: ttl}
 }
 
 // List returns active products. locale may be empty for base content.
@@ -161,7 +161,7 @@ func (s *ProductService) List(ctx context.Context, locale string, limit, offset 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, products, productTTL)
+	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
 
@@ -190,7 +190,7 @@ func (s *ProductService) ListAll(ctx context.Context, locale string, limit, offs
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, products, productTTL)
+	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
 
@@ -206,7 +206,7 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, p, productTTL)
+	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 

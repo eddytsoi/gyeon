@@ -52,15 +52,17 @@ type UpdatePageRequest = CreatePageRequest
 
 var ErrNotFound = errors.New("not found")
 
-const pageTTL = 5 * time.Minute
 const pagePrefix = "cms:pages:"
 
 type PageService struct {
 	db    *sql.DB
 	cache cache.Store
+	ttl   func(context.Context) time.Duration
 }
 
-func NewPageService(db *sql.DB, c cache.Store) *PageService { return &PageService{db: db, cache: c} }
+func NewPageService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *PageService {
+	return &PageService{db: db, cache: c, ttl: ttl}
+}
 
 const pageTranslationJoin = `
 	LEFT JOIN cms_page_translations t ON t.page_id = p.id AND t.locale = $1`
@@ -104,7 +106,7 @@ func (s *PageService) List(ctx context.Context, locale string) ([]Page, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, pages, pageTTL)
+	s.cache.Set(key, pages, s.ttl(ctx))
 	return pages, nil
 }
 
@@ -123,7 +125,7 @@ func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, p, pageTTL)
+	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 
@@ -142,7 +144,7 @@ func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, er
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, p, pageTTL)
+	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 

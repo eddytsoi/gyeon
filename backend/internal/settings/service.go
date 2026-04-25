@@ -3,6 +3,8 @@ package settings
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"time"
 )
 
 type Setting struct {
@@ -62,6 +64,20 @@ func (s *Service) Set(ctx context.Context, key, value string) (*Setting, error) 
 		return nil, err
 	}
 	return &st, nil
+}
+
+// TTL reads a setting value as integer seconds and returns it as time.Duration.
+// Falls back to fallbackSecs if the key is missing or the value is not a positive integer.
+func (s *Service) TTL(ctx context.Context, key string, fallbackSecs int) time.Duration {
+	st, err := s.Get(ctx, key)
+	if err != nil {
+		return time.Duration(fallbackSecs) * time.Second
+	}
+	n, err := strconv.Atoi(st.Value)
+	if err != nil || n <= 0 {
+		return time.Duration(fallbackSecs) * time.Second
+	}
+	return time.Duration(n) * time.Second
 }
 
 func (s *Service) BulkSet(ctx context.Context, updates map[string]string) ([]Setting, error) {

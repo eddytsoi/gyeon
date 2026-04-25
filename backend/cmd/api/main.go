@@ -45,21 +45,25 @@ func main() {
 	}
 	defer conn.Close()
 
-	// In-memory cache (cleanup every 10 min; per-item TTLs set in each service)
+	// In-memory cache (cleanup every 10 min; per-item TTLs read from site_settings at runtime)
 	cacheStore := cache.NewInMemory(10 * time.Minute)
+	settingsSvc := settings.NewService(conn)
+
+	shopTTL := func(ctx context.Context) time.Duration { return settingsSvc.TTL(ctx, "cache_ttl_shop", 300) }
+	cmsTTL := func(ctx context.Context) time.Duration { return settingsSvc.TTL(ctx, "cache_ttl_cms", 300) }
+	navTTL := func(ctx context.Context) time.Duration { return settingsSvc.TTL(ctx, "cache_ttl_nav", 900) }
 
 	// Services
-	categorySvc := shop.NewCategoryService(conn, cacheStore)
-	productSvc := shop.NewProductService(conn, cacheStore)
+	categorySvc := shop.NewCategoryService(conn, cacheStore, shopTTL)
+	productSvc := shop.NewProductService(conn, cacheStore, shopTTL)
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc)
-	pageSvc := cms.NewPageService(conn, cacheStore)
-	postSvc := cms.NewPostService(conn, cacheStore)
+	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
+	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)
-	navSvc := cms.NewNavService(conn, cacheStore)
+	navSvc := cms.NewNavService(conn, cacheStore, navTTL)
 	customerSvc := customers.NewService(conn)
-	settingsSvc := settings.NewService(conn)
 	adminUserSvc := admin.NewUserService(conn)
 
 	// Seed first super_admin from env if table is empty

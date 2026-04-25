@@ -38,15 +38,17 @@ type UpsertNavItemRequest struct {
 	SortOrder int     `json:"sort_order"`
 }
 
-const navTTL = 15 * time.Minute
 const navPrefix = "nav:"
 
 type NavService struct {
 	db    *sql.DB
 	cache cache.Store
+	ttl   func(context.Context) time.Duration
 }
 
-func NewNavService(db *sql.DB, c cache.Store) *NavService { return &NavService{db: db, cache: c} }
+func NewNavService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *NavService {
+	return &NavService{db: db, cache: c, ttl: ttl}
+}
 
 // ListMenus returns all menus without items.
 func (s *NavService) ListMenus(ctx context.Context) ([]NavMenu, error) {
@@ -72,7 +74,7 @@ func (s *NavService) ListMenus(ctx context.Context) ([]NavMenu, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, menus, navTTL)
+	s.cache.Set(key, menus, s.ttl(ctx))
 	return menus, nil
 }
 
@@ -99,7 +101,7 @@ func (s *NavService) GetMenuByHandle(ctx context.Context, handle string) (*NavMe
 		return nil, err
 	}
 	m.Items = buildTree(items)
-	s.cache.Set(key, m, navTTL)
+	s.cache.Set(key, m, s.ttl(ctx))
 	return &m, nil
 }
 
@@ -125,7 +127,7 @@ func (s *NavService) GetMenuByID(ctx context.Context, id string) (*NavMenu, erro
 		return nil, err
 	}
 	m.Items = buildTree(items)
-	s.cache.Set(key, m, navTTL)
+	s.cache.Set(key, m, s.ttl(ctx))
 	return &m, nil
 }
 

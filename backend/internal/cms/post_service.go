@@ -53,15 +53,17 @@ type CreatePostRequest struct {
 // UpdatePostRequest is the same as CreatePostRequest (is_published included in both).
 type UpdatePostRequest = CreatePostRequest
 
-const postTTL = 5 * time.Minute
 const postPrefix = "cms:posts:"
 
 type PostService struct {
 	db    *sql.DB
 	cache cache.Store
+	ttl   func(context.Context) time.Duration
 }
 
-func NewPostService(db *sql.DB, c cache.Store) *PostService { return &PostService{db: db, cache: c} }
+func NewPostService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *PostService {
+	return &PostService{db: db, cache: c, ttl: ttl}
+}
 
 const postTranslationJoin = `
 	LEFT JOIN cms_post_translations t ON t.post_id = p.id AND t.locale = $1`
@@ -108,7 +110,7 @@ func (s *PostService) List(ctx context.Context, locale string, limit, offset int
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, posts, postTTL)
+	s.cache.Set(key, posts, s.ttl(ctx))
 	return posts, nil
 }
 
@@ -136,7 +138,7 @@ func (s *PostService) ListPublished(ctx context.Context, locale string, limit, o
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, posts, postTTL)
+	s.cache.Set(key, posts, s.ttl(ctx))
 	return posts, nil
 }
 
@@ -155,7 +157,7 @@ func (s *PostService) GetByID(ctx context.Context, id, locale string) (*Post, er
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, p, postTTL)
+	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 
@@ -174,7 +176,7 @@ func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post
 	if err != nil {
 		return nil, err
 	}
-	s.cache.Set(key, p, postTTL)
+	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 

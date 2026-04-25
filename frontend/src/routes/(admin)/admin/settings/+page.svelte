@@ -6,8 +6,17 @@
   let saving = $state(false);
 
   const TOGGLE_KEYS = new Set(['maintenance_mode']);
+  const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
+  const CACHE_TTL_LABELS: Record<string, string> = {
+    cache_ttl_shop: 'Shop Cache TTL',
+    cache_ttl_cms: 'CMS Cache TTL',
+    cache_ttl_nav: 'Navigation Cache TTL'
+  };
 
-  const textSettings = $derived(data.settings.filter((s) => !TOGGLE_KEYS.has(s.key)));
+  const textSettings = $derived(
+    data.settings.filter((s) => !TOGGLE_KEYS.has(s.key) && !CACHE_TTL_KEYS.has(s.key))
+  );
+  const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
   const maintenanceSetting = $derived(data.settings.find((s) => s.key === 'maintenance_mode'));
   let maintenanceOn = $state(maintenanceSetting?.value === 'true');
 </script>
@@ -63,6 +72,33 @@
             ⚠ Site is in maintenance mode — non-admin visitors are redirected to the maintenance page.
           </p>
         {/if}
+      </div>
+    {/if}
+
+    <!-- Cache TTL Settings -->
+    {#if cacheTTLSettings.length > 0}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">Cache TTL</h2>
+        <div class="flex flex-col gap-5">
+          {#each cacheTTLSettings as setting}
+            <div class="flex flex-col gap-1.5">
+              <label for={setting.key}
+                     class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {CACHE_TTL_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
+              </label>
+              {#if setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+              {/if}
+              <div class="flex items-center gap-2">
+                <input id={setting.key} name={setting.key} type="number" min="60" step="30"
+                       value={setting.value}
+                       class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                <span class="text-xs text-gray-400">seconds</span>
+              </div>
+            </div>
+          {/each}
+        </div>
       </div>
     {/if}
 
