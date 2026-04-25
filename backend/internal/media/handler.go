@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -278,9 +279,15 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	os.Remove(filepath.Join(uploadsDir, filename))
+	origPath := filepath.Join(uploadsDir, filename)
+	if err := os.Remove(origPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("media delete: failed to remove original file %q: %v", origPath, err)
+	}
 	if webpFilename.Valid && webpFilename.String != "" {
-		os.Remove(filepath.Join(uploadsDir, webpFilename.String))
+		webpPath := filepath.Join(uploadsDir, webpFilename.String)
+		if err := os.Remove(webpPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("media delete: failed to remove webp file %q: %v", webpPath, err)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
