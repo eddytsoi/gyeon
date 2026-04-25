@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ── Config (edit these) ──────────────────────────────────────────────────────
-GCP_PROJECT=""           # Your GCP project ID, e.g. "my-project-123"
+GCP_PROJECT="proven-cogency-477502-v5"  # GCP project ID
 GCP_ZONE="asia-east1-b"  # Hong Kong region
 VM_NAME="gyeon"
 MACHINE_TYPE="e2-small"  # 2 vCPU, 2 GB RAM (~USD $15/mo)
