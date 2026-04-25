@@ -1,20 +1,5 @@
 <script lang="ts">
-  import { getVariantByID } from '$lib/api';
   import { cartStore } from '$lib/stores/cart.svelte';
-  import type { Variant } from '$lib/types';
-
-  let variantDetails = $state<Record<string, Variant>>({});
-
-  $effect(() => {
-    const items = cartStore.cart?.items ?? [];
-    const missing = items.map(i => i.variant_id).filter(id => !variantDetails[id]);
-    if (missing.length === 0) return;
-    Promise.all(missing.map(id => getVariantByID(id).catch(() => null))).then(results => {
-      const next = { ...variantDetails };
-      results.forEach(v => { if (v) next[v.id] = v; });
-      variantDetails = next;
-    });
-  });
 </script>
 
 <svelte:head>
@@ -45,23 +30,14 @@
         {#each cartStore.cart.items as item}
           <div class="flex items-center gap-4 bg-white rounded-2xl p-4 border border-gray-100">
             <div class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden">
-              {#if variantDetails[item.variant_id]?.image_url}
-                <img
-                  src={variantDetails[item.variant_id].image_url}
-                  alt={variantDetails[item.variant_id].product_name ?? ''}
-                  class="w-full h-full object-cover"
-                />
+              {#if item.image_url}
+                <img src={item.image_url} alt={item.product_name} class="w-full h-full object-cover" />
               {/if}
             </div>
 
             <div class="flex-1 min-w-0">
-              {#if variantDetails[item.variant_id]}
-                {@const v = variantDetails[item.variant_id]}
-                <p class="text-sm font-medium text-gray-900 truncate">{v.product_name} ({v.sku})</p>
-                <p class="text-xs text-gray-400 mt-0.5">SKU: {v.sku}</p>
-              {:else}
-                <p class="text-sm font-medium text-gray-300 truncate">Loading…</p>
-              {/if}
+              <p class="text-sm font-medium text-gray-900 truncate">{item.product_name} ({item.sku})</p>
+              <p class="text-xs text-gray-400 mt-0.5">SKU: {item.sku}</p>
             </div>
 
             <!-- Qty controls -->

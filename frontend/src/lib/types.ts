@@ -48,6 +48,10 @@ export interface CartItem {
   variant_id: string;
   quantity: number;
   added_at: string;
+  product_name: string;
+  sku: string;
+  price: number;
+  image_url?: string;
 }
 
 export interface Cart {

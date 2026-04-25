@@ -16,11 +16,15 @@ type Cart struct {
 }
 
 type CartItem struct {
-	ID        string  `json:"id"`
-	CartID    string  `json:"cart_id"`
-	VariantID string  `json:"variant_id"`
-	Quantity  int     `json:"quantity"`
-	AddedAt   string  `json:"added_at"`
+	ID          string  `json:"id"`
+	CartID      string  `json:"cart_id"`
+	VariantID   string  `json:"variant_id"`
+	Quantity    int     `json:"quantity"`
+	AddedAt     string  `json:"added_at"`
+	ProductName string  `json:"product_name"`
+	SKU         string  `json:"sku"`
+	Price       float64 `json:"price"`
+	ImageURL    *string `json:"image_url,omitempty"`
 }
 
 type AddItemRequest struct {
@@ -93,8 +97,16 @@ func (s *CartService) GetByID(ctx context.Context, id string) (*Cart, error) {
 
 func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, cart_id, variant_id, quantity, added_at
-		 FROM cart_items WHERE cart_id = $1 ORDER BY added_at ASC`, cartID)
+		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
+		        p.name, pv.sku, pv.price,
+		        pi.url
+		 FROM cart_items ci
+		 JOIN product_variants pv ON pv.id = ci.variant_id
+		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN product_images pi
+		     ON pi.product_id = pv.product_id AND pi.is_primary = TRUE
+		 WHERE ci.cart_id = $1
+		 ORDER BY ci.added_at ASC`, cartID)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +115,8 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	var items []CartItem
 	for rows.Next() {
 		var item CartItem
-		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,
+			&item.ProductName, &item.SKU, &item.Price, &item.ImageURL); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
