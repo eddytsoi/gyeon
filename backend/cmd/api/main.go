@@ -104,8 +104,12 @@ func main() {
 		})
 	})
 
-	// Serve uploaded files
-	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
+	// Serve uploaded files — no-store prevents Cloudflare/CDN from caching deleted files
+	uploadsFS := http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads")))
+	r.Handle("/uploads/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		uploadsFS.ServeHTTP(w, r)
+	}))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
