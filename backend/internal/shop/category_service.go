@@ -3,6 +3,10 @@ package shop
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
+
+	"gyeon/backend/internal/cache"
 )
 
 type Category struct {
@@ -34,12 +38,16 @@ type UpdateCategoryRequest struct {
 	IsActive bool `json:"is_active"`
 }
 
+const categoryTTL = 5 * time.Minute
+const categoryPrefix = "shop:categories:"
+
 type CategoryService struct {
-	db *sql.DB
+	db    *sql.DB
+	cache cache.Store
 }
 
-func NewCategoryService(db *sql.DB) *CategoryService {
-	return &CategoryService{db: db}
+func NewCategoryService(db *sql.DB, c cache.Store) *CategoryService {
+	return &CategoryService{db: db, cache: c}
 }
 
 func scanCategory(row interface{ Scan(...any) error }) (Category, error) {
@@ -50,6 +58,10 @@ func scanCategory(row interface{ Scan(...any) error }) (Category, error) {
 }
 
 func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
+	const key = "shop:categories:list"
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Category), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
 		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
@@ -70,10 +82,19 @@ func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
 		}
 		cats = append(cats, c)
 	}
-	return cats, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, cats, categoryTTL)
+	return cats, nil
 }
 
 func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, error) {
+	key := fmt.Sprintf("shop:categories:id:%s", id)
+	if v, ok := s.cache.Get(key); ok {
+		c := v.(Category)
+		return &c, nil
+	}
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
 		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
@@ -84,6 +105,7 @@ func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, er
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, c, categoryTTL)
 	return &c, nil
 }
 
@@ -102,6 +124,7 @@ func (s *CategoryService) Create(ctx context.Context, req CreateCategoryRequest)
 	if err != nil {
 		return nil, err
 	}
+	s.cache.DeleteByPrefix(categoryPrefix)
 	return &c, nil
 }
 
@@ -123,10 +146,15 @@ func (s *CategoryService) Update(ctx context.Context, id string, req UpdateCateg
 	if err != nil {
 		return nil, err
 	}
+	s.cache.DeleteByPrefix(categoryPrefix)
 	return &c, nil
 }
 
 func (s *CategoryService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM categories WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(categoryPrefix)
+	return nil
 }

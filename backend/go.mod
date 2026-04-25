@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/lib/pq v1.12.3
 	github.com/mark3labs/mcp-go v0.49.0
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	golang.org/x/crypto v0.50.0
 )
 

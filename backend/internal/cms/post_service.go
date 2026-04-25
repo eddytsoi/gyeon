@@ -4,21 +4,25 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"time"
+
+	"gyeon/backend/internal/cache"
 )
 
 type Post struct {
-	ID                 string  `json:"id"`
-	CategoryID         *string `json:"category_id,omitempty"`
-	Slug               string  `json:"slug"`
-	Title              string  `json:"title"`
-	Excerpt            *string `json:"excerpt,omitempty"`
-	Content            string  `json:"content"`
-	CoverMediaFileID   *string `json:"cover_media_file_id,omitempty"`
-	CoverImageURL      *string `json:"cover_image_url,omitempty"`
-	IsPublished        bool    `json:"is_published"`
-	PublishedAt        *string `json:"published_at,omitempty"`
-	CreatedAt          string  `json:"created_at"`
-	UpdatedAt          string  `json:"updated_at"`
+	ID               string  `json:"id"`
+	CategoryID       *string `json:"category_id,omitempty"`
+	Slug             string  `json:"slug"`
+	Title            string  `json:"title"`
+	Excerpt          *string `json:"excerpt,omitempty"`
+	Content          string  `json:"content"`
+	CoverMediaFileID *string `json:"cover_media_file_id,omitempty"`
+	CoverImageURL    *string `json:"cover_image_url,omitempty"`
+	IsPublished      bool    `json:"is_published"`
+	PublishedAt      *string `json:"published_at,omitempty"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
 type PostTranslation struct {
@@ -49,9 +53,15 @@ type CreatePostRequest struct {
 // UpdatePostRequest is the same as CreatePostRequest (is_published included in both).
 type UpdatePostRequest = CreatePostRequest
 
-type PostService struct{ db *sql.DB }
+const postTTL = 5 * time.Minute
+const postPrefix = "cms:posts:"
 
-func NewPostService(db *sql.DB) *PostService { return &PostService{db: db} }
+type PostService struct {
+	db    *sql.DB
+	cache cache.Store
+}
+
+func NewPostService(db *sql.DB, c cache.Store) *PostService { return &PostService{db: db, cache: c} }
 
 const postTranslationJoin = `
 	LEFT JOIN cms_post_translations t ON t.post_id = p.id AND t.locale = $1`
@@ -77,6 +87,10 @@ func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 
 // List returns all posts (admin). locale may be empty for base content.
 func (s *PostService) List(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
+	key := fmt.Sprintf("cms:posts:all:%s:%d:%d", locale, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Post), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		postSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, locale, limit, offset)
 	if err != nil {
@@ -91,11 +105,19 @@ func (s *PostService) List(ctx context.Context, locale string, limit, offset int
 		}
 		posts = append(posts, p)
 	}
-	return posts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, posts, postTTL)
+	return posts, nil
 }
 
 // ListPublished returns published posts for the storefront. locale may be empty.
 func (s *PostService) ListPublished(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
+	key := fmt.Sprintf("cms:posts:pub:%s:%d:%d", locale, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Post), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		postSelect+` WHERE p.is_published = TRUE ORDER BY p.published_at DESC NULLS LAST LIMIT $2 OFFSET $3`,
 		locale, limit, offset)
@@ -111,11 +133,20 @@ func (s *PostService) ListPublished(ctx context.Context, locale string, limit, o
 		}
 		posts = append(posts, p)
 	}
-	return posts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, posts, postTTL)
+	return posts, nil
 }
 
 // GetByID fetches any post. locale may be empty for base content.
 func (s *PostService) GetByID(ctx context.Context, id, locale string) (*Post, error) {
+	key := fmt.Sprintf("cms:posts:id:%s:%s", id, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Post)
+		return &p, nil
+	}
 	p, err := scanPost(s.db.QueryRowContext(ctx,
 		postSelect+` WHERE p.id = $2`, locale, id))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -124,11 +155,17 @@ func (s *PostService) GetByID(ctx context.Context, id, locale string) (*Post, er
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, p, postTTL)
 	return &p, nil
 }
 
 // GetBySlug fetches a published post. locale may be empty for base content.
 func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post, error) {
+	key := fmt.Sprintf("cms:posts:slug:%s:%s", slug, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Post)
+		return &p, nil
+	}
 	p, err := scanPost(s.db.QueryRowContext(ctx,
 		postSelect+` WHERE p.slug = $2 AND p.is_published = TRUE`, locale, slug))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -137,6 +174,7 @@ func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, p, postTTL)
 	return &p, nil
 }
 
@@ -157,7 +195,11 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.cover_media_file_id`,
 		req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
 		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(postPrefix)
+	return &p, nil
 }
 
 func (s *PostService) Update(ctx context.Context, id string, req UpdatePostRequest) (*Post, error) {
@@ -177,12 +219,20 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.cover_media_file_id`,
 		id, req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
 		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(postPrefix)
+	return &p, nil
 }
 
 func (s *PostService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_posts WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(postPrefix)
+	return nil
 }
 
 // --- Translation management ---
@@ -216,7 +266,11 @@ func (s *PostService) UpsertTranslation(ctx context.Context, postID, locale stri
 		 RETURNING locale, title, excerpt, content, updated_at`,
 		postID, locale, req.Title, req.Excerpt, req.Content).
 		Scan(&t.Locale, &t.Title, &t.Excerpt, &t.Content, &t.UpdatedAt)
-	return &t, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(postPrefix)
+	return &t, nil
 }
 
 func (s *PostService) DeleteTranslation(ctx context.Context, postID, locale string) error {
@@ -228,5 +282,6 @@ func (s *PostService) DeleteTranslation(ctx context.Context, postID, locale stri
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
+	s.cache.DeleteByPrefix(postPrefix)
 	return nil
 }

@@ -4,6 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"time"
+
+	"gyeon/backend/internal/cache"
 )
 
 type Page struct {
@@ -48,12 +52,16 @@ type UpdatePageRequest = CreatePageRequest
 
 var ErrNotFound = errors.New("not found")
 
-type PageService struct{ db *sql.DB }
+const pageTTL = 5 * time.Minute
+const pagePrefix = "cms:pages:"
 
-func NewPageService(db *sql.DB) *PageService { return &PageService{db: db} }
+type PageService struct {
+	db    *sql.DB
+	cache cache.Store
+}
 
-// localeJoin returns a LEFT JOIN clause that overlays translations for the given locale.
-// Passing an empty locale makes the JOIN never match, so base columns are returned as-is.
+func NewPageService(db *sql.DB, c cache.Store) *PageService { return &PageService{db: db, cache: c} }
+
 const pageTranslationJoin = `
 	LEFT JOIN cms_page_translations t ON t.page_id = p.id AND t.locale = $1`
 
@@ -75,6 +83,10 @@ func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 
 // List returns all pages. locale may be empty for base content.
 func (s *PageService) List(ctx context.Context, locale string) ([]Page, error) {
+	key := fmt.Sprintf("cms:pages:list:%s", locale)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Page), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		pageSelect+` ORDER BY p.created_at DESC`, locale)
 	if err != nil {
@@ -89,11 +101,20 @@ func (s *PageService) List(ctx context.Context, locale string) ([]Page, error) {
 		}
 		pages = append(pages, p)
 	}
-	return pages, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, pages, pageTTL)
+	return pages, nil
 }
 
 // GetBySlug fetches a published page; locale may be empty for base content.
 func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page, error) {
+	key := fmt.Sprintf("cms:pages:slug:%s:%s", slug, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Page)
+		return &p, nil
+	}
 	p, err := scanPage(s.db.QueryRowContext(ctx,
 		pageSelect+` WHERE p.slug = $2 AND p.is_published = TRUE`, locale, slug))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -102,11 +123,17 @@ func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, p, pageTTL)
 	return &p, nil
 }
 
 // GetByID fetches any page by ID; locale may be empty for base content.
 func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, error) {
+	key := fmt.Sprintf("cms:pages:id:%s:%s", id, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Page)
+		return &p, nil
+	}
 	p, err := scanPage(s.db.QueryRowContext(ctx,
 		pageSelect+` WHERE p.id = $2`, locale, id))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -115,6 +142,7 @@ func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, er
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, p, pageTTL)
 	return &p, nil
 }
 
@@ -127,7 +155,11 @@ func (s *PageService) Create(ctx context.Context, req CreatePageRequest) (*Page,
 		req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
 		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
 			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(pagePrefix)
+	return &p, nil
 }
 
 func (s *PageService) Update(ctx context.Context, id string, req UpdatePageRequest) (*Page, error) {
@@ -139,12 +171,20 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 		id, req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
 		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
 			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
-	return &p, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(pagePrefix)
+	return &p, nil
 }
 
 func (s *PageService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_pages WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(pagePrefix)
+	return nil
 }
 
 // --- Translation management ---
@@ -178,7 +218,11 @@ func (s *PageService) UpsertTranslation(ctx context.Context, pageID, locale stri
 		 RETURNING locale, title, content, meta_title, meta_desc, updated_at`,
 		pageID, locale, req.Title, req.Content, req.MetaTitle, req.MetaDesc).
 		Scan(&t.Locale, &t.Title, &t.Content, &t.MetaTitle, &t.MetaDesc, &t.UpdatedAt)
-	return &t, err
+	if err != nil {
+		return nil, err
+	}
+	s.cache.DeleteByPrefix(pagePrefix)
+	return &t, nil
 }
 
 func (s *PageService) DeleteTranslation(ctx context.Context, pageID, locale string) error {
@@ -190,5 +234,6 @@ func (s *PageService) DeleteTranslation(ctx context.Context, pageID, locale stri
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
+	s.cache.DeleteByPrefix(pagePrefix)
 	return nil
 }

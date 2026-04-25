@@ -3,6 +3,10 @@ package shop
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
+
+	"gyeon/backend/internal/cache"
 )
 
 type Product struct {
@@ -120,16 +124,24 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	return p, err
 }
 
+const productTTL = 5 * time.Minute
+const productPrefix = "shop:products:"
+
 type ProductService struct {
-	db *sql.DB
+	db    *sql.DB
+	cache cache.Store
 }
 
-func NewProductService(db *sql.DB) *ProductService {
-	return &ProductService{db: db}
+func NewProductService(db *sql.DB, c cache.Store) *ProductService {
+	return &ProductService{db: db, cache: c}
 }
 
 // List returns active products. locale may be empty for base content.
 func (s *ProductService) List(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:pub:%s:%d:%d", locale, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Product), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		productSelect+` WHERE p.is_active = TRUE ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
 		locale, limit, offset)
@@ -146,11 +158,19 @@ func (s *ProductService) List(ctx context.Context, locale string, limit, offset 
 		}
 		products = append(products, p)
 	}
-	return products, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, products, productTTL)
+	return products, nil
 }
 
 // ListAll returns all products regardless of is_active (admin). locale may be empty.
 func (s *ProductService) ListAll(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:all:%s:%d:%d", locale, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Product), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		productSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
 		locale, limit, offset)
@@ -167,16 +187,26 @@ func (s *ProductService) ListAll(ctx context.Context, locale string, limit, offs
 		}
 		products = append(products, p)
 	}
-	return products, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, products, productTTL)
+	return products, nil
 }
 
 // GetByID fetches a product by ID. locale may be empty for base content.
 func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Product, error) {
+	key := fmt.Sprintf("shop:products:id:%s:%s", id, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Product)
+		return &p, nil
+	}
 	p, err := scanProduct(s.db.QueryRowContext(ctx,
 		productSelect+` WHERE p.id = $2`, locale, id))
 	if err != nil {
 		return nil, err
 	}
+	s.cache.Set(key, p, productTTL)
 	return &p, nil
 }
 
@@ -191,6 +221,7 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 	if err != nil {
 		return nil, err
 	}
+	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
 
@@ -205,18 +236,27 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	if err != nil {
 		return nil, err
 	}
+	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
 
 func (s *ProductService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM products WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
 }
 
 // DeleteAll removes every product (cascades to variants and images).
 func (s *ProductService) DeleteAll(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM products`)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
 }
 
 func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (*Variant, error) {
@@ -438,7 +478,12 @@ func (s *ProductService) UpsertTranslation(ctx context.Context, productID, local
 		 RETURNING locale, name, description, updated_at`,
 		productID, locale, req.Name, req.Description).
 		Scan(&t.Locale, &t.Name, &t.Description, &t.UpdatedAt)
-	return &t, err
+	if err != nil {
+		return nil, err
+	}
+	// Translation changes affect localized list/detail responses
+	s.cache.DeleteByPrefix(productPrefix)
+	return &t, nil
 }
 
 func (s *ProductService) DeleteTranslation(ctx context.Context, productID, locale string) error {
@@ -450,6 +495,7 @@ func (s *ProductService) DeleteTranslation(ctx context.Context, productID, local
 	if n, _ := res.RowsAffected(); n == 0 {
 		return errProductNotFound
 	}
+	s.cache.DeleteByPrefix(productPrefix)
 	return nil
 }
 

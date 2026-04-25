@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"gyeon/backend/internal/admin"
 	"gyeon/backend/internal/auth"
+	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/cms"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
@@ -43,16 +45,19 @@ func main() {
 	}
 	defer conn.Close()
 
+	// In-memory cache (cleanup every 10 min; per-item TTLs set in each service)
+	cacheStore := cache.NewInMemory(10 * time.Minute)
+
 	// Services
-	categorySvc := shop.NewCategoryService(conn)
-	productSvc := shop.NewProductService(conn)
+	categorySvc := shop.NewCategoryService(conn, cacheStore)
+	productSvc := shop.NewProductService(conn, cacheStore)
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc)
-	pageSvc := cms.NewPageService(conn)
-	postSvc := cms.NewPostService(conn)
+	pageSvc := cms.NewPageService(conn, cacheStore)
+	postSvc := cms.NewPostService(conn, cacheStore)
 	postCatSvc := cms.NewPostCategoryService(conn)
-	navSvc := cms.NewNavService(conn)
+	navSvc := cms.NewNavService(conn, cacheStore)
 	customerSvc := customers.NewService(conn)
 	settingsSvc := settings.NewService(conn)
 	adminUserSvc := admin.NewUserService(conn)

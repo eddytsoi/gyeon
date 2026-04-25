@@ -4,17 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"time"
+
+	"gyeon/backend/internal/cache"
 )
 
 type NavItem struct {
-	ID        string     `json:"id"`
-	MenuID    string     `json:"menu_id"`
-	ParentID  *string    `json:"parent_id,omitempty"`
-	Label     string     `json:"label"`
-	URL       string     `json:"url"`
-	Target    string     `json:"target"`
-	SortOrder int        `json:"sort_order"`
-	Children  []NavItem  `json:"children,omitempty"`
+	ID        string    `json:"id"`
+	MenuID    string    `json:"menu_id"`
+	ParentID  *string   `json:"parent_id,omitempty"`
+	Label     string    `json:"label"`
+	URL       string    `json:"url"`
+	Target    string    `json:"target"`
+	SortOrder int       `json:"sort_order"`
+	Children  []NavItem `json:"children,omitempty"`
 }
 
 type NavMenu struct {
@@ -34,12 +38,22 @@ type UpsertNavItemRequest struct {
 	SortOrder int     `json:"sort_order"`
 }
 
-type NavService struct{ db *sql.DB }
+const navTTL = 15 * time.Minute
+const navPrefix = "nav:"
 
-func NewNavService(db *sql.DB) *NavService { return &NavService{db: db} }
+type NavService struct {
+	db    *sql.DB
+	cache cache.Store
+}
+
+func NewNavService(db *sql.DB, c cache.Store) *NavService { return &NavService{db: db, cache: c} }
 
 // ListMenus returns all menus without items.
 func (s *NavService) ListMenus(ctx context.Context) ([]NavMenu, error) {
+	const key = "nav:menus"
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]NavMenu), nil
+	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, handle, name, created_at, updated_at FROM cms_nav_menus ORDER BY name`)
 	if err != nil {
@@ -55,11 +69,20 @@ func (s *NavService) ListMenus(ctx context.Context) ([]NavMenu, error) {
 		m.Items = []NavItem{}
 		menus = append(menus, m)
 	}
-	return menus, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, menus, navTTL)
+	return menus, nil
 }
 
 // GetMenuByHandle returns a menu with its full item tree.
 func (s *NavService) GetMenuByHandle(ctx context.Context, handle string) (*NavMenu, error) {
+	key := fmt.Sprintf("nav:handle:%s", handle)
+	if v, ok := s.cache.Get(key); ok {
+		m := v.(NavMenu)
+		return &m, nil
+	}
 	var m NavMenu
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, handle, name, created_at, updated_at FROM cms_nav_menus WHERE handle = $1`, handle).
@@ -76,11 +99,17 @@ func (s *NavService) GetMenuByHandle(ctx context.Context, handle string) (*NavMe
 		return nil, err
 	}
 	m.Items = buildTree(items)
+	s.cache.Set(key, m, navTTL)
 	return &m, nil
 }
 
 // GetMenuByID returns a menu with items.
 func (s *NavService) GetMenuByID(ctx context.Context, id string) (*NavMenu, error) {
+	key := fmt.Sprintf("nav:id:%s", id)
+	if v, ok := s.cache.Get(key); ok {
+		m := v.(NavMenu)
+		return &m, nil
+	}
 	var m NavMenu
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, handle, name, created_at, updated_at FROM cms_nav_menus WHERE id = $1`, id).
@@ -96,6 +125,7 @@ func (s *NavService) GetMenuByID(ctx context.Context, id string) (*NavMenu, erro
 		return nil, err
 	}
 	m.Items = buildTree(items)
+	s.cache.Set(key, m, navTTL)
 	return &m, nil
 }
 
@@ -156,6 +186,7 @@ func (s *NavService) AddItem(ctx context.Context, menuID string, req UpsertNavIt
 		return nil, err
 	}
 	it.Children = []NavItem{}
+	s.cache.DeleteByPrefix(navPrefix)
 	return &it, nil
 }
 
@@ -176,7 +207,11 @@ func (s *NavService) UpdateItem(ctx context.Context, itemID string, req UpsertNa
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
+	if err != nil {
+		return nil, err
+	}
 	it.Children = []NavItem{}
+	s.cache.DeleteByPrefix(navPrefix)
 	return &it, nil
 }
 
@@ -184,7 +219,11 @@ func (s *NavService) UpdateItem(ctx context.Context, itemID string, req UpsertNa
 func (s *NavService) DeleteItem(ctx context.Context, itemID string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM cms_nav_items WHERE id = $1`, itemID)
-	return err
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(navPrefix)
+	return nil
 }
 
 // ReplaceItems atomically replaces all items in a menu (used for drag-drop reorder).
@@ -223,5 +262,6 @@ func (s *NavService) ReplaceItems(ctx context.Context, menuID string, items []Up
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	s.cache.DeleteByPrefix(navPrefix)
 	return result, nil
 }
