@@ -14,6 +14,7 @@ import (
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
 	"gyeon/backend/internal/importer"
+	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/pricing"
@@ -162,6 +163,10 @@ func main() {
 			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
 		})
 	})
+
+	// MCP storefront server — safe public tools only (browse + cart + checkout)
+	mcpServer := mcpsrv.NewServer(categorySvc, productSvc, cartSvc, orderSvc, pricingSvc)
+	r.Mount("/mcp", mcpServer.Handler())
 
 	log.Println("API server listening on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
