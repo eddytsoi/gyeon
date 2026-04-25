@@ -103,6 +103,13 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// MCP discoverability — agents can probe this to find the MCP endpoint
+	r.Get("/.well-known/mcp.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Write([]byte(`{"mcp_endpoint":"` + baseURL + `/mcp/sse","name":"Gyeon Storefront","description":"Browse products, manage cart, validate coupons, and checkout. Read-only catalog and anonymous cart/order tools only — no customer PII exposed."}`))
+	})
+
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public storefront
 		r.Mount("/categories", shop.NewCategoryHandler(categorySvc).Routes())
