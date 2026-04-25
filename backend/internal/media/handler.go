@@ -280,13 +280,13 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	origPath := filepath.Join(uploadsDir, filename)
-	if err := os.Remove(origPath); err != nil && !os.IsNotExist(err) {
-		log.Printf("media delete: failed to remove original file %q: %v", origPath, err)
+	if err := os.Remove(origPath); err != nil {
+		log.Printf("media delete: remove original %q: %v", origPath, err)
 	}
 	if webpFilename.Valid && webpFilename.String != "" {
 		webpPath := filepath.Join(uploadsDir, webpFilename.String)
-		if err := os.Remove(webpPath); err != nil && !os.IsNotExist(err) {
-			log.Printf("media delete: failed to remove webp file %q: %v", webpPath, err)
+		if err := os.Remove(webpPath); err != nil {
+			log.Printf("media delete: remove webp %q: %v", webpPath, err)
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
