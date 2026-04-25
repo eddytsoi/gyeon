@@ -4,6 +4,7 @@ export interface Category {
   slug: string;
   name: string;
   description?: string;
+  media_file_id?: string;
   image_url?: string;
   sort_order: number;
   is_active: boolean;
@@ -36,6 +37,7 @@ export interface ProductImage {
   id: string;
   product_id: string;
   variant_id?: string;
+  media_file_id?: string;
   url: string;
   alt_text?: string;
   sort_order: number;
@@ -152,6 +154,7 @@ export interface CmsPost {
   title: string;
   excerpt?: string;
   content: string;
+  cover_media_file_id?: string;
   cover_image_url?: string;
   is_published: boolean;
   published_at?: string;

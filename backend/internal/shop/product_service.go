@@ -43,14 +43,15 @@ type Variant struct {
 }
 
 type ProductImage struct {
-	ID        string  `json:"id"`
-	ProductID string  `json:"product_id"`
-	VariantID *string `json:"variant_id,omitempty"`
-	URL       string  `json:"url"`
-	AltText   *string `json:"alt_text,omitempty"`
-	SortOrder int     `json:"sort_order"`
-	IsPrimary bool    `json:"is_primary"`
-	CreatedAt string  `json:"created_at"`
+	ID          string  `json:"id"`
+	ProductID   string  `json:"product_id"`
+	VariantID   *string `json:"variant_id,omitempty"`
+	MediaFileID *string `json:"media_file_id,omitempty"`
+	URL         string  `json:"url"`
+	AltText     *string `json:"alt_text,omitempty"`
+	SortOrder   int     `json:"sort_order"`
+	IsPrimary   bool    `json:"is_primary"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 type CreateProductRequest struct {
@@ -92,11 +93,12 @@ type UpdateImageRequest struct {
 }
 
 type AddImageRequest struct {
-	VariantID *string `json:"variant_id"`
-	URL       string  `json:"url"`
-	AltText   *string `json:"alt_text"`
-	SortOrder int     `json:"sort_order"`
-	IsPrimary bool    `json:"is_primary"`
+	VariantID   *string `json:"variant_id"`
+	MediaFileID *string `json:"media_file_id"`
+	URL         *string `json:"url"`
+	AltText     *string `json:"alt_text"`
+	SortOrder   int     `json:"sort_order"`
+	IsPrimary   bool    `json:"is_primary"`
 }
 
 // productSelect LEFT JOINs translations so name/description fall back to base when no translation exists.
@@ -311,14 +313,17 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 }
 
 func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req UpdateImageRequest) (*ProductImage, error) {
-	var img ProductImage
-	err := s.db.QueryRowContext(ctx,
-		`UPDATE product_images SET alt_text=$2, sort_order=$3, is_primary=$4
-		 WHERE id=$1
-		 RETURNING id, product_id, variant_id, url, alt_text, sort_order, is_primary, created_at`,
-		imageID, req.AltText, req.SortOrder, req.IsPrimary).
-		Scan(&img.ID, &img.ProductID, &img.VariantID, &img.URL,
-			&img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+	img, err := scanProductImage(s.db.QueryRowContext(ctx,
+		`WITH upd AS (
+		     UPDATE product_images SET alt_text=$2, sort_order=$3, is_primary=$4
+		     WHERE id=$1
+		     RETURNING *
+		 )
+		 SELECT upd.id, upd.product_id, upd.variant_id, upd.media_file_id,
+		        COALESCE(mf.url, upd.url, '') AS url,
+		        upd.alt_text, upd.sort_order, upd.is_primary, upd.created_at
+		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
+		imageID, req.AltText, req.SortOrder, req.IsPrimary))
 	if err != nil {
 		return nil, err
 	}
@@ -352,10 +357,22 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 	return variants, rows.Err()
 }
 
+func scanProductImage(row interface{ Scan(...any) error }) (ProductImage, error) {
+	var img ProductImage
+	err := row.Scan(&img.ID, &img.ProductID, &img.VariantID, &img.MediaFileID,
+		&img.URL, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+	return img, err
+}
+
 func (s *ProductService) ListImages(ctx context.Context, productID string) ([]ProductImage, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, product_id, variant_id, url, alt_text, sort_order, is_primary, created_at
-		 FROM product_images WHERE product_id = $1 ORDER BY sort_order ASC, is_primary DESC`, productID)
+		`SELECT pi.id, pi.product_id, pi.variant_id, pi.media_file_id,
+		        COALESCE(mf.url, pi.url, '') AS url,
+		        pi.alt_text, pi.sort_order, pi.is_primary, pi.created_at
+		 FROM product_images pi
+		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		 WHERE pi.product_id = $1
+		 ORDER BY pi.sort_order ASC, pi.is_primary DESC`, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -363,9 +380,8 @@ func (s *ProductService) ListImages(ctx context.Context, productID string) ([]Pr
 
 	images := make([]ProductImage, 0)
 	for rows.Next() {
-		var img ProductImage
-		if err := rows.Scan(&img.ID, &img.ProductID, &img.VariantID, &img.URL,
-			&img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt); err != nil {
+		img, err := scanProductImage(rows)
+		if err != nil {
 			return nil, err
 		}
 		images = append(images, img)
@@ -374,14 +390,17 @@ func (s *ProductService) ListImages(ctx context.Context, productID string) ([]Pr
 }
 
 func (s *ProductService) AddImage(ctx context.Context, productID string, req AddImageRequest) (*ProductImage, error) {
-	var img ProductImage
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO product_images (product_id, variant_id, url, alt_text, sort_order, is_primary)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, product_id, variant_id, url, alt_text, sort_order, is_primary, created_at`,
-		productID, req.VariantID, req.URL, req.AltText, req.SortOrder, req.IsPrimary).
-		Scan(&img.ID, &img.ProductID, &img.VariantID, &img.URL,
-			&img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+	img, err := scanProductImage(s.db.QueryRowContext(ctx,
+		`WITH ins AS (
+		     INSERT INTO product_images (product_id, variant_id, media_file_id, url, alt_text, sort_order, is_primary)
+		     VALUES ($1, $2, $3, $4, $5, $6, $7)
+		     RETURNING *
+		 )
+		 SELECT ins.id, ins.product_id, ins.variant_id, ins.media_file_id,
+		        COALESCE(mf.url, ins.url, '') AS url,
+		        ins.alt_text, ins.sort_order, ins.is_primary, ins.created_at
+		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
+		productID, req.VariantID, req.MediaFileID, req.URL, req.AltText, req.SortOrder, req.IsPrimary))
 	if err != nil {
 		return nil, err
 	}

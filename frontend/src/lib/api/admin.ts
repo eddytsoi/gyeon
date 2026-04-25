@@ -311,6 +311,12 @@ export const adminDeleteUser = (token: string, id: string) =>
 
 // ── Media ─────────────────────────────────────────────────────────────────────
 
+export interface MediaRef {
+  type: 'product' | 'post';
+  id: string;
+  name: string;
+}
+
 export interface MediaFile {
   id: string;
   filename: string;
@@ -319,6 +325,7 @@ export interface MediaFile {
   size_bytes: number;
   url: string;
   created_at: string;
+  refs: MediaRef[];
 }
 
 export const adminGetMedia = (token: string) =>
@@ -326,3 +333,24 @@ export const adminGetMedia = (token: string) =>
 
 export const adminDeleteMedia = (token: string, id: string) =>
   request(`/admin/media/${id}`, token, { method: 'DELETE' });
+
+export const adminAddMediaLink = (token: string, url: string, name: string) =>
+  request<MediaFile>('/admin/media/link', token, {
+    method: 'POST',
+    body: JSON.stringify({ url, name })
+  });
+
+export const adminUploadMedia = async (token: string, file: File): Promise<MediaFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${base()}/admin/media/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => `${res.status}`);
+    throw new Error(msg || `Upload failed: ${res.status}`);
+  }
+  return res.json() as Promise<MediaFile>;
+};

@@ -7,17 +7,18 @@ import (
 )
 
 type Post struct {
-	ID            string  `json:"id"`
-	CategoryID    *string `json:"category_id,omitempty"`
-	Slug          string  `json:"slug"`
-	Title         string  `json:"title"`
-	Excerpt       *string `json:"excerpt,omitempty"`
-	Content       string  `json:"content"`
-	CoverImageURL *string `json:"cover_image_url,omitempty"`
-	IsPublished   bool    `json:"is_published"`
-	PublishedAt   *string `json:"published_at,omitempty"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	ID                 string  `json:"id"`
+	CategoryID         *string `json:"category_id,omitempty"`
+	Slug               string  `json:"slug"`
+	Title              string  `json:"title"`
+	Excerpt            *string `json:"excerpt,omitempty"`
+	Content            string  `json:"content"`
+	CoverMediaFileID   *string `json:"cover_media_file_id,omitempty"`
+	CoverImageURL      *string `json:"cover_image_url,omitempty"`
+	IsPublished        bool    `json:"is_published"`
+	PublishedAt        *string `json:"published_at,omitempty"`
+	CreatedAt          string  `json:"created_at"`
+	UpdatedAt          string  `json:"updated_at"`
 }
 
 type PostTranslation struct {
@@ -35,13 +36,14 @@ type UpsertPostTranslationRequest struct {
 }
 
 type CreatePostRequest struct {
-	CategoryID    *string `json:"category_id"`
-	Slug          string  `json:"slug"`
-	Title         string  `json:"title"`
-	Excerpt       *string `json:"excerpt"`
-	Content       string  `json:"content"`
-	CoverImageURL *string `json:"cover_image_url"`
-	IsPublished   bool    `json:"is_published"`
+	CategoryID       *string `json:"category_id"`
+	Slug             string  `json:"slug"`
+	Title            string  `json:"title"`
+	Excerpt          *string `json:"excerpt"`
+	Content          string  `json:"content"`
+	CoverMediaFileID *string `json:"cover_media_file_id"`
+	CoverImageURL    *string `json:"cover_image_url"`
+	IsPublished      bool    `json:"is_published"`
 }
 
 // UpdatePostRequest is the same as CreatePostRequest (is_published included in both).
@@ -59,13 +61,17 @@ const postSelect = `
 	       COALESCE(t.title,   p.title)   AS title,
 	       COALESCE(t.excerpt, p.excerpt) AS excerpt,
 	       COALESCE(t.content, p.content) AS content,
-	       p.cover_image_url, p.is_published, p.published_at, p.created_at, p.updated_at
-	FROM cms_posts p` + postTranslationJoin
+	       p.cover_media_file_id,
+	       COALESCE(mf.url, p.cover_image_url) AS cover_image_url,
+	       p.is_published, p.published_at, p.created_at, p.updated_at
+	FROM cms_posts p` + postTranslationJoin + `
+	LEFT JOIN media_files mf ON mf.id = p.cover_media_file_id`
 
 func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 	var p Post
 	err := row.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
-		&p.Content, &p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		&p.Content, &p.CoverMediaFileID, &p.CoverImageURL,
+		&p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -135,34 +141,42 @@ func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post
 }
 
 func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post, error) {
-	var p Post
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO cms_posts (category_id, slug, title, excerpt, content, cover_image_url,
-		                        is_published, published_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7,
-		         CASE WHEN $7 = TRUE THEN NOW() ELSE NULL END)
-		 RETURNING id, category_id, slug, title, excerpt, content, cover_image_url,
-		           is_published, published_at, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content, req.CoverImageURL, req.IsPublished).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt, &p.Content,
-			&p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+	p, err := scanPost(s.db.QueryRowContext(ctx,
+		`WITH ins AS (
+		     INSERT INTO cms_posts (category_id, slug, title, excerpt, content,
+		                            cover_media_file_id, cover_image_url,
+		                            is_published, published_at)
+		     VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+		             CASE WHEN $8 = TRUE THEN NOW() ELSE NULL END)
+		     RETURNING *
+		 )
+		 SELECT ins.id, ins.category_id, ins.slug, ins.title, ins.excerpt, ins.content,
+		        ins.cover_media_file_id,
+		        COALESCE(mf.url, ins.cover_image_url) AS cover_image_url,
+		        ins.is_published, ins.published_at, ins.created_at, ins.updated_at
+		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.cover_media_file_id`,
+		req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
+		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
 	return &p, err
 }
 
 func (s *PostService) Update(ctx context.Context, id string, req UpdatePostRequest) (*Post, error) {
-	var p Post
-	err := s.db.QueryRowContext(ctx,
-		`UPDATE cms_posts
-		 SET category_id=$2, slug=$3, title=$4, excerpt=$5, content=$6,
-		     cover_image_url=$7, is_published=$8,
-		     published_at = CASE WHEN $8 = TRUE AND published_at IS NULL THEN NOW() ELSE published_at END
-		 WHERE id = $1
-		 RETURNING id, category_id, slug, title, excerpt, content, cover_image_url,
-		           is_published, published_at, created_at, updated_at`,
+	p, err := scanPost(s.db.QueryRowContext(ctx,
+		`WITH upd AS (
+		     UPDATE cms_posts
+		     SET category_id=$2, slug=$3, title=$4, excerpt=$5, content=$6,
+		         cover_media_file_id=$7, cover_image_url=$8, is_published=$9,
+		         published_at = CASE WHEN $9 = TRUE AND published_at IS NULL THEN NOW() ELSE published_at END
+		     WHERE id = $1
+		     RETURNING *
+		 )
+		 SELECT upd.id, upd.category_id, upd.slug, upd.title, upd.excerpt, upd.content,
+		        upd.cover_media_file_id,
+		        COALESCE(mf.url, upd.cover_image_url) AS cover_image_url,
+		        upd.is_published, upd.published_at, upd.created_at, upd.updated_at
+		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.cover_media_file_id`,
 		id, req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
-		req.CoverImageURL, req.IsPublished).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt, &p.Content,
-			&p.CoverImageURL, &p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
+		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
 	return &p, err
 }
 

@@ -230,7 +230,7 @@ func (s *Service) importProduct(
 			alt = &img.Alt
 		}
 		if _, err := s.productSvc.AddImage(ctx, productID, shop.AddImageRequest{
-			URL:       img.Src,
+			URL:       &img.Src,
 			AltText:   alt,
 			SortOrder: img.Position,
 			IsPrimary: img.Position == 0,
