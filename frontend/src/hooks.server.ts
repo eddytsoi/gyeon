@@ -18,8 +18,8 @@ async function isMaintenanceMode(): Promise<boolean> {
 export const handle: Handle = async ({ event, resolve }) => {
   const { pathname } = event.url;
 
-  // Always allow the maintenance page itself
-  if (pathname === MAINTENANCE_PATH) return resolve(event);
+  // Always allow the maintenance page and all admin routes
+  if (pathname === MAINTENANCE_PATH || pathname.startsWith('/admin')) return resolve(event);
 
   const adminToken = event.cookies.get('admin_token');
 
