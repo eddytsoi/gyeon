@@ -28,6 +28,8 @@ export interface Variant {
   compare_at_price?: number;
   stock_qty: number;
   is_active: boolean;
+  product_name?: string;
+  image_url?: string;
 }
 
 export interface ProductImage {

@@ -38,6 +38,8 @@ type Variant struct {
 	IsActive       bool     `json:"is_active"`
 	CreatedAt      string   `json:"created_at"`
 	UpdatedAt      string   `json:"updated_at"`
+	ProductName    *string  `json:"product_name,omitempty"`
+	ImageURL       *string  `json:"image_url,omitempty"`
 }
 
 type ProductImage struct {
@@ -218,10 +220,19 @@ func (s *ProductService) DeleteAll(ctx context.Context) error {
 func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (*Variant, error) {
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, product_id, sku, price, compare_at_price, stock_qty, is_active, created_at, updated_at
-		 FROM product_variants WHERE id = $1`, variantID).
+		`SELECT pv.id, pv.product_id, pv.sku, pv.price, pv.compare_at_price,
+		        pv.stock_qty, pv.is_active, pv.created_at, pv.updated_at,
+		        p.name AS product_name,
+		        pi.url AS image_url
+		 FROM product_variants pv
+		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN product_images pi
+		     ON pi.product_id = pv.product_id AND pi.is_primary = TRUE
+		 WHERE pv.id = $1
+		 LIMIT 1`, variantID).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+			&v.ProductName, &v.ImageURL)
 	if err != nil {
 		return nil, err
 	}
