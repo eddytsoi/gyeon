@@ -25,7 +25,6 @@
           label: 'Products',
           icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z',
           children: [
-            { href: '/admin/products', label: 'Products' },
             { href: '/admin/products/categories', label: 'Categories' },
           ]
         },
@@ -49,7 +48,6 @@
           label: 'Posts',
           icon: 'M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z',
           children: [
-            { href: '/admin/cms/posts', label: 'Posts' },
             { href: '/admin/cms/post-categories', label: 'Categories' },
           ]
         },
@@ -101,6 +99,12 @@
     const moreSpecific = siblings.filter(s => s.href !== href && s.href.startsWith(href));
     if (moreSpecific.some(s => pathname.startsWith(s.href))) return false;
     return pathname.startsWith(href);
+  }
+
+  function isParentActive(link: NavLink) {
+    const pathname = $page.url.pathname;
+    if (!pathname.startsWith(link.href)) return false;
+    return !(link.children ?? []).some(c => pathname.startsWith(c.href));
   }
 </script>
 
@@ -154,17 +158,22 @@
             <div class="space-y-0.5">
               {#each group.links as link}
                 {#if link.children}
-                  {@const parentActive = isActive(link.href)}
+                  {@const parentActive = isParentActive(link)}
                   <div>
-                    <div class="flex items-center gap-3 px-3 py-2 text-sm font-medium
-                                {parentActive ? 'text-gray-900' : 'text-gray-400'}">
-                      <svg class="w-4 h-4 flex-shrink-0
-                                  {parentActive ? 'text-gray-600' : 'text-gray-300'}"
+                    <a href={link.href}
+                       onclick={() => drawerOpen = false}
+                       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                              transition-all duration-150 group
+                              {parentActive
+                                ? 'bg-gray-900 text-white shadow-sm'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}">
+                      <svg class="w-4 h-4 flex-shrink-0 transition-colors
+                                  {parentActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}"
                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d={link.icon} />
                       </svg>
                       {link.label}
-                    </div>
+                    </a>
                     <div class="ml-7 mt-0.5 space-y-0.5">
                       {#each link.children as child}
                         {@const childActive = isChildActive(child.href, link.children)}
