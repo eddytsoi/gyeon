@@ -93,6 +93,9 @@ export const adminCreateCategory = (token: string, body: Partial<Category>) =>
 export const adminUpdateCategory = (token: string, id: string, body: Partial<Category> & { is_active: boolean }) =>
   request<Category>(`/categories/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
+export const adminDeleteCategory = (token: string, id: string) =>
+  request<void>(`/categories/${id}`, token, { method: 'DELETE' });
+
 // Orders
 export const adminGetOrders = (token: string, limit = 50, offset = 0) =>
   request<Order[]>(`/orders?limit=${limit}&offset=${offset}`, token);
