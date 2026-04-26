@@ -44,6 +44,19 @@ export const actions: Actions = {
     return { success: true };
   },
 
+  delete: async ({ request, cookies }) => {
+    const token = cookies.get('admin_token') ?? '';
+    const data = await request.formData();
+    const id = data.get('id') as string;
+    try {
+      const { adminDeleteProduct } = await import('$lib/api/admin');
+      await adminDeleteProduct(token, id);
+    } catch {
+      return fail(500, { error: 'Failed to delete product' });
+    }
+    redirect(303, '/admin/products');
+  },
+
   toggle: async ({ request, cookies }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
