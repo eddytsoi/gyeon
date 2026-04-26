@@ -243,7 +243,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Add Variant</h3>
       <form method="POST" action="?/addVariant"
-            use:enhance={() => ({ async update() { await update(); showAddVariant = false; } })}>
+            use:enhance={() => async ({ update }) => { await update(); showAddVariant = false; }}>
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
@@ -294,7 +294,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Edit Variant</h3>
       <form method="POST" action="?/updateVariant"
-            use:enhance={() => ({ async update() { await update(); editingVariant = null; } })}>
+            use:enhance={() => async ({ update }) => { await update(); editingVariant = null; }}>
         <input type="hidden" name="variant_id" value={editingVariant.id} />
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
@@ -360,7 +360,7 @@
         {showStockModal.sku} — current stock: <strong>{showStockModal.stock_qty}</strong>
       </p>
       <form method="POST" action="?/adjustStock"
-            use:enhance={() => ({ async update() { await update(); showStockModal = null; } })}>
+            use:enhance={() => async ({ update }) => { await update(); showStockModal = null; }}>
         <input type="hidden" name="variant_id" value={showStockModal.id} />
         <div class="flex flex-col gap-1.5 mb-4">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Delta</label>
@@ -394,7 +394,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Add Image</h3>
       <form method="POST" action="?/addImage"
-            use:enhance={() => ({ async update() { await update(); showAddImage = false; } })}>
+            use:enhance={() => async ({ update }) => { await update(); showAddImage = false; }}>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">URL *</label>
