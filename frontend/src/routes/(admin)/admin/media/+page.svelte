@@ -12,6 +12,7 @@
   let uploading = $state<Map<string, number>>(new Map());
   let confirmDelete = $state<Set<string>>(new Set());
   let uploadErrors = $state<string[]>([]);
+  let failedImages = $state<Set<string>>(new Set());
 
   // ── Add Link modal ───────────────────────────────────────────────────────────
   let linkModalOpen = $state(false);
@@ -361,16 +362,22 @@
               </div>
 
             {:else if isLink(file)}
-              <!-- Link: try to render as image; show link icon if it fails or is unknown -->
-              {#if IMAGE_EXTS.test(file.url)}
-                <img src={file.url} alt={file.original_name} class="w-full h-full object-cover" loading="lazy" />
-              {:else}
+              <!-- Link: always try to render as image; fallback placeholder on load error -->
+              {#if failedImages.has(file.id)}
                 <div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gray-50">
                   <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                   </svg>
                   <span class="text-xs text-gray-400 font-medium px-2 text-center line-clamp-2 break-all">{file.original_name}</span>
                 </div>
+              {:else}
+                <img
+                  src={file.url}
+                  alt={file.original_name}
+                  class="w-full h-full object-cover"
+                  loading="lazy"
+                  onerror={() => { failedImages = new Set([...failedImages, file.id]); }}
+                />
               {/if}
               <!-- "Link" badge -->
               <div class="absolute top-1.5 left-1.5 pointer-events-none">
