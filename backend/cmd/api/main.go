@@ -116,12 +116,9 @@ func main() {
 		})
 	})
 
-	// Serve uploaded files — no-store prevents Cloudflare/CDN from caching deleted files
+	// Serve uploaded files — Cloudflare caches these; stale files are purged on delete
 	uploadsFS := http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads")))
-	r.Handle("/uploads/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		uploadsFS.ServeHTTP(w, r)
-	}))
+	r.Handle("/uploads/*", uploadsFS)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -283,13 +284,43 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	if err := os.Remove(origPath); err != nil {
 		log.Printf("media delete: remove original %q: %v", origPath, err)
 	}
+	purgeURLs := []string{h.baseURL + "/uploads/" + filename}
 	if webpFilename.Valid && webpFilename.String != "" {
 		webpPath := filepath.Join(uploadsDir, webpFilename.String)
 		if err := os.Remove(webpPath); err != nil {
 			log.Printf("media delete: remove webp %q: %v", webpPath, err)
 		}
+		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+webpFilename.String)
 	}
+	purgeCloudflareCache(purgeURLs)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func purgeCloudflareCache(urls []string) {
+	zoneID := os.Getenv("CLOUDFLARE_ZONE_ID")
+	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
+	if zoneID == "" || apiToken == "" {
+		return
+	}
+	body, _ := json.Marshal(map[string][]string{"files": urls})
+	req, err := http.NewRequest("POST",
+		"https://api.cloudflare.com/client/v4/zones/"+zoneID+"/purge_cache",
+		bytes.NewReader(body))
+	if err != nil {
+		log.Printf("cloudflare purge: create request: %v", err)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("cloudflare purge: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("cloudflare purge: unexpected status %d for %v", resp.StatusCode, urls)
+	}
 }
 
 // isConvertibleToWebP returns true for JPEG and PNG, which cwebp supports as input.
