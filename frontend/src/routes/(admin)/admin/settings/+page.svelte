@@ -5,7 +5,7 @@
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let saving = $state(false);
 
-  const TOGGLE_KEYS = new Set(['maintenance_mode']);
+  const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CACHE_TTL_LABELS: Record<string, string> = {
     cache_ttl_shop: 'Shop Cache TTL',
@@ -19,6 +19,9 @@
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
   const maintenanceSetting = $derived(data.settings.find((s) => s.key === 'maintenance_mode'));
   let maintenanceOn = $state(maintenanceSetting?.value === 'true');
+
+  const mcpSetting = $derived(data.settings.find((s) => s.key === 'mcp_enabled'));
+  let mcpOn = $state(mcpSetting?.value === 'true');
 </script>
 
 <svelte:head><title>Settings — Gyeon Admin</title></svelte:head>
@@ -72,6 +75,31 @@
             ⚠ Site is in maintenance mode — non-admin visitors are redirected to the maintenance page.
           </p>
         {/if}
+      </div>
+    {/if}
+
+    <!-- WebMCP -->
+    {#if mcpSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">WebMCP</p>
+            {#if mcpSetting.description}
+              <p class="text-xs text-gray-400 mt-0.5">{mcpSetting.description}</p>
+            {/if}
+          </div>
+          <button type="button"
+                  onclick={() => (mcpOn = !mcpOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {mcpOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={mcpOn}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {mcpOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="mcp_enabled" value={mcpOn ? 'true' : 'false'} />
+        </div>
       </div>
     {/if}
 

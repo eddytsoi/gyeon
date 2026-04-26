@@ -86,6 +86,18 @@ func main() {
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc))
 	adminMW := auth.Middleware(jwtSecret)
 
+	// mcpGate returns 404 when mcp_enabled != 'true', checked per-request so toggling takes effect immediately.
+	mcpGate := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			st, err := settingsSvc.Get(r.Context(), "mcp_enabled")
+			if err != nil || st.Value != "true" {
+				http.NotFound(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -117,7 +129,7 @@ func main() {
 	})
 
 	// MCP discoverability — agents can probe this to find the MCP endpoint
-	r.Get("/.well-known/mcp.json", func(w http.ResponseWriter, r *http.Request) {
+	r.With(mcpGate).Get("/.well-known/mcp.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write([]byte(`{"mcp_endpoint":"` + baseURL + `/mcp/sse","name":"Gyeon Storefront","description":"Browse products, manage cart, validate coupons, and checkout. Read-only catalog and anonymous cart/order tools only — no customer PII exposed."}`))
@@ -186,7 +198,7 @@ func main() {
 
 	// MCP storefront server — safe public tools only (browse + cart + checkout)
 	mcpServer := mcpsrv.NewServer(categorySvc, productSvc, cartSvc, orderSvc, pricingSvc)
-	r.Mount("/mcp", mcpServer.Handler())
+	r.With(mcpGate).Mount("/mcp", mcpServer.Handler())
 
 	log.Println("API server listening on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
