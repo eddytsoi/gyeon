@@ -81,7 +81,7 @@ func main() {
 	productHandler := shop.NewProductHandler(productSvc)
 	customerHandler := customers.NewHandler(customerSvc, customerJWTSecret)
 	settingsHandler := settings.NewHandler(settingsSvc)
-	mediaHandler := media.NewHandler(conn, baseURL)
+	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc))
 	adminMW := auth.Middleware(jwtSecret)

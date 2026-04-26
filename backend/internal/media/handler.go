@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/respond"
+	"gyeon/backend/internal/settings"
 )
 
 const maxImageSize = 1 << 20  // 1 MB
@@ -43,13 +45,14 @@ type MediaFile struct {
 }
 
 type Handler struct {
-	db      *sql.DB
-	baseURL string
+	db       *sql.DB
+	baseURL  string
+	settings *settings.Service
 }
 
-func NewHandler(db *sql.DB, baseURL string) *Handler {
+func NewHandler(db *sql.DB, baseURL string, settingsSvc *settings.Service) *Handler {
 	os.MkdirAll(uploadsDir, 0755)
-	return &Handler{db: db, baseURL: baseURL}
+	return &Handler{db: db, baseURL: baseURL, settings: settingsSvc}
 }
 
 func (h *Handler) AdminRoutes() chi.Router {
@@ -292,26 +295,31 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		}
 		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+webpFilename.String)
 	}
-	purgeCloudflareCache(purgeURLs)
+	h.purgeCloudflare(r.Context(), purgeURLs)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func purgeCloudflareCache(urls []string) {
-	zoneID := os.Getenv("CLOUDFLARE_ZONE_ID")
-	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
-	if zoneID == "" || apiToken == "" {
+func (h *Handler) purgeCloudflare(ctx context.Context, urls []string) {
+	zoneSt, err := h.settings.Get(ctx, "cloudflare_zone_id")
+	if err != nil || zoneSt.Value == "" {
 		return
 	}
+	tokenSt, err := h.settings.Get(ctx, "cloudflare_api_token")
+	if err != nil || tokenSt.Value == "" {
+		return
+	}
+
 	body, _ := json.Marshal(map[string][]string{"files": urls})
-	req, err := http.NewRequest("POST",
-		"https://api.cloudflare.com/client/v4/zones/"+zoneID+"/purge_cache",
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.cloudflare.com/client/v4/zones/"+zoneSt.Value+"/purge_cache",
 		bytes.NewReader(body))
 	if err != nil {
-		log.Printf("cloudflare purge: create request: %v", err)
+		log.Printf("cloudflare purge: build request: %v", err)
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+apiToken)
+	req.Header.Set("Authorization", "Bearer "+tokenSt.Value)
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("cloudflare purge: %v", err)
