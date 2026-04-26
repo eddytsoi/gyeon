@@ -329,10 +329,25 @@ export interface MediaFile {
   url: string;
   created_at: string;
   refs: MediaRef[];
+  webp_url?: string | null;
+  webp_size_bytes?: number | null;
 }
 
 export const adminGetMedia = (token: string) =>
   request<MediaFile[]>('/admin/media', token);
+
+export const adminGetMediaFile = (token: string, id: string) =>
+  request<MediaFile>(`/admin/media/${id}`, token);
+
+export const adminUpdateMedia = (
+  token: string,
+  id: string,
+  body: { original_name?: string; url?: string }
+) =>
+  request<MediaFile>(`/admin/media/${id}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
 
 export const adminDeleteMedia = (token: string, id: string) =>
   request(`/admin/media/${id}`, token, { method: 'DELETE' });

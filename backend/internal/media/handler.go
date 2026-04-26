@@ -78,6 +78,8 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/", h.list)
 	r.Post("/upload", h.upload)
 	r.Post("/link", h.addLink)
+	r.Get("/{id}", h.get)
+	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	return r
 }
@@ -145,6 +147,124 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		files = append(files, f)
 	}
 	respond.JSON(w, http.StatusOK, files)
+}
+
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	h.getByID(w, r, chi.URLParam(r, "id"))
+}
+
+func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
+	var f MediaFile
+	var refsJSON []byte
+	var webpURL sql.NullString
+	var webpSizeBytes sql.NullInt64
+	err := h.db.QueryRowContext(r.Context(), `
+		SELECT mf.id, mf.filename, mf.original_name, mf.mime_type,
+		       mf.size_bytes, mf.url, mf.created_at,
+		       mf.webp_url, mf.webp_size_bytes,
+		       COALESCE(json_agg(DISTINCT jsonb_build_object(
+		           'type', refs.entity_type,
+		           'id',   refs.entity_id,
+		           'name', refs.entity_name
+		       )) FILTER (WHERE refs.entity_type IS NOT NULL), '[]') AS refs
+		FROM media_files mf
+		LEFT JOIN (
+		    SELECT pi.media_file_id AS mf_id, 'product' AS entity_type,
+		           p.id::text AS entity_id, p.name AS entity_name
+		    FROM product_images pi JOIN products p ON p.id = pi.product_id
+		    WHERE pi.media_file_id IS NOT NULL
+		    UNION ALL
+		    SELECT cp.cover_media_file_id, 'post',
+		           cp.id::text, cp.title
+		    FROM cms_posts cp WHERE cp.cover_media_file_id IS NOT NULL
+		) refs ON refs.mf_id = mf.id
+		WHERE mf.id = $1
+		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
+		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes
+	`, id).Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
+		&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes, &refsJSON)
+	if err == sql.ErrNoRows {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	if webpURL.Valid {
+		f.WebpURL = &webpURL.String
+	}
+	if webpSizeBytes.Valid {
+		f.WebpSizeBytes = &webpSizeBytes.Int64
+	}
+	if err := json.Unmarshal(refsJSON, &f.Refs); err != nil {
+		f.Refs = []MediaRef{}
+	}
+	respond.JSON(w, http.StatusOK, f)
+}
+
+type updateMediaRequest struct {
+	OriginalName *string `json:"original_name"`
+	URL          *string `json:"url"`
+}
+
+func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req updateMediaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+
+	var mimeType string
+	if err := h.db.QueryRowContext(r.Context(), `SELECT mime_type FROM media_files WHERE id=$1`, id).Scan(&mimeType); err == sql.ErrNoRows {
+		respond.NotFound(w)
+		return
+	} else if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	setClauses := make([]string, 0, 3)
+	args := make([]any, 0, 3)
+	n := 1
+
+	if req.OriginalName != nil {
+		name := strings.TrimSpace(*req.OriginalName)
+		if name == "" {
+			respond.BadRequest(w, "original_name cannot be empty")
+			return
+		}
+		setClauses = append(setClauses, fmt.Sprintf("original_name=$%d", n))
+		args = append(args, name)
+		n++
+	}
+
+	if req.URL != nil && mimeType == "link" {
+		u := strings.TrimSpace(*req.URL)
+		if u == "" {
+			respond.BadRequest(w, "url cannot be empty")
+			return
+		}
+		setClauses = append(setClauses, fmt.Sprintf("url=$%d", n), fmt.Sprintf("filename=$%d", n+1))
+		args = append(args, u, u)
+		n += 2
+	}
+
+	if len(setClauses) == 0 {
+		respond.BadRequest(w, "nothing to update")
+		return
+	}
+
+	args = append(args, id)
+	if _, err := h.db.ExecContext(r.Context(),
+		fmt.Sprintf("UPDATE media_files SET %s WHERE id=$%d", strings.Join(setClauses, ", "), n),
+		args...); err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	h.getByID(w, r, id)
 }
 
 func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {

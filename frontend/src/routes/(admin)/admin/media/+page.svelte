@@ -6,7 +6,7 @@
   let { data }: { data: PageData } = $props();
 
   let media = $state<MediaFile[]>(data.media);
-  let filter = $state<'all' | 'image' | 'video'>('all');
+  let filter = $state<'all' | 'image' | 'video' | 'link'>('all');
   let dragging = $state(false);
   let dragCounter = $state(0);
   let uploading = $state<Map<string, number>>(new Map());
@@ -68,7 +68,9 @@
       ? media
       : filter === 'image'
         ? media.filter((f) => isImage(f))
-        : media.filter((f) => isVideo(f))
+        : filter === 'video'
+          ? media.filter((f) => isVideo(f))
+          : media.filter((f) => isLink(f))
   );
 
   function formatBytes(n: number) {
@@ -258,14 +260,14 @@
 
     <!-- Filter tabs -->
     <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-      {#each (['all', 'image', 'video'] as const) as tab}
+      {#each (['all', 'image', 'video', 'link'] as const) as tab}
         <button
           onclick={() => (filter = tab)}
           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {filter === tab
             ? 'bg-white text-gray-900 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'}"
         >
-          {tab === 'all' ? 'All' : tab === 'image' ? 'Images' : 'Videos'}
+          {tab === 'all' ? 'All' : tab === 'image' ? 'Images' : tab === 'video' ? 'Videos' : 'Links'}
         </button>
       {/each}
     </div>
@@ -441,6 +443,17 @@
                 {/if}
               </div>
             </div>
+
+            <!-- Edit badge (always visible) -->
+            <a
+              href="/admin/media/{file.id}"
+              title="Edit"
+              class="absolute bottom-1.5 right-1.5 z-10 p-1.5 rounded-lg bg-gray-900/60 text-white hover:bg-gray-900/90 transition-colors backdrop-blur-sm"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+              </svg>
+            </a>
           </div>
 
           <!-- Entity ref badges -->
