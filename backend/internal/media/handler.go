@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +22,6 @@ import (
 	"gyeon/backend/internal/settings"
 )
 
-const maxImageSize = 1 << 20  // 1 MB
-const maxVideoSize = 10 << 20 // 10 MB
 const uploadsDir = "./uploads"
 
 type MediaRef struct {
@@ -53,6 +52,25 @@ type Handler struct {
 func NewHandler(db *sql.DB, baseURL string, settingsSvc *settings.Service) *Handler {
 	os.MkdirAll(uploadsDir, 0755)
 	return &Handler{db: db, baseURL: baseURL, settings: settingsSvc}
+}
+
+// uploadLimits reads configurable size limits from site_settings with fallbacks.
+func (h *Handler) uploadLimits(ctx context.Context) (imageMB, videoMB int64) {
+	imageMB, videoMB = 1, 10
+	if h.settings == nil {
+		return
+	}
+	if st, err := h.settings.Get(ctx, "upload_max_image_mb"); err == nil {
+		if n, err := strconv.ParseInt(st.Value, 10, 64); err == nil && n > 0 {
+			imageMB = n
+		}
+	}
+	if st, err := h.settings.Get(ctx, "upload_max_video_mb"); err == nil {
+		if n, err := strconv.ParseInt(st.Value, 10, 64); err == nil && n > 0 {
+			videoMB = n
+		}
+	}
+	return
 }
 
 func (h *Handler) AdminRoutes() chi.Router {
@@ -130,9 +148,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxVideoSize)
-	if err := r.ParseMultipartForm(maxVideoSize); err != nil {
-		respond.BadRequest(w, "file too large (max 10 MB)")
+	imageMB, videoMB := h.uploadLimits(r.Context())
+	maxImageBytes := imageMB * 1024 * 1024
+	maxVideoBytes := videoMB * 1024 * 1024
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxVideoBytes)
+	if err := r.ParseMultipartForm(maxVideoBytes); err != nil {
+		respond.BadRequest(w, fmt.Sprintf("file too large (max %d MB)", videoMB))
 		return
 	}
 
@@ -150,15 +172,15 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 
 	var sizeLimit int64
 	if strings.HasPrefix(mimeType, "video/") {
-		sizeLimit = maxVideoSize
+		sizeLimit = maxVideoBytes
 	} else {
-		sizeLimit = maxImageSize
+		sizeLimit = maxImageBytes
 	}
 	if header.Size > sizeLimit {
 		if strings.HasPrefix(mimeType, "video/") {
-			respond.BadRequest(w, "video too large (max 10 MB)")
+			respond.BadRequest(w, fmt.Sprintf("video too large (max %d MB)", videoMB))
 		} else {
-			respond.BadRequest(w, "image too large (max 1 MB)")
+			respond.BadRequest(w, fmt.Sprintf("image too large (max %d MB)", imageMB))
 		}
 		return
 	}
