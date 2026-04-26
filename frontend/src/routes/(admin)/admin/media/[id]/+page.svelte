@@ -10,11 +10,9 @@
     file.mime_type.startsWith('video/') ||
     (isLink && /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(file.url))
   );
-  const isImage = $derived(
-    file.mime_type.startsWith('image/') ||
-    (isLink && /\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)(\?|#|$)/i.test(file.url))
-  );
+  const isImage = $derived(file.mime_type.startsWith('image/'));
 
+  let linkImageFailed = $state(false);
   let showDeleteModal = $state(false);
   let saving = $state(false);
   let deleting = $state(false);
@@ -126,6 +124,33 @@
           alt={file.original_name}
           class="w-full h-full object-contain"
         />
+      {:else if isLink}
+        {#if !linkImageFailed}
+          <!-- Try loading the URL as an image; onerror triggers URL fallback -->
+          <img
+            src={file.url}
+            alt={file.original_name}
+            class="w-full h-full object-contain"
+            onerror={() => { linkImageFailed = true; }}
+          />
+        {:else}
+          <!-- URL doesn't resolve to an image — show as clickable link -->
+          <div class="flex flex-col items-center gap-3 text-center px-6">
+            <div class="w-16 h-16 rounded-2xl bg-gray-200 flex items-center justify-center">
+              <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+              </svg>
+            </div>
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sm text-blue-600 hover:underline break-all"
+            >
+              {file.url}
+            </a>
+          </div>
+        {/if}
       {:else}
         <div class="flex flex-col items-center gap-3 text-center px-6">
           <div class="w-16 h-16 rounded-2xl bg-gray-200 flex items-center justify-center">

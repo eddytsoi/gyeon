@@ -84,6 +84,10 @@ func (h *Handler) AdminRoutes() chi.Router {
 	return r
 }
 
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	h.getByID(w, r, chi.URLParam(r, "id"))
+}
+
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.QueryContext(r.Context(), `
 		SELECT mf.id, mf.filename, mf.original_name, mf.mime_type,
@@ -149,10 +153,6 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, files)
 }
 
-func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
-	h.getByID(w, r, chi.URLParam(r, "id"))
-}
-
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 	var f MediaFile
 	var refsJSON []byte
@@ -174,14 +174,23 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 		    FROM product_images pi JOIN products p ON p.id = pi.product_id
 		    WHERE pi.media_file_id IS NOT NULL
 		    UNION ALL
+		    SELECT mf2.id, 'product', p.id::text, p.name
+		    FROM product_images pi JOIN products p ON p.id = pi.product_id
+		    JOIN media_files mf2 ON mf2.url = pi.url
+		    WHERE pi.media_file_id IS NULL AND pi.url IS NOT NULL
+		    UNION ALL
 		    SELECT cp.cover_media_file_id, 'post',
 		           cp.id::text, cp.title
 		    FROM cms_posts cp WHERE cp.cover_media_file_id IS NOT NULL
+		    UNION ALL
+		    SELECT mf2.id, 'post', cp.id::text, cp.title
+		    FROM cms_posts cp JOIN media_files mf2 ON mf2.url = cp.cover_image_url
+		    WHERE cp.cover_media_file_id IS NULL AND cp.cover_image_url IS NOT NULL
 		) refs ON refs.mf_id = mf.id
 		WHERE mf.id = $1
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
-		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes
-	`, id).Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
+		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes`,
+		id).Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
 		&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes, &refsJSON)
 	if err == sql.ErrNoRows {
 		respond.NotFound(w)
