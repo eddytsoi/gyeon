@@ -50,7 +50,7 @@
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
-  const VIDEO_EXTS = /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i;
+  const VIDEO_EXTS = /\.(mp4|webm)(\?|#|$)/i;
   const IMAGE_EXTS = /\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)(\?|#|$)/i;
 
   function isVideo(f: MediaFile) {
@@ -110,7 +110,7 @@
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = 'image/*,video/mp4,video/webm,video/quicktime';
+    input.accept = 'image/*,video/mp4,video/webm';
     input.onchange = () => uploadFiles(Array.from(input.files ?? []));
     input.click();
   }
@@ -172,7 +172,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
       </svg>
       <p class="text-white font-semibold text-lg">Drop to upload</p>
-      <p class="text-white/60 text-sm mt-1">Images ≤ 1 MB · Videos ≤ 10 MB</p>
+      <p class="text-white/60 text-sm mt-1">Images ≤ 1 MB · Videos (mp4, webm) ≤ 10 MB</p>
     </div>
   </div>
 {/if}

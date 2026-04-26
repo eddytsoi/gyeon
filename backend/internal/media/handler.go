@@ -290,6 +290,11 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		mimeType = "application/octet-stream"
 	}
 
+	if strings.HasPrefix(mimeType, "video/") && mimeType != "video/mp4" && mimeType != "video/webm" {
+		respond.BadRequest(w, "only mp4 and webm video formats are accepted")
+		return
+	}
+
 	var sizeLimit int64
 	if strings.HasPrefix(mimeType, "video/") {
 		sizeLimit = maxVideoBytes
@@ -529,7 +534,7 @@ func sanitizeExt(ext string) string {
 	allowed := map[string]bool{
 		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
 		".webp": true, ".svg": true, ".pdf": true,
-		".mp4": true, ".webm": true, ".mov": true,
+		".mp4": true, ".webm": true,
 	}
 	ext = strings.ToLower(ext)
 	if allowed[ext] {
