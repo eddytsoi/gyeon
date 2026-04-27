@@ -14,6 +14,7 @@
   );
   const activeImage = $derived<ProductImage | undefined>(
     data.images.find((i) => i.id === activeImageID) ??
+    data.images.find((i) => i.variant_id != null && i.variant_id === selectedVariant?.id) ??
     data.images.find((i) => i.is_primary) ??
     data.images[0]
   );
@@ -166,7 +167,7 @@
             <div class="flex flex-wrap gap-2">
               {#each data.variants as v}
                 <button
-                  onclick={() => (selectedVariantID = v.id)}
+                  onclick={() => { selectedVariantID = v.id; activeImageID = undefined; }}
                   disabled={v.stock_qty === 0}
                   class="px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all
                          {v.stock_qty === 0 ? 'opacity-25 cursor-not-allowed line-through border-gray-200 text-gray-400' : ''}"
