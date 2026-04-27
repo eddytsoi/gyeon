@@ -99,10 +99,11 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
 		        p.name, pv.sku, pv.price,
-		        pi.url
+		        COALESCE(vi.url, pi.url) AS image_url
 		 FROM cart_items ci
 		 JOIN product_variants pv ON pv.id = ci.variant_id
 		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN product_images vi ON vi.variant_id = ci.variant_id
 		 LEFT JOIN product_images pi
 		     ON pi.product_id = pv.product_id AND pi.is_primary = TRUE
 		 WHERE ci.cart_id = $1
