@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/shop"
 )
 
@@ -34,11 +35,12 @@ type ProgressUpdate struct {
 type Service struct {
 	categorySvc *shop.CategoryService
 	productSvc  *shop.ProductService
+	mediaSvc    *media.Service
 }
 
 // NewService creates an import Service.
-func NewService(categorySvc *shop.CategoryService, productSvc *shop.ProductService) *Service {
-	return &Service{categorySvc: categorySvc, productSvc: productSvc}
+func NewService(categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service) *Service {
+	return &Service{categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc}
 }
 
 // TestConnection verifies that the WooCommerce credentials are valid and
@@ -229,12 +231,19 @@ func (s *Service) importProduct(
 		if img.Alt != "" {
 			alt = &img.Alt
 		}
-		if _, err := s.productSvc.AddImage(ctx, productID, shop.AddImageRequest{
+		req := shop.AddImageRequest{
 			URL:       &img.Src,
 			AltText:   alt,
 			SortOrder: img.Position,
 			IsPrimary: img.Position == 0,
-		}); err != nil {
+		}
+		mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
+		if err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+		} else {
+			req.MediaFileID = &mediaID
+		}
+		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
 		}
 	}

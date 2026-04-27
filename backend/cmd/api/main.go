@@ -81,9 +81,10 @@ func main() {
 	productHandler := shop.NewProductHandler(productSvc)
 	customerHandler := customers.NewHandler(customerSvc, customerJWTSecret)
 	settingsHandler := settings.NewHandler(settingsSvc)
+	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
-	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc))
+	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc))
 	adminMW := auth.Middleware(jwtSecret)
 
 	// mcpGate returns 404 when mcp_enabled != 'true', checked per-request so toggling takes effect immediately.
