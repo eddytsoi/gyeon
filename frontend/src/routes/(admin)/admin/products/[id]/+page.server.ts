@@ -154,9 +154,11 @@ export const actions: Actions = {
     if (!token) return fail(401, { error: 'Unauthorized' });
 
     const form = await request.formData();
+    const mediaFileId = form.get('media_file_id')?.toString() || undefined;
+    if (!mediaFileId) return fail(400, { error: 'No image selected' });
     try {
       await adminAddImage(token, params.id, {
-        url: form.get('url')?.toString() ?? '',
+        media_file_id: mediaFileId,
         alt_text: form.get('alt_text')?.toString() || undefined,
         sort_order: parseInt(form.get('sort_order')?.toString() ?? '0', 10),
         is_primary: form.get('is_primary') === 'true'

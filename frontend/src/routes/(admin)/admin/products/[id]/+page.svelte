@@ -23,15 +23,22 @@
   let editingVariant = $state<typeof data.variants[0] | null>(null);
   let showStockModal = $state<typeof data.variants[0] | null>(null);
 
+  // Image media helper — includes uploaded images AND Link-type media with image URLs
+  const IMAGE_EXTS = /\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)(\?|#|$)/i;
+  function isImageMedia(f: { mime_type: string; url: string }) {
+    return f.mime_type.startsWith('image/') || (f.mime_type === 'link' && IMAGE_EXTS.test(f.url));
+  }
+
   // Variant image picker state
-  const imageMedia = $derived((data.mediaFiles ?? []).filter(f => f.mime_type.startsWith('image/')));
+  const imageMedia = $derived((data.mediaFiles ?? []).filter(isImageMedia));
   let addVariantImageId = $state<string | null>(null);
   let editVariantImageId = $state<string | null>(null);
   let editVariantOldImageId = $state<string | null>(null);
   let editVariantRemoveImage = $state(false);
 
-  // Image modal state
+  // Add Image modal state
   let showAddImage = $state(false);
+  let addImageSelectedId = $state<string | null>(null);
 </script>
 
 <svelte:head>
@@ -465,49 +472,64 @@
 {#if showAddImage}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-         onclick={() => showAddImage = false} role="button" tabindex="-1" aria-label="Close"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+         onclick={() => { showAddImage = false; addImageSelectedId = null; }}
+         role="button" tabindex="-1" aria-label="Close"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl">
       <h3 class="font-semibold text-gray-900 mb-4">Add Image</h3>
       <form method="POST" action="?/addImage"
-            use:enhance={() => async ({ update }) => { await update(); showAddImage = false; }}>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">URL *</label>
-            <input name="url" type="url" required placeholder="https://…"
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            use:enhance={() => async ({ update }) => { await update(); showAddImage = false; addImageSelectedId = null; }}>
+        <input type="hidden" name="media_file_id" value={addImageSelectedId ?? ''} />
+        <input type="hidden" name="sort_order" value="0" />
+
+        <!-- Media pick list -->
+        {#if imageMedia.length === 0}
+          <p class="text-sm text-gray-400 py-6 text-center">No images in media library yet.</p>
+        {:else}
+          <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2 max-h-80 overflow-y-auto mb-4 pr-1">
+            {#each imageMedia as mf}
+              <button type="button"
+                      onclick={() => addImageSelectedId = addImageSelectedId === mf.id ? null : mf.id}
+                      class="relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
+                             {addImageSelectedId === mf.id ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}">
+                <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                {#if addImageSelectedId === mf.id}
+                  <div class="absolute inset-0 bg-gray-900/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white drop-shadow" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd"/>
+                    </svg>
+                  </div>
+                {/if}
+              </button>
+            {/each}
           </div>
+        {/if}
+
+        <!-- Options row -->
+        <div class="flex items-center gap-4 mb-5">
           <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set as Primary?</label>
+            <select name="is_primary"
+                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+          <div class="flex-1 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alt Text</label>
-            <input name="alt_text"
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+            <input name="alt_text" placeholder="Optional"
+                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sort Order</label>
-              <input name="sort_order" type="number" min="0" value="0"
-                     class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Primary?</label>
-              <select name="is_primary"
-                      class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-gray-900">
-                <option value="false">No</option>
-                <option value="true">Yes</option>
-              </select>
-            </div>
           </div>
         </div>
-        <div class="flex gap-3 mt-5">
-          <button type="submit"
+
+        <div class="flex gap-3">
+          <button type="submit" disabled={!addImageSelectedId}
                   class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
+                         hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             Add Image
           </button>
-          <button type="button" onclick={() => showAddImage = false}
+          <button type="button" onclick={() => { showAddImage = false; addImageSelectedId = null; }}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
             Cancel
