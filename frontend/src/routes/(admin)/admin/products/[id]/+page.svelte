@@ -24,7 +24,7 @@
   let showStockModal = $state<typeof data.variants[0] | null>(null);
 
   // Variant image picker state
-  const imageMedia = $derived(data.mediaFiles.filter(f => f.mime_type.startsWith('image/')));
+  const imageMedia = $derived((data.mediaFiles ?? []).filter(f => f.mime_type.startsWith('image/')));
   let addVariantImageId = $state<string | null>(null);
   let editVariantImageId = $state<string | null>(null);
   let editVariantOldImageId = $state<string | null>(null);
