@@ -34,6 +34,11 @@
   let editVariantImageId = $state<string | null>(null);
   let editVariantOldImageId = $state<string | null>(null);
   let editVariantRemoveImage = $state(false);
+  const editVariantPreviewUrl = $derived(
+    editVariantRemoveImage ? null : (editVariantImageId
+      ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url ?? null)
+      : (editingVariant?.image_url ?? null))
+  );
 
   // Add Image modal state
   let showAddImage = $state(false);
@@ -446,12 +451,9 @@
         <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
         <input type="hidden" name="remove_image" value={String(editVariantRemoveImage)} />
         <!-- Full-width image preview -->
-        {@const previewUrl = editVariantRemoveImage ? null : (editVariantImageId
-          ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url)
-          : editingVariant.image_url ?? null)}
         <div class="relative mt-4 w-full aspect-video bg-gray-100">
-          {#if previewUrl}
-            <img src={previewUrl} alt="" class="w-full h-full object-cover" />
+          {#if editVariantPreviewUrl}
+            <img src={editVariantPreviewUrl} alt="" class="w-full h-full object-cover" />
             <button type="button"
                     onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
                     class="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 hover:bg-red-500/80 transition-colors text-white">
