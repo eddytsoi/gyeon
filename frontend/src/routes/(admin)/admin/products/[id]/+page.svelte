@@ -23,10 +23,9 @@
   let editingVariant = $state<typeof data.variants[0] | null>(null);
   let showStockModal = $state<typeof data.variants[0] | null>(null);
 
-  // Image media helper — includes uploaded images AND Link-type media with image URLs
-  const IMAGE_EXTS = /\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)(\?|#|$)/i;
+  // Image media helper — uploaded images OR any user-added link (URLs added to the library are assumed to be images)
   function isImageMedia(f: { mime_type: string; url: string }) {
-    return f.mime_type.startsWith('image/') || (f.mime_type === 'link' && IMAGE_EXTS.test(f.url));
+    return f.mime_type.startsWith('image/') || f.mime_type === 'link';
   }
 
   // Variant image picker state
@@ -39,6 +38,76 @@
   // Add Image modal state
   let showAddImage = $state(false);
   let addImageSelectedId = $state<string | null>(null);
+
+  // Image drag-and-drop reorder state
+  function sortedImages(imgs: typeof data.images) {
+    return [...imgs].sort((a, b) => {
+      if (a.is_primary) return -1;
+      if (b.is_primary) return 1;
+      return a.sort_order - b.sort_order;
+    });
+  }
+  let images = $state(sortedImages(data.images));
+  let dragSrcIdx = $state<number | null>(null);
+  let dragOverIdx = $state<number | null>(null);
+  let reorderSaving = $state(false);
+  let reorderError = $state<string | null>(null);
+
+  $effect(() => { images = sortedImages(data.images); });
+
+  function handleDragStart(e: DragEvent, idx: number) {
+    dragSrcIdx = idx;
+    e.dataTransfer!.effectAllowed = 'move';
+  }
+
+  function handleDragOver(e: DragEvent, idx: number) {
+    if (idx === 0) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverIdx = idx;
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+      dragOverIdx = null;
+    }
+  }
+
+  function handleDrop(e: DragEvent, idx: number) {
+    e.preventDefault();
+    if (dragSrcIdx === null || dragSrcIdx === idx || idx === 0) {
+      dragSrcIdx = null; dragOverIdx = null;
+      return;
+    }
+    const reordered = [...images];
+    const [moved] = reordered.splice(dragSrcIdx, 1);
+    reordered.splice(idx, 0, moved);
+    images = reordered;
+    dragSrcIdx = null; dragOverIdx = null;
+    persistReorder(reordered);
+  }
+
+  function handleDragEnd() {
+    dragSrcIdx = null; dragOverIdx = null;
+  }
+
+  async function persistReorder(reordered: typeof images) {
+    reorderSaving = true;
+    reorderError = null;
+    const snapshot = [...images];
+    try {
+      const fd = new FormData();
+      fd.set('image_ids', reordered.map(img => img.id).join(','));
+      const res = await fetch('?/reorderImages', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error();
+      images = reordered.map((img, i) => ({ ...img, sort_order: i }));
+    } catch {
+      reorderError = 'Failed to save image order.';
+      images = snapshot;
+    } finally {
+      reorderSaving = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -214,7 +283,12 @@
     <!-- ── Images ── -->
     <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <h2 class="font-semibold text-gray-900">Images</h2>
+        <h2 class="font-semibold text-gray-900">
+          Images
+          {#if reorderSaving}
+            <span class="ml-2 text-xs font-normal text-gray-400">Saving order…</span>
+          {/if}
+        </h2>
         <button onclick={() => showAddImage = true}
                 class="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg
                        hover:bg-gray-700 transition-colors">
@@ -222,12 +296,32 @@
         </button>
       </div>
 
-      {#if data.images.length === 0}
+      {#if reorderError}
+        <div class="px-6 py-2 text-sm text-red-500 bg-red-50 border-b border-red-100 flex items-center justify-between">
+          {reorderError}
+          <button onclick={() => reorderError = null} class="ml-4 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      {/if}
+
+      {#if images.length === 0}
         <div class="px-6 py-8 text-center text-gray-400 text-sm">No images yet.</div>
       {:else}
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
-          {#each data.images as image}
-            <div class="relative group rounded-xl overflow-hidden border border-gray-100 bg-gray-50 aspect-square">
+          {#each images as image, i}
+            <div
+              draggable={i !== 0}
+              ondragstart={i !== 0 ? (e) => handleDragStart(e, i) : undefined}
+              ondragover={(e) => handleDragOver(e, i)}
+              ondragleave={handleDragLeave}
+              ondrop={(e) => handleDrop(e, i)}
+              ondragend={handleDragEnd}
+              class="relative group rounded-xl overflow-hidden border bg-gray-50 aspect-square
+                     transition-all duration-150
+                     {i !== 0 ? 'cursor-grab' : ''}
+                     {dragSrcIdx === i ? 'opacity-40 scale-95 border-gray-300' :
+                      dragOverIdx === i ? 'border-2 border-gray-900 ring-2 ring-gray-900/20' :
+                      'border-gray-100'}"
+            >
               <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
               {#if image.is_primary}
                 <span class="absolute top-2 left-2 bg-gray-900 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
