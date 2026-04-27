@@ -101,6 +101,17 @@ export const getNavMenu = (handle: string) =>
 
 export const getOrderByID = (id: string) => request<Order>(`/orders/${id}`);
 
+export type OrderPaymentInfo = {
+  order: Order;
+  client_secret: string;
+  publishable_key: string;
+  mode: string;
+  currency: string;
+};
+
+export const getOrderPaymentInfo = (id: string, clientSecret: string) =>
+  request<OrderPaymentInfo>(`/orders/${id}/payment-info?cs=${encodeURIComponent(clientSecret)}`);
+
 // --- Customer auth & account ---
 
 function authed(token: string): RequestInit {

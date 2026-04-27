@@ -22,9 +22,33 @@ func (h *OrderHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Post("/checkout", h.checkout)
+	r.Get("/{id}/payment-info", h.paymentInfo)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
 	return r
+}
+
+func (h *OrderHandler) paymentInfo(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	cs := r.URL.Query().Get("cs")
+	info, err := h.svc.PaymentInfo(r.Context(), id, cs)
+	if errors.Is(err, ErrOrderNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if errors.Is(err, ErrPaymentLinkInvalid) {
+		respond.Error(w, http.StatusUnauthorized, "invalid payment link")
+		return
+	}
+	if errors.Is(err, ErrPaymentLinkExpired) {
+		respond.Error(w, http.StatusGone, "payment already completed or order is no longer payable")
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, info)
 }
 
 func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {

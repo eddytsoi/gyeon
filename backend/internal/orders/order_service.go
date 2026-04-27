@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 
 	"gyeon/backend/internal/customers"
@@ -85,6 +86,11 @@ type CheckoutRequest struct {
 	ShippingFee       float64               `json:"shipping_fee"`
 	CouponCode        *string               `json:"coupon_code"`
 	Notes             *string               `json:"notes"`
+	// SendPaymentLink, when true, triggers a "complete payment" email containing
+	// a magic link for the customer to finish Stripe payment in their browser.
+	// Set internally by callers that have no Stripe.js (e.g. MCP); never read
+	// from JSON so REST clients cannot trigger spam.
+	SendPaymentLink bool `json:"-"`
 }
 
 type CheckoutResult struct {
@@ -410,9 +416,117 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		result.ClientSecret = intent.ClientSecret
 		result.PublishableKey = s.paymentSvc.PublishableKey(ctx)
 		result.Mode = s.paymentSvc.Mode(ctx)
+
+		if req.SendPaymentLink && customerEmail != "" && s.emailSvc != nil {
+			s.sendPaymentLinkEmail(ctx, &order, intent.ClientSecret)
+		}
 	}
 
 	return result, nil
+}
+
+// sendPaymentLinkEmail emails the customer a magic link to complete the
+// Stripe payment for an MCP-initiated pending order. Best-effort.
+func (s *OrderService) sendPaymentLinkEmail(ctx context.Context, order *Order, clientSecret string) {
+	if order.CustomerEmail == nil || *order.CustomerEmail == "" {
+		return
+	}
+	base := s.emailSvc.PublicBaseURL(ctx)
+	paymentURL := fmt.Sprintf("%s/pay/%s?cs=%s", base, order.ID, url.QueryEscape(clientSecret))
+
+	items := make([]email.OrderEmailItem, len(order.Items))
+	for i, it := range order.Items {
+		items[i] = email.OrderEmailItem{
+			Name:      it.ProductName,
+			SKU:       it.VariantSKU,
+			Quantity:  it.Quantity,
+			UnitPrice: it.UnitPrice,
+			LineTotal: it.LineTotal,
+		}
+	}
+	name := ""
+	if order.CustomerName != nil {
+		name = *order.CustomerName
+	}
+	err := s.emailSvc.SendPaymentLink(ctx, email.PaymentLinkParams{
+		OrderID:       order.ID,
+		CustomerName:  name,
+		CustomerEmail: *order.CustomerEmail,
+		Items:         items,
+		Total:         order.Total,
+		Currency:      "HKD",
+		PaymentURL:    paymentURL,
+	})
+	if err != nil {
+		log.Printf("send payment link email for order %s: %v", order.ID, err)
+	}
+}
+
+// PaymentInfoResult is the public payload returned to the customer-facing
+// /pay/{id} page so they can mount a Stripe Element and finish payment.
+type PaymentInfoResult struct {
+	Order          *Order  `json:"order"`
+	ClientSecret   string  `json:"client_secret"`
+	PublishableKey string  `json:"publishable_key"`
+	Mode           string  `json:"mode"`
+	Currency       string  `json:"currency"`
+}
+
+var ErrPaymentLinkInvalid = errors.New("invalid payment link")
+var ErrPaymentLinkExpired = errors.New("payment already completed or order is no longer payable")
+
+// PaymentInfo validates a magic-link `cs` query against the order's stored
+// PaymentIntent and returns the data the /pay page needs. The cs is the
+// Stripe client_secret in the form `pi_XXX_secret_YYY`; we authorize the
+// caller by checking that pi_XXX matches the order's payment_intent_id.
+func (s *OrderService) PaymentInfo(ctx context.Context, orderID, clientSecret string) (*PaymentInfoResult, error) {
+	if clientSecret == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+	idx := strings.Index(clientSecret, "_secret_")
+	if idx <= 0 {
+		return nil, ErrPaymentLinkInvalid
+	}
+	if clientSecret[:idx] != *order.PaymentIntentID {
+		return nil, ErrPaymentLinkInvalid
+	}
+	if order.Status != StatusPending {
+		return nil, ErrPaymentLinkExpired
+	}
+	if order.PaymentStatus != nil && *order.PaymentStatus == "succeeded" {
+		return nil, ErrPaymentLinkExpired
+	}
+
+	// Strip PII from the order before returning to the (already-authorized but
+	// link-shareable) caller. The link holder knows their own order, but we
+	// avoid echoing fields they didn't already submit.
+	safe := *order
+	safe.CustomerEmail = nil
+	safe.CustomerPhone = nil
+	safe.CustomerID = nil
+	safe.ShippingAddressID = nil
+	safe.Notes = nil
+
+	pubKey := ""
+	mode := ""
+	if s.paymentSvc != nil {
+		pubKey = s.paymentSvc.PublishableKey(ctx)
+		mode = s.paymentSvc.Mode(ctx)
+	}
+	return &PaymentInfoResult{
+		Order:          &safe,
+		ClientSecret:   clientSecret,
+		PublishableKey: pubKey,
+		Mode:           mode,
+		Currency:       "HKD",
+	}, nil
 }
 
 // MarkPaidByPaymentIntent flips a pending order to `paid` and triggers the

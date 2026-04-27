@@ -91,6 +91,16 @@ type OrderEmailParams struct {
 	SetupURL        string // empty unless guest
 }
 
+type PaymentLinkParams struct {
+	OrderID       string
+	CustomerName  string
+	CustomerEmail string
+	Items         []OrderEmailItem
+	Total         float64
+	Currency      string
+	PaymentURL    string
+}
+
 // SendTest sends a plain test email to verify SMTP configuration.
 func (s *Service) SendTest(ctx context.Context, to string) error {
 	cfg, err := s.loadConfig(ctx)
@@ -113,6 +123,23 @@ func (s *Service) SendTest(ctx context.Context, to string) error {
   </div>
 </body></html>`
 	return s.send(cfg, to, subject, text, html)
+}
+
+// SendPaymentLink renders and sends a "complete payment" email containing a
+// link the customer can click to finish Stripe payment in their browser.
+// Used when checkout is initiated via MCP (no inline Stripe Element flow).
+func (s *Service) SendPaymentLink(ctx context.Context, p PaymentLinkParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+	subject := fmt.Sprintf("完成付款 — %s", shortOrderID(p.OrderID))
+	html := renderPaymentLinkHTML(p)
+	text := renderPaymentLinkText(p)
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
 // SendOrderConfirmation renders and sends the order confirmation email.
@@ -281,6 +308,62 @@ func renderOrderHTML(p OrderEmailParams) string {
 		p.Currency, p.Total,
 		address.String(),
 		setupBlock,
+	)
+}
+
+func renderPaymentLinkText(p PaymentLinkParams) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	fmt.Fprintf(&b, "您的訂單 %s 已建立，請按以下連結完成付款：\n\n", shortOrderID(p.OrderID))
+	fmt.Fprintf(&b, "%s\n\n", p.PaymentURL)
+	b.WriteString("──────── 訂單明細 ────────\n")
+	for _, it := range p.Items {
+		fmt.Fprintf(&b, "%s × %d   %s %.2f\n", it.Name, it.Quantity, p.Currency, it.LineTotal)
+	}
+	fmt.Fprintf(&b, "\n總額：%s %.2f\n\n", p.Currency, p.Total)
+	b.WriteString("此付款連結將於 24 小時後失效。付款成功後您會收到正式訂單確認電郵。\n\n— Gyeon")
+	return b.String()
+}
+
+func renderPaymentLinkHTML(p PaymentLinkParams) string {
+	var rows strings.Builder
+	for _, it := range p.Items {
+		fmt.Fprintf(&rows,
+			`<tr><td style="padding:8px 0;">%s <span style="color:#9ca3af">× %d</span></td>`+
+				`<td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">%s %.2f</td></tr>`,
+			htmlEscape(it.Name), it.Quantity, p.Currency, it.LineTotal)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>完成付款</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">請完成付款</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 %s，您的訂單 <strong style="color:#111827">%s</strong> 已建立，請按下方按鈕完成付款。</p>
+
+      <div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:14px 32px;background:#111827;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:600">立即完成付款</a>
+      </div>
+      <p style="text-align:center;margin:0 0 24px;color:#9ca3af;font-size:12px">此連結將於 24 小時後失效</p>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">訂單明細</h3>
+      <table style="width:100%%;border-collapse:collapse;font-size:14px">%s</table>
+
+      <table style="width:100%%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <tr><td style="padding:8px 0 0;font-weight:600">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600">%s %.2f</td></tr>
+      </table>
+
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.6">付款成功後您會收到正式訂單確認電郵。如連結無法開啟，請複製貼上至瀏覽器：<br><span style="word-break:break-all;color:#6b7280">%s</span></p>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`,
+		htmlEscape(p.CustomerName), htmlEscape(shortOrderID(p.OrderID)),
+		p.PaymentURL,
+		rows.String(),
+		p.Currency, p.Total,
+		htmlEscape(p.PaymentURL),
 	)
 }
 

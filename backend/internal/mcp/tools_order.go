@@ -74,7 +74,7 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 	})
 
 	s.AddTool(mcplib.NewTool("checkout",
-		mcplib.WithDescription("Place an order from a cart. Creates a pending order plus a Stripe PaymentIntent and returns its client_secret; the caller's client (browser/device) must confirm payment with Stripe.js — the order stays in 'pending' status until Stripe webhooks confirm payment.\n\nGuest checkout — set these top-level arguments directly (NOT nested under a 'customer_info' object):\n  • customer_email (required)\n  • customer_first_name, customer_last_name, customer_phone (recommended)\nLogged-in checkout — set customer_id instead.\n\nShipping — either set shipping_address_id (existing saved address) OR set these top-level arguments directly (NOT nested under a 'shipping_address' object):\n  • shipping_line1 (required), shipping_city (required), shipping_postal_code (required)\n  • shipping_line2, shipping_state, shipping_country (default 'HK'), save_address (optional)\n\nAll fields are flat top-level arguments — there is no customer_info or shipping_address object."),
+		mcplib.WithDescription("Place an order from a cart. Creates a pending order plus a Stripe PaymentIntent, then EMAILS the customer a magic link they can click to finish payment in their browser. The order stays in 'pending' status until the customer completes payment (Stripe webhook then sends the official confirmation email).\n\nGuest checkout — set these top-level arguments directly (NOT nested under a 'customer_info' object):\n  • customer_email (required — payment link is emailed here)\n  • customer_first_name, customer_last_name, customer_phone (recommended)\nLogged-in checkout — set customer_id instead.\n\nShipping — either set shipping_address_id (existing saved address) OR set these top-level arguments directly (NOT nested under a 'shipping_address' object):\n  • shipping_line1 (required), shipping_city (required), shipping_postal_code (required)\n  • shipping_line2, shipping_state, shipping_country (default 'HK'), save_address (optional)\n\nAll fields are flat top-level arguments — there is no customer_info or shipping_address object. The response also returns client_secret + publishable_key for callers that DO have Stripe.js available, but this is optional — the email link is the canonical path to completion."),
 		mcplib.WithString("cart_id", mcplib.Description("Cart UUID to check out"), mcplib.Required()),
 		mcplib.WithString("customer_id", mcplib.Description("Existing customer UUID for a logged-in checkout. Omit for guest checkout (then customer_email is required).")),
 		mcplib.WithString("customer_email", mcplib.Description("Customer email — required for guest checkout (when customer_id is omitted)")),
@@ -99,9 +99,10 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 		}
 
 		checkoutReq := orders.CheckoutRequest{
-			CartID:      cartID,
-			ShippingFee: req.GetFloat("shipping_fee", 0),
-			SaveAddress: req.GetBool("save_address", false),
+			CartID:          cartID,
+			ShippingFee:     req.GetFloat("shipping_fee", 0),
+			SaveAddress:     req.GetBool("save_address", false),
+			SendPaymentLink: true,
 		}
 
 		if customerID := req.GetString("customer_id", ""); customerID != "" {
