@@ -23,7 +23,7 @@
   let editingVariant = $state<typeof data.variants[0] | null>(null);
   let showStockModal = $state<typeof data.variants[0] | null>(null);
 
-  // Image media helper — uploaded images OR any user-added link (URLs added to the library are assumed to be images)
+  // Image media helper — uploaded images + all links (links are tested at render time via onload/onerror)
   function isImageMedia(f: { mime_type: string; url: string }) {
     return f.mime_type.startsWith('image/') || f.mime_type === 'link';
   }
@@ -402,9 +402,12 @@
               {#each imageMedia as mf}
                 <button type="button"
                         onclick={() => addVariantImageId = addVariantImageId === mf.id ? null : mf.id}
+                        style={mf.mime_type === 'link' ? 'display: none' : ''}
                         class="flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
                                {addVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
-                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover"
+                       onload={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = ''; } : null}
+                       onerror={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; } : null} />
                 </button>
               {/each}
             </div>
@@ -503,9 +506,12 @@
               {#each imageMedia as mf}
                 <button type="button"
                         onclick={() => { editVariantImageId = editVariantImageId === mf.id ? null : mf.id; editVariantRemoveImage = false; }}
+                        style={mf.mime_type === 'link' ? 'display: none' : ''}
                         class="flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
                                {editVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
-                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover"
+                       onload={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = ''; } : null}
+                       onerror={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; } : null} />
                 </button>
               {/each}
             </div>
