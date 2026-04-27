@@ -15,10 +15,12 @@ import (
 	"gyeon/backend/internal/cms"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
+	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/importer"
 	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
+	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shop"
@@ -58,12 +60,14 @@ func main() {
 	productSvc := shop.NewProductService(conn, cacheStore, shopTTL)
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
-	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc)
+	customerSvc := customers.NewService(conn)
+	paymentSvc := payment.NewService(settingsSvc)
+	emailSvc := email.NewService(settingsSvc)
+	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)
 	navSvc := cms.NewNavService(conn, cacheStore, navTTL)
-	customerSvc := customers.NewService(conn)
 	adminUserSvc := admin.NewUserService(conn)
 
 	// Seed first super_admin from env if table is empty
@@ -73,6 +77,11 @@ func main() {
 
 	// Handlers
 	pricingHandler := pricing.NewHandler(pricingSvc)
+	paymentHandler := payment.NewHandler(paymentSvc, func(r *http.Request, paymentIntentID string) {
+		if err := orderSvc.MarkPaidByPaymentIntent(r.Context(), paymentIntentID); err != nil {
+			log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
+		}
+	})
 	statsHandler := admin.NewStatsHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
@@ -151,6 +160,9 @@ func main() {
 
 		// Public coupon validation
 		r.Mount("/pricing", pricingHandler.PublicRoutes())
+
+		// Payment config + Stripe webhook (public)
+		r.Mount("/payments", paymentHandler.Routes())
 
 		// Customer routes (public + authenticated)
 		r.Mount("/customers", customerHandler.Routes())

@@ -93,13 +93,14 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 			checkoutReq.Notes = &notes
 		}
 
-		order, err := orderSvc.Checkout(ctx, checkoutReq)
+		checkoutResp, err := orderSvc.Checkout(ctx, checkoutReq)
 		if err != nil {
 			if errors.Is(err, orders.ErrEmptyCart) || errors.Is(err, orders.ErrCartNotFound) {
 				return mcplib.NewToolResultError(err.Error()), nil
 			}
 			return mcplib.NewToolResultError(err.Error()), nil
 		}
+		order := checkoutResp.Order
 
 		// SAFETY: Project only three fields — never return the full Order struct.
 		result := checkoutResult{

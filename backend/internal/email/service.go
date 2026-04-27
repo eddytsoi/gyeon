@@ -1,0 +1,279 @@
+package email
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"mime"
+	"net/smtp"
+	"strconv"
+	"strings"
+	"time"
+
+	"gyeon/backend/internal/settings"
+)
+
+var ErrNotConfigured = errors.New("smtp is not configured")
+
+type Service struct {
+	settings *settings.Service
+}
+
+func NewService(s *settings.Service) *Service {
+	return &Service{settings: s}
+}
+
+type Config struct {
+	Host      string
+	Port      int
+	Username  string
+	Password  string
+	FromEmail string
+	FromName  string
+	BaseURL   string
+}
+
+func (s *Service) loadConfig(ctx context.Context) (Config, error) {
+	c := Config{
+		Host:      s.read(ctx, "smtp_host"),
+		Username:  s.read(ctx, "smtp_username"),
+		Password:  s.read(ctx, "smtp_password"),
+		FromEmail: s.read(ctx, "smtp_from_email"),
+		FromName:  s.read(ctx, "smtp_from_name"),
+		BaseURL:   s.read(ctx, "public_base_url"),
+	}
+	port, err := strconv.Atoi(s.read(ctx, "smtp_port"))
+	if err != nil || port == 0 {
+		port = 587
+	}
+	c.Port = port
+	if c.FromName == "" {
+		c.FromName = "Gyeon"
+	}
+	if c.Host == "" || c.Username == "" || c.Password == "" || c.FromEmail == "" {
+		return c, ErrNotConfigured
+	}
+	return c, nil
+}
+
+func (s *Service) PublicBaseURL(ctx context.Context) string {
+	v := s.read(ctx, "public_base_url")
+	if v == "" {
+		return "http://localhost:5173"
+	}
+	return strings.TrimRight(v, "/")
+}
+
+type OrderEmailItem struct {
+	Name      string
+	SKU       string
+	Quantity  int
+	UnitPrice float64
+	LineTotal float64
+}
+
+type OrderEmailParams struct {
+	OrderID         string
+	CustomerName    string
+	CustomerEmail   string
+	Items           []OrderEmailItem
+	Subtotal        float64
+	ShippingFee     float64
+	DiscountAmount  float64
+	Total           float64
+	Currency        string
+	ShippingLine1   string
+	ShippingLine2   string
+	ShippingCity    string
+	ShippingPostal  string
+	ShippingCountry string
+	SetupURL        string // empty unless guest
+}
+
+// SendOrderConfirmation renders and sends the order confirmation email.
+// Returns ErrNotConfigured if SMTP credentials are missing — caller may treat as warning.
+func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+
+	subject := fmt.Sprintf("訂單確認 — %s", shortOrderID(p.OrderID))
+	html := renderOrderHTML(p)
+	text := renderOrderText(p)
+
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+func (s *Service) send(cfg Config, to, subject, text, html string) error {
+	from := mime.QEncoding.Encode("utf-8", cfg.FromName) + " <" + cfg.FromEmail + ">"
+	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
+
+	boundary := "gyeon-mime-boundary-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+
+	var msg bytes.Buffer
+	fmt.Fprintf(&msg, "From: %s\r\n", from)
+	fmt.Fprintf(&msg, "To: %s\r\n", to)
+	fmt.Fprintf(&msg, "Subject: %s\r\n", encodedSubject)
+	fmt.Fprintf(&msg, "MIME-Version: 1.0\r\n")
+	fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
+
+	fmt.Fprintf(&msg, "--%s\r\n", boundary)
+	fmt.Fprintf(&msg, "Content-Type: text/plain; charset=\"utf-8\"\r\n")
+	fmt.Fprintf(&msg, "Content-Transfer-Encoding: 8bit\r\n\r\n")
+	msg.WriteString(text)
+	msg.WriteString("\r\n\r\n")
+
+	fmt.Fprintf(&msg, "--%s\r\n", boundary)
+	fmt.Fprintf(&msg, "Content-Type: text/html; charset=\"utf-8\"\r\n")
+	fmt.Fprintf(&msg, "Content-Transfer-Encoding: 8bit\r\n\r\n")
+	msg.WriteString(html)
+	msg.WriteString("\r\n\r\n")
+
+	fmt.Fprintf(&msg, "--%s--\r\n", boundary)
+
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
+	return smtp.SendMail(addr, auth, cfg.FromEmail, []string{to}, msg.Bytes())
+}
+
+func shortOrderID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+func renderOrderText(p OrderEmailParams) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	fmt.Fprintf(&b, "感謝您的訂購！我們已收到您的付款，訂單編號：%s\n\n", shortOrderID(p.OrderID))
+	b.WriteString("──────── 訂單明細 ────────\n")
+	for _, it := range p.Items {
+		fmt.Fprintf(&b, "%s × %d   %s %.2f\n", it.Name, it.Quantity, p.Currency, it.LineTotal)
+	}
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "小計：     %s %.2f\n", p.Currency, p.Subtotal)
+	if p.DiscountAmount > 0 {
+		fmt.Fprintf(&b, "折扣：    -%s %.2f\n", p.Currency, p.DiscountAmount)
+	}
+	fmt.Fprintf(&b, "運費：     %s %.2f\n", p.Currency, p.ShippingFee)
+	fmt.Fprintf(&b, "總額：     %s %.2f\n\n", p.Currency, p.Total)
+
+	if p.ShippingLine1 != "" {
+		b.WriteString("──────── 送貨地址 ────────\n")
+		fmt.Fprintf(&b, "%s\n", p.ShippingLine1)
+		if p.ShippingLine2 != "" {
+			fmt.Fprintf(&b, "%s\n", p.ShippingLine2)
+		}
+		fmt.Fprintf(&b, "%s %s\n%s\n\n", p.ShippingCity, p.ShippingPostal, p.ShippingCountry)
+	}
+
+	if p.SetupURL != "" {
+		b.WriteString("──────── 完成註冊 ────────\n")
+		b.WriteString("您是以訪客身份下單。建立帳戶後可隨時查看訂單狀態與歷史訂單：\n")
+		fmt.Fprintf(&b, "%s\n\n", p.SetupURL)
+		b.WriteString("此連結將於 7 日後失效。\n\n")
+	}
+
+	b.WriteString("如有任何疑問，歡迎回覆此電郵。\n\n— Gyeon")
+	return b.String()
+}
+
+func renderOrderHTML(p OrderEmailParams) string {
+	var rows strings.Builder
+	for _, it := range p.Items {
+		fmt.Fprintf(&rows,
+			`<tr><td style="padding:8px 0;">%s <span style="color:#9ca3af">× %d</span></td>`+
+				`<td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">%s %.2f</td></tr>`,
+			htmlEscape(it.Name), it.Quantity, p.Currency, it.LineTotal)
+	}
+
+	var address strings.Builder
+	if p.ShippingLine1 != "" {
+		address.WriteString(`<h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">送貨地址</h3>`)
+		address.WriteString(`<p style="margin:0;color:#374151;line-height:1.6">`)
+		address.WriteString(htmlEscape(p.ShippingLine1))
+		if p.ShippingLine2 != "" {
+			address.WriteString("<br>" + htmlEscape(p.ShippingLine2))
+		}
+		fmt.Fprintf(&address, "<br>%s %s<br>%s",
+			htmlEscape(p.ShippingCity), htmlEscape(p.ShippingPostal), htmlEscape(p.ShippingCountry))
+		address.WriteString(`</p>`)
+	}
+
+	var setupBlock string
+	if p.SetupURL != "" {
+		setupBlock = fmt.Sprintf(`
+<div style="margin-top:32px;padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb">
+  <h3 style="margin:0 0 8px;font-size:15px;color:#111827">完成註冊以追蹤訂單</h3>
+  <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6">您是以訪客身份下單。建立帳戶後即可隨時查看訂單狀態與歷史訂單，並更快完成下次結帳。</p>
+  <a href="%s" style="display:inline-block;padding:10px 20px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">設定密碼</a>
+  <p style="margin:12px 0 0;color:#9ca3af;font-size:12px">此連結將於 7 日後失效，且只可使用一次。</p>
+</div>`, p.SetupURL)
+	}
+
+	discountRow := ""
+	if p.DiscountAmount > 0 {
+		discountRow = fmt.Sprintf(
+			`<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-%s %.2f</td></tr>`,
+			p.Currency, p.DiscountAmount)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>訂單確認</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">感謝您的訂購</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 %s，我們已收到您的付款。訂單編號 <strong style="color:#111827">%s</strong></p>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">訂單明細</h3>
+      <table style="width:100%%;border-collapse:collapse;font-size:14px">%s</table>
+
+      <table style="width:100%%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>
+        %s
+        <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">%s %.2f</td></tr>
+      </table>
+
+      %s
+      %s
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`,
+		htmlEscape(p.CustomerName), htmlEscape(shortOrderID(p.OrderID)),
+		rows.String(),
+		p.Currency, p.Subtotal,
+		discountRow,
+		p.Currency, p.ShippingFee,
+		p.Currency, p.Total,
+		address.String(),
+		setupBlock,
+	)
+}
+
+func htmlEscape(s string) string {
+	r := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		"\"", "&quot;",
+	)
+	return r.Replace(s)
+}
+
+func (s *Service) read(ctx context.Context, key string) string {
+	st, err := s.settings.Get(ctx, key)
+	if err != nil {
+		return ""
+	}
+	return st.Value
+}

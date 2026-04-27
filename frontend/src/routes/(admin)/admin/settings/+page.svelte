@@ -9,6 +9,24 @@
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
+  const PAYMENT_KEYS = new Set([
+    'stripe_mode',
+    'stripe_test_publishable_key',
+    'stripe_test_secret_key',
+    'stripe_live_publishable_key',
+    'stripe_live_secret_key',
+    'stripe_save_cards',
+    'stripe_webhook_secret'
+  ]);
+  const SMTP_KEYS = new Set([
+    'smtp_host',
+    'smtp_port',
+    'smtp_username',
+    'smtp_password',
+    'smtp_from_email',
+    'smtp_from_name',
+    'public_base_url'
+  ]);
 
   const CACHE_TTL_LABELS: Record<string, string> = {
     cache_ttl_shop: 'Shop Cache TTL',
@@ -34,7 +52,9 @@
         !TOGGLE_KEYS.has(s.key) &&
         !CACHE_TTL_KEYS.has(s.key) &&
         !CLOUDFLARE_KEYS.has(s.key) &&
-        !MEDIA_LIMIT_KEYS.has(s.key)
+        !MEDIA_LIMIT_KEYS.has(s.key) &&
+        !PAYMENT_KEYS.has(s.key) &&
+        !SMTP_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -45,6 +65,27 @@
 
   const mcpSetting = $derived(data.settings.find((s) => s.key === 'mcp_enabled'));
   let mcpOn = $state(mcpSetting?.value === 'true');
+
+  // ── Payment ─────────────────────────────────────────────────────
+  function settingValue(key: string): string {
+    return data.settings.find((s) => s.key === key)?.value ?? '';
+  }
+
+  let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
+  let stripeSaveCards = $state(settingValue('stripe_save_cards') === 'true');
+
+  // ── SMTP ────────────────────────────────────────────────────────
+  const SMTP_FIELDS: Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }> = [
+    { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.gmail.com' },
+    { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
+    { key: 'smtp_username', label: 'SMTP Username', placeholder: 'you@gmail.com' },
+    { key: 'smtp_password', label: 'SMTP Password', placeholder: 'Gmail App Password (16 chars)', password: true,
+      hint: 'Use a Google App Password — not your account password.' },
+    { key: 'smtp_from_email', label: 'From Email', placeholder: 'noreply@yourdomain.com' },
+    { key: 'smtp_from_name', label: 'From Name', placeholder: 'Gyeon' },
+    { key: 'public_base_url', label: 'Public Base URL', placeholder: 'https://your-storefront.com',
+      hint: 'Used to build links inside transactional emails.' }
+  ];
 </script>
 
 <svelte:head><title>Settings — Gyeon Admin</title></svelte:head>
@@ -125,6 +166,157 @@
         </div>
       </div>
     {/if}
+
+    <!-- Payment (Stripe) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Payment (Stripe)</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Configure Stripe credentials and the runtime mode used for new orders.
+          </p>
+        </div>
+      </div>
+
+      <!-- Mode toggle -->
+      <div class="flex items-center justify-between gap-4 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">Mode</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {stripeLiveMode ? 'Live — real charges will be made.' : 'Test — no real money moves.'}
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-gray-300' : 'text-gray-700'}">Test</span>
+          <button type="button"
+                  onclick={() => (stripeLiveMode = !stripeLiveMode)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {stripeLiveMode ? 'bg-indigo-600' : 'bg-gray-300'}"
+                  role="switch"
+                  aria-checked={stripeLiveMode}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {stripeLiveMode ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">Live</span>
+        </div>
+        <input type="hidden" name="stripe_mode" value={stripeLiveMode ? 'live' : 'test'} />
+      </div>
+
+      <!-- Test keys -->
+      <div class="pt-5 {stripeLiveMode ? 'opacity-50' : ''}">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Test Keys {#if stripeLiveMode}<span class="font-normal normal-case text-gray-400">— currently inactive</span>{/if}
+        </p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">Publishable key</label>
+            <input id="stripe_test_publishable_key" name="stripe_test_publishable_key"
+                   type="password" value={settingValue('stripe_test_publishable_key')}
+                   placeholder="pk_test_..."
+                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">Secret key</label>
+            <input id="stripe_test_secret_key" name="stripe_test_secret_key"
+                   type="password" value={settingValue('stripe_test_secret_key')}
+                   placeholder="sk_test_..."
+                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Live keys -->
+      <div class="pt-5 mt-5 border-t border-gray-100 {stripeLiveMode ? '' : 'opacity-50'}">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          Live Keys {#if !stripeLiveMode}<span class="font-normal normal-case text-gray-400">— currently inactive</span>{/if}
+        </p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">Publishable key</label>
+            <input id="stripe_live_publishable_key" name="stripe_live_publishable_key"
+                   type="password" value={settingValue('stripe_live_publishable_key')}
+                   placeholder="pk_live_..."
+                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">Secret key</label>
+            <input id="stripe_live_secret_key" name="stripe_live_secret_key"
+                   type="password" value={settingValue('stripe_live_secret_key')}
+                   placeholder="sk_live_..."
+                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Webhook secret -->
+      <div class="pt-5 mt-5 border-t border-gray-100">
+        <div class="flex flex-col gap-1.5">
+          <label for="stripe_webhook_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Webhook signing secret
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">
+            Register endpoint <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code> in Stripe Dashboard, then paste the <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code> here.
+          </p>
+          <input id="stripe_webhook_secret" name="stripe_webhook_secret"
+                 type="password" value={settingValue('stripe_webhook_secret')}
+                 placeholder="whsec_..."
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+
+      <!-- Save cards -->
+      <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">Save Cards</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Allow customers to save cards for future purchases (UI plumbing only — full implementation TBD).
+          </p>
+        </div>
+        <button type="button"
+                onclick={() => (stripeSaveCards = !stripeSaveCards)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {stripeSaveCards ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={stripeSaveCards}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {stripeSaveCards ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="stripe_save_cards" value={stripeSaveCards ? 'true' : 'false'} />
+      </div>
+    </div>
+
+    <!-- SMTP / Email -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">Email (SMTP)</h2>
+      <p class="text-xs text-gray-400 mb-5">
+        Used to send order confirmation emails. Gmail: enable 2FA → create an App Password at myaccount.google.com/apppasswords.
+      </p>
+      <div class="flex flex-col gap-5">
+        {#each SMTP_FIELDS as field}
+          <div class="flex flex-col gap-1.5">
+            <label for={field.key} class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {field.label}
+            </label>
+            {#if field.hint}
+              <p class="text-xs text-gray-400 -mt-0.5">{field.hint}</p>
+            {/if}
+            <input id={field.key} name={field.key}
+                   type={field.password ? 'password' : 'text'}
+                   value={settingValue(field.key)}
+                   placeholder={field.placeholder}
+                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        {/each}
+      </div>
+    </div>
 
     <!-- Cache TTL Settings -->
     {#if cacheTTLSettings.length > 0}

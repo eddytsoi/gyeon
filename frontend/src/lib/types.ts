@@ -84,8 +84,42 @@ export interface Order {
   discount_amount: number;
   total: number;
   notes?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  customer_name?: string;
+  payment_intent_id?: string;
+  payment_status?: string;
+  payment_method?: string;
   items: OrderItem[];
   created_at: string;
+}
+
+export interface PaymentConfig {
+  publishable_key: string;
+  mode: 'test' | 'live';
+}
+
+export interface CheckoutResult {
+  order: Order;
+  client_secret: string;
+  publishable_key: string;
+  mode: 'test' | 'live';
+}
+
+export interface CustomerInfoInput {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
+
+export interface ShippingAddressInput {
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postal_code: string;
+  country: string;
 }
 
 export interface CmsPage {

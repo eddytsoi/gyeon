@@ -2,8 +2,11 @@ package customers
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -11,6 +14,7 @@ import (
 var ErrNotFound = errors.New("customer not found")
 var ErrEmailTaken = errors.New("email already registered")
 var ErrInvalidCredentials = errors.New("invalid email or password")
+var ErrInvalidToken = errors.New("invalid or expired token")
 
 type Customer struct {
 	ID        string  `json:"id"`
@@ -264,6 +268,112 @@ func (s *Service) DeleteAddress(ctx context.Context, customerID, addressID strin
 		return ErrNotFound
 	}
 	return nil
+}
+
+// UpsertGuest finds-or-creates a customer row by email for guest checkouts.
+// Returns isGuest=true when the row currently has no password_hash (i.e. has
+// never registered) — caller can decide to send a setup-password link.
+func (s *Service) UpsertGuest(ctx context.Context, email, firstName, lastName string, phone *string) (*Customer, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback()
+
+	var c Customer
+	var pwHash sql.NullString
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, created_at, updated_at
+		 FROM customers WHERE email=$1`, email).
+		Scan(&c.ID, &c.Email, &pwHash, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(ctx,
+			`INSERT INTO customers (email, first_name, last_name, phone)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id, email, first_name, last_name, phone, is_active, created_at, updated_at`,
+			email, firstName, lastName, phone).
+			Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		if err != nil {
+			return nil, false, err
+		}
+		return &c, true, tx.Commit()
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	isGuest := !pwHash.Valid || pwHash.String == ""
+	return &c, isGuest, tx.Commit()
+}
+
+// CreateSetupToken generates a one-time URL-safe token (64 hex chars) tied to
+// a customer; expires after 7 days. Returns the raw token (caller embeds in URL).
+func (s *Service) CreateSetupToken(ctx context.Context, customerID string) (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(buf)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO account_setup_tokens (token, customer_id, expires_at)
+		 VALUES ($1, $2, $3)`, token, customerID, expiresAt)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// ConsumeSetupToken validates the token, hashes the new password, sets it on
+// the customer, and marks the token consumed — all in one transaction.
+func (s *Service) ConsumeSetupToken(ctx context.Context, token, password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var customerID string
+	var expiresAt time.Time
+	var consumedAt sql.NullTime
+	err = tx.QueryRowContext(ctx,
+		`SELECT customer_id, expires_at, consumed_at
+		 FROM account_setup_tokens WHERE token=$1`, token).
+		Scan(&customerID, &expiresAt, &consumedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if consumedAt.Valid {
+		return ErrInvalidToken
+	}
+	if time.Now().After(expiresAt) {
+		return ErrInvalidToken
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE customers SET password_hash=$2 WHERE id=$1`, customerID, string(hash)); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE account_setup_tokens SET consumed_at=NOW() WHERE token=$1`, token); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 type OrderSummary struct {

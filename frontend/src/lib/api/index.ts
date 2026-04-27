@@ -1,4 +1,4 @@
-import type { Address, Cart, CartItem, Category, CmsPage, CmsPost, Customer, NavMenu, Order, Product, ProductImage, Variant } from '$lib/types';
+import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, PaymentConfig, Product, ProductImage, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -45,23 +45,29 @@ export const removeCartItem = (cartID: string, itemID: string) =>
 
 export const checkout = (
   cartID: string,
-  options?: {
+  options: {
     customerID?: string;
+    customerInfo?: CustomerInfoInput;
     shippingAddressID?: string;
+    shippingAddress?: ShippingAddressInput;
+    saveAddress?: boolean;
     shippingFee?: number;
     couponCode?: string;
     notes?: string;
-  }
+  } = {}
 ) =>
-  request<Order>('/orders/checkout', {
+  request<CheckoutResult>('/orders/checkout', {
     method: 'POST',
     body: JSON.stringify({
       cart_id: cartID,
-      customer_id: options?.customerID ?? null,
-      shipping_address_id: options?.shippingAddressID ?? null,
-      shipping_fee: options?.shippingFee ?? 0,
-      coupon_code: options?.couponCode ?? null,
-      notes: options?.notes ?? null
+      customer_id: options.customerID ?? null,
+      customer_info: options.customerInfo ?? null,
+      shipping_address_id: options.shippingAddressID ?? null,
+      shipping_address: options.shippingAddress ?? null,
+      save_address: options.saveAddress ?? false,
+      shipping_fee: options.shippingFee ?? 0,
+      coupon_code: options.couponCode ?? null,
+      notes: options.notes ?? null
     })
   });
 
@@ -70,6 +76,15 @@ export const validateCoupon = (code: string, subtotal: number) =>
     '/pricing/validate-coupon',
     { method: 'POST', body: JSON.stringify({ code, subtotal }) }
   );
+
+export const getPaymentConfig = () => request<PaymentConfig>('/payments/config');
+
+export const setupPassword = (token: string, password: string) =>
+  fetch(`${base()}/customers/setup-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password })
+  });
 
 // CMS public API
 export const getBlogPosts = (limit = 20, offset = 0) =>

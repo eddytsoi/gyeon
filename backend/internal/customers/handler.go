@@ -25,6 +25,7 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/register", h.register)
 	r.Post("/login", h.login)
+	r.Post("/setup-password", h.setupPassword)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.CustomerMiddleware(h.jwtSecret))
 		r.Get("/me", h.getProfile)
@@ -106,6 +107,30 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		"customer": customer,
 		"token":    token,
 	})
+}
+
+func (h *Handler) setupPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.Token == "" || req.Password == "" {
+		respond.BadRequest(w, "token and password are required")
+		return
+	}
+	if err := h.svc.ConsumeSetupToken(r.Context(), req.Token, req.Password); err != nil {
+		if errors.Is(err, ErrInvalidToken) {
+			respond.Error(w, http.StatusGone, "this link is invalid or has expired")
+			return
+		}
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {

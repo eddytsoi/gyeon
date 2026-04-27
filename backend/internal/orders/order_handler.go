@@ -65,7 +65,7 @@ func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "cart_id is required")
 		return
 	}
-	order, err := h.svc.Checkout(r.Context(), req)
+	result, err := h.svc.Checkout(r.Context(), req)
 	if errors.Is(err, ErrEmptyCart) {
 		respond.BadRequest(w, "cart is empty")
 		return
@@ -74,11 +74,15 @@ func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "cart not found")
 		return
 	}
+	if errors.Is(err, ErrCustomerInfoRequired) || errors.Is(err, ErrShippingRequired) {
+		respond.BadRequest(w, err.Error())
+		return
+	}
 	if err != nil {
 		respond.Error(w, http.StatusConflict, err.Error())
 		return
 	}
-	respond.JSON(w, http.StatusCreated, order)
+	respond.JSON(w, http.StatusCreated, result)
 }
 
 func (h *OrderHandler) updateStatus(w http.ResponseWriter, r *http.Request) {
