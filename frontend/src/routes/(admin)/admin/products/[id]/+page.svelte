@@ -435,14 +435,40 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => editingVariant = null} role="button" tabindex="-1" aria-label="Close"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-      <h3 class="font-semibold text-gray-900 mb-4">Edit Variant</h3>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="p-6 pb-0">
+        <h3 class="font-semibold text-gray-900">Edit Variant</h3>
+      </div>
       <form method="POST" action="?/updateVariant"
             use:enhance={() => async ({ update }) => { await update(); editingVariant = null; }}>
         <input type="hidden" name="variant_id" value={editingVariant.id} />
         <input type="hidden" name="old_image_id" value={editVariantOldImageId ?? ''} />
         <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
         <input type="hidden" name="remove_image" value={String(editVariantRemoveImage)} />
+        <!-- Full-width image preview -->
+        {@const previewUrl = editVariantRemoveImage ? null : (editVariantImageId
+          ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url)
+          : editingVariant.image_url ?? null)}
+        <div class="relative mt-4 w-full aspect-video bg-gray-100">
+          {#if previewUrl}
+            <img src={previewUrl} alt="" class="w-full h-full object-cover" />
+            <button type="button"
+                    onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
+                    class="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 hover:bg-red-500/80 transition-colors text-white">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </button>
+          {:else}
+            <div class="w-full h-full flex flex-col items-center justify-center gap-1.5 text-gray-400">
+              <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+              </svg>
+              <span class="text-xs font-medium">No image</span>
+            </div>
+          {/if}
+        </div>
+        <div class="p-6 pt-4">
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
@@ -482,23 +508,6 @@
         <!-- Image picker -->
         <div class="mt-4">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Images</label>
-          {#if !editVariantRemoveImage && (editingVariant.image_url || editVariantImageId)}
-            {@const previewUrl = editVariantImageId
-              ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url)
-              : editingVariant.image_url}
-            {#if previewUrl}
-              <div class="mt-2 relative w-14 h-14">
-                <img src={previewUrl} alt="" class="w-full h-full rounded-lg object-cover border border-gray-200" />
-                <button type="button"
-                        onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
-                        class="absolute bottom-1 right-1 p-1 rounded-md bg-black/40 hover:bg-red-500/80 transition-colors text-white">
-                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                  </svg>
-                </button>
-              </div>
-            {/if}
-          {/if}
           {#if imageMedia.length === 0}
             <p class="mt-2 text-xs text-gray-400">No images in media library yet.</p>
           {:else}
@@ -528,6 +537,7 @@
                          hover:border-gray-400 transition-colors">
             Cancel
           </button>
+        </div>
         </div>
       </form>
     </div>
