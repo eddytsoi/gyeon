@@ -13,6 +13,13 @@
   let deleteTarget = $state<MediaFile | null>(null);
   let uploadErrors = $state<string[]>([]);
   let failedImages = $state<Set<string>>(new Set());
+  let copiedId = $state<string | null>(null);
+
+  function copyUrl(file: MediaFile) {
+    navigator.clipboard.writeText(file.url);
+    copiedId = file.id;
+    setTimeout(() => { copiedId = null; }, 1500);
+  }
 
   // ── Add Link modal ───────────────────────────────────────────────────────────
   let linkModalOpen = $state(false);
@@ -428,15 +435,23 @@
 
             <!-- Always-visible bottom-right actions -->
             <div class="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1">
-              <a
-                href="/admin/media/{file.id}"
-                title="Edit"
-                class="p-1.5 rounded-lg bg-gray-900/60 text-white hover:bg-gray-900/90 transition-colors backdrop-blur-sm"
-              >
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-                </svg>
-              </a>
+              <div class="relative">
+                {#if copiedId === file.id}
+                  <div class="absolute bottom-full right-0 mb-1.5 px-2 py-1 rounded-lg bg-gray-900 text-white text-xs font-medium whitespace-nowrap pointer-events-none">
+                    Image URL copied
+                    <div class="absolute top-full right-2 border-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                {/if}
+                <button
+                  title="Copy URL"
+                  onclick={() => copyUrl(file)}
+                  class="p-1.5 rounded-lg bg-gray-900/60 text-white hover:bg-gray-900/90 transition-colors backdrop-blur-sm"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                  </svg>
+                </button>
+              </div>
               <button
                 title="Delete"
                 onclick={() => (deleteTarget = file)}
