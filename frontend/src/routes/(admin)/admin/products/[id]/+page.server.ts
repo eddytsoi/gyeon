@@ -199,5 +199,21 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to delete image' });
     }
     return { success: true };
+  },
+
+  reorderImages: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+
+    const form = await request.formData();
+    const ids = (form.get('image_ids')?.toString() ?? '').split(',').filter(Boolean);
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        await adminUpdateImage(token, params.id, ids[i], { sort_order: i });
+      }
+    } catch {
+      return fail(400, { error: 'Failed to reorder images' });
+    }
+    return { success: true };
   }
 };
