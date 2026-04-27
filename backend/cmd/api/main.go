@@ -139,7 +139,7 @@ func main() {
 	r.With(mcpGate).Get("/.well-known/mcp.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write([]byte(`{"mcp_endpoint":"` + baseURL + `/mcp/sse","name":"Gyeon Storefront","description":"Browse products, manage cart, validate coupons, and checkout. Read-only catalog and anonymous cart/order tools only — no customer PII exposed."}`))
+		w.Write([]byte(`{"mcp_endpoint":"` + baseURL + `/mcp/sse","name":"Gyeon Storefront","description":"Browse products, manage cart, validate coupons, and place orders. Checkout accepts customer and shipping details and returns a Stripe PaymentIntent client_secret for the client to confirm payment."}`))
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
