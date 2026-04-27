@@ -74,7 +74,7 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 	})
 
 	s.AddTool(mcplib.NewTool("checkout",
-		mcplib.WithDescription("Place an order from a cart. Creates a pending order plus a Stripe PaymentIntent and returns its client_secret; the caller's client (browser/device) must confirm payment with Stripe.js — the order stays in 'pending' status until Stripe webhooks confirm payment. Either customer_id (logged-in) or customer_email (+ optional name/phone for a guest) is required, and either shipping_address_id or shipping_line1+city+postal_code is required."),
+		mcplib.WithDescription("Place an order from a cart. Creates a pending order plus a Stripe PaymentIntent and returns its client_secret; the caller's client (browser/device) must confirm payment with Stripe.js — the order stays in 'pending' status until Stripe webhooks confirm payment.\n\nGuest checkout — set these top-level arguments directly (NOT nested under a 'customer_info' object):\n  • customer_email (required)\n  • customer_first_name, customer_last_name, customer_phone (recommended)\nLogged-in checkout — set customer_id instead.\n\nShipping — either set shipping_address_id (existing saved address) OR set these top-level arguments directly (NOT nested under a 'shipping_address' object):\n  • shipping_line1 (required), shipping_city (required), shipping_postal_code (required)\n  • shipping_line2, shipping_state, shipping_country (default 'HK'), save_address (optional)\n\nAll fields are flat top-level arguments — there is no customer_info or shipping_address object."),
 		mcplib.WithString("cart_id", mcplib.Description("Cart UUID to check out"), mcplib.Required()),
 		mcplib.WithString("customer_id", mcplib.Description("Existing customer UUID for a logged-in checkout. Omit for guest checkout (then customer_email is required).")),
 		mcplib.WithString("customer_email", mcplib.Description("Customer email — required for guest checkout (when customer_id is omitted)")),
@@ -151,8 +151,13 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 
 		checkoutResp, err := orderSvc.Checkout(ctx, checkoutReq)
 		if err != nil {
-			if errors.Is(err, orders.ErrEmptyCart) || errors.Is(err, orders.ErrCartNotFound) {
-				return mcplib.NewToolResultError(err.Error()), nil
+			// Translate backend errors into schema-aligned messages so MCP
+			// clients can see exactly which top-level arguments to set.
+			switch {
+			case errors.Is(err, orders.ErrCustomerInfoRequired):
+				return mcplib.NewToolResultError("Set the top-level customer_email argument (and optionally customer_first_name, customer_last_name, customer_phone) for a guest checkout, or customer_id for a logged-in checkout."), nil
+			case errors.Is(err, orders.ErrShippingRequired):
+				return mcplib.NewToolResultError("Set the top-level shipping_line1, shipping_city, and shipping_postal_code arguments (optionally shipping_line2, shipping_state, shipping_country), or set shipping_address_id to use a saved address."), nil
 			}
 			return mcplib.NewToolResultError(err.Error()), nil
 		}
