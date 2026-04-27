@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
-  adminGetProduct, adminGetCategories, adminGetVariants, adminGetImages,
+  adminGetProduct, adminGetCategories, adminGetVariants, adminGetImages, adminGetMedia,
   adminCreateProduct, adminUpdateProduct,
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
   adminAddImage, adminUpdateImage, adminDeleteImage
@@ -18,12 +18,13 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     adminGetCategories(token).catch(() => [])
   ]);
 
-  const [variants, images] = isNew ? [[], []] : await Promise.all([
+  const [variants, images, mediaFiles] = isNew ? [[], [], []] : await Promise.all([
     adminGetVariants(token, params.id).catch(() => []),
-    adminGetImages(token, params.id).catch(() => [])
+    adminGetImages(token, params.id).catch(() => []),
+    adminGetMedia(token).catch(() => [])
   ]);
 
-  return { product, categories, variants, images, isNew };
+  return { product, categories, variants, images, mediaFiles, isNew };
 };
 
 export const actions: Actions = {
@@ -60,7 +61,7 @@ export const actions: Actions = {
 
     const form = await request.formData();
     try {
-      await adminCreateVariant(token, params.id, {
+      const variant = await adminCreateVariant(token, params.id, {
         sku: form.get('sku')?.toString() ?? '',
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
@@ -68,6 +69,15 @@ export const actions: Actions = {
           : undefined,
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10)
       });
+      const imageMediaFileId = form.get('image_media_file_id')?.toString();
+      if (imageMediaFileId) {
+        await adminAddImage(token, params.id, {
+          variant_id: variant.id,
+          media_file_id: imageMediaFileId,
+          sort_order: 0,
+          is_primary: false
+        });
+      }
     } catch {
       return fail(400, { error: 'Failed to add variant' });
     }
@@ -90,6 +100,20 @@ export const actions: Actions = {
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
         is_active: form.get('is_active') === 'true'
       });
+      const oldImageId = form.get('old_image_id')?.toString();
+      const imageMediaFileId = form.get('image_media_file_id')?.toString();
+      const removeImage = form.get('remove_image') === 'true';
+      if (oldImageId && (removeImage || imageMediaFileId)) {
+        await adminDeleteImage(token, params.id, oldImageId);
+      }
+      if (!removeImage && imageMediaFileId) {
+        await adminAddImage(token, params.id, {
+          variant_id: variantID,
+          media_file_id: imageMediaFileId,
+          sort_order: 0,
+          is_primary: false
+        });
+      }
     } catch {
       return fail(400, { error: 'Failed to update variant' });
     }

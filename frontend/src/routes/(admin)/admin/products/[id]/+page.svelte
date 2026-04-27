@@ -23,6 +23,13 @@
   let editingVariant = $state<typeof data.variants[0] | null>(null);
   let showStockModal = $state<typeof data.variants[0] | null>(null);
 
+  // Variant image picker state
+  const imageMedia = $derived(data.mediaFiles.filter(f => f.mime_type.startsWith('image/')));
+  let addVariantImageId = $state<string | null>(null);
+  let editVariantImageId = $state<string | null>(null);
+  let editVariantOldImageId = $state<string | null>(null);
+  let editVariantRemoveImage = $state(false);
+
   // Image modal state
   let showAddImage = $state(false);
 </script>
@@ -124,6 +131,7 @@
       <table class="w-full text-sm">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
+            <th class="px-5 py-3 w-12"></th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">SKU</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Price</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Compare at</th>
@@ -135,6 +143,13 @@
         <tbody class="divide-y divide-gray-50">
           {#each data.variants as variant}
             <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-5 py-3">
+                {#if variant.image_url}
+                  <img src={variant.image_url} alt="" class="w-8 h-8 rounded object-cover" />
+                {:else}
+                  <div class="w-8 h-8 rounded bg-gray-100"></div>
+                {/if}
+              </td>
               <td class="px-5 py-3 font-mono text-xs text-gray-700">{variant.sku}</td>
               <td class="px-5 py-3 font-medium text-gray-900">HK${variant.price.toFixed(2)}</td>
               <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
@@ -157,7 +172,13 @@
                           class="text-xs text-gray-400 hover:text-gray-700 transition-colors">
                     Stock ±
                   </button>
-                  <button onclick={() => editingVariant = variant}
+                  <button onclick={() => {
+                            editingVariant = variant;
+                            const cur = data.images.find(img => img.variant_id === variant.id);
+                            editVariantOldImageId = cur?.id ?? null;
+                            editVariantImageId = cur?.media_file_id ?? null;
+                            editVariantRemoveImage = false;
+                          }}
                           class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
                     Edit
                   </button>
@@ -174,7 +195,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan="6" class="px-5 py-8 text-center text-gray-400 text-sm">
+              <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
                 No variants yet. Add one to set pricing and stock.
               </td>
             </tr>
@@ -243,7 +264,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Add Variant</h3>
       <form method="POST" action="?/addVariant"
-            use:enhance={() => async ({ update }) => { await update(); showAddVariant = false; }}>
+            use:enhance={() => async ({ update }) => { await update(); showAddVariant = false; addVariantImageId = null; }}>
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
@@ -269,13 +290,32 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         </div>
+        <!-- Image picker -->
+        <div class="mt-4">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Image</label>
+          <input type="hidden" name="image_media_file_id" value={addVariantImageId ?? ''} />
+          {#if imageMedia.length === 0}
+            <p class="mt-2 text-xs text-gray-400">No images in media library yet.</p>
+          {:else}
+            <div class="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {#each imageMedia as mf}
+                <button type="button"
+                        onclick={() => addVariantImageId = addVariantImageId === mf.id ? null : mf.id}
+                        class="flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
+                               {addVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
+                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
         <div class="flex gap-3 mt-5">
           <button type="submit"
                   class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
                          hover:bg-gray-700 transition-colors">
             Add Variant
           </button>
-          <button type="button" onclick={() => showAddVariant = false}
+          <button type="button" onclick={() => { showAddVariant = false; addVariantImageId = null; }}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
             Cancel
@@ -296,6 +336,9 @@
       <form method="POST" action="?/updateVariant"
             use:enhance={() => async ({ update }) => { await update(); editingVariant = null; }}>
         <input type="hidden" name="variant_id" value={editingVariant.id} />
+        <input type="hidden" name="old_image_id" value={editVariantOldImageId ?? ''} />
+        <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
+        <input type="hidden" name="remove_image" value={String(editVariantRemoveImage)} />
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
@@ -331,6 +374,38 @@
               <option value="false" selected={!editingVariant.is_active}>Inactive</option>
             </select>
           </div>
+        </div>
+        <!-- Image picker -->
+        <div class="mt-4">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Image</label>
+          {#if !editVariantRemoveImage && (editingVariant.image_url || editVariantImageId)}
+            {@const previewUrl = editVariantImageId
+              ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url)
+              : editingVariant.image_url}
+            <div class="mt-2 flex items-center gap-3">
+              {#if previewUrl}
+                <img src={previewUrl} alt="" class="w-14 h-14 rounded-lg object-cover border border-gray-200" />
+              {/if}
+              <button type="button" onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
+                      class="text-xs text-red-500 hover:text-red-700 transition-colors">
+                Remove
+              </button>
+            </div>
+          {/if}
+          {#if imageMedia.length === 0}
+            <p class="mt-2 text-xs text-gray-400">No images in media library yet.</p>
+          {:else}
+            <div class="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {#each imageMedia as mf}
+                <button type="button"
+                        onclick={() => { editVariantImageId = editVariantImageId === mf.id ? null : mf.id; editVariantRemoveImage = false; }}
+                        class="flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
+                               {editVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
+                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
         <div class="flex gap-3 mt-5">
           <button type="submit"

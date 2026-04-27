@@ -283,8 +283,14 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 
 func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]Variant, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, product_id, sku, price, compare_at_price, stock_qty, is_active, created_at, updated_at
-		 FROM product_variants WHERE product_id = $1 AND is_active = TRUE ORDER BY created_at ASC`, productID)
+		`SELECT pv.id, pv.product_id, pv.sku, pv.price, pv.compare_at_price,
+		        pv.stock_qty, pv.is_active, pv.created_at, pv.updated_at,
+		        COALESCE(mf.url, pi.url) AS image_url
+		 FROM product_variants pv
+		 LEFT JOIN product_images pi ON pi.variant_id = pv.id
+		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		 WHERE pv.product_id = $1 AND pv.is_active = TRUE
+		 ORDER BY pv.created_at ASC`, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +300,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 	for rows.Next() {
 		var v Variant
 		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt); err != nil {
+			&v.StockQty, &v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.ImageURL); err != nil {
 			return nil, err
 		}
 		variants = append(variants, v)
