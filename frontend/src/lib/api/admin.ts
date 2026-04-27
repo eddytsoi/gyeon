@@ -288,6 +288,9 @@ export const adminGetSettings = (token: string) =>
 export const adminBulkUpdateSettings = (token: string, updates: Record<string, string>) =>
   request<Setting[]>('/admin/settings', token, { method: 'PUT', body: JSON.stringify(updates) });
 
+export const adminSendTestEmail = (token: string, to: string) =>
+  request<Record<string, never>>('/admin/settings/test-email', token, { method: 'POST', body: JSON.stringify({ to }) });
+
 // ── Admin Users ───────────────────────────────────────────────────────────────
 
 export interface AdminUser {

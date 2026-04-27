@@ -89,7 +89,7 @@ func main() {
 	navHandler := cms.NewNavHandler(navSvc)
 	productHandler := shop.NewProductHandler(productSvc)
 	customerHandler := customers.NewHandler(customerSvc, customerJWTSecret)
-	settingsHandler := settings.NewHandler(settingsSvc)
+	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)

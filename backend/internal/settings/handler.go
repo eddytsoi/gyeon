@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -8,12 +9,18 @@ import (
 	"gyeon/backend/internal/respond"
 )
 
-type Handler struct {
-	svc *Service
+// testEmailSender is satisfied by *email.Service without creating an import cycle.
+type testEmailSender interface {
+	SendTest(ctx context.Context, to string) error
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+type Handler struct {
+	svc      *Service
+	emailSvc testEmailSender
+}
+
+func NewHandler(svc *Service, emailSvc testEmailSender) *Handler {
+	return &Handler{svc: svc, emailSvc: emailSvc}
 }
 
 // PublicRoutes — read-only access to settings (for storefront config)
@@ -28,6 +35,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Put("/", h.bulkSet)
+	r.Post("/test-email", h.testEmail)
 	r.Get("/{key}", h.get)
 	r.Put("/{key}", h.set)
 	return r
@@ -67,6 +75,21 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, setting)
+}
+
+func (h *Handler) testEmail(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.To == "" {
+		respond.BadRequest(w, "missing or invalid 'to' address")
+		return
+	}
+	if err := h.emailSvc.SendTest(r.Context(), body.To); err != nil {
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]string{})
 }
 
 func (h *Handler) bulkSet(w http.ResponseWriter, r *http.Request) {

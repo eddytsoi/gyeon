@@ -1,9 +1,31 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
+  import { adminSendTestEmail } from '$lib/api/admin';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let saving = $state(false);
+
+  // ── Test Email Modal ─────────────────────────────────────────────
+  let showTestEmailModal = $state(false);
+  let testEmailAddress = $state('');
+  let testEmailSending = $state(false);
+  let testEmailResult = $state<{ ok: boolean; msg: string } | null>(null);
+
+  const token = $derived(data.token ?? '');
+
+  async function sendTestEmail() {
+    testEmailSending = true;
+    testEmailResult = null;
+    try {
+      await adminSendTestEmail(token, testEmailAddress);
+      testEmailResult = { ok: true, msg: 'Test email sent successfully.' };
+    } catch {
+      testEmailResult = { ok: false, msg: 'Failed to send. Check your SMTP settings and save them first.' };
+    } finally {
+      testEmailSending = false;
+    }
+  }
 
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
@@ -316,6 +338,14 @@
           </div>
         {/each}
       </div>
+      <div class="pt-5 mt-5 border-t border-gray-100">
+        <button type="button"
+                onclick={() => { showTestEmailModal = true; testEmailResult = null; testEmailAddress = ''; }}
+                class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                       hover:bg-gray-50 transition-colors">
+          Test Email
+        </button>
+      </div>
     </div>
 
     <!-- Cache TTL Settings -->
@@ -429,3 +459,43 @@
     </div>
   </form>
 </div>
+
+{#if showTestEmailModal}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => showTestEmailModal = false}
+         role="button" tabindex="-1" aria-label="Close"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+      <h3 class="font-semibold text-gray-900 mb-1">Send Test Email</h3>
+      <p class="text-xs text-gray-400 mb-4">Sends a test email using your current saved SMTP settings.</p>
+
+      <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide" for="test-email-to">
+        Recipient Email
+      </label>
+      <input id="test-email-to" type="email" bind:value={testEmailAddress}
+             placeholder="you@example.com"
+             class="mt-1.5 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                    focus:outline-none focus:ring-2 focus:ring-gray-900" />
+
+      {#if testEmailResult}
+        <p class="mt-3 text-sm {testEmailResult.ok ? 'text-green-600' : 'text-red-500'}">
+          {testEmailResult.msg}
+        </p>
+      {/if}
+
+      <div class="flex gap-3 mt-5">
+        <button type="button" disabled={testEmailSending || !testEmailAddress}
+                onclick={sendTestEmail}
+                class="flex-1 bg-gray-900 text-white text-sm font-medium rounded-xl py-2.5
+                       disabled:opacity-50 hover:bg-gray-700 transition-colors">
+          {testEmailSending ? 'Sending…' : 'Test Email'}
+        </button>
+        <button type="button" onclick={() => showTestEmailModal = false}
+                class="flex-1 border border-gray-200 text-sm font-medium rounded-xl py-2.5
+                       hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

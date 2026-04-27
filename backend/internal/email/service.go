@@ -91,6 +91,30 @@ type OrderEmailParams struct {
 	SetupURL        string // empty unless guest
 }
 
+// SendTest sends a plain test email to verify SMTP configuration.
+func (s *Service) SendTest(ctx context.Context, to string) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	subject := "SMTP Configuration Test — Gyeon"
+	text := "Hello,\n\nThis is a test email sent from Gyeon to verify your SMTP configuration is working correctly.\n\nIf you received this message, your email settings are configured properly and outgoing mail is functioning as expected.\n\nNo action is required.\n\n— Gyeon Admin"
+	html := `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>SMTP Test</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 8px;font-size:20px">SMTP Configuration Test</h1>
+      <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6">This is a test email sent from Gyeon to verify your SMTP configuration is working correctly.</p>
+      <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">If you received this message, your email settings are configured properly and outgoing mail is functioning as expected.</p>
+      <p style="margin:0;color:#6b7280;font-size:14px">No action is required.</p>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon Admin</p>
+  </div>
+</body></html>`
+	return s.send(cfg, to, subject, text, html)
+}
+
 // SendOrderConfirmation renders and sends the order confirmation email.
 // Returns ErrNotConfigured if SMTP credentials are missing — caller may treat as warning.
 func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams) error {
