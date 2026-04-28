@@ -273,6 +273,22 @@ export const adminGetCustomer = (token: string, id: string) =>
 export const adminGetCustomerOrders = (token: string, id: string) =>
   request<CustomerOrderSummary[]>(`/customers/me/orders`, token);
 
+export const adminSendResetPasswordEmail = async (token: string, customerID: string): Promise<void> => {
+  const res = await fetch(`${base()}/admin/customers/${customerID}/send-reset-password-email`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (res.status === 204) return;
+  let msg = `Send failed (${res.status})`;
+  try {
+    const body = await res.json();
+    if (body?.error) msg = body.error;
+  } catch {
+    // ignore — fall through to generic message
+  }
+  throw new Error(msg);
+};
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 export interface Setting {

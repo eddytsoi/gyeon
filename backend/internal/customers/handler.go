@@ -1,23 +1,27 @@
 package customers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
+	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/respond"
 )
 
 type Handler struct {
 	svc       *Service
+	emailSvc  *email.Service
 	jwtSecret string
 }
 
-func NewHandler(svc *Service, jwtSecret string) *Handler {
-	return &Handler{svc: svc, jwtSecret: jwtSecret}
+func NewHandler(svc *Service, emailSvc *email.Service, jwtSecret string) *Handler {
+	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret}
 }
 
 // Routes combines public and authenticated customer routes under one router.
@@ -26,6 +30,7 @@ func (h *Handler) Routes() chi.Router {
 	r.Post("/register", h.register)
 	r.Post("/login", h.login)
 	r.Post("/setup-password", h.setupPassword)
+	r.Post("/forgot-password", h.forgotPassword)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.CustomerMiddleware(h.jwtSecret))
 		r.Get("/me", h.getProfile)
@@ -50,6 +55,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Get("/{id}", h.getByID)
+	r.Post("/{id}/send-reset-password-email", h.sendResetPasswordEmail)
 	return r
 }
 
@@ -266,4 +272,97 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, customer)
+}
+
+func (h *Handler) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if email == "" {
+		respond.BadRequest(w, "email is required")
+		return
+	}
+
+	customer, err := h.svc.GetByEmail(r.Context(), email)
+	if errors.Is(err, ErrNotFound) {
+		// Don't leak whether the email is registered.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	go h.deliverPasswordReset(customer)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deliverPasswordReset(customer *Customer) {
+	ctx := context.Background()
+	token, _, err := h.svc.IssuePasswordResetToken(ctx, customer.ID)
+	if err != nil {
+		return
+	}
+	resetURL := strings.TrimRight(h.emailSvc.PublicBaseURL(ctx), "/") + "/account/reset-password?token=" + token
+	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
+	if name == "" {
+		name = customer.Email
+	}
+	_ = h.emailSvc.SendPasswordResetEmail(ctx, email.PasswordResetParams{
+		CustomerName:  name,
+		CustomerEmail: customer.Email,
+		ResetURL:      resetURL,
+		ExpiryHours:   24,
+	})
+}
+
+func (h *Handler) sendResetPasswordEmail(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	customer, err := h.svc.GetByID(r.Context(), id)
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	if customer.Email == "" {
+		respond.BadRequest(w, "customer has no email on file")
+		return
+	}
+
+	token, _, err := h.svc.IssuePasswordResetToken(r.Context(), customer.ID)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	resetURL := strings.TrimRight(h.emailSvc.PublicBaseURL(r.Context()), "/") + "/account/reset-password?token=" + token
+	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
+	if name == "" {
+		name = customer.Email
+	}
+
+	if err := h.emailSvc.SendPasswordResetEmail(r.Context(), email.PasswordResetParams{
+		CustomerName:  name,
+		CustomerEmail: customer.Email,
+		ResetURL:      resetURL,
+		ExpiryHours:   24,
+	}); err != nil {
+		if errors.Is(err, email.ErrNotConfigured) {
+			respond.Error(w, http.StatusServiceUnavailable, "email is not configured")
+			return
+		}
+		respond.Error(w, http.StatusBadGateway, "failed to send email")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -108,7 +108,7 @@ func main() {
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
 	navHandler := cms.NewNavHandler(navSvc)
 	productHandler := shop.NewProductHandler(productSvc)
-	customerHandler := customers.NewHandler(customerSvc, customerJWTSecret)
+	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret)
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)

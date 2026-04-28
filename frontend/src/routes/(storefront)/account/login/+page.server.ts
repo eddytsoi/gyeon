@@ -1,9 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { loginCustomer } from '$lib/api';
+import { loginCustomer, requestPasswordReset } from '$lib/api';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
-  default: async ({ request, cookies }) => {
+  login: async ({ request, cookies }) => {
     const form = await request.formData();
     const email = form.get('email')?.toString() ?? '';
     const password = form.get('password')?.toString() ?? '';
@@ -23,5 +23,18 @@ export const actions: Actions = {
     }
 
     throw redirect(303, '/account');
+  },
+
+  forgotPassword: async ({ request }) => {
+    const form = await request.formData();
+    const email = form.get('email')?.toString().trim() ?? '';
+
+    if (!email) return fail(400, { forgot: { error: '請輸入電郵地址。' } });
+
+    const res = await requestPasswordReset(email);
+    if (!res.ok && res.status !== 204) {
+      return fail(502, { forgot: { error: '寄送失敗，請稍後再試。' } });
+    }
+    return { forgot: { sent: true, email } };
   }
 };
