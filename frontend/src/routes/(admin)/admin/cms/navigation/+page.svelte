@@ -3,6 +3,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import type { PageData } from './$types';
   import type { NavItem } from '$lib/api/admin';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -194,7 +195,17 @@
       </h3>
 
       <form method="POST" action={editingItem ? '?/updateItem' : '?/addItem'}
-            use:enhance={() => { return async ({ update }) => { await update({ invalidateAll: true }); showItemForm = false; }; }}
+            use:enhance={() => {
+              const wasEditing = !!editingItem;
+              const linkLabel = fLabel;
+              return async ({ result, update }) => {
+                showResult(result,
+                  wasEditing ? `Link '${linkLabel}' saved` : `Link '${linkLabel}' added`,
+                  wasEditing ? `Failed to save link '${linkLabel}'` : `Failed to add link '${linkLabel}'`);
+                await update({ invalidateAll: true });
+                if (result.type === 'success') showItemForm = false;
+              };
+            }}
             class="space-y-4">
         <input type="hidden" name="menu_id" value={data.selected.id} />
         {#if editingItem}
@@ -274,7 +285,14 @@
           Cancel
         </button>
         <form method="POST" action="?/deleteItem" class="flex-1"
-              use:enhance={() => { return async ({ result }) => { if (result.type === 'success') await invalidateAll(); deleteTarget = null; }; }}>
+              use:enhance={() => {
+                const linkLabel = deleteTarget?.label ?? '';
+                return async ({ result }) => {
+                  showResult(result, `Link '${linkLabel}' removed`, `Failed to remove link '${linkLabel}'`);
+                  if (result.type === 'success') await invalidateAll();
+                  deleteTarget = null;
+                };
+              }}>
           <input type="hidden" name="menu_id" value={data.selected.id} />
           <input type="hidden" name="item_id" value={deleteTarget.id} />
           <button type="submit"

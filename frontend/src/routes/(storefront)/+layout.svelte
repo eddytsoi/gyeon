@@ -20,5 +20,5 @@
   <main class="flex-1">
     {@render children()}
   </main>
-  <Footer />
+  <Footer navItems={data.footerNav?.items ?? []} />
 </div>
