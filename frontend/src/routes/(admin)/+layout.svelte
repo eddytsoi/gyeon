@@ -147,6 +147,34 @@
     const target = $navigating?.to?.url.pathname;
     return !!target && target !== $page.url.pathname && target.startsWith(href);
   }
+
+  // ── Sidebar magnetic spotlight ──────────────────────────────────
+  let navEl = $state<HTMLElement | undefined>();
+  let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
+
+  function moveSpotlightTo(item: Element | null) {
+    if (!item || !navEl || !navEl.contains(item)) {
+      spotlight.visible = false;
+      return;
+    }
+    const navRect = navEl.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    spotlight = {
+      visible: true,
+      top: itemRect.top - navRect.top + navEl.scrollTop,
+      left: itemRect.left - navRect.left + navEl.scrollLeft,
+      width: itemRect.width,
+      height: itemRect.height
+    };
+  }
+
+  function onNavMouseMove(e: MouseEvent) {
+    moveSpotlightTo((e.target as HTMLElement | null)?.closest('.js-nav-item') ?? null);
+  }
+
+  function onNavMouseLeave() {
+    spotlight.visible = false;
+  }
 </script>
 
 <Notifications />
@@ -192,7 +220,18 @@
       </div>
 
       <!-- Nav -->
-      <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+      <nav bind:this={navEl}
+           onmousemove={onNavMouseMove}
+           onmouseleave={onNavMouseLeave}
+           class="relative flex-1 overflow-y-auto px-3 py-4 space-y-4">
+        <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered item -->
+        <div aria-hidden="true"
+             class="pointer-events-none absolute z-0 rounded-lg bg-gray-100
+                    transition-[transform,width,height,opacity] duration-[80ms] ease-out
+                    {spotlight.visible ? 'opacity-100' : 'opacity-0'}"
+             style="top: 0; left: 0; transform: translate3d({spotlight.left}px, {spotlight.top}px, 0); width: {spotlight.width}px; height: {spotlight.height}px;">
+        </div>
+
         {#each navGroups as group}
           <div>
             <p class="px-3 mb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
@@ -207,11 +246,11 @@
                   <div>
                     <a href={link.href}
                        onclick={() => drawerOpen = false}
-                       class="relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
+                       class="js-nav-item relative z-10 flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
                               transition-colors duration-150 group
                               {parentActive
-                                ? 'bg-gray-100 text-gray-900 font-semibold'
-                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                                ? 'text-gray-900 font-semibold'
+                                : 'text-gray-500 hover:text-gray-900 font-medium'}">
                       {#if parentActive}
                         <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
                       {/if}
@@ -234,11 +273,11 @@
                             {@const loadingChild = isNavigatingTo(child.href)}
                             <a href={child.href}
                                onclick={() => drawerOpen = false}
-                               class="relative flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-lg text-sm
+                               class="js-nav-item relative z-10 flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-lg text-sm
                                       transition-colors duration-150
                                       {childActive
-                                        ? 'bg-gray-100 text-gray-900 font-semibold'
-                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                                        ? 'text-gray-900 font-semibold'
+                                        : 'text-gray-500 hover:text-gray-900 font-medium'}">
                               {#if childActive}
                                 <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
                               {/if}
@@ -259,11 +298,11 @@
                   {@const loading = isNavigatingTo(link.href)}
                   <a href={link.href}
                      onclick={() => drawerOpen = false}
-                     class="relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
+                     class="js-nav-item relative z-10 flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
                             transition-colors duration-150 group
                             {active
-                              ? 'bg-gray-100 text-gray-900 font-semibold'
-                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                              ? 'text-gray-900 font-semibold'
+                              : 'text-gray-500 hover:text-gray-900 font-medium'}">
                     {#if active}
                       <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
                     {/if}
