@@ -29,6 +29,27 @@ func (h *OrderHandler) Routes() chi.Router {
 	return r
 }
 
+// AdminRoutes registers admin-only order endpoints. Mount under the admin
+// auth group so callers must present a valid admin JWT.
+func (h *OrderHandler) AdminRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Delete("/{id}", h.delete)
+	return r
+}
+
+func (h *OrderHandler) delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			respond.NotFound(w)
+			return
+		}
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *OrderHandler) createSetupToken(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {

@@ -109,6 +109,9 @@ export const adminUpdateOrderStatus = (token: string, id: string, status: string
     body: JSON.stringify({ status, note })
   });
 
+export const adminDeleteOrder = (token: string, id: string) =>
+  request(`/admin/orders/${id}`, token, { method: 'DELETE' });
+
 // ── CMS ──────────────────────────────────────────────────────────────────────
 
 export interface CmsPage {
