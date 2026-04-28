@@ -172,7 +172,7 @@
     </div>
   {/if}
 
-  <div class="flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto">
+  <div class="flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto overflow-y-hidden">
     {#each TABS as t}
       <button type="button"
               onclick={() => setTab(t.id)}
