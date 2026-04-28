@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import type { PageData } from './$types';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -70,7 +72,16 @@
     </button>
   </div>
 
-  <form method="POST" action="?/save" class="space-y-6">
+  <form method="POST" action="?/save" class="space-y-6"
+        use:enhance={() => {
+          const postTitle = title;
+          return async ({ result, update }) => {
+            showResult(result,
+              isNew ? `Post '${postTitle}' created` : `Post '${postTitle}' saved`,
+              isNew ? `Failed to create post '${postTitle}'` : `Failed to save post '${postTitle}'`);
+            await update();
+          };
+        }}>
     <div class="{preview ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'space-y-6'}">
 
       <!-- Editor column -->
