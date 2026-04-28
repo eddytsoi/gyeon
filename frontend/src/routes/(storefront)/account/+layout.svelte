@@ -8,12 +8,13 @@
     $page.url.pathname === '/account/login' || $page.url.pathname === '/account/register'
   );
 
-  const navLinks = [
+  const navLinks = $derived([
     { href: '/account', label: 'Overview' },
     { href: '/account/profile', label: 'Profile' },
     { href: '/account/addresses', label: 'Addresses' },
+    ...(data.saveCardsEnabled ? [{ href: '/account/cards', label: 'Saved Cards' }] : []),
     { href: '/account/orders', label: 'Orders' }
-  ];
+  ]);
 </script>
 
 {#if isPublicPage}

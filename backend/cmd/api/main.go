@@ -61,7 +61,7 @@ func main() {
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
 	customerSvc := customers.NewService(conn)
-	paymentSvc := payment.NewService(settingsSvc)
+	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
@@ -77,11 +77,31 @@ func main() {
 
 	// Handlers
 	pricingHandler := pricing.NewHandler(pricingSvc)
-	paymentHandler := payment.NewHandler(paymentSvc, func(r *http.Request, paymentIntentID string) {
-		if err := orderSvc.MarkPaidByPaymentIntent(r.Context(), paymentIntentID); err != nil {
-			log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
-		}
-	})
+	paymentHandler := payment.NewHandler(
+		paymentSvc,
+		func(r *http.Request, paymentIntentID string) {
+			if err := orderSvc.MarkPaidByPaymentIntent(r.Context(), paymentIntentID); err != nil {
+				log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
+			}
+		},
+		func(r *http.Request, stripeCustomerID, stripePMID string) {
+			ctx := r.Context()
+			gyeonCustomerID, err := paymentSvc.LookupCustomerByStripeID(ctx, stripeCustomerID)
+			if err != nil {
+				log.Printf("setup_intent.succeeded: lookup customer for stripe %s: %v", stripeCustomerID, err)
+				return
+			}
+			brand, last4, expMonth, expYear, err := paymentSvc.FetchPaymentMethodDetails(ctx, stripePMID)
+			if err != nil {
+				log.Printf("setup_intent.succeeded: fetch pm details %s: %v", stripePMID, err)
+				return
+			}
+			if err := paymentSvc.StoreSavedPaymentMethod(ctx, gyeonCustomerID, stripePMID, brand, last4, expMonth, expYear); err != nil {
+				log.Printf("setup_intent.succeeded: store pm for customer %s: %v", gyeonCustomerID, err)
+			}
+		},
+		customerJWTSecret,
+	)
 	statsHandler := admin.NewStatsHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
