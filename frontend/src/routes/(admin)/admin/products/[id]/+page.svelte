@@ -256,11 +256,18 @@
                 </span>
               </td>
               <td class="px-5 py-3 text-right">
-                <div class="flex items-center justify-end gap-3">
+                <div class="flex items-center justify-end gap-1">
+                  <!-- Adjust Stock -->
                   <button onclick={() => showStockModal = variant}
-                          class="text-xs text-gray-400 hover:text-gray-700 transition-colors">
-                    Stock ±
+                          title="Adjust stock"
+                          aria-label="Adjust stock"
+                          class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                    </svg>
                   </button>
+                  <!-- Edit -->
                   <button onclick={() => {
                             editingVariant = variant;
                             const cur = data.images.find(img => img.variant_id === variant.id);
@@ -268,10 +275,16 @@
                             editVariantImageId = cur?.media_file_id ?? null;
                             editVariantRemoveImage = false;
                           }}
-                          class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                    Edit
+                          title="Edit"
+                          aria-label="Edit variant"
+                          class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                    </svg>
                   </button>
-                  <form method="POST" action="?/deleteVariant"
+                  <!-- Delete -->
+                  <form method="POST" action="?/deleteVariant" class="inline-flex"
                         use:enhance={() => {
                           const sku = variant.sku;
                           return async ({ result, update }) => {
@@ -281,9 +294,14 @@
                         }}>
                     <input type="hidden" name="variant_id" value={variant.id} />
                     <button type="submit"
-                            class="text-xs text-red-400 hover:text-red-600 transition-colors"
+                            title="Delete"
+                            aria-label="Delete variant"
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                             onclick={(e) => { if (!confirm('Delete this variant?')) e.preventDefault(); }}>
-                      Delete
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                      </svg>
                     </button>
                   </form>
                 </div>
@@ -343,13 +361,20 @@
                       'border-gray-100'}"
             >
               <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
+
+              <!-- Always-visible primary indicator -->
               {#if image.is_primary}
-                <span class="absolute top-2 left-2 bg-gray-900 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                  Primary
+                <span class="absolute top-2 left-2 p-1.5 rounded-lg bg-amber-400/90 text-white"
+                      title="Primary image" aria-label="Primary image">
+                  <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                  </svg>
                 </span>
               {/if}
-              <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity
-                          flex flex-col items-center justify-center gap-2">
+
+              <!-- Hover-revealed action buttons (top-right) -->
+              <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
+                          flex items-center gap-1">
                 {#if !image.is_primary}
                   <form method="POST" action="?/setPrimary"
                         use:enhance={() => async ({ result, update }) => {
@@ -359,8 +384,12 @@
                     <input type="hidden" name="image_id" value={image.id} />
                     <input type="hidden" name="sort_order" value={image.sort_order} />
                     <button type="submit"
-                            class="px-3 py-1 bg-white text-gray-900 text-xs font-medium rounded-lg">
-                      Set Primary
+                            title="Set as primary" aria-label="Set as primary"
+                            class="p-1.5 rounded-lg bg-white/10 hover:bg-amber-400/90 transition-colors text-white">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                      </svg>
                     </button>
                   </form>
                 {/if}
@@ -371,9 +400,13 @@
                       }}>
                   <input type="hidden" name="image_id" value={image.id} />
                   <button type="submit"
-                          class="px-3 py-1 bg-red-500 text-white text-xs font-medium rounded-lg"
+                          title="Delete" aria-label="Delete image"
+                          class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 transition-colors text-white"
                           onclick={(e) => { if (!confirm('Delete this image?')) e.preventDefault(); }}>
-                    Delete
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                    </svg>
                   </button>
                 </form>
               </div>
