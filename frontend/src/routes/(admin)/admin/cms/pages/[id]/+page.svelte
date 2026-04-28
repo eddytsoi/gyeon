@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import type { PageData } from './$types';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -38,7 +40,16 @@
     <h2 class="text-xl font-bold text-gray-900">{isNew ? 'New Page' : 'Edit Page'}</h2>
   </div>
 
-  <form method="POST" action="?/save" class="space-y-6">
+  <form method="POST" action="?/save" class="space-y-6"
+        use:enhance={() => {
+          const pageTitle = title;
+          return async ({ result, update }) => {
+            showResult(result,
+              isNew ? `Page '${pageTitle}' created` : `Page '${pageTitle}' saved`,
+              isNew ? `Failed to create page '${pageTitle}'` : `Failed to save page '${pageTitle}'`);
+            await update();
+          };
+        }}>
     <!-- Main card -->
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       <div class="px-6 py-5 space-y-5">

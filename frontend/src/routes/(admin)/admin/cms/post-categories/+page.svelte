@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import type { PostCategory } from '$lib/api/admin';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -124,7 +125,17 @@
       </h3>
 
       <form method="POST" action={editing ? '?/update' : '?/create'}
-            use:enhance={() => { return async ({ update }) => { await update(); showForm = false; }; }}
+            use:enhance={() => {
+              const wasEditing = !!editing;
+              const catName = fName;
+              return async ({ result, update }) => {
+                showResult(result,
+                  wasEditing ? `Category '${catName}' saved` : `Category '${catName}' created`,
+                  wasEditing ? `Failed to save category '${catName}'` : `Failed to create category '${catName}'`);
+                await update();
+                if (result.type === 'success') showForm = false;
+              };
+            }}
             class="space-y-4">
         {#if editing}
           <input type="hidden" name="id" value={editing.id} />
@@ -191,7 +202,14 @@
           Cancel
         </button>
         <form method="POST" action="?/delete" class="flex-1"
-              use:enhance={() => { return async ({ update }) => { await update(); deleteTarget = null; }; }}>
+              use:enhance={() => {
+                const catName = deleteTarget?.name ?? '';
+                return async ({ result, update }) => {
+                  showResult(result, `Category '${catName}' deleted`, `Failed to delete category '${catName}'`);
+                  await update();
+                  deleteTarget = null;
+                };
+              }}>
           <input type="hidden" name="id" value={deleteTarget.id} />
           <button type="submit"
                   class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium

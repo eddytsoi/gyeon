@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import type { CmsPost } from '$lib/api/admin';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -164,7 +166,15 @@
                        text-gray-700 hover:bg-gray-50 transition-colors">
           Cancel
         </button>
-        <form method="POST" action="?/delete" class="flex-1">
+        <form method="POST" action="?/delete" class="flex-1"
+              use:enhance={() => {
+                const postTitle = deleteTarget?.title ?? '';
+                return async ({ result, update }) => {
+                  showResult(result, `Post '${postTitle}' deleted`, `Failed to delete post '${postTitle}'`);
+                  await update();
+                  deleteTarget = null;
+                };
+              }}>
           <input type="hidden" name="id" value={deleteTarget.id} />
           <button type="submit"
                   class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium

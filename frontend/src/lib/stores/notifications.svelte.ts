@@ -43,3 +43,20 @@ function createNotificationStore() {
 }
 
 export const notify = createNotificationStore();
+
+type FormResult =
+  | { type: 'success'; status: number; data?: Record<string, unknown> }
+  | { type: 'failure'; status: number; data?: Record<string, unknown> }
+  | { type: 'redirect'; status: number; location: string }
+  | { type: 'error'; status?: number; error: { message?: string } };
+
+export function showResult(result: FormResult, successTitle: string, errorTitle = 'Operation failed') {
+  if (result.type === 'success' || result.type === 'redirect') {
+    notify.success(successTitle);
+  } else if (result.type === 'failure') {
+    const err = result.data?.error;
+    notify.error(errorTitle, typeof err === 'string' ? err : undefined);
+  } else if (result.type === 'error') {
+    notify.error(errorTitle, result.error?.message ?? 'Please try again.');
+  }
+}

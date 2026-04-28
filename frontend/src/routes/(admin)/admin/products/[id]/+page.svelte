@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
+  import { showResult } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -135,7 +136,14 @@
     <form method="POST" action="?/saveProduct"
           use:enhance={() => {
             saving = true;
-            return async ({ update }) => { await update(); saving = false; };
+            const productName = name;
+            return async ({ result, update }) => {
+              showResult(result,
+                data.isNew ? `Product '${productName}' created` : `Product '${productName}' saved`,
+                data.isNew ? `Failed to create product '${productName}'` : `Failed to save product '${productName}'`);
+              await update();
+              saving = false;
+            };
           }}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1.5">
@@ -263,7 +271,14 @@
                           class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
                     Edit
                   </button>
-                  <form method="POST" action="?/deleteVariant" use:enhance>
+                  <form method="POST" action="?/deleteVariant"
+                        use:enhance={() => {
+                          const sku = variant.sku;
+                          return async ({ result, update }) => {
+                            showResult(result, `Variant '${sku}' deleted`, `Failed to delete variant '${sku}'`);
+                            await update();
+                          };
+                        }}>
                     <input type="hidden" name="variant_id" value={variant.id} />
                     <button type="submit"
                             class="text-xs text-red-400 hover:text-red-600 transition-colors"
@@ -336,7 +351,11 @@
               <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity
                           flex flex-col items-center justify-center gap-2">
                 {#if !image.is_primary}
-                  <form method="POST" action="?/setPrimary" use:enhance>
+                  <form method="POST" action="?/setPrimary"
+                        use:enhance={() => async ({ result, update }) => {
+                          showResult(result, 'Primary image set', 'Failed to set primary image');
+                          await update();
+                        }}>
                     <input type="hidden" name="image_id" value={image.id} />
                     <input type="hidden" name="sort_order" value={image.sort_order} />
                     <button type="submit"
@@ -345,7 +364,11 @@
                     </button>
                   </form>
                 {/if}
-                <form method="POST" action="?/deleteImage" use:enhance>
+                <form method="POST" action="?/deleteImage"
+                      use:enhance={() => async ({ result, update }) => {
+                        showResult(result, 'Image deleted', 'Failed to delete image');
+                        await update();
+                      }}>
                   <input type="hidden" name="image_id" value={image.id} />
                   <button type="submit"
                           class="px-3 py-1 bg-red-500 text-white text-xs font-medium rounded-lg"
@@ -370,7 +393,14 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Add Variant</h3>
       <form method="POST" action="?/addVariant"
-            use:enhance={() => async ({ update }) => { await update(); showAddVariant = false; addVariantImageId = null; }}>
+            use:enhance={({ formData }) => {
+              const sku = formData.get('sku')?.toString() ?? '';
+              return async ({ result, update }) => {
+                showResult(result, `Variant '${sku}' added`, `Failed to add variant '${sku}'`);
+                await update();
+                if (result.type === 'success') { showAddVariant = false; addVariantImageId = null; }
+              };
+            }}>
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
@@ -445,7 +475,14 @@
         <h3 class="font-semibold text-gray-900">Edit Variant</h3>
       </div>
       <form method="POST" action="?/updateVariant"
-            use:enhance={() => async ({ update }) => { await update(); editingVariant = null; }}>
+            use:enhance={({ formData }) => {
+              const sku = formData.get('sku')?.toString() ?? '';
+              return async ({ result, update }) => {
+                showResult(result, `Variant '${sku}' saved`, `Failed to save variant '${sku}'`);
+                await update();
+                if (result.type === 'success') editingVariant = null;
+              };
+            }}>
         <input type="hidden" name="variant_id" value={editingVariant.id} />
         <input type="hidden" name="old_image_id" value={editVariantOldImageId ?? ''} />
         <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
@@ -557,7 +594,16 @@
         {showStockModal.sku} — current stock: <strong>{showStockModal.stock_qty}</strong>
       </p>
       <form method="POST" action="?/adjustStock"
-            use:enhance={() => async ({ update }) => { await update(); showStockModal = null; }}>
+            use:enhance={({ formData }) => {
+              const sku = showStockModal?.sku ?? '';
+              const delta = formData.get('delta')?.toString() ?? '0';
+              return async ({ result, update }) => {
+                const signed = parseInt(delta, 10) >= 0 ? `+${delta}` : delta;
+                showResult(result, `Stock adjusted ${signed} for '${sku}'`, `Failed to adjust stock for '${sku}'`);
+                await update();
+                if (result.type === 'success') showStockModal = null;
+              };
+            }}>
         <input type="hidden" name="variant_id" value={showStockModal.id} />
         <div class="flex flex-col gap-1.5 mb-4">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Delta</label>
@@ -592,7 +638,11 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl">
       <h3 class="font-semibold text-gray-900 mb-4">Add Image</h3>
       <form method="POST" action="?/addImage"
-            use:enhance={() => async ({ update }) => { await update(); showAddImage = false; addImageSelectedId = null; }}>
+            use:enhance={() => async ({ result, update }) => {
+              showResult(result, 'Image added', 'Failed to add image');
+              await update();
+              if (result.type === 'success') { showAddImage = false; addImageSelectedId = null; }
+            }}>
         <input type="hidden" name="media_file_id" value={addImageSelectedId ?? ''} />
         <input type="hidden" name="sort_order" value="0" />
 
