@@ -93,6 +93,13 @@ export const setupPassword = (token: string, password: string) =>
     body: JSON.stringify({ token, password })
   });
 
+export const requestPasswordReset = (email: string) =>
+  fetch(`${base()}/customers/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+
 // CMS public API
 export const getBlogPosts = (limit = 20, offset = 0) =>
   request<CmsPost[]>(`/cms/posts?limit=${limit}&offset=${offset}`);

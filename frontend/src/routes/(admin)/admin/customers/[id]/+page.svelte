@@ -1,7 +1,22 @@
 <script lang="ts">
-  import type { PageData } from './$types';
+  import { enhance } from '$app/forms';
+  import type { PageData, ActionData } from './$types';
 
-  let { data }: { data: PageData } = $props();
+  let { data, form }: { data: PageData; form: ActionData } = $props();
+
+  let confirmOpen = $state(false);
+  let sending = $state(false);
+  let successMessage = $state<string | null>(null);
+
+  function openConfirm() {
+    successMessage = null;
+    confirmOpen = true;
+  }
+
+  function closeConfirm() {
+    if (sending) return;
+    confirmOpen = false;
+  }
 
   const statusColour: Record<string, string> = {
     pending:    'bg-amber-50 text-amber-700',
@@ -32,9 +47,30 @@
       Customer not found.
     </div>
   {:else}
+    {#if form?.resetSent || successMessage}
+      <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700 flex items-center justify-between">
+        <span>{successMessage ?? `已寄出 reset password email 至 ${data.customer.email}`}</span>
+        <button class="text-green-700/60 hover:text-green-700 text-lg leading-none" onclick={() => { successMessage = null; }} aria-label="Dismiss">×</button>
+      </div>
+    {/if}
+    {#if form?.resetError}
+      <div class="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
+        寄送失敗：{form.resetError}
+      </div>
+    {/if}
+
     <!-- Profile Card -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Profile</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-gray-900">Profile</h2>
+        <button
+          type="button"
+          onclick={openConfirm}
+          class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Reset password
+        </button>
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Name</p>
@@ -110,5 +146,59 @@
         </table>
       {/if}
     </div>
+
+    {#if confirmOpen}
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+        onclick={closeConfirm}
+        onkeydown={(e) => { if (e.key === 'Escape') closeConfirm(); }}
+        role="presentation"
+      >
+        <div
+          class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
+          onclick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-pw-title"
+          tabindex="-1"
+        >
+          <h3 id="reset-pw-title" class="font-semibold text-gray-900 mb-2">Reset password</h3>
+          <p class="text-sm text-gray-600 mb-5">
+            確定寄出 reset password email 俾
+            <span class="font-medium text-gray-900">{data.customer.email}</span>
+            ？連結將於 24 小時後失效。
+          </p>
+          <form
+            method="POST"
+            action="?/sendResetPassword"
+            use:enhance={() => {
+              sending = true;
+              return async ({ update }) => {
+                await update();
+                sending = false;
+                confirmOpen = false;
+              };
+            }}
+            class="flex justify-end gap-2"
+          >
+            <button
+              type="button"
+              onclick={closeConfirm}
+              disabled={sending}
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={sending}
+              class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            >
+              {sending ? '寄送中…' : 'Send'}
+            </button>
+          </form>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>

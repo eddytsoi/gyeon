@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { getMyProfile, getPublicSettings } from '$lib/api';
 import type { LayoutServerLoad } from './$types';
 
-const PUBLIC_PATHS = ['/account/login', '/account/register', '/account/setup-password'];
+const PUBLIC_PATHS = ['/account/login', '/account/register', '/account/setup-password', '/account/reset-password'];
 
 export const load: LayoutServerLoad = async ({ cookies, url }) => {
   const token = cookies.get('customer_token') ?? null;

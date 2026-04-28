@@ -5,7 +5,10 @@
   let { children, data }: { children: any; data: LayoutData } = $props();
 
   const isPublicPage = $derived(
-    $page.url.pathname === '/account/login' || $page.url.pathname === '/account/register'
+    $page.url.pathname === '/account/login' ||
+    $page.url.pathname === '/account/register' ||
+    $page.url.pathname === '/account/setup-password' ||
+    $page.url.pathname === '/account/reset-password'
   );
 
   const navLinks = $derived([

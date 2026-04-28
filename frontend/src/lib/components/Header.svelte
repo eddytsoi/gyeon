@@ -1,10 +1,14 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
-  import type { NavItem } from '$lib/types';
+  import type { NavItem, Customer } from '$lib/types';
 
-  let { navItems = [] }: { navItems?: NavItem[] } = $props();
+  let {
+    navItems = [],
+    customer = null
+  }: { navItems?: NavItem[]; customer?: Customer | null } = $props();
 
   let mobileOpen = $state(false);
+  let accountOpen = $state(false);
 
   // Fallback hardcoded nav when DB has no items yet
   const fallbackLinks = [
@@ -18,6 +22,18 @@
       ? navItems.map(i => ({ label: i.label, url: i.url, target: i.target }))
       : fallbackLinks
   );
+
+  function closeAccount(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (!target.closest('[data-account-menu]')) accountOpen = false;
+  }
+
+  $effect(() => {
+    if (accountOpen) {
+      document.addEventListener('click', closeAccount);
+      return () => document.removeEventListener('click', closeAccount);
+    }
+  });
 </script>
 
 <header class="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
@@ -39,9 +55,67 @@
         {/each}
       </nav>
 
-      <!-- Cart + mobile toggle -->
-      <div class="flex items-center gap-3">
-        <a href="/cart" class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors">
+      <!-- Account + Cart + mobile toggle -->
+      <div class="flex items-center gap-1 sm:gap-2">
+
+        <!-- Account -->
+        {#if customer}
+          <div class="relative" data-account-menu>
+            <button
+              type="button"
+              onclick={(e) => { e.stopPropagation(); accountOpen = !accountOpen; }}
+              class="p-2 text-gray-600 hover:text-gray-900 transition-colors flex items-center"
+              aria-label="Account menu"
+              aria-expanded={accountOpen}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+            </button>
+
+            {#if accountOpen}
+              <div class="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-lg py-1 origin-top-right">
+                <div class="px-4 py-3 border-b border-gray-100">
+                  <p class="text-sm font-medium text-gray-900 truncate">{customer.first_name} {customer.last_name}</p>
+                  <p class="text-xs text-gray-500 truncate">{customer.email}</p>
+                </div>
+                <a href="/account" onclick={() => accountOpen = false}
+                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Overview</a>
+                <a href="/account/profile" onclick={() => accountOpen = false}
+                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Profile</a>
+                <a href="/account/orders" onclick={() => accountOpen = false}
+                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Orders</a>
+                <a href="/account/addresses" onclick={() => accountOpen = false}
+                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Addresses</a>
+                <div class="border-t border-gray-100 mt-1 pt-1">
+                  <form method="POST" action="/account/logout">
+                    <button type="submit"
+                            class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50">
+                      Sign out
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <a
+            href="/account/login"
+            class="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+            aria-label="Sign in"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+            </svg>
+          </a>
+        {/if}
+
+        <!-- Cart -->
+        <a href="/cart" class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label="Cart">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"

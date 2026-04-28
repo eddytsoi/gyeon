@@ -139,6 +139,18 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Customer, error) {
 	return &c, err
 }
 
+func (s *Service) GetByEmail(ctx context.Context, email string) (*Customer, error) {
+	var c Customer
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		 FROM customers WHERE email=$1`, email).
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &c, err
+}
+
 func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfileRequest) (*Customer, error) {
 	var c Customer
 	err := s.db.QueryRowContext(ctx,
@@ -310,12 +322,28 @@ func (s *Service) UpsertGuest(ctx context.Context, email, firstName, lastName st
 // CreateSetupToken generates a one-time URL-safe token (64 hex chars) tied to
 // a customer; expires after 7 days. Returns the raw token (caller embeds in URL).
 func (s *Service) CreateSetupToken(ctx context.Context, customerID string) (string, error) {
+	return s.issueAccountToken(ctx, customerID, 7*24*time.Hour)
+}
+
+// IssuePasswordResetToken issues a one-time token (same table as setup tokens,
+// same consumption flow) with a shorter 24-hour expiry — used when admin
+// triggers a password reset email for an existing customer.
+func (s *Service) IssuePasswordResetToken(ctx context.Context, customerID string) (string, time.Time, error) {
+	expiresAt := time.Now().Add(24 * time.Hour)
+	token, err := s.issueAccountToken(ctx, customerID, 24*time.Hour)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return token, expiresAt, nil
+}
+
+func (s *Service) issueAccountToken(ctx context.Context, customerID string, ttl time.Duration) (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
 	token := hex.EncodeToString(buf)
-	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	expiresAt := time.Now().Add(ttl)
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO account_setup_tokens (token, customer_id, expires_at)
