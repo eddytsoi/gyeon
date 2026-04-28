@@ -28,24 +28,40 @@ const (
 )
 
 type Order struct {
-	ID                string      `json:"id"`
-	CustomerID        *string     `json:"customer_id,omitempty"`
-	Status            OrderStatus `json:"status"`
-	ShippingAddressID *string     `json:"shipping_address_id,omitempty"`
-	Subtotal          float64     `json:"subtotal"`
-	ShippingFee       float64     `json:"shipping_fee"`
-	DiscountAmount    float64     `json:"discount_amount"`
-	Total             float64     `json:"total"`
-	Notes             *string     `json:"notes,omitempty"`
-	CustomerEmail     *string     `json:"customer_email,omitempty"`
-	CustomerPhone     *string     `json:"customer_phone,omitempty"`
-	CustomerName      *string     `json:"customer_name,omitempty"`
-	PaymentIntentID   *string     `json:"payment_intent_id,omitempty"`
-	PaymentStatus     *string     `json:"payment_status,omitempty"`
-	PaymentMethod     *string     `json:"payment_method,omitempty"`
-	Items             []OrderItem `json:"items,omitempty"`
-	CreatedAt         string      `json:"created_at"`
-	UpdatedAt         string      `json:"updated_at"`
+	ID                string           `json:"id"`
+	CustomerID        *string          `json:"customer_id,omitempty"`
+	Status            OrderStatus      `json:"status"`
+	ShippingAddressID *string          `json:"shipping_address_id,omitempty"`
+	ShippingAddress   *ShippingAddress `json:"shipping_address,omitempty"`
+	Subtotal          float64          `json:"subtotal"`
+	ShippingFee       float64          `json:"shipping_fee"`
+	DiscountAmount    float64          `json:"discount_amount"`
+	Total             float64          `json:"total"`
+	Notes             *string          `json:"notes,omitempty"`
+	CustomerEmail     *string          `json:"customer_email,omitempty"`
+	CustomerPhone     *string          `json:"customer_phone,omitempty"`
+	CustomerName      *string          `json:"customer_name,omitempty"`
+	PaymentIntentID   *string          `json:"payment_intent_id,omitempty"`
+	PaymentStatus     *string          `json:"payment_status,omitempty"`
+	PaymentMethod     *string          `json:"payment_method,omitempty"`
+	PaidAt            *string          `json:"paid_at,omitempty"`
+	Items             []OrderItem      `json:"items,omitempty"`
+	CreatedAt         string           `json:"created_at"`
+	UpdatedAt         string           `json:"updated_at"`
+}
+
+// ShippingAddress is the snapshot of the shipping address attached to an order.
+// Populated by GetByID for the admin order detail view.
+type ShippingAddress struct {
+	FirstName  string  `json:"first_name"`
+	LastName   string  `json:"last_name"`
+	Phone      *string `json:"phone,omitempty"`
+	Line1      string  `json:"line1"`
+	Line2      *string `json:"line2,omitempty"`
+	City       string  `json:"city"`
+	State      *string `json:"state,omitempty"`
+	PostalCode string  `json:"postal_code"`
+	Country    string  `json:"country"`
 }
 
 type OrderItem struct {
@@ -777,6 +793,30 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 			&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
 		order.Items = append(order.Items, item)
 	}
+
+	// Best-effort: fetch shipping address details and paid_at timestamp.
+	if order.ShippingAddressID != nil && *order.ShippingAddressID != "" {
+		var addr ShippingAddress
+		err := s.db.QueryRowContext(ctx,
+			`SELECT first_name, last_name, phone, line1, line2, city, state, postal_code, country
+			 FROM addresses WHERE id = $1`, *order.ShippingAddressID).
+			Scan(&addr.FirstName, &addr.LastName, &addr.Phone,
+				&addr.Line1, &addr.Line2, &addr.City, &addr.State, &addr.PostalCode, &addr.Country)
+		if err == nil {
+			order.ShippingAddress = &addr
+		}
+	}
+
+	var paidAt sql.NullString
+	err = s.db.QueryRowContext(ctx,
+		`SELECT created_at FROM order_status_history
+		 WHERE order_id = $1 AND status = 'paid'
+		 ORDER BY created_at ASC LIMIT 1`, id).Scan(&paidAt)
+	if err == nil && paidAt.Valid {
+		s := paidAt.String
+		order.PaidAt = &s
+	}
+
 	return &order, nil
 }
 
