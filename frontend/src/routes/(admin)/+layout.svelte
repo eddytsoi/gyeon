@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../../app.css';
   import { page } from '$app/stores';
+  import Notifications from '$lib/components/Notifications.svelte';
 
   let { children } = $props();
 
@@ -107,6 +108,8 @@
     return !(link.children ?? []).some(c => pathname.startsWith(c.href));
   }
 </script>
+
+<Notifications />
 
 {#if isLoginPage}
   <div class="min-h-screen bg-gray-50">

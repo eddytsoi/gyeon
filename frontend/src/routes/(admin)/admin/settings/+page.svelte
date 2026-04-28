@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
-  import type { PageData, ActionData } from './$types';
+  import type { PageData } from './$types';
   import { adminSendTestEmail } from '$lib/api/admin';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import { COUNTRIES } from '$lib/data/countries';
+  import { notify } from '$lib/stores/notifications.svelte';
 
-  let { data, form }: { data: PageData; form: ActionData } = $props();
+  let { data }: { data: PageData } = $props();
   let saving = $state(false);
 
   // ── Tabs ────────────────────────────────────────────────────────
@@ -161,17 +162,6 @@
     <h1 class="text-2xl font-bold text-gray-900">Site Settings</h1>
   </div>
 
-  {#if form?.success}
-    <div class="bg-green-50 border border-green-100 text-green-700 text-sm rounded-xl px-4 py-3 mb-6">
-      Settings saved successfully.
-    </div>
-  {/if}
-  {#if form?.error}
-    <div class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6">
-      {form.error}
-    </div>
-  {/if}
-
   <div class="flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto overflow-y-hidden">
     {#each TABS as t}
       <button type="button"
@@ -188,7 +178,17 @@
   <form method="POST" action="?/save"
         use:enhance={() => {
           saving = true;
-          return async ({ update }) => { await update({ reset: false }); saving = false; };
+          return async ({ result, update }) => {
+            await update({ reset: false });
+            saving = false;
+            if (result.type === 'success') {
+              notify.success('Settings saved');
+            } else if (result.type === 'failure') {
+              notify.error('Save failed', (result.data?.error as string) ?? 'Please try again.');
+            } else if (result.type === 'error') {
+              notify.error('Save failed', result.error?.message ?? 'Please try again.');
+            }
+          };
         }}>
 
     <!-- General tab -->
