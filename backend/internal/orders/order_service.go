@@ -137,6 +137,13 @@ type OrderService struct {
 	customerSvc *customers.Service
 	paymentSvc  *payment.Service
 	emailSvc    *email.Service
+	onCreated   func(ctx context.Context, order *Order)
+}
+
+// SetOnOrderCreated registers a callback fired after a new order is committed
+// (best-effort, non-blocking). Used for SSE broadcasts to admin clients.
+func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
+	s.onCreated = fn
 }
 
 func NewOrderService(
@@ -399,6 +406,10 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	if s.onCreated != nil {
+		go s.onCreated(context.Background(), &order)
 	}
 
 	// Create Stripe PaymentIntent (outside the order tx — Stripe is the source of truth for the PI;

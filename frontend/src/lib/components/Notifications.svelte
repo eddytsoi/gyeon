@@ -46,6 +46,14 @@
         {#if n.message}
           <p class="text-xs text-gray-500 mt-1 leading-relaxed break-words">{n.message}</p>
         {/if}
+        {#if n.link}
+          <a href={n.link}
+             onclick={() => notify.dismiss(n.id)}
+             class="inline-block mt-2 text-xs font-medium text-gray-900 underline underline-offset-2
+                    hover:text-gray-700 transition-colors">
+            View details →
+          </a>
+        {/if}
       </div>
 
       <button type="button"

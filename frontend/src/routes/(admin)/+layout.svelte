@@ -1,12 +1,40 @@
 <script lang="ts">
   import '../../app.css';
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import Notifications from '$lib/components/Notifications.svelte';
+  import { notify } from '$lib/stores/notifications.svelte';
 
-  let { children } = $props();
+  let { data, children } = $props();
 
   const isLoginPage = $derived($page.url.pathname === '/admin/login');
   let drawerOpen = $state(false);
+
+  onMount(() => {
+    if (!data.token || isLoginPage) return;
+    const es = new EventSource(`/api/v1/admin/events?token=${encodeURIComponent(data.token)}`);
+    es.addEventListener('new_order', (e) => {
+      try {
+        const o = JSON.parse((e as MessageEvent).data) as {
+          order_id: string;
+          short_id: string;
+          customer_name: string;
+          total: number;
+        };
+        const total = `HK$${o.total.toFixed(2)}`;
+        const who = o.customer_name?.trim() || 'Guest';
+        notify.info(
+          'New Order Received',
+          `Order ${o.short_id} · ${who} · ${total}`,
+          0,
+          `/admin/orders/${o.order_id}`
+        );
+      } catch {
+        /* ignore malformed events */
+      }
+    });
+    return () => es.close();
+  });
 
   type NavChild = { href: string; label: string };
   type NavLink = { href: string; label: string; icon: string; children?: NavChild[] };

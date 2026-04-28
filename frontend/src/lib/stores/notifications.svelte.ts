@@ -6,6 +6,7 @@ export type Notification = {
   title: string;
   message?: string;
   duration: number;
+  link?: string;
 };
 
 function createNotificationStore() {
@@ -13,9 +14,15 @@ function createNotificationStore() {
   let nextId = 0;
   const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
-  function push(type: NotificationType, title: string, message?: string, duration = 3000) {
+  function push(
+    type: NotificationType,
+    title: string,
+    message?: string,
+    duration = 3000,
+    link?: string
+  ) {
     const id = ++nextId;
-    items.push({ id, type, title, message, duration });
+    items.push({ id, type, title, message, duration, link });
     if (duration > 0) {
       timers.set(id, setTimeout(() => dismiss(id), duration));
     }
@@ -35,10 +42,10 @@ function createNotificationStore() {
   return {
     get items() { return items; },
     dismiss,
-    success: (title: string, message?: string, duration?: number) => push('success', title, message, duration),
-    error:   (title: string, message?: string, duration?: number) => push('error',   title, message, duration),
-    warning: (title: string, message?: string, duration?: number) => push('warning', title, message, duration),
-    info:    (title: string, message?: string, duration?: number) => push('info',    title, message, duration)
+    success: (title: string, message?: string, duration?: number, link?: string) => push('success', title, message, duration, link),
+    error:   (title: string, message?: string, duration?: number, link?: string) => push('error',   title, message, duration, link),
+    warning: (title: string, message?: string, duration?: number, link?: string) => push('warning', title, message, duration, link),
+    info:    (title: string, message?: string, duration?: number, link?: string) => push('info',    title, message, duration, link)
   };
 }
 

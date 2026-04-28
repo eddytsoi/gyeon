@@ -116,6 +116,26 @@ func main() {
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc))
 	adminMW := auth.Middleware(jwtSecret)
 
+	// Admin SSE hub: broadcasts new-order events to all connected admin clients.
+	adminHub := admin.NewHub()
+	adminEventsHandler := admin.NewEventsHandler(adminHub, jwtSecret)
+	orderSvc.SetOnOrderCreated(func(_ context.Context, o *orders.Order) {
+		short := o.ID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		name := ""
+		if o.CustomerName != nil {
+			name = *o.CustomerName
+		}
+		adminHub.Broadcast("new_order", map[string]any{
+			"order_id":      o.ID,
+			"short_id":      short,
+			"customer_name": name,
+			"total":         o.Total,
+		})
+	})
+
 	// mcpGate returns 404 when mcp_enabled != 'true', checked per-request so toggling takes effect immediately.
 	mcpGate := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +209,9 @@ func main() {
 
 		// Admin auth (now uses admin_users table)
 		r.Post("/admin/login", adminUserHandler.Login)
+
+		// Admin SSE event stream — auth via ?token= query (EventSource can't set headers)
+		r.Get("/admin/events", adminEventsHandler.Stream)
 
 		// Admin protected
 		r.Group(func(r chi.Router) {
