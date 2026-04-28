@@ -1,7 +1,9 @@
 <script lang="ts">
   import '../../app.css';
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page, navigating } from '$app/stores';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import Notifications from '$lib/components/Notifications.svelte';
   import { notify } from '$lib/stores/notifications.svelte';
 
@@ -135,6 +137,16 @@
     if (!pathname.startsWith(link.href)) return false;
     return !(link.children ?? []).some(c => pathname.startsWith(c.href));
   }
+
+  function isGroupExpanded(link: NavLink) {
+    const pathname = $page.url.pathname;
+    return pathname.startsWith(link.href);
+  }
+
+  function isNavigatingTo(href: string) {
+    const target = $navigating?.to?.url.pathname;
+    return !!target && target !== $page.url.pathname && target.startsWith(href);
+  }
 </script>
 
 <Notifications />
@@ -190,53 +202,80 @@
               {#each group.links as link}
                 {#if link.children}
                   {@const parentActive = isParentActive(link)}
+                  {@const expanded = isGroupExpanded(link)}
+                  {@const loadingParent = isNavigatingTo(link.href) && !expanded}
                   <div>
                     <a href={link.href}
                        onclick={() => drawerOpen = false}
-                       class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                              transition-all duration-150 group
+                       class="relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
+                              transition-colors duration-150 group
                               {parentActive
-                                ? 'bg-gray-900 text-white shadow-sm'
-                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}">
+                                ? 'bg-gray-100 text-gray-900 font-semibold'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                      {#if parentActive}
+                        <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
+                      {/if}
                       <svg class="w-4 h-4 flex-shrink-0 transition-colors
-                                  {parentActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}"
+                                  {parentActive ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'}"
                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d={link.icon} />
                       </svg>
-                      {link.label}
+                      <span class="flex-1">{link.label}</span>
+                      {#if loadingParent}
+                        <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse"></span>
+                      {/if}
                     </a>
-                    <div class="ml-7 mt-0.5 space-y-0.5">
-                      {#each link.children as child}
-                        {@const childActive = isChildActive(child.href, link.children)}
-                        <a href={child.href}
-                           onclick={() => drawerOpen = false}
-                           class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium
-                                  transition-all duration-150
-                                  {childActive
-                                    ? 'bg-gray-900 text-white shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}">
-                          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0
-                                       {childActive ? 'bg-white/70' : 'bg-gray-300'}"></span>
-                          {child.label}
-                        </a>
-                      {/each}
-                    </div>
+                    {#if expanded}
+                      <div transition:slide={{ duration: 180, easing: cubicOut }}
+                           class="overflow-hidden">
+                        <div class="ml-4 mt-0.5 pl-3 border-l border-gray-100 space-y-0.5">
+                          {#each link.children as child}
+                            {@const childActive = isChildActive(child.href, link.children)}
+                            {@const loadingChild = isNavigatingTo(child.href)}
+                            <a href={child.href}
+                               onclick={() => drawerOpen = false}
+                               class="relative flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-lg text-sm
+                                      transition-colors duration-150
+                                      {childActive
+                                        ? 'bg-gray-100 text-gray-900 font-semibold'
+                                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                              {#if childActive}
+                                <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
+                              {/if}
+                              <span class="w-1 h-1 rounded-full flex-shrink-0 transition-colors
+                                           {childActive ? 'bg-gray-900' : 'bg-gray-300'}"></span>
+                              <span class="flex-1">{child.label}</span>
+                              {#if loadingChild}
+                                <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse"></span>
+                              {/if}
+                            </a>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
                   </div>
                 {:else}
                   {@const active = isActive(link.href)}
+                  {@const loading = isNavigatingTo(link.href)}
                   <a href={link.href}
                      onclick={() => drawerOpen = false}
-                     class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                            transition-all duration-150 group
+                     class="relative flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
+                            transition-colors duration-150 group
                             {active
-                              ? 'bg-gray-900 text-white shadow-sm'
-                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}">
+                              ? 'bg-gray-100 text-gray-900 font-semibold'
+                              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 font-medium'}">
+                    {#if active}
+                      <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
+                    {/if}
                     <svg class="w-4 h-4 flex-shrink-0 transition-colors
-                                {active ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}"
+                                {active ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'}"
                          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d={link.icon} />
                     </svg>
-                    {link.label}
+                    <span class="flex-1">{link.label}</span>
+                    {#if loading}
+                      <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse"></span>
+                    {/if}
                   </a>
                 {/if}
               {/each}

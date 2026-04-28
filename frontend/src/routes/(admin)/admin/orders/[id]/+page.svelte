@@ -36,7 +36,7 @@
 
 <svelte:head><title>Order {data.order.id.slice(0,8)} — Gyeon Admin</title></svelte:head>
 
-<div class="max-w-3xl">
+<div>
   <div class="flex items-center gap-3 mb-8">
     <a href="/admin/orders" class="text-gray-400 hover:text-gray-700 transition-colors text-sm">
       ← Orders
