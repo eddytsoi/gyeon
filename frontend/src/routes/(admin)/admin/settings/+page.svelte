@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import { adminSendTestEmail } from '$lib/api/admin';
@@ -7,6 +8,27 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let saving = $state(false);
+
+  // ── Tabs ────────────────────────────────────────────────────────
+  const TABS = [
+    { id: 'general',        label: 'General' },
+    { id: 'commerce',       label: 'Commerce' },
+    { id: 'email',          label: 'Email' },
+    { id: 'infrastructure', label: 'Infrastructure' }
+  ] as const;
+  type TabId = (typeof TABS)[number]['id'];
+
+  let activeTab = $state<TabId>('general');
+
+  onMount(() => {
+    const fromHash = window.location.hash.slice(1) as TabId;
+    if (TABS.some((t) => t.id === fromHash)) activeTab = fromHash;
+  });
+
+  function setTab(id: TabId) {
+    activeTab = id;
+    history.replaceState(null, '', `#${id}`);
+  }
 
   // ── Test Email Modal ─────────────────────────────────────────────
   let showTestEmailModal = $state(false);
@@ -134,7 +156,7 @@
 
 <svelte:head><title>Settings — Gyeon Admin</title></svelte:head>
 
-<div class="max-w-2xl">
+<div class="max-w-3xl">
   <div class="flex items-center justify-between mb-8">
     <h1 class="text-2xl font-bold text-gray-900">Site Settings</h1>
   </div>
@@ -150,12 +172,27 @@
     </div>
   {/if}
 
+  <div class="flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto">
+    {#each TABS as t}
+      <button type="button"
+              onclick={() => setTab(t.id)}
+              class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors
+                     {activeTab === t.id
+                       ? 'border-gray-900 text-gray-900'
+                       : 'border-transparent text-gray-400 hover:text-gray-700'}">
+        {t.label}
+      </button>
+    {/each}
+  </div>
+
   <form method="POST" action="?/save"
         use:enhance={() => {
           saving = true;
           return async ({ update }) => { await update(); saving = false; };
         }}>
 
+    <!-- General tab -->
+    <div class:hidden={activeTab !== 'general'}>
     <!-- Maintenance Mode -->
     {#if maintenanceSetting}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
@@ -211,6 +248,10 @@
       </div>
     {/if}
 
+    </div><!-- /General tab -->
+
+    <!-- Commerce tab -->
+    <div class:hidden={activeTab !== 'commerce'}>
     <!-- Shipping Countries -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>
@@ -351,6 +392,10 @@
       </div>
     </div>
 
+    </div><!-- /Commerce tab -->
+
+    <!-- Email tab -->
+    <div class:hidden={activeTab !== 'email'}>
     <!-- SMTP / Email -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Email (SMTP)</h2>
@@ -385,6 +430,10 @@
       </div>
     </div>
 
+    </div><!-- /Email tab -->
+
+    <!-- Infrastructure tab -->
+    <div class:hidden={activeTab !== 'infrastructure'}>
     <!-- Cache TTL Settings -->
     {#if cacheTTLSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
@@ -465,34 +514,40 @@
       </div>
     {/if}
 
-    <!-- Other Settings -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-6">
-      <div class="flex flex-col gap-5">
-        {#each textSettings as setting}
-          <div class="flex flex-col gap-1.5">
-            <label for={setting.key}
-                   class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {setting.key.replace(/_/g, ' ')}
-            </label>
-            {#if setting.description}
-              <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
-            {/if}
-            <input id={setting.key} name={setting.key} value={setting.value}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-        {:else}
-          <p class="text-sm text-gray-400">No settings found.</p>
-        {/each}
-      </div>
+    </div><!-- /Infrastructure tab -->
 
-      <div class="mt-6 pt-5 border-t border-gray-100">
-        <button type="submit" disabled={saving}
-                class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                       hover:bg-gray-700 transition-colors disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save Settings'}
-        </button>
+    <!-- General tab (continued — catch-all text settings) -->
+    {#if textSettings.length > 0}
+      <div class:hidden={activeTab !== 'general'}>
+        <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+          <h2 class="text-sm font-semibold text-gray-900 mb-5">Other</h2>
+          <div class="flex flex-col gap-5">
+            {#each textSettings as setting}
+              <div class="flex flex-col gap-1.5">
+                <label for={setting.key}
+                       class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {setting.key.replace(/_/g, ' ')}
+                </label>
+                {#if setting.description}
+                  <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+                {/if}
+                <input id={setting.key} name={setting.key} value={setting.value}
+                       class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              </div>
+            {/each}
+          </div>
+        </div>
       </div>
+    {/if}
+
+    <!-- Save bar (always visible across tabs) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-2 flex justify-end">
+      <button type="submit" disabled={saving}
+              class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
+                     hover:bg-gray-700 transition-colors disabled:opacity-50">
+        {saving ? 'Saving…' : 'Save Settings'}
+      </button>
     </div>
   </form>
 </div>
