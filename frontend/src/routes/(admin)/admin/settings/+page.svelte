@@ -188,7 +188,7 @@
   <form method="POST" action="?/save"
         use:enhance={() => {
           saving = true;
-          return async ({ update }) => { await update(); saving = false; };
+          return async ({ update }) => { await update({ reset: false }); saving = false; };
         }}>
 
     <!-- General tab -->
