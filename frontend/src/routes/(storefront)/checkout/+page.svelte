@@ -5,7 +5,7 @@
   import { checkout, getVariantByID, validateCoupon } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
-  import type { Variant } from '$lib/types';
+  import type { SavedPaymentMethod, Variant } from '$lib/types';
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
 
@@ -49,6 +49,16 @@
   } | null>(null);
   let validatingCoupon = $state(false);
 
+  // ── Saved cards (section 4) ──────────────────────────────────
+  const savedCards: SavedPaymentMethod[] = data.savedCards ?? [];
+  const hasSavedCards = savedCards.length > 0;
+  type CardMode = 'saved' | 'new';
+  let cardMode = $state<CardMode>(hasSavedCards ? 'saved' : 'new');
+  let selectedCardID = $state<string>(
+    savedCards.find((c) => c.is_default)?.id ?? savedCards[0]?.id ?? ''
+  );
+  let saveCard = $state(false);
+
   // ── Stripe Payment Element (section 4) ────────────────────────
   let stripe: Stripe | null = $state(null);
   let elements: StripeElements | null = $state(null);
@@ -57,6 +67,8 @@
   let pendingClientSecret = $state<string | null>(null);
   let pendingOrderID = $state<string | null>(null);
   let paymentElementMounted = $state(false);
+  // Set when the backend returns a SetupIntent for saving the card
+  let pendingSetupClientSecret = $state<string | null>(null);
 
   // ── T&C (section 5) ───────────────────────────────────────────
   let tcAccepted = $state(false);
@@ -144,6 +156,11 @@
     paymentMounting = true;
     error = '';
     try {
+      // When using a saved card skip the payment element entirely —
+      // the backend will confirm the intent with the saved payment method.
+      const usingSavedCard = data.saveCardsEnabled && hasSavedCards && cardMode === 'saved' && selectedCardID;
+      const selectedCard = usingSavedCard ? savedCards.find((c) => c.id === selectedCardID) : null;
+
       const result = await checkout(activeCart.id, {
         customerID: data.customer?.id,
         customerInfo: {
@@ -166,19 +183,24 @@
         saveAddress: addressMode === 'new' && saveAddress,
         shippingFee,
         couponCode: couponResult?.valid ? couponCode.trim() : undefined,
-        notes: notes.trim() || undefined
+        notes: notes.trim() || undefined,
+        saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
+        savedPaymentMethodId: selectedCard?.stripe_pm_id
       });
 
       pendingClientSecret = result.client_secret;
       pendingOrderID = result.order.id;
+      pendingSetupClientSecret = result.setup_client_secret ?? null;
 
-      elements = stripe.elements({
-        clientSecret: result.client_secret,
-        appearance: { theme: 'stripe', variables: { colorPrimary: '#111827' } }
-      });
-      const paymentElement = elements.create('payment', { layout: 'tabs' });
-      paymentElement.mount('#payment-element');
-      paymentElementMounted = true;
+      if (!usingSavedCard) {
+        elements = stripe.elements({
+          clientSecret: result.client_secret,
+          appearance: { theme: 'stripe', variables: { colorPrimary: '#111827' } }
+        });
+        const paymentElement = elements.create('payment', { layout: 'tabs' });
+        paymentElement.mount('#payment-element');
+        paymentElementMounted = true;
+      }
       paymentReady = true;
 
       // Scroll to payment section
@@ -410,8 +432,61 @@
             <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">4</span>
             <h2 class="font-semibold text-gray-900">付款方式</h2>
           </div>
+
           {#if !paymentReady}
-            <p class="text-xs text-gray-400 mb-4">填妥以上資料後，按「繼續付款」即會顯示付款表單。</p>
+            <!-- Saved cards tabs (only for logged-in customers with save_cards enabled) -->
+            {#if data.saveCardsEnabled && data.customer && hasSavedCards}
+              <div class="flex gap-2 mb-4">
+                <button type="button"
+                        onclick={() => (cardMode = 'saved')}
+                        class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
+                               {cardMode === 'saved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+                  已儲存付款方式
+                </button>
+                <button type="button"
+                        onclick={() => (cardMode = 'new')}
+                        class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
+                               {cardMode === 'new' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+                  使用新卡
+                </button>
+              </div>
+            {/if}
+
+            <!-- Saved card list -->
+            {#if data.saveCardsEnabled && data.customer && hasSavedCards && cardMode === 'saved'}
+              <div class="flex flex-col gap-2 mb-4">
+                {#each savedCards as card}
+                  <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border
+                                {selectedCardID === card.id ? 'border-gray-900 bg-gray-50' : 'border-gray-100'}">
+                    <input type="radio" name="saved_card" value={card.id}
+                           bind:group={selectedCardID}
+                           class="accent-gray-900 flex-shrink-0" />
+                    <div class="flex-1 text-sm">
+                      <span class="font-medium text-gray-900 capitalize">{card.brand}</span>
+                      <span class="text-gray-500 ml-1">•••• {card.last4}</span>
+                      {#if card.is_default}
+                        <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">預設</span>
+                      {/if}
+                      <p class="text-gray-400 text-xs mt-0.5">到期：{card.exp_month}/{card.exp_year}</p>
+                    </div>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+
+            <!-- Save card checkbox (new card mode, logged-in, feature enabled) -->
+            {#if data.saveCardsEnabled && data.customer && cardMode === 'new'}
+              <label class="flex items-center gap-2 mb-4 cursor-pointer">
+                <input type="checkbox" bind:checked={saveCard} class="accent-gray-900" />
+                <span class="text-sm text-gray-600">儲存此卡以供日後使用</span>
+              </label>
+            {/if}
+
+            <p class="text-xs text-gray-400 mb-4">
+              {cardMode === 'saved' && data.saveCardsEnabled && data.customer && hasSavedCards
+                ? '確認後將以已儲存付款方式完成付款。'
+                : '填妥以上資料後，按「繼續付款」即會顯示付款表單。'}
+            </p>
             <button type="button"
                     onclick={continueToPayment}
                     disabled={!formValid || paymentMounting || !stripe}
@@ -423,7 +498,21 @@
               <p class="mt-3 text-xs text-red-500">付款功能未設定，請聯絡店主。</p>
             {/if}
           {/if}
-          <div id="payment-element" class="{paymentReady ? '' : 'hidden'}"></div>
+
+          <!-- Stripe Payment Element (hidden when using saved card) -->
+          <div id="payment-element" class="{paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
+
+          <!-- Saved card confirmation message -->
+          {#if paymentReady && !paymentElementMounted}
+            {@const card = savedCards.find((c) => c.id === selectedCardID)}
+            {#if card}
+              <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                <span class="capitalize font-medium">{card.brand}</span>
+                <span>•••• {card.last4}</span>
+                <span class="text-gray-400 ml-auto">到期：{card.exp_month}/{card.exp_year}</span>
+              </div>
+            {/if}
+          {/if}
         </section>
 
         <!-- ── 5. T&C + Pay ────────────────────────────────────── -->

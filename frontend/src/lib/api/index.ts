@@ -1,4 +1,4 @@
-import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, PaymentConfig, Product, ProductImage, ShippingAddressInput, Variant } from '$lib/types';
+import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, PaymentConfig, Product, ProductImage, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -54,6 +54,8 @@ export const checkout = (
     shippingFee?: number;
     couponCode?: string;
     notes?: string;
+    saveCard?: boolean;
+    savedPaymentMethodId?: string;
   } = {}
 ) =>
   request<CheckoutResult>('/orders/checkout', {
@@ -67,7 +69,9 @@ export const checkout = (
       save_address: options.saveAddress ?? false,
       shipping_fee: options.shippingFee ?? 0,
       coupon_code: options.couponCode ?? null,
-      notes: options.notes ?? null
+      notes: options.notes ?? null,
+      save_card: options.saveCard ?? false,
+      saved_payment_method_id: options.savedPaymentMethodId ?? null
     })
   });
 
@@ -189,3 +193,20 @@ export const deleteMyAddress = (token: string, id: string) =>
 
 export const getMyOrders = (token: string, limit = 20, offset = 0) =>
   request<Order[]>(`/customers/me/orders?limit=${limit}&offset=${offset}`, authed(token));
+
+// --- Saved payment methods ---
+
+export const getMySavedCards = (token: string) =>
+  request<SavedPaymentMethod[]>('/payments/saved-cards', authed(token));
+
+export const deleteMySavedCard = (token: string, id: string) =>
+  fetch(`${base()}/payments/saved-cards/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+export const setDefaultCard = (token: string, id: string) =>
+  fetch(`${base()}/payments/saved-cards/${id}/default`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` }
+  });

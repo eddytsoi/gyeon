@@ -375,7 +375,7 @@
         <div>
           <p class="text-sm font-semibold text-gray-900">Save Cards</p>
           <p class="text-xs text-gray-400 mt-0.5">
-            Allow customers to save cards for future purchases (UI plumbing only — full implementation TBD).
+            Allow logged-in customers to save cards for future purchases.
           </p>
         </div>
         <button type="button"

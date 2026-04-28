@@ -1,4 +1,4 @@
-import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings } from '$lib/api';
+import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards } from '$lib/api';
 import type { PageServerLoad } from './$types';
 
 function parseShippingCountries(raw: string | undefined): string[] {
@@ -24,18 +24,20 @@ export const load: PageServerLoad = async ({ cookies }) => {
   const shippingCountries = parseShippingCountries(
     settings.find((s) => s.key === 'shipping_countries')?.value
   );
+  const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
 
   if (!token) {
-    return { token: null, customer: null, addresses: [], paymentConfig, shippingCountries };
+    return { token: null, customer: null, addresses: [], savedCards: [], saveCardsEnabled, paymentConfig, shippingCountries };
   }
 
   try {
-    const [customer, addresses] = await Promise.all([
+    const [customer, addresses, savedCards] = await Promise.all([
       getMyProfile(token),
-      getMyAddresses(token)
+      getMyAddresses(token),
+      saveCardsEnabled ? getMySavedCards(token).catch(() => []) : Promise.resolve([])
     ]);
-    return { token, customer, addresses, paymentConfig, shippingCountries };
+    return { token, customer, addresses, savedCards, saveCardsEnabled, paymentConfig, shippingCountries };
   } catch {
-    return { token: null, customer: null, addresses: [], paymentConfig, shippingCountries };
+    return { token: null, customer: null, addresses: [], savedCards: [], saveCardsEnabled, paymentConfig, shippingCountries };
   }
 };

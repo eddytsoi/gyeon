@@ -104,6 +104,19 @@ export interface CheckoutResult {
   client_secret: string;
   publishable_key: string;
   mode: 'test' | 'live';
+  setup_client_secret?: string;
+}
+
+export interface SavedPaymentMethod {
+  id: string;
+  customer_id: string;
+  stripe_pm_id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+  is_default: boolean;
+  created_at: string;
 }
 
 export interface CustomerInfoInput {

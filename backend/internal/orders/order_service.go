@@ -86,6 +86,12 @@ type CheckoutRequest struct {
 	ShippingFee       float64               `json:"shipping_fee"`
 	CouponCode        *string               `json:"coupon_code"`
 	Notes             *string               `json:"notes"`
+	// SaveCard, when true and the customer is logged in, triggers a SetupIntent
+	// alongside the PaymentIntent so the customer's card is saved for future use.
+	SaveCard bool `json:"save_card,omitempty"`
+	// SavedPaymentMethodID, when set, skips the payment element flow and
+	// confirms the PaymentIntent with this saved Stripe payment method ID.
+	SavedPaymentMethodID *string `json:"saved_payment_method_id,omitempty"`
 	// SendPaymentLink, when true, triggers a "complete payment" email containing
 	// a magic link for the customer to finish Stripe payment in their browser.
 	// Set internally by callers that have no Stripe.js (e.g. MCP); never read
@@ -94,10 +100,13 @@ type CheckoutRequest struct {
 }
 
 type CheckoutResult struct {
-	Order          *Order `json:"order"`
-	ClientSecret   string `json:"client_secret"`
-	PublishableKey string `json:"publishable_key"`
-	Mode           string `json:"mode"`
+	Order                  *Order `json:"order"`
+	ClientSecret           string `json:"client_secret"`
+	PublishableKey         string `json:"publishable_key"`
+	Mode                   string `json:"mode"`
+	// SetupClientSecret is non-empty when SaveCard was requested and the
+	// customer is logged in. The frontend mounts a separate SetupElement with this.
+	SetupClientSecret string `json:"setup_client_secret,omitempty"`
 }
 
 type UpdateStatusRequest struct {
@@ -396,11 +405,25 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	// if this fails after the order is committed, the order can be retried/cancelled separately).
 	result := &CheckoutResult{Order: &order}
 	if s.paymentSvc != nil {
+		// If save_card is requested for a logged-in customer and the feature is enabled,
+		// ensure a Stripe Customer exists so we can attach cards to them.
+		stripeCustomerID := ""
+		if req.SaveCard && customerID != nil && *customerID != "" && s.paymentSvc.SaveCardsEnabled(ctx) {
+			scID, err := s.paymentSvc.EnsureStripeCustomer(ctx, *customerID, customerEmail)
+			if err != nil {
+				log.Printf("ensure stripe customer for order %s: %v", order.ID, err)
+				// Non-fatal: proceed without saving card
+			} else {
+				stripeCustomerID = scID
+			}
+		}
+
 		intent, err := s.paymentSvc.CreatePaymentIntent(ctx, payment.CreateIntentParams{
-			AmountCents: int64(total*100 + 0.5), // round to nearest cent
-			Currency:    "hkd",
-			OrderID:     order.ID,
-			Email:       customerEmail,
+			AmountCents:      int64(total*100 + 0.5), // round to nearest cent
+			Currency:         "hkd",
+			OrderID:          order.ID,
+			Email:            customerEmail,
+			StripeCustomerID: stripeCustomerID,
 		})
 		if err != nil {
 			log.Printf("create payment intent for order %s: %v", order.ID, err)
@@ -416,6 +439,18 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		result.ClientSecret = intent.ClientSecret
 		result.PublishableKey = s.paymentSvc.PublishableKey(ctx)
 		result.Mode = s.paymentSvc.Mode(ctx)
+
+		// If a SetupIntent is needed (save card + logged-in customer + feature enabled),
+		// create one so the frontend can collect card details for future use.
+		if stripeCustomerID != "" {
+			si, err := s.paymentSvc.CreateSetupIntent(ctx, stripeCustomerID)
+			if err != nil {
+				log.Printf("create setup intent for order %s: %v", order.ID, err)
+				// Non-fatal: proceed without setup intent
+			} else {
+				result.SetupClientSecret = si.ClientSecret
+			}
+		}
 
 		if req.SendPaymentLink && customerEmail != "" && s.emailSvc != nil {
 			s.sendPaymentLinkEmail(ctx, &order, intent.ClientSecret)
