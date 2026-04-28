@@ -112,6 +112,18 @@ export type OrderPaymentInfo = {
 export const getOrderPaymentInfo = (id: string, clientSecret: string) =>
   request<OrderPaymentInfo>(`/orders/${id}/payment-info?cs=${encodeURIComponent(clientSecret)}`);
 
+export type OrderSetupTokenResult = {
+  token?: string;
+  url?: string;
+  already_set: boolean;
+};
+
+export const createOrderSetupToken = (orderID: string, paymentIntent: string) =>
+  request<OrderSetupTokenResult>(`/orders/${orderID}/setup-token`, {
+    method: 'POST',
+    body: JSON.stringify({ payment_intent: paymentIntent })
+  });
+
 // --- Customer auth & account ---
 
 function authed(token: string): RequestInit {

@@ -529,6 +529,62 @@ func (s *OrderService) PaymentInfo(ctx context.Context, orderID, clientSecret st
 	}, nil
 }
 
+// SetupTokenResult is returned to the customer-facing /checkout/success page
+// so it can offer a "Create account" CTA wired to a one-time setup-password
+// link, skipping the generic registration form.
+type SetupTokenResult struct {
+	Token      string `json:"token,omitempty"`
+	URL        string `json:"url,omitempty"`
+	AlreadySet bool   `json:"already_set"`
+}
+
+// CreateSetupTokenForOrder mints a setup-password token for the customer
+// behind an order, authorizing via the Stripe payment_intent (returned by
+// Stripe's redirect to /checkout/success). Returns AlreadySet=true if the
+// customer already has a password.
+func (s *OrderService) CreateSetupTokenForOrder(ctx context.Context, orderID, paymentIntent string) (*SetupTokenResult, error) {
+	if paymentIntent == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+	if paymentIntent != *order.PaymentIntentID {
+		return nil, ErrPaymentLinkInvalid
+	}
+	if order.CustomerID == nil || *order.CustomerID == "" {
+		return &SetupTokenResult{AlreadySet: true}, nil
+	}
+
+	var pwHash sql.NullString
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT password_hash FROM customers WHERE id=$1`, *order.CustomerID).Scan(&pwHash); err != nil {
+		return nil, err
+	}
+	if pwHash.Valid && pwHash.String != "" {
+		return &SetupTokenResult{AlreadySet: true}, nil
+	}
+	if s.customerSvc == nil {
+		return &SetupTokenResult{AlreadySet: true}, nil
+	}
+	token, err := s.customerSvc.CreateSetupToken(ctx, *order.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+	base := ""
+	if s.emailSvc != nil {
+		base = s.emailSvc.PublicBaseURL(ctx)
+	}
+	return &SetupTokenResult{
+		Token: token,
+		URL:   fmt.Sprintf("%s/account/setup-password?token=%s", base, token),
+	}, nil
+}
+
 // MarkPaidByPaymentIntent flips a pending order to `paid` and triggers the
 // confirmation email. Called from the Stripe webhook on payment_intent.succeeded.
 func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentIntentID string) error {

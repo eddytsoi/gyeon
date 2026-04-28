@@ -75,10 +75,12 @@
 
   <!-- CTAs -->
   <div class="flex flex-col sm:flex-row gap-3 justify-center">
-    <a href="/account/register"
-       class="px-6 py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors text-center">
-      Create account to track orders
-    </a>
+    {#if data.setupURL}
+      <a href={data.setupURL}
+         class="px-6 py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors text-center">
+        Create account to track orders
+      </a>
+    {/if}
     <a href="/products"
        class="px-6 py-3 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors text-center">
       Continue Shopping

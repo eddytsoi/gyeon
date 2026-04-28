@@ -23,9 +23,35 @@ func (h *OrderHandler) Routes() chi.Router {
 	r.Get("/", h.list)
 	r.Post("/checkout", h.checkout)
 	r.Get("/{id}/payment-info", h.paymentInfo)
+	r.Post("/{id}/setup-token", h.createSetupToken)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
 	return r
+}
+
+func (h *OrderHandler) createSetupToken(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		PaymentIntent string `json:"payment_intent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	res, err := h.svc.CreateSetupTokenForOrder(r.Context(), id, body.PaymentIntent)
+	if errors.Is(err, ErrOrderNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if errors.Is(err, ErrPaymentLinkInvalid) {
+		respond.Error(w, http.StatusUnauthorized, "invalid payment_intent for this order")
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, res)
 }
 
 func (h *OrderHandler) paymentInfo(w http.ResponseWriter, r *http.Request) {
