@@ -237,6 +237,9 @@ func main() {
 			// Customer management
 			r.Mount("/admin/customers", customerHandler.AdminRoutes())
 
+			// Order admin (delete; list/update use the public /orders mount with admin JWT)
+			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+
 			// Admin user management
 			r.Mount("/admin/users", adminUserHandler.AdminRoutes())
 

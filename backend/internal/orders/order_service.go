@@ -844,6 +844,19 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 	return orders, rows.Err()
 }
 
+// Delete removes an order and its dependent rows (cascade on order_items
+// and order_status_history). Used by the admin order list "Delete" action.
+func (s *OrderService) Delete(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM orders WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrOrderNotFound
+	}
+	return nil
+}
+
 func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateStatusRequest) (*Order, error) {
 	var current OrderStatus
 	err := s.db.QueryRowContext(ctx, `SELECT status FROM orders WHERE id = $1`, id).Scan(&current)
