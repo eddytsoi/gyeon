@@ -6,6 +6,8 @@
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
   import type { Variant } from '$lib/types';
+  import { COUNTRY_BY_CODE } from '$lib/data/countries';
+  import { HK_DISTRICTS } from '$lib/data/hk-districts';
 
   let { data }: { data: PageData } = $props();
 
@@ -26,11 +28,14 @@
     data.addresses?.find((a) => a.is_default)?.id ?? data.addresses?.[0]?.id ?? ''
   );
   let line1 = $state('');
-  let line2 = $state('');
   let city = $state('');
   let addressState = $state('');
   let postalCode = $state('');
+  let country = $state(data.shippingCountries[0] ?? 'HK');
   let saveAddress = $state(false);
+
+  const cityListId = 'checkout-city-options';
+  const cityOptions = $derived(country === 'HK' ? HK_DISTRICTS : []);
 
   // ── Remark (section 3) ────────────────────────────────────────
   let notes = $state('');
@@ -74,7 +79,6 @@
 
   const customerValid = $derived(
     firstName.trim() !== '' &&
-      lastName.trim() !== '' &&
       email.trim() !== '' &&
       phone.trim() !== ''
   );
@@ -82,7 +86,7 @@
   const shippingValid = $derived(
     addressMode === 'saved'
       ? selectedAddressID !== ''
-      : line1.trim() !== '' && city.trim() !== '' && postalCode.trim() !== ''
+      : line1.trim() !== '' && country.trim() !== ''
   );
 
   const formValid = $derived(customerValid && shippingValid && tcAccepted);
@@ -153,11 +157,10 @@
           addressMode === 'new'
             ? {
                 line1: line1.trim(),
-                line2: line2.trim() || undefined,
                 city: city.trim(),
                 state: addressState.trim() || undefined,
                 postal_code: postalCode.trim(),
-                country: 'HK'
+                country: country.trim() || 'HK'
               }
             : undefined,
         saveAddress: addressMode === 'new' && saveAddress,
@@ -256,8 +259,8 @@
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div>
-              <label for="last-name" class="block text-xs font-medium text-gray-500 mb-1">名字 <span class="text-red-400">*</span></label>
-              <input id="last-name" type="text" bind:value={lastName} required
+              <label for="last-name" class="block text-xs font-medium text-gray-500 mb-1">名字</label>
+              <input id="last-name" type="text" bind:value={lastName}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
@@ -330,23 +333,25 @@
           {:else}
             <div class="flex flex-col gap-3">
               <div>
-                <label for="line1" class="block text-xs font-medium text-gray-500 mb-1">地址第一行 <span class="text-red-400">*</span></label>
-                <input id="line1" type="text" bind:value={line1} required placeholder="街道、門牌"
-                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
-              </div>
-              <div>
-                <label for="line2" class="block text-xs font-medium text-gray-500 mb-1">地址第二行</label>
-                <input id="line2" type="text" bind:value={line2} placeholder="樓層、單位（可選）"
+                <label for="line1" class="block text-xs font-medium text-gray-500 mb-1">詳細地址 <span class="text-red-400">*</span></label>
+                <input id="line1" type="text" bind:value={line1} required placeholder="街道、門牌、樓層、單位"
                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="city" class="block text-xs font-medium text-gray-500 mb-1">城市 / 區域 <span class="text-red-400">*</span></label>
-                  <input id="city" type="text" bind:value={city} required placeholder="例：九龍灣"
+                  <label for="city" class="block text-xs font-medium text-gray-500 mb-1">區域</label>
+                  <input id="city" type="text" bind:value={city} list={cityOptions.length > 0 ? cityListId : undefined}
+                         placeholder={country === 'HK' ? '例：九龍城區' : ''} autocomplete="off"
                          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                  {#if cityOptions.length > 0}
+                    <datalist id={cityListId}>
+                      {#each cityOptions as opt}
+                        <option value={opt}></option>
+                      {/each}
+                    </datalist>
+                  {/if}
                 </div>
                 <div>
                   <label for="state" class="block text-xs font-medium text-gray-500 mb-1">州 / 省（可選）</label>
@@ -355,15 +360,25 @@
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label for="postal" class="block text-xs font-medium text-gray-500 mb-1">郵政編碼 <span class="text-red-400">*</span></label>
-                  <input id="postal" type="text" bind:value={postalCode} required
+                  <label for="postal" class="block text-xs font-medium text-gray-500 mb-1">郵政編碼</label>
+                  <input id="postal" type="text" bind:value={postalCode}
                          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label for="country" class="block text-xs font-medium text-gray-500 mb-1">國家 / 地區</label>
-                  <input id="country" type="text" value="香港 (HK)" readonly
-                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-500" />
+                  <label for="country" class="block text-xs font-medium text-gray-500 mb-1">國家 / 地區 <span class="text-red-400">*</span></label>
+                  {#if data.shippingCountries.length === 1}
+                    <input id="country" type="text" value="{COUNTRY_BY_CODE[data.shippingCountries[0]] ?? data.shippingCountries[0]} ({data.shippingCountries[0]})" readonly
+                           class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-500" />
+                  {:else}
+                    <select id="country" bind:value={country} required
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                                   focus:outline-none focus:ring-2 focus:ring-gray-900">
+                      {#each data.shippingCountries as code}
+                        <option value={code}>{COUNTRY_BY_CODE[code] ?? code} ({code})</option>
+                      {/each}
+                    </select>
+                  {/if}
                 </div>
               </div>
               {#if data.customer}

@@ -2,6 +2,8 @@
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import { adminSendTestEmail } from '$lib/api/admin';
+  import MultiSelect from '$lib/components/MultiSelect.svelte';
+  import { COUNTRIES } from '$lib/data/countries';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let saving = $state(false);
@@ -28,6 +30,7 @@
   }
 
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
+  const SHIPPING_KEYS = new Set(['shipping_countries']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -76,7 +79,8 @@
         !CLOUDFLARE_KEYS.has(s.key) &&
         !MEDIA_LIMIT_KEYS.has(s.key) &&
         !PAYMENT_KEYS.has(s.key) &&
-        !SMTP_KEYS.has(s.key)
+        !SMTP_KEYS.has(s.key) &&
+        !SHIPPING_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -87,6 +91,24 @@
 
   const mcpSetting = $derived(data.settings.find((s) => s.key === 'mcp_enabled'));
   let mcpOn = $state(mcpSetting?.value === 'true');
+
+  // ── Shipping Countries ──────────────────────────────────────────
+  const shippingCountriesSetting = $derived(
+    data.settings.find((s) => s.key === 'shipping_countries')
+  );
+  function parseCountryList(raw: string | undefined): string[] {
+    if (!raw) return ['HK'];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : ['HK'];
+    } catch {
+      return ['HK'];
+    }
+  }
+  let shippingCountries = $state<string[]>(
+    parseCountryList(data.settings.find((s) => s.key === 'shipping_countries')?.value)
+  );
+  const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }));
 
   // ── Payment ─────────────────────────────────────────────────────
   function settingValue(key: string): string {
@@ -188,6 +210,21 @@
         </div>
       </div>
     {/if}
+
+    <!-- Shipping Countries -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>
+      <p class="text-xs text-gray-400 mb-4">
+        {shippingCountriesSetting?.description ?? 'Countries available at checkout (ISO 3166-1 alpha-2 codes).'}
+      </p>
+      <MultiSelect
+        options={countryOptions}
+        selected={shippingCountries}
+        placeholder="Select countries…"
+        onChange={(values) => (shippingCountries = values)}
+      />
+      <input type="hidden" name="shipping_countries" value={JSON.stringify(shippingCountries)} />
+    </div>
 
     <!-- Payment (Stripe) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">

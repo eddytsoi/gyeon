@@ -1,12 +1,24 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
+  import { COUNTRY_BY_CODE } from '$lib/data/countries';
+  import { HK_DISTRICTS } from '$lib/data/hk-districts';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let loading = $state(false);
   let deleting = $state(false);
 
   const addr = $derived(form?.values ?? data.address);
+  let country = $state((form?.values?.country ?? data.address.country) || data.shippingCountries[0] || 'HK');
+  const cityListId = 'address-edit-city-options';
+  const cityOptions = $derived(country === 'HK' ? HK_DISTRICTS : []);
+
+  // Ensure the saved country is selectable even if it's no longer in the configured list
+  const countryOptions = $derived(
+    data.shippingCountries.includes(addr.country)
+      ? data.shippingCountries
+      : [addr.country, ...data.shippingCountries]
+  );
 </script>
 
 <svelte:head>
@@ -41,8 +53,8 @@
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
       <div>
-        <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last name *</label>
-        <input id="last_name" name="last_name" type="text" required value={addr.last_name}
+        <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last name <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input id="last_name" name="last_name" type="text" value={addr.last_name ?? ''}
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
@@ -52,24 +64,30 @@
         class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
     </div>
     <div>
-      <label for="line1" class="block text-sm font-medium text-gray-700 mb-1">Address line 1 *</label>
+      <label for="line1" class="block text-sm font-medium text-gray-700 mb-1">詳細地址 *</label>
       <input id="line1" name="line1" type="text" required value={addr.line1}
-        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-    </div>
-    <div>
-      <label for="line2" class="block text-sm font-medium text-gray-700 mb-1">Address line 2 <span class="text-gray-400 font-normal">(optional)</span></label>
-      <input id="line2" name="line2" type="text" value={addr.line2 ?? ''}
+        placeholder="街道、門牌、樓層、單位"
         class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label for="city" class="block text-sm font-medium text-gray-700 mb-1">City *</label>
-        <input id="city" name="city" type="text" required value={addr.city}
+        <label for="city" class="block text-sm font-medium text-gray-700 mb-1">City / District <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input id="city" name="city" type="text" value={addr.city}
+          list={cityOptions.length > 0 ? cityListId : undefined}
+          placeholder={country === 'HK' ? '例：九龍城區' : ''}
+          autocomplete="off"
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        {#if cityOptions.length > 0}
+          <datalist id={cityListId}>
+            {#each cityOptions as opt}
+              <option value={opt}></option>
+            {/each}
+          </datalist>
+        {/if}
       </div>
       <div>
-        <label for="postal_code" class="block text-sm font-medium text-gray-700 mb-1">Postal code *</label>
-        <input id="postal_code" name="postal_code" type="text" required value={addr.postal_code}
+        <label for="postal_code" class="block text-sm font-medium text-gray-700 mb-1">Postal code <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input id="postal_code" name="postal_code" type="text" value={addr.postal_code}
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
@@ -81,8 +99,12 @@
       </div>
       <div>
         <label for="country" class="block text-sm font-medium text-gray-700 mb-1">Country *</label>
-        <input id="country" name="country" type="text" required value={addr.country}
-          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        <select id="country" name="country" required bind:value={country}
+          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
+          {#each countryOptions as code}
+            <option value={code}>{COUNTRY_BY_CODE[code] ?? code} ({code})</option>
+          {/each}
+        </select>
       </div>
     </div>
     <label class="flex items-center gap-2 cursor-pointer">

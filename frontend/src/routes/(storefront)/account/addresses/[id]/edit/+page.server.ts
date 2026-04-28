@@ -1,13 +1,33 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { getMyAddresses, updateMyAddress, deleteMyAddress } from '$lib/api';
+import { getMyAddresses, updateMyAddress, deleteMyAddress, getPublicSettings } from '$lib/api';
 import type { Actions, PageServerLoad } from './$types';
+
+function parseShippingCountries(raw: string | undefined): string[] {
+  if (!raw) return ['HK'];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const codes = parsed.filter((v): v is string => typeof v === 'string');
+      return codes.length > 0 ? codes : ['HK'];
+    }
+  } catch {
+    /* fall through */
+  }
+  return ['HK'];
+}
 
 export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
-  const addresses = token ? await getMyAddresses(token).catch(() => []) : [];
+  const [addresses, settings] = await Promise.all([
+    token ? getMyAddresses(token).catch(() => []) : Promise.resolve([]),
+    getPublicSettings().catch(() => [])
+  ]);
   const address = addresses.find((a) => a.id === params.id);
   if (!address) throw error(404, 'Address not found');
-  return { address };
+  const shippingCountries = parseShippingCountries(
+    settings.find((s) => s.key === 'shipping_countries')?.value
+  );
+  return { address, shippingCountries };
 };
 
 export const actions: Actions = {
@@ -20,7 +40,6 @@ export const actions: Actions = {
       last_name:   form.get('last_name')?.toString() ?? '',
       phone:       form.get('phone')?.toString() || undefined,
       line1:       form.get('line1')?.toString() ?? '',
-      line2:       form.get('line2')?.toString() || undefined,
       city:        form.get('city')?.toString() ?? '',
       state:       form.get('state')?.toString() || undefined,
       postal_code: form.get('postal_code')?.toString() ?? '',
@@ -28,7 +47,7 @@ export const actions: Actions = {
       is_default:  form.get('is_default') === 'on'
     };
 
-    if (!data.first_name || !data.last_name || !data.line1 || !data.city || !data.postal_code) {
+    if (!data.first_name || !data.line1 || !data.country) {
       return fail(400, { error: 'Please fill in all required fields', values: data });
     }
 
