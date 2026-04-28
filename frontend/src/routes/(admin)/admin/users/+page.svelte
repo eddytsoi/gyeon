@@ -105,7 +105,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
       <h3 class="font-semibold text-gray-900 mb-4">New Admin User</h3>
       <form method="POST" action="?/create"
-            use:enhance={() => ({ async update() { await update(); showCreate = false; } })}>
+            use:enhance={() => async ({ update }) => { await update(); showCreate = false; }}>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
@@ -161,7 +161,7 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
       <h3 class="font-semibold text-gray-900 mb-4">Edit User</h3>
       <form method="POST" action="?/update"
-            use:enhance={() => ({ async update() { await update(); editingUser = null; } })}>
+            use:enhance={() => async ({ update }) => { await update(); editingUser = null; }}>
         <input type="hidden" name="id" value={editingUser.id} />
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
