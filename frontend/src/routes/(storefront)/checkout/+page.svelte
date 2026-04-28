@@ -454,7 +454,7 @@
       </div>
 
       <!-- Right: Order summary -->
-      <div class="lg:w-80 flex-shrink-0">
+      <div class="lg:w-2/5 flex-shrink-0">
         <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 sticky top-24">
           <h2 class="font-semibold text-gray-900">訂單摘要</h2>
 
