@@ -18,15 +18,22 @@ async function isMaintenanceMode(): Promise<boolean> {
 export const handle: Handle = async ({ event, resolve }) => {
   const { pathname } = event.url;
 
-  // Always allow the maintenance page, admin routes, MCP, well-known discovery,
-  // and the /pay magic-link route (customers must be able to complete payment
-  // for orders already placed, even during maintenance).
+  // Always allow:
+  //   • the maintenance page itself
+  //   • admin routes, MCP, well-known discovery
+  //   • /pay/ magic-link (complete payment for pending orders)
+  //   • /checkout/success (post-payment confirmation page)
+  //   • /account/* (login, register, setup-password, profile, order history)
+  // Maintenance mode blocks NEW purchases (/checkout, /products, /cart) but
+  // must not break customers who are mid-flow on an order they already placed.
   if (
     pathname === MAINTENANCE_PATH ||
     pathname.startsWith('/admin') ||
     pathname.startsWith('/mcp') ||
     pathname.startsWith('/.well-known') ||
-    pathname.startsWith('/pay/')
+    pathname.startsWith('/pay/') ||
+    pathname.startsWith('/checkout/success') ||
+    pathname.startsWith('/account/')
   ) return resolve(event);
 
   const adminToken = event.cookies.get('admin_token');
