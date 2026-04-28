@@ -75,10 +75,24 @@ export interface OrderItem {
   line_total: number;
 }
 
+export interface ShippingAddress {
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state?: string;
+  postal_code: string;
+  country: string;
+}
+
 export interface Order {
   id: string;
   customer_id?: string;
   status: string;
+  shipping_address_id?: string;
+  shipping_address?: ShippingAddress;
   subtotal: number;
   shipping_fee: number;
   discount_amount: number;
@@ -90,6 +104,7 @@ export interface Order {
   payment_intent_id?: string;
   payment_status?: string;
   payment_method?: string;
+  paid_at?: string;
   items: OrderItem[];
   created_at: string;
 }
