@@ -65,8 +65,8 @@
     </div>
   </div>
 
-  <!-- Customer / Shipping / Payment cards -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <!-- Customer / Shipping cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     <!-- Customer Info -->
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
       <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Customer</h3>
@@ -126,32 +126,6 @@
       {/if}
     </div>
 
-    <!-- Payment Info -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Payment</h3>
-      <div class="space-y-1.5 text-sm">
-        <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Method</span>
-          <span class="font-medium text-gray-900 capitalize">
-            {data.order.payment_method ?? '—'}
-          </span>
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Status</span>
-          <span class="font-medium text-gray-900 capitalize">
-            {data.order.payment_status?.replace(/_/g, ' ') ?? '—'}
-          </span>
-        </div>
-        <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Paid at</span>
-          <span class="font-medium text-gray-900 text-right">
-            {data.order.paid_at
-              ? new Date(data.order.paid_at).toLocaleString('en-HK')
-              : '—'}
-          </span>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- Order items -->
@@ -198,6 +172,36 @@
         </tr>
       </tfoot>
     </table>
+  </div>
+
+  <!-- Payment Info — right half on desktop, full width on mobile -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="hidden md:block"></div>
+    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Payment</h3>
+      <div class="space-y-1.5 text-sm">
+        <div class="flex justify-between gap-2">
+          <span class="text-gray-400">Method</span>
+          <span class="font-medium text-gray-900 capitalize">
+            {data.order.payment_method ?? '—'}
+          </span>
+        </div>
+        <div class="flex justify-between gap-2">
+          <span class="text-gray-400">Status</span>
+          <span class="font-medium text-gray-900 capitalize">
+            {data.order.payment_status?.replace(/_/g, ' ') ?? '—'}
+          </span>
+        </div>
+        <div class="flex justify-between gap-2">
+          <span class="text-gray-400">Paid at</span>
+          <span class="font-medium text-gray-900 text-right">
+            {data.order.paid_at
+              ? new Date(data.order.paid_at).toLocaleString('en-HK')
+              : '—'}
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Update status -->

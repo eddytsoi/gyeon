@@ -1,7 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
+  import { adminUploadMedia } from '$lib/api/admin';
   import type { PageData } from './$types';
-  import { showResult } from '$lib/stores/notifications.svelte';
+  import { showResult, notify } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -44,6 +46,85 @@
   // Add Image modal state
   let showAddImage = $state(false);
   let addImageSelectedId = $state<string | null>(null);
+  let addImageTab = $state<'upload' | 'library'>('upload');
+
+  // Upload tab state
+  type UploadFile = {
+    id: string;
+    file: File;
+    preview: string;
+    status: 'uploading' | 'success' | 'error';
+    error?: string;
+  };
+  let uploadFiles = $state<UploadFile[]>([]);
+  let uploadDragOver = $state(false);
+  const ACCEPTED_IMAGE = /^image\/(jpeg|png|webp|gif)$/;
+
+  function resetAddImageModal() {
+    showAddImage = false;
+    addImageSelectedId = null;
+    addImageTab = 'upload';
+    for (const f of uploadFiles) URL.revokeObjectURL(f.preview);
+    uploadFiles = [];
+    uploadDragOver = false;
+  }
+
+  function openFilePicker() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'image/jpeg,image/png,image/webp,image/gif';
+    input.onchange = () => handleFiles(Array.from(input.files ?? []));
+    input.click();
+  }
+
+  function onUploadDragEnter(e: DragEvent) { e.preventDefault(); uploadDragOver = true; }
+  function onUploadDragLeave(e: DragEvent) { e.preventDefault(); uploadDragOver = false; }
+  function onUploadDragOver(e: DragEvent)  { e.preventDefault(); uploadDragOver = true; }
+  function onUploadDrop(e: DragEvent) {
+    e.preventDefault();
+    uploadDragOver = false;
+    handleFiles(Array.from(e.dataTransfer?.files ?? []));
+  }
+
+  async function handleFiles(files: File[]) {
+    if (!data.product || !data.token) return;
+    const token = data.token;
+    const valid = files.filter((f) => ACCEPTED_IMAGE.test(f.type));
+    const rejected = files.length - valid.length;
+    if (rejected > 0) {
+      notify.warning(
+        `${rejected} file${rejected !== 1 ? 's' : ''} skipped`,
+        'Only JPEG, PNG, WebP, or GIF images are accepted.'
+      );
+    }
+    const newItems: UploadFile[] = valid.map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      preview: URL.createObjectURL(file),
+      status: 'uploading'
+    }));
+    uploadFiles = [...uploadFiles, ...newItems];
+    let attached = 0;
+    for (const item of newItems) {
+      try {
+        const media = await adminUploadMedia(token, item.file);
+        const fd = new FormData();
+        fd.set('media_file_id', media.id);
+        fd.set('sort_order', '0');
+        fd.set('is_primary', 'false');
+        const res = await fetch('?/addImage', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(`Failed to attach (${res.status})`);
+        item.status = 'success';
+        attached++;
+      } catch (e) {
+        item.status = 'error';
+        item.error = e instanceof Error ? e.message : 'Upload failed';
+      }
+      uploadFiles = [...uploadFiles];
+    }
+    if (attached > 0) await invalidateAll();
+  }
 
   // Image drag-and-drop reorder state
   function sortedImages(imgs: typeof data.images) {
@@ -666,74 +747,162 @@
 {#if showAddImage}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-         onclick={() => { showAddImage = false; addImageSelectedId = null; }}
+         onclick={resetAddImageModal}
          role="button" tabindex="-1" aria-label="Close"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl">
       <h3 class="font-semibold text-gray-900 mb-4">Add Image</h3>
-      <form method="POST" action="?/addImage"
-            use:enhance={() => async ({ result, update }) => {
-              showResult(result, 'Image added', 'Failed to add image');
-              await update();
-              if (result.type === 'success') { showAddImage = false; addImageSelectedId = null; }
-            }}>
-        <input type="hidden" name="media_file_id" value={addImageSelectedId ?? ''} />
-        <input type="hidden" name="sort_order" value="0" />
 
-        <!-- Media pick list -->
-        {#if imageMedia.length === 0}
-          <p class="text-sm text-gray-400 py-6 text-center">No images in media library yet.</p>
-        {:else}
-          <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2 max-h-80 overflow-y-auto mb-4 pr-1">
-            {#each imageMedia as mf}
-              <button type="button"
-                      onclick={() => addImageSelectedId = addImageSelectedId === mf.id ? null : mf.id}
-                      class="relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
-                             {addImageSelectedId === mf.id ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}">
-                <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
-                {#if addImageSelectedId === mf.id}
-                  <div class="absolute inset-0 bg-gray-900/20 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-white drop-shadow" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd"/>
+      <!-- Tabs -->
+      <div class="flex gap-1 mb-5 border-b border-gray-100">
+        <button type="button" onclick={() => addImageTab = 'upload'}
+                class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+                       {addImageTab === 'upload'
+                         ? 'border-gray-900 text-gray-900'
+                         : 'border-transparent text-gray-400 hover:text-gray-700'}">
+          Upload
+        </button>
+        <button type="button" onclick={() => addImageTab = 'library'}
+                class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+                       {addImageTab === 'library'
+                         ? 'border-gray-900 text-gray-900'
+                         : 'border-transparent text-gray-400 hover:text-gray-700'}">
+          Library
+        </button>
+      </div>
+
+      {#if addImageTab === 'upload'}
+        <!-- Drag & drop zone -->
+        <button type="button"
+                ondragenter={onUploadDragEnter}
+                ondragleave={onUploadDragLeave}
+                ondragover={onUploadDragOver}
+                ondrop={onUploadDrop}
+                onclick={openFilePicker}
+                class="w-full flex flex-col items-center justify-center gap-2 px-6 py-10
+                       rounded-2xl border-2 border-dashed transition-colors text-center
+                       {uploadDragOver
+                         ? 'border-gray-900 bg-gray-50'
+                         : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}">
+          <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 7.5m0 0L7.5 12M12 7.5v9"/>
+          </svg>
+          <p class="text-sm font-medium text-gray-700">Drag & drop images here, or click to browse</p>
+          <p class="text-xs text-gray-400">JPEG, PNG, WebP, or GIF</p>
+        </button>
+
+        <!-- Files list -->
+        {#if uploadFiles.length > 0}
+          <div class="mt-4 space-y-2 max-h-64 overflow-y-auto pr-1">
+            {#each uploadFiles as f (f.id)}
+              <div class="flex items-center gap-3 p-2 rounded-xl bg-gray-50">
+                <img src={f.preview} alt="" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-gray-900 truncate">{f.file.name}</p>
+                  {#if f.status === 'error' && f.error}
+                    <p class="text-xs text-red-500 truncate">{f.error}</p>
+                  {:else}
+                    <p class="text-xs text-gray-400">
+                      {(f.file.size / 1024).toFixed(0)} KB
+                    </p>
+                  {/if}
+                </div>
+                <div class="flex-shrink-0">
+                  {#if f.status === 'uploading'}
+                    <svg class="w-5 h-5 text-gray-400 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/>
+                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"
+                            stroke-linecap="round"/>
                     </svg>
-                  </div>
-                {/if}
-              </button>
+                  {:else if f.status === 'success'}
+                    <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                    </svg>
+                  {:else}
+                    <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  {/if}
+                </div>
+              </div>
             {/each}
           </div>
         {/if}
 
-        <!-- Options row -->
-        <div class="flex items-center gap-4 mb-5">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set as Primary?</label>
-            <select name="is_primary"
-                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <option value="false">No</option>
-              <option value="true">Yes</option>
-            </select>
-          </div>
-          <div class="flex-1 flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alt Text</label>
-            <input name="alt_text" placeholder="Optional"
-                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-        </div>
-
-        <div class="flex gap-3">
-          <button type="submit" disabled={!addImageSelectedId}
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            Add Image
-          </button>
-          <button type="button" onclick={() => { showAddImage = false; addImageSelectedId = null; }}
+        <div class="flex gap-3 mt-5">
+          <button type="button" onclick={resetAddImageModal}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
-            Cancel
+            Done
           </button>
         </div>
-      </form>
+      {:else}
+        <!-- Library tab — pick from existing media -->
+        <form method="POST" action="?/addImage"
+              use:enhance={() => async ({ result, update }) => {
+                showResult(result, 'Image added', 'Failed to add image');
+                await update();
+                if (result.type === 'success') resetAddImageModal();
+              }}>
+          <input type="hidden" name="media_file_id" value={addImageSelectedId ?? ''} />
+          <input type="hidden" name="sort_order" value="0" />
+
+          {#if imageMedia.length === 0}
+            <p class="text-sm text-gray-400 py-6 text-center">No images in media library yet.</p>
+          {:else}
+            <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2 max-h-80 overflow-y-auto mb-4 pr-1">
+              {#each imageMedia as mf}
+                <button type="button"
+                        onclick={() => addImageSelectedId = addImageSelectedId === mf.id ? null : mf.id}
+                        class="relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
+                               {addImageSelectedId === mf.id ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}">
+                  <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                  {#if addImageSelectedId === mf.id}
+                    <div class="absolute inset-0 bg-gray-900/20 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-white drop-shadow" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd"/>
+                      </svg>
+                    </div>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="flex items-center gap-4 mb-5">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set as Primary?</label>
+              <select name="is_primary"
+                      class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-gray-900">
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+              </select>
+            </div>
+            <div class="flex-1 flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alt Text</label>
+              <input name="alt_text" placeholder="Optional"
+                     class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button type="submit" disabled={!addImageSelectedId}
+                    class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
+                           hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              Add Image
+            </button>
+            <button type="button" onclick={resetAddImageModal}
+                    class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
+                           hover:border-gray-400 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </form>
+      {/if}
     </div>
   </div>
 {/if}
