@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
-  import { adminSendTestEmail } from '$lib/api/admin';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
@@ -35,18 +34,33 @@
   let showTestEmailModal = $state(false);
   let testEmailAddress = $state('');
   let testEmailSending = $state(false);
-  let testEmailResult = $state<{ ok: boolean; msg: string } | null>(null);
 
   const token = $derived(data.token ?? '');
 
   async function sendTestEmail() {
     testEmailSending = true;
-    testEmailResult = null;
     try {
-      await adminSendTestEmail(token, testEmailAddress);
-      testEmailResult = { ok: true, msg: 'Test email sent successfully.' };
-    } catch {
-      testEmailResult = { ok: false, msg: 'Failed to send. Check your SMTP settings and save them first.' };
+      const res = await fetch('/api/v1/admin/settings/test-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ to: testEmailAddress })
+      });
+      if (res.ok) {
+        notify.success('Test email sent successfully', `Sent to ${testEmailAddress}`);
+        showTestEmailModal = false;
+      } else {
+        let serverMsg = 'Check your SMTP settings and save them first.';
+        try {
+          const body = await res.json();
+          if (typeof body?.error === 'string' && body.error) serverMsg = body.error;
+        } catch { /* non-JSON body */ }
+        notify.error('Failed to send test email', serverMsg);
+      }
+    } catch (e) {
+      notify.error('Failed to send test email', e instanceof Error ? e.message : 'Network error');
     } finally {
       testEmailSending = false;
     }
@@ -422,7 +436,7 @@
       </div>
       <div class="pt-5 mt-5 border-t border-gray-100">
         <button type="button"
-                onclick={() => { showTestEmailModal = true; testEmailResult = null; testEmailAddress = ''; }}
+                onclick={() => { showTestEmailModal = true; testEmailAddress = ''; }}
                 class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
                        hover:bg-gray-50 transition-colors">
           Test Email
@@ -568,12 +582,6 @@
              placeholder="you@example.com"
              class="mt-1.5 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900" />
-
-      {#if testEmailResult}
-        <p class="mt-3 text-sm {testEmailResult.ok ? 'text-green-600' : 'text-red-500'}">
-          {testEmailResult.msg}
-        </p>
-      {/if}
 
       <div class="flex gap-3 mt-5">
         <button type="button" disabled={testEmailSending || !testEmailAddress}
