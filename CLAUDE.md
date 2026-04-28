@@ -34,6 +34,11 @@ Fully tailor-made CMS + eShop platform.
 - Go API handles all business logic (CMS content, eShop, orders)
 - SvelteKit frontend communicates with Go via REST API
 
+### MCP Surfaces
+Two parallel ways for AI agents to interact with the storefront, both gated by the `mcp_enabled` site setting:
+- **Server-side MCP** — Go MCP server at `/mcp/sse` (`backend/internal/mcp/`), discovered via `<link rel="mcp">` in `app.html`. Used by external agents that connect over SSE.
+- **Browser-side WebMCP** — `navigator.modelContext.registerTool(...)` registrations in `frontend/src/lib/webmcp/`, mounted from `(storefront)/+layout.svelte`. Used by in-page agents (Chrome 146+) acting in the user's logged-in session. Not registered in `(admin)`.
+
 ## Development
 
 ### Getting Started

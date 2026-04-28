@@ -79,6 +79,9 @@ export const validateCoupon = (code: string, subtotal: number) =>
 
 export const getPaymentConfig = () => request<PaymentConfig>('/payments/config');
 
+export type PublicSetting = { key: string; value: string; description?: string; updated_at: string };
+export const getPublicSettings = () => request<PublicSetting[]>('/settings/');
+
 export const setupPassword = (token: string, password: string) =>
   fetch(`${base()}/customers/setup-password`, {
     method: 'POST',
