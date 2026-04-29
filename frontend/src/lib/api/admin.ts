@@ -269,6 +269,7 @@ export interface CustomerAddress {
 
 export interface CustomerOrderSummary {
   id: string;
+  number: number;
   status: string;
   total: number;
   created_at: string;
