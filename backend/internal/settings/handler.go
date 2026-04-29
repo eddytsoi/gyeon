@@ -23,17 +23,18 @@ func NewHandler(svc *Service, emailSvc testEmailSender) *Handler {
 	return &Handler{svc: svc, emailSvc: emailSvc}
 }
 
-// PublicRoutes — read-only access to settings (for storefront config)
+// PublicRoutes — read-only access to the allowlisted public settings
+// (storefront config). Must NOT expose Stripe/SMTP/ShipAny secrets.
 func (h *Handler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/", h.list)
+	r.Get("/", h.listPublic)
 	return r
 }
 
 // AdminRoutes — full CRUD (mounted under /admin/settings)
 func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Get("/", h.list)
+	r.Get("/", h.listAll)
 	r.Put("/", h.bulkSet)
 	r.Post("/test-email", h.testEmail)
 	r.Get("/{key}", h.get)
@@ -41,8 +42,17 @@ func (h *Handler) AdminRoutes() chi.Router {
 	return r
 }
 
-func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	settings, err := h.svc.List(r.Context())
+func (h *Handler) listPublic(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.svc.ListPublic(r.Context())
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, settings)
+}
+
+func (h *Handler) listAll(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.svc.ListAll(r.Context())
 	if err != nil {
 		respond.InternalError(w)
 		return

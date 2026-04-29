@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"strconv"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type Setting struct {
@@ -12,6 +14,17 @@ type Setting struct {
 	Value       string  `json:"value"`
 	Description *string `json:"description,omitempty"`
 	UpdatedAt   string  `json:"updated_at"`
+}
+
+// publicSettingKeys are the only site_settings keys safe to expose via the
+// unauthenticated GET /api/v1/settings/ endpoint. Stripe/SMTP/ShipAny secrets
+// stay admin-only. Add a key here only after confirming the storefront needs
+// it and the value is non-sensitive.
+var publicSettingKeys = []string{
+	"maintenance_mode",
+	"mcp_enabled",
+	"shipping_countries",
+	"stripe_save_cards",
 }
 
 type Service struct {
@@ -22,14 +35,27 @@ func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
-func (s *Service) List(ctx context.Context) ([]Setting, error) {
+func (s *Service) ListAll(ctx context.Context) ([]Setting, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT key, value, description, updated_at FROM site_settings ORDER BY key`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	return scanSettings(rows)
+}
 
+func (s *Service) ListPublic(ctx context.Context) ([]Setting, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT key, value, description, updated_at FROM site_settings WHERE key = ANY($1) ORDER BY key`,
+		pq.Array(publicSettingKeys))
+	if err != nil {
+		return nil, err
+	}
+	return scanSettings(rows)
+}
+
+func scanSettings(rows *sql.Rows) ([]Setting, error) {
+	defer rows.Close()
 	settings := make([]Setting, 0)
 	for rows.Next() {
 		var st Setting
@@ -99,5 +125,5 @@ func (s *Service) BulkSet(ctx context.Context, updates map[string]string) ([]Set
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return s.List(ctx)
+	return s.ListAll(ctx)
 }
