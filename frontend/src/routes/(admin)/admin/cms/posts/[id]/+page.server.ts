@@ -8,13 +8,18 @@ import {
 } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { resolveAdminId } from '$lib/admin/resolveId';
+
+const resolve = (token: string, id: string) =>
+  id === 'new' ? Promise.resolve(id) : resolveAdminId(token, 'POST', id, '/admin/cms/posts');
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
   const token = cookies.get('admin_token') ?? '';
+  const id = await resolve(token, params.id);
   const [post, categories] = await Promise.all([
-    params.id === 'new'
+    id === 'new'
       ? Promise.resolve(null as CmsPost | null)
-      : adminGetPost(token, params.id).catch(() => null),
+      : adminGetPost(token, id).catch(() => null),
     adminGetPostCategories(token).catch(() => [] as PostCategory[])
   ]);
   return { post, categories };
@@ -23,6 +28,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 export const actions: Actions = {
   save: async ({ request, params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
+    const id = await resolve(token, params.id);
     const data = await request.formData();
 
     const body = {
@@ -36,10 +42,10 @@ export const actions: Actions = {
     };
 
     try {
-      if (params.id === 'new') {
+      if (id === 'new') {
         await adminCreatePost(token, body);
       } else {
-        await adminUpdatePost(token, params.id, body as CmsPost & { is_published: boolean });
+        await adminUpdatePost(token, id, body as CmsPost & { is_published: boolean });
       }
     } catch {
       return fail(500, { error: 'Failed to save post' });

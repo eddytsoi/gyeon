@@ -17,6 +17,7 @@ import (
 	"gyeon/backend/internal/db"
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/importer"
+	"gyeon/backend/internal/lookup"
 	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
@@ -218,6 +219,9 @@ func main() {
 			r.Use(adminMW)
 
 			r.Get("/admin/stats", statsHandler.Get)
+
+			// Resolve prefix-id (PRD-8, ORD-1, ...) to UUID for admin URLs
+			r.Mount("/admin/lookup", lookup.NewHandler(productSvc, orderSvc, pageSvc, postSvc).Routes())
 
 			// Product admin routes (inventory)
 			r.Mount("/admin/inventory", productHandler.AdminRoutes())

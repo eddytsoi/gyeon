@@ -6,19 +6,25 @@ import {
 } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { resolveAdminId } from '$lib/admin/resolveId';
+
+const resolve = (token: string, id: string) =>
+  id === 'new' ? Promise.resolve(id) : resolveAdminId(token, 'PG', id, '/admin/cms/pages');
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
   const token = cookies.get('admin_token') ?? '';
   if (params.id === 'new') {
     return { page: null as CmsPage | null };
   }
-  const page = await adminGetPage(token, params.id).catch(() => null);
+  const id = await resolve(token, params.id);
+  const page = await adminGetPage(token, id).catch(() => null);
   return { page };
 };
 
 export const actions: Actions = {
   save: async ({ request, params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
+    const id = await resolve(token, params.id);
     const data = await request.formData();
 
     const body = {
@@ -31,10 +37,10 @@ export const actions: Actions = {
     };
 
     try {
-      if (params.id === 'new') {
+      if (id === 'new') {
         await adminCreatePage(token, body);
       } else {
-        await adminUpdatePage(token, params.id, body as CmsPage & { is_published: boolean });
+        await adminUpdatePage(token, id, body as CmsPage & { is_published: boolean });
       }
     } catch (e) {
       return fail(500, { error: 'Failed to save page' });

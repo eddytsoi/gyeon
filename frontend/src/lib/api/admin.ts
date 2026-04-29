@@ -171,6 +171,11 @@ export const adminCreatePost = (token: string, body: Partial<CmsPost>) =>
 export const adminUpdatePost = (token: string, id: string, body: Partial<CmsPost> & { is_published: boolean }) =>
   request<CmsPost>(`/admin/cms/posts/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
+// Admin-only ID lookup: resolves a sequential number to a UUID for any
+// of the supported entities. Returns 404 if no row matches.
+export const adminLookup = (token: string, entity: 'products' | 'orders' | 'pages' | 'posts', n: string) =>
+  request<{ id: string }>(`/admin/lookup/${entity}/${n}`, token);
+
 export const adminDeletePost = (token: string, id: string) =>
   request(`/admin/cms/posts/${id}`, token, { method: 'DELETE' });
 

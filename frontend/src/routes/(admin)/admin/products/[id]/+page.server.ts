@@ -6,21 +6,26 @@ import {
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
   adminAddImage, adminUpdateImage, adminDeleteImage
 } from '$lib/api/admin';
+import { resolveAdminId } from '$lib/admin/resolveId';
+
+const resolve = (token: string, id: string) =>
+  id === 'new' ? Promise.resolve(id) : resolveAdminId(token, 'PRD', id, '/admin/products');
 
 export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
   const isNew = params.id === 'new';
+  const id = await resolve(token, params.id);
 
   const [product, categories] = await Promise.all([
-    isNew ? Promise.resolve(null) : adminGetProduct(token, params.id).catch(() => null),
+    isNew ? Promise.resolve(null) : adminGetProduct(token, id).catch(() => null),
     adminGetCategories(token).catch(() => [])
   ]);
 
   const [variants, images, mediaFiles] = isNew ? [[], [], []] : await Promise.all([
-    adminGetVariants(token, params.id).catch(() => []),
-    adminGetImages(token, params.id).catch(() => []),
+    adminGetVariants(token, id).catch(() => []),
+    adminGetImages(token, id).catch(() => []),
     adminGetMedia(token).catch(() => [])
   ]);
 
@@ -31,6 +36,7 @@ export const actions: Actions = {
   saveProduct: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const body = {
@@ -43,11 +49,11 @@ export const actions: Actions = {
 
     let newProductId: string | undefined;
     try {
-      if (params.id === 'new') {
+      if (id === 'new') {
         const product = await adminCreateProduct(token, { ...body, is_active: true });
         newProductId = product.id;
       } else {
-        await adminUpdateProduct(token, params.id, body);
+        await adminUpdateProduct(token, id, body);
       }
     } catch {
       return fail(400, { error: 'Failed to save product' });
@@ -60,10 +66,11 @@ export const actions: Actions = {
   addVariant: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     try {
-      const variant = await adminCreateVariant(token, params.id, {
+      const variant = await adminCreateVariant(token, id, {
         sku: form.get('sku')?.toString() ?? '',
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
@@ -73,7 +80,7 @@ export const actions: Actions = {
       });
       const imageMediaFileId = form.get('image_media_file_id')?.toString();
       if (imageMediaFileId) {
-        await adminAddImage(token, params.id, {
+        await adminAddImage(token, id, {
           variant_id: variant.id,
           media_file_id: imageMediaFileId,
           sort_order: 0,
@@ -89,11 +96,12 @@ export const actions: Actions = {
   updateVariant: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const variantID = form.get('variant_id')?.toString() ?? '';
     try {
-      await adminUpdateVariant(token, params.id, variantID, {
+      await adminUpdateVariant(token, id, variantID, {
         sku: form.get('sku')?.toString() ?? '',
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
@@ -106,10 +114,10 @@ export const actions: Actions = {
       const imageMediaFileId = form.get('image_media_file_id')?.toString();
       const removeImage = form.get('remove_image') === 'true';
       if (oldImageId && (removeImage || imageMediaFileId)) {
-        await adminDeleteImage(token, params.id, oldImageId);
+        await adminDeleteImage(token, id, oldImageId);
       }
       if (!removeImage && imageMediaFileId) {
-        await adminAddImage(token, params.id, {
+        await adminAddImage(token, id, {
           variant_id: variantID,
           media_file_id: imageMediaFileId,
           sort_order: 0,
@@ -125,11 +133,12 @@ export const actions: Actions = {
   deleteVariant: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const variantID = form.get('variant_id')?.toString() ?? '';
     try {
-      await adminDeleteVariant(token, params.id, variantID);
+      await adminDeleteVariant(token, id, variantID);
     } catch {
       return fail(400, { error: 'Failed to delete variant' });
     }
@@ -139,12 +148,13 @@ export const actions: Actions = {
   adjustStock: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const variantID = form.get('variant_id')?.toString() ?? '';
     const delta = parseInt(form.get('delta')?.toString() ?? '0', 10);
     try {
-      await adminAdjustStock(token, params.id, variantID, delta);
+      await adminAdjustStock(token, id, variantID, delta);
     } catch {
       return fail(400, { error: 'Failed to adjust stock' });
     }
@@ -154,12 +164,13 @@ export const actions: Actions = {
   addImage: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const mediaFileId = form.get('media_file_id')?.toString() || undefined;
     if (!mediaFileId) return fail(400, { error: 'No image selected' });
     try {
-      await adminAddImage(token, params.id, {
+      await adminAddImage(token, id, {
         media_file_id: mediaFileId,
         alt_text: form.get('alt_text')?.toString() || undefined,
         sort_order: parseInt(form.get('sort_order')?.toString() ?? '0', 10),
@@ -174,12 +185,13 @@ export const actions: Actions = {
   setPrimary: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const imageID = form.get('image_id')?.toString() ?? '';
     const sortOrder = parseInt(form.get('sort_order')?.toString() ?? '0', 10);
     try {
-      await adminUpdateImage(token, params.id, imageID, {
+      await adminUpdateImage(token, id, imageID, {
         is_primary: true,
         sort_order: sortOrder
       });
@@ -192,11 +204,12 @@ export const actions: Actions = {
   deleteImage: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const imageID = form.get('image_id')?.toString() ?? '';
     try {
-      await adminDeleteImage(token, params.id, imageID);
+      await adminDeleteImage(token, id, imageID);
     } catch {
       return fail(400, { error: 'Failed to delete image' });
     }
@@ -206,12 +219,13 @@ export const actions: Actions = {
   reorderImages: async ({ request, cookies, params }) => {
     const token = cookies.get('admin_token');
     if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
 
     const form = await request.formData();
     const ids = (form.get('image_ids')?.toString() ?? '').split(',').filter(Boolean);
     try {
       for (let i = 0; i < ids.length; i++) {
-        await adminUpdateImage(token, params.id, ids[i], { sort_order: i });
+        await adminUpdateImage(token, id, ids[i], { sort_order: i });
       }
     } catch {
       return fail(400, { error: 'Failed to reorder images' });

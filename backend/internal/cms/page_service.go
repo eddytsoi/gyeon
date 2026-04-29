@@ -181,6 +181,14 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 	return &p, nil
 }
 
+// GetIDByNumber resolves a sequential display number to its UUID.
+// Returns sql.ErrNoRows if no row matches.
+func (s *PageService) GetIDByNumber(ctx context.Context, n int64) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM cms_pages WHERE number = $1`, n).Scan(&id)
+	return id, err
+}
+
 func (s *PageService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_pages WHERE id = $1`, id)
 	if err != nil {
