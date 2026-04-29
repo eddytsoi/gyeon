@@ -40,7 +40,7 @@
             <p class="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
           </div>
           <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-600">{order.items?.length ?? 0} item{(order.items?.length ?? 0) !== 1 ? 's' : ''}</span>
+            <span class="text-sm text-gray-600">{order.items_count ?? 0} item{(order.items_count ?? 0) !== 1 ? 's' : ''}</span>
             <span class="text-sm font-semibold text-gray-900">HK${order.total.toFixed(2)}</span>
             <span class="px-2.5 py-1 rounded-full text-xs font-medium capitalize {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
               {order.status}

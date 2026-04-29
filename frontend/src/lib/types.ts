@@ -108,6 +108,7 @@ export interface Order {
   payment_method?: string;
   paid_at?: string;
   items: OrderItem[];
+  items_count?: number;
   created_at: string;
 }
 
