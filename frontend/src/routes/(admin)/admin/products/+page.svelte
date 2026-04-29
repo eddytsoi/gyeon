@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import type { Product } from '$lib/types';
   import { showResult } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -24,7 +25,8 @@
 </div>
 
 <!-- Products table -->
-<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+     use:spotlight={{ selector: '.js-row' }}>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
@@ -37,7 +39,7 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {#each data.products as { product, variants }}
-        <tr class="hover:bg-gray-50 transition-colors">
+        <tr class="js-row transition-colors">
           <td class="px-5 py-3">
             <p class="font-medium text-gray-900">{product.name}</p>
             <p class="text-xs text-gray-400 font-mono">PRD-{product.number}</p>

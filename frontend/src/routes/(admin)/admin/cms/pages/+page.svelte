@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import type { CmsPage } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -27,7 +28,8 @@
   </div>
 
   <!-- Table -->
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
     {#if data.pages.length === 0}
       <div class="flex flex-col items-center justify-center py-20 text-center">
         <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
@@ -45,7 +47,7 @@
       <!-- Mobile cards -->
       <div class="divide-y divide-gray-50 sm:hidden">
         {#each data.pages as page}
-          <div class="px-4 py-4 flex items-start justify-between gap-3">
+          <div class="js-row px-4 py-4 flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm font-semibold text-gray-900 truncate">{page.title}</p>
               <p class="text-xs text-gray-400 mt-0.5 font-mono">PG-{page.number} · /{page.slug}</p>
@@ -89,7 +91,7 @@
         </thead>
         <tbody class="divide-y divide-gray-50">
           {#each data.pages as page}
-            <tr class="hover:bg-gray-50/50 transition-colors">
+            <tr class="js-row transition-colors">
               <td class="px-6 py-4">
                 <p class="font-medium text-gray-900">{page.title}</p>
                 <p class="text-xs text-gray-400 font-mono mt-0.5">PG-{page.number}</p>

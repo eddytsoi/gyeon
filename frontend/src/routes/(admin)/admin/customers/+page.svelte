@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 </script>
@@ -12,7 +13,8 @@
     <span class="text-sm text-gray-400">{data.customers.length} total</span>
   </div>
 
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
     {#if data.customers.length === 0}
       <div class="flex flex-col items-center justify-center py-16 text-center">
         <div class="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
@@ -37,7 +39,7 @@
         </thead>
         <tbody class="divide-y divide-gray-50">
           {#each data.customers as customer}
-            <tr class="hover:bg-gray-50 transition-colors">
+            <tr class="js-row transition-colors">
               <td class="px-5 py-3">
                 <p class="font-medium text-gray-900">{customer.first_name} {customer.last_name}</p>
                 <p class="text-xs text-gray-400 sm:hidden">{customer.email}</p>

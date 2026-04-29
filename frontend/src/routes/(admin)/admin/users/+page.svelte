@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import type { AdminUser } from '$lib/api/admin';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -39,7 +40,8 @@
     </div>
   {/if}
 
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
     <table class="w-full text-sm">
       <thead class="bg-gray-50 border-b border-gray-100">
         <tr>
@@ -52,7 +54,7 @@
       </thead>
       <tbody class="divide-y divide-gray-50">
         {#each data.users as user}
-          <tr class="hover:bg-gray-50 transition-colors">
+          <tr class="js-row transition-colors">
             <td class="px-5 py-3">
               <p class="font-medium text-gray-900">{user.name}</p>
               <p class="text-xs text-gray-400 sm:hidden">{user.email}</p>

@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import type { Category } from '$lib/types';
   import { showResult } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -60,7 +61,8 @@
   </div>
 
   <!-- List -->
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
     {#if data.categories.length === 0}
       <div class="flex flex-col items-center justify-center py-20 text-center">
         <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
@@ -77,7 +79,7 @@
     {:else}
       <ul class="divide-y divide-gray-50">
         {#each data.categories.toSorted((a, b) => a.sort_order - b.sort_order) as cat}
-          <li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/50 transition-colors">
+          <li class="js-row flex items-center gap-4 px-5 py-4 transition-colors">
             <span class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center
                          text-xs font-semibold text-gray-500 flex-shrink-0">
               {cat.sort_order}

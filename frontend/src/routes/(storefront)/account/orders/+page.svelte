@@ -12,6 +12,34 @@
     cancelled:  'bg-gray-100 text-gray-500',
     refunded:   'bg-red-50 text-red-600'
   };
+
+  // ── Order list magnetic spotlight ───────────────────────────────
+  let listEl = $state<HTMLElement | undefined>();
+  let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
+
+  function moveSpotlightTo(item: Element | null) {
+    if (!item || !listEl || !listEl.contains(item)) {
+      spotlight.visible = false;
+      return;
+    }
+    const listRect = listEl.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    spotlight = {
+      visible: true,
+      top: itemRect.top - listRect.top + listEl.scrollTop,
+      left: itemRect.left - listRect.left + listEl.scrollLeft,
+      width: itemRect.width,
+      height: itemRect.height
+    };
+  }
+
+  function onListMouseMove(e: MouseEvent) {
+    moveSpotlightTo((e.target as HTMLElement | null)?.closest('.js-order-row') ?? null);
+  }
+
+  function onListMouseLeave() {
+    spotlight.visible = false;
+  }
 </script>
 
 <svelte:head>
@@ -29,11 +57,22 @@
       </a>
     </div>
   {:else}
-    <div class="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+    <div bind:this={listEl}
+         onmousemove={onListMouseMove}
+         onmouseleave={onListMouseLeave}
+         class="relative bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+      <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered row -->
+      <div aria-hidden="true"
+           class="pointer-events-none absolute z-0 bg-gray-50
+                  transition-[transform,width,height,opacity] duration-[80ms] ease-out
+                  {spotlight.visible ? 'opacity-100' : 'opacity-0'}"
+           style="top: 0; left: 0; transform: translate3d({spotlight.left}px, {spotlight.top}px, 0); width: {spotlight.width}px; height: {spotlight.height}px;">
+      </div>
+
       {#each data.orders as order}
         <a
           href="/account/orders/ORD-{order.number}"
-          class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+          class="js-order-row relative z-10 flex items-center justify-between px-6 py-4 transition-colors"
         >
           <div class="flex flex-col gap-0.5">
             <p class="text-sm font-semibold text-gray-900 font-mono">ORD-{order.number}</p>

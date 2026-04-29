@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import type { CmsPost } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -31,7 +32,8 @@
   </div>
 
   <!-- List -->
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
     {#if data.posts.length === 0}
       <div class="flex flex-col items-center justify-center py-20 text-center">
         <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
@@ -49,7 +51,7 @@
       <!-- Mobile cards -->
       <div class="divide-y divide-gray-50 sm:hidden">
         {#each data.posts as post}
-          <div class="px-4 py-4">
+          <div class="js-row px-4 py-4">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-gray-900 truncate">{post.title}</p>
@@ -95,7 +97,7 @@
         </thead>
         <tbody class="divide-y divide-gray-50">
           {#each data.posts as post}
-            <tr class="hover:bg-gray-50/50 transition-colors">
+            <tr class="js-row transition-colors">
               <td class="px-6 py-4">
                 <p class="font-medium text-gray-900">{post.title}</p>
                 <p class="text-xs text-gray-400 font-mono mt-0.5">POST-{post.number} · /{post.slug}</p>
