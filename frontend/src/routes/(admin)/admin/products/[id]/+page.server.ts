@@ -41,18 +41,20 @@ export const actions: Actions = {
       is_active: form.get('is_active') === 'true'
     };
 
+    let newProductId: string | undefined;
     try {
       if (params.id === 'new') {
         const product = await adminCreateProduct(token, { ...body, is_active: true });
-        throw redirect(303, `/admin/products/${product.id}`);
+        newProductId = product.id;
       } else {
         await adminUpdateProduct(token, params.id, body);
-        return { success: true };
       }
-    } catch (e) {
-      if (e instanceof Response) throw e; // rethrow redirects
+    } catch {
       return fail(400, { error: 'Failed to save product' });
     }
+
+    if (newProductId) throw redirect(303, `/admin/products/${newProductId}`);
+    return { success: true };
   },
 
   addVariant: async ({ request, cookies, params }) => {
