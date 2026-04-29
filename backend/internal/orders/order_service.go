@@ -29,6 +29,7 @@ const (
 
 type Order struct {
 	ID                string           `json:"id"`
+	Number            int64            `json:"number"`
 	CustomerID        *string          `json:"customer_id,omitempty"`
 	Status            OrderStatus      `json:"status"`
 	ShippingAddressID *string          `json:"shipping_address_id,omitempty"`
@@ -378,12 +379,12 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes, customer_email, customer_phone, customer_name, payment_status)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method')
-		 RETURNING id, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           created_at, updated_at`,
 		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr).
-		Scan(&order.ID, &order.CustomerID, &order.Status, &order.ShippingAddressID,
+		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
@@ -764,11 +765,11 @@ func splitName(full string) (string, string) {
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		`SELECT id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
-		Scan(&order.ID, &order.CustomerID, &order.Status, &order.ShippingAddressID,
+		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
@@ -822,7 +823,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 
 func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, customer_id, status, subtotal, shipping_fee, discount_amount, total,
+		`SELECT id, number, customer_id, status, subtotal, shipping_fee, discount_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
 		 FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
@@ -834,7 +835,7 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 	var orders []Order
 	for rows.Next() {
 		var o Order
-		rows.Scan(&o.ID, &o.CustomerID, &o.Status, &o.Subtotal,
+		rows.Scan(&o.ID, &o.Number, &o.CustomerID, &o.Status, &o.Subtotal,
 			&o.ShippingFee, &o.DiscountAmount, &o.Total,
 			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName,
 			&o.PaymentIntentID, &o.PaymentStatus,
@@ -887,11 +888,11 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`UPDATE orders SET status = $2 WHERE id = $1
-		 RETURNING id, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           created_at, updated_at`,
 		id, req.Status).
-		Scan(&order.ID, &order.CustomerID, &order.Status, &order.ShippingAddressID,
+		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,

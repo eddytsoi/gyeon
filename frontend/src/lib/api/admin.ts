@@ -116,6 +116,7 @@ export const adminDeleteOrder = (token: string, id: string) =>
 
 export interface CmsPage {
   id: string;
+  number: number;
   slug: string;
   title: string;
   content: string;
@@ -128,6 +129,7 @@ export interface CmsPage {
 
 export interface CmsPost {
   id: string;
+  number: number;
   category_id?: string;
   slug: string;
   title: string;

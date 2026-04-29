@@ -34,7 +34,7 @@
   }
 </script>
 
-<svelte:head><title>Order {data.order.id.slice(0,8)} — Gyeon Admin</title></svelte:head>
+<svelte:head><title>ORD-{data.order.number} — Gyeon Admin</title></svelte:head>
 
 <div>
   <div class="flex items-center gap-3 mb-8">
@@ -42,7 +42,7 @@
       ← Orders
     </a>
     <span class="text-gray-300">/</span>
-    <span class="font-mono text-sm text-gray-700">{data.order.id.slice(0,8)}…</span>
+    <span class="font-mono text-sm text-gray-700">ORD-{data.order.number}</span>
   </div>
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">

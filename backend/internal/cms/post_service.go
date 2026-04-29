@@ -12,6 +12,7 @@ import (
 
 type Post struct {
 	ID               string  `json:"id"`
+	Number           int64   `json:"number"`
 	CategoryID       *string `json:"category_id,omitempty"`
 	Slug             string  `json:"slug"`
 	Title            string  `json:"title"`
@@ -69,7 +70,7 @@ const postTranslationJoin = `
 	LEFT JOIN cms_post_translations t ON t.post_id = p.id AND t.locale = $1`
 
 const postSelect = `
-	SELECT p.id, p.category_id, p.slug,
+	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.title,   p.title)   AS title,
 	       COALESCE(t.excerpt, p.excerpt) AS excerpt,
 	       COALESCE(t.content, p.content) AS content,
@@ -81,7 +82,7 @@ const postSelect = `
 
 func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 	var p Post
-	err := row.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
+	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
 		&p.Content, &p.CoverMediaFileID, &p.CoverImageURL,
 		&p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
@@ -190,7 +191,7 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 		             CASE WHEN $8 = TRUE THEN NOW() ELSE NULL END)
 		     RETURNING *
 		 )
-		 SELECT ins.id, ins.category_id, ins.slug, ins.title, ins.excerpt, ins.content,
+		 SELECT ins.id, ins.number, ins.category_id, ins.slug, ins.title, ins.excerpt, ins.content,
 		        ins.cover_media_file_id,
 		        COALESCE(mf.url, ins.cover_image_url) AS cover_image_url,
 		        ins.is_published, ins.published_at, ins.created_at, ins.updated_at
@@ -214,7 +215,7 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 		     WHERE id = $1
 		     RETURNING *
 		 )
-		 SELECT upd.id, upd.category_id, upd.slug, upd.title, upd.excerpt, upd.content,
+		 SELECT upd.id, upd.number, upd.category_id, upd.slug, upd.title, upd.excerpt, upd.content,
 		        upd.cover_media_file_id,
 		        COALESCE(mf.url, upd.cover_image_url) AS cover_image_url,
 		        upd.is_published, upd.published_at, upd.created_at, upd.updated_at

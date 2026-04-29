@@ -48,7 +48,7 @@
           <div class="px-4 py-4 flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm font-semibold text-gray-900 truncate">{page.title}</p>
-              <p class="text-xs text-gray-400 mt-0.5">/{page.slug}</p>
+              <p class="text-xs text-gray-400 mt-0.5 font-mono">PG-{page.number} · /{page.slug}</p>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -90,7 +90,10 @@
         <tbody class="divide-y divide-gray-50">
           {#each data.pages as page}
             <tr class="hover:bg-gray-50/50 transition-colors">
-              <td class="px-6 py-4 font-medium text-gray-900">{page.title}</td>
+              <td class="px-6 py-4">
+                <p class="font-medium text-gray-900">{page.title}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">PG-{page.number}</p>
+              </td>
               <td class="px-6 py-4 text-gray-500 font-mono text-xs">/{page.slug}</td>
               <td class="px-6 py-4">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium

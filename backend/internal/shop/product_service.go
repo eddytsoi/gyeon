@@ -11,6 +11,7 @@ import (
 
 type Product struct {
 	ID          string  `json:"id"`
+	Number      int64   `json:"number"`
 	CategoryID  *string `json:"category_id,omitempty"`
 	Slug        string  `json:"slug"`
 	Name        string  `json:"name"`
@@ -111,7 +112,7 @@ const productTranslationJoin = `
 	LEFT JOIN product_translations t ON t.product_id = p.id AND t.locale = $1`
 
 const productSelect = `
-	SELECT p.id, p.category_id, p.slug,
+	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.name,        p.name)        AS name,
 	       COALESCE(t.description, p.description) AS description,
 	       p.is_active, p.created_at, p.updated_at
@@ -119,7 +120,7 @@ const productSelect = `
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
-	err := row.Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name,
+	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
 		&p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }

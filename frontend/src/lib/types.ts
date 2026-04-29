@@ -12,6 +12,7 @@ export interface Category {
 
 export interface Product {
   id: string;
+  number: number;
   category_id?: string;
   slug: string;
   name: string;
@@ -89,6 +90,7 @@ export interface ShippingAddress {
 
 export interface Order {
   id: string;
+  number: number;
   customer_id?: string;
   status: string;
   shipping_address_id?: string;

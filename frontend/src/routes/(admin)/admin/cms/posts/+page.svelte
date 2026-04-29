@@ -53,9 +53,7 @@
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-gray-900 truncate">{post.title}</p>
-                {#if post.excerpt}
-                  <p class="text-xs text-gray-400 mt-0.5 line-clamp-1">{post.excerpt}</p>
-                {/if}
+                <p class="text-xs text-gray-400 mt-0.5 font-mono">POST-{post.number}</p>
               </div>
               <div class="flex items-center gap-1.5 flex-shrink-0">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -100,7 +98,7 @@
             <tr class="hover:bg-gray-50/50 transition-colors">
               <td class="px-6 py-4">
                 <p class="font-medium text-gray-900">{post.title}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">/{post.slug}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">POST-{post.number} · /{post.slug}</p>
               </td>
               <td class="px-6 py-4 text-gray-500 max-w-xs">
                 <p class="truncate">{post.excerpt ?? '—'}</p>
