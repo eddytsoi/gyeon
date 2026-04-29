@@ -721,7 +721,7 @@
                 Fallback weight (grams)
               </label>
               <input id="shipany_default_weight_grams" name="shipany_default_weight_grams"
-                     type="number" min="1" step="50"
+                     type="number" min="50" step="50"
                      value={settingValue('shipany_default_weight_grams')}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
