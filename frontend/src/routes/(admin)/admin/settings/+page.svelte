@@ -107,6 +107,7 @@
     'shipany_enabled',
     'shipany_user_id',
     'shipany_api_key',
+    'shipany_client_key',
     'shipany_webhook_secret',
     'shipany_region',
     'shipany_origin_name',
@@ -227,6 +228,7 @@
   let shipanyCouriers = $state<ShipanyCourier[]>([]);
   let shipanyCouriersLoading = $state(false);
   let shipanyCouriersLoaded = $state(false);
+  let shipanyCouriersError = $state('');
   let shipanyCourierUID = $state(settingValue('shipany_default_courier'));
   let shipanyServicePl = $state(settingValue('shipany_default_service'));
 
@@ -236,18 +238,28 @@
 
   async function loadShipanyCouriers() {
     shipanyCouriersLoading = true;
+    shipanyCouriersError = '';
     try {
       const res = await fetch('/api/v1/admin/shipany/couriers', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const body = await res.json();
-        shipanyCouriers = Array.isArray(body) ? body : [];
+        // New envelope: { couriers: [...], error?: string }. Tolerate the
+        // older bare-array shape too in case of stale frontend caching.
+        if (Array.isArray(body)) {
+          shipanyCouriers = body;
+        } else {
+          shipanyCouriers = Array.isArray(body?.couriers) ? body.couriers : [];
+          shipanyCouriersError = body?.error ?? '';
+        }
       } else {
         shipanyCouriers = [];
+        shipanyCouriersError = `Server returned ${res.status}`;
       }
-    } catch {
+    } catch (e) {
       shipanyCouriers = [];
+      shipanyCouriersError = e instanceof Error ? e.message : 'Network error';
     } finally {
       shipanyCouriersLoading = false;
       shipanyCouriersLoaded = true;
@@ -617,6 +629,20 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
+            <label for="shipany_client_key" class="text-xs font-medium text-gray-600">
+              Client Key <span class="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">
+              Required by some ShipAny endpoints (e.g. <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">/couriers/</code>).
+              If those return <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">401 client-key missing</code>, paste the value from portal.shipany.io here.
+            </p>
+            <input id="shipany_client_key" name="shipany_client_key" type="password"
+                   value={settingValue('shipany_client_key')}
+                   placeholder="paste client-key from ShipAny portal"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
             <label for="shipany_region" class="text-xs font-medium text-gray-600">Region</label>
             <select id="shipany_region" name="shipany_region"
                     value={settingValue('shipany_region')}
@@ -768,7 +794,13 @@
                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 {#if shipanyCouriersLoaded && !shipanyCouriersLoading}
-                  <p class="text-xs text-gray-400">Couldn't load courier list — check credentials and Refresh.</p>
+                  <p class="text-xs text-gray-400">
+                    {#if shipanyCouriersError}
+                      Couldn't load courier list: {shipanyCouriersError}
+                    {:else}
+                      Couldn't load courier list — check credentials and Refresh.
+                    {/if}
+                  </p>
                 {/if}
               {/if}
             </div>

@@ -153,21 +153,26 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 
 // ── Admin ──────────────────────────────────────────────────────────────
 
+type listCouriersResponse struct {
+	Couriers []Courier `json:"couriers"`
+	Error    string    `json:"error,omitempty"`
+}
+
 func (h *Handler) listCouriers(w http.ResponseWriter, r *http.Request) {
 	couriers, err := h.svc.ListCouriers(r.Context())
 	if errors.Is(err, ErrNotConfigured) {
-		respond.JSON(w, http.StatusOK, []Courier{})
+		respond.JSON(w, http.StatusOK, listCouriersResponse{Couriers: []Courier{}, Error: "ShipAny is not configured."})
 		return
 	}
 	if err != nil {
 		log.Printf("shipany list-couriers: %v", err)
-		respond.JSON(w, http.StatusOK, []Courier{})
+		respond.JSON(w, http.StatusOK, listCouriersResponse{Couriers: []Courier{}, Error: err.Error()})
 		return
 	}
 	if couriers == nil {
 		couriers = []Courier{}
 	}
-	respond.JSON(w, http.StatusOK, couriers)
+	respond.JSON(w, http.StatusOK, listCouriersResponse{Couriers: couriers})
 }
 
 func (h *Handler) testConnection(w http.ResponseWriter, r *http.Request) {
