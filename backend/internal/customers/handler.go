@@ -2,6 +2,7 @@ package customers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -40,6 +41,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Put("/me/addresses/{addressID}", h.updateAddress)
 		r.Delete("/me/addresses/{addressID}", h.deleteAddress)
 		r.Get("/me/orders", h.listOrders)
+		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
 	})
 	return r
 }
@@ -244,6 +246,28 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, orders)
+}
+
+// lookupOrder resolves a sequential order display number (e.g. ORD-8 → 8)
+// to the underlying UUID. Customer-scoped: only resolves orders owned by the
+// authenticated customer, so sequential IDs cannot be enumerated.
+func (h *Handler) lookupOrder(w http.ResponseWriter, r *http.Request) {
+	customerID := auth.CustomerIDFromContext(r.Context())
+	n, err := strconv.ParseInt(chi.URLParam(r, "number"), 10, 64)
+	if err != nil || n <= 0 {
+		respond.NotFound(w)
+		return
+	}
+	id, err := h.svc.GetOrderIDByNumber(r.Context(), customerID, n)
+	if errors.Is(err, sql.ErrNoRows) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]string{"id": id})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

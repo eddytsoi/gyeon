@@ -201,6 +201,9 @@ export const deleteMyAddress = (token: string, id: string) =>
 export const getMyOrders = (token: string, limit = 20, offset = 0) =>
   request<Order[]>(`/customers/me/orders?limit=${limit}&offset=${offset}`, authed(token));
 
+export const lookupMyOrder = (token: string, n: string) =>
+  request<{ id: string }>(`/customers/me/orders/lookup/${n}`, authed(token));
+
 // --- Saved payment methods ---
 
 export const getMySavedCards = (token: string) =>

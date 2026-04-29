@@ -32,11 +32,11 @@
     <div class="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
       {#each data.orders as order}
         <a
-          href="/account/orders/{order.id}"
+          href="/account/orders/ORD-{order.number}"
           class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
         >
           <div class="flex flex-col gap-0.5">
-            <p class="text-sm font-semibold text-gray-900">#{order.id.slice(0, 8).toUpperCase()}</p>
+            <p class="text-sm font-semibold text-gray-900 font-mono">ORD-{order.number}</p>
             <p class="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
           </div>
           <div class="flex items-center gap-4">

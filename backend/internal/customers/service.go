@@ -406,6 +406,7 @@ func (s *Service) ConsumeSetupToken(ctx context.Context, token, password string)
 
 type OrderSummary struct {
 	ID        string  `json:"id"`
+	Number    int64   `json:"number"`
 	Status    string  `json:"status"`
 	Total     float64 `json:"total"`
 	CreatedAt string  `json:"created_at"`
@@ -413,7 +414,7 @@ type OrderSummary struct {
 
 func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offset int) ([]OrderSummary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, status, total, created_at FROM orders
+		`SELECT id, number, status, total, created_at FROM orders
 		 WHERE customer_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		customerID, limit, offset)
 	if err != nil {
@@ -424,10 +425,21 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	orders := make([]OrderSummary, 0)
 	for rows.Next() {
 		var o OrderSummary
-		if err := rows.Scan(&o.ID, &o.Status, &o.Total, &o.CreatedAt); err != nil {
+		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.Total, &o.CreatedAt); err != nil {
 			return nil, err
 		}
 		orders = append(orders, o)
 	}
 	return orders, rows.Err()
+}
+
+// GetOrderIDByNumber resolves a sequential order display number to the
+// underlying UUID, scoped to the given customer. Returns sql.ErrNoRows if
+// the number does not exist or belongs to another customer.
+func (s *Service) GetOrderIDByNumber(ctx context.Context, customerID string, n int64) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM orders WHERE number=$1 AND customer_id=$2`,
+		n, customerID).Scan(&id)
+	return id, err
 }
