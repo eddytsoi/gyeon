@@ -241,6 +241,14 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	return &p, nil
 }
 
+// GetIDByNumber resolves a sequential display number to its UUID.
+// Returns sql.ErrNoRows if no row matches.
+func (s *ProductService) GetIDByNumber(ctx context.Context, n int64) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM products WHERE number = $1`, n).Scan(&id)
+	return id, err
+}
+
 func (s *ProductService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM products WHERE id = $1`, id)
 	if err != nil {

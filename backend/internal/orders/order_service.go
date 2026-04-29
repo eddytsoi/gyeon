@@ -845,6 +845,14 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 	return orders, rows.Err()
 }
 
+// GetIDByNumber resolves a sequential display number to its UUID.
+// Returns sql.ErrNoRows if no row matches.
+func (s *OrderService) GetIDByNumber(ctx context.Context, n int64) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM orders WHERE number = $1`, n).Scan(&id)
+	return id, err
+}
+
 // Delete removes an order and its dependent rows (cascade on order_items
 // and order_status_history). Used by the admin order list "Delete" action.
 func (s *OrderService) Delete(ctx context.Context, id string) error {

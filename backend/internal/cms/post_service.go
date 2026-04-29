@@ -229,6 +229,14 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 	return &p, nil
 }
 
+// GetIDByNumber resolves a sequential display number to its UUID.
+// Returns sql.ErrNoRows if no row matches.
+func (s *PostService) GetIDByNumber(ctx context.Context, n int64) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM cms_posts WHERE number = $1`, n).Scan(&id)
+	return id, err
+}
+
 func (s *PostService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_posts WHERE id = $1`, id)
 	if err != nil {
