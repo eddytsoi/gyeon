@@ -30,6 +30,28 @@
     history.replaceState(null, '', `#${id}`);
   }
 
+  // ── Tab magnetic spotlight ───────────────────────────────────────
+  let tabsEl = $state<HTMLElement | undefined>();
+  let tabSpotlight = $state({ visible: false, left: 0, width: 0, height: 0 });
+
+  function moveTabSpotlightTo(btn: Element | null) {
+    if (!btn || !tabsEl || !tabsEl.contains(btn)) { tabSpotlight.visible = false; return; }
+    const tabsRect = tabsEl.getBoundingClientRect();
+    const btnRect  = btn.getBoundingClientRect();
+    tabSpotlight = {
+      visible: true,
+      left:    btnRect.left - tabsRect.left + tabsEl.scrollLeft,
+      width:   btnRect.width,
+      height:  btnRect.height,
+    };
+  }
+
+  function onTabsMouseMove(e: MouseEvent) {
+    moveTabSpotlightTo((e.target as HTMLElement | null)?.closest('button') ?? null);
+  }
+
+  function onTabsMouseLeave() { tabSpotlight.visible = false; }
+
   // ── Test Email Modal ─────────────────────────────────────────────
   let showTestEmailModal = $state(false);
   let testEmailAddress = $state('');
@@ -176,11 +198,21 @@
     <h1 class="text-2xl font-bold text-gray-900">Site Settings</h1>
   </div>
 
-  <div class="flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto overflow-y-hidden">
+  <div bind:this={tabsEl}
+       onmousemove={onTabsMouseMove}
+       onmouseleave={onTabsMouseLeave}
+       class="relative flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto overflow-y-hidden">
+    <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered tab -->
+    <div aria-hidden="true"
+         class="pointer-events-none absolute z-0 rounded-lg bg-gray-100
+                transition-[transform,width,opacity] duration-[80ms] ease-out
+                {tabSpotlight.visible ? 'opacity-100' : 'opacity-0'}"
+         style="top: 0; left: 0; transform: translate3d({tabSpotlight.left}px, 0, 0); width: {tabSpotlight.width}px; height: {tabSpotlight.height}px;">
+    </div>
     {#each TABS as t}
       <button type="button"
               onclick={() => setTab(t.id)}
-              class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors
+              class="relative z-10 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors
                      {activeTab === t.id
                        ? 'border-gray-900 text-gray-900'
                        : 'border-transparent text-gray-400 hover:text-gray-700'}">

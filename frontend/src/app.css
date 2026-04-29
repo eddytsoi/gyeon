@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /*
+   * Prevent Mobile Safari zoom-in on focus.
+   * Safari zooms when computed font-size < 16px. We force 16px here
+   * (Safari reads CSS font-size, not post-transform visual size),
+   * then scale back to visually match the original text-sm (14px) design.
+   * Scale = 14/16 = 7/8 = 0.875
+   */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+    transform: scale(0.875);
+    transform-origin: left center;
+  }
+
+  /* Width compensation: expand then scale back so w-full inputs still fill container */
+  input.w-full,
+  textarea.w-full,
+  select.w-full {
+    width: calc(100% * 8 / 7) !important; /* = 100% / 0.875 ≈ 114.3% */
+    margin-right: calc(-100% / 7) !important; /* collapse extra layout space ≈ -14.3% */
+  }
+}
