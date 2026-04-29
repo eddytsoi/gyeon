@@ -114,6 +114,20 @@ type PickupPoint struct {
 	Carrier  string `json:"carrier,omitempty"`
 }
 
+// Courier is one row from ShipAny's `GET couriers/` endpoint. The admin
+// settings UI uses this to populate the "default courier" dropdown so the
+// operator picks by name instead of pasting opaque UIDs.
+type Courier struct {
+	UID      string         `json:"uid"`
+	Name     string         `json:"name"`
+	SvcPlans []CourierSvcPl `json:"cour_svc_plans,omitempty"`
+}
+
+type CourierSvcPl struct {
+	CourSvcPl string `json:"cour_svc_pl"`
+	IsIntl    bool   `json:"is_intl,omitempty"`
+}
+
 type CreateShipmentRequest struct {
 	Carrier       string  // cour_uid
 	Service       string  // cour_svc_pl (optional)
@@ -187,6 +201,17 @@ func (c *HTTPClient) Quote(ctx context.Context, req QuoteRequest) ([]RateOption,
 		})
 	}
 	return out, nil
+}
+
+// ListCouriers returns every courier the merchant has enabled in their
+// ShipAny portal. The list is unfiltered — caller can intersect with
+// merchants/self.desig_cours if a subset is ever needed.
+func (c *HTTPClient) ListCouriers(ctx context.Context) ([]Courier, error) {
+	var resp envelope[Courier]
+	if _, err := c.do(ctx, http.MethodGet, "couriers/", nil, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Data.Objects, nil
 }
 
 // ListPickupPoints returns ShipAny's full set of service points; carrier and

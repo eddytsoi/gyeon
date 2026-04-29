@@ -86,6 +86,15 @@ func (s *Service) PickupPoints(ctx context.Context, carrier, district string) ([
 	return s.client.ListPickupPoints(ctx, carrier, district)
 }
 
+// ListCouriers fetches the merchant's enabled couriers for the admin
+// settings dropdown. Returns ErrNotConfigured when credentials are blank.
+func (s *Service) ListCouriers(ctx context.Context) ([]Courier, error) {
+	if !s.Configured(ctx) {
+		return nil, ErrNotConfigured
+	}
+	return s.client.ListCouriers(ctx)
+}
+
 // ── Shipments ──────────────────────────────────────────────────────────
 
 type DBShipment struct {

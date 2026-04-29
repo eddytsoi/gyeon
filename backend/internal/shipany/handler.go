@@ -35,6 +35,7 @@ func (h *Handler) PublicRoutes() chi.Router {
 func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/test-connection", h.testConnection)
+	r.Get("/couriers", h.listCouriers)
 	r.Get("/orders/{id}/shipment", h.getShipment)
 	r.Post("/orders/{id}/shipment", h.createShipment)
 	r.Post("/orders/{id}/pickup", h.requestPickup)
@@ -151,6 +152,23 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // ── Admin ──────────────────────────────────────────────────────────────
+
+func (h *Handler) listCouriers(w http.ResponseWriter, r *http.Request) {
+	couriers, err := h.svc.ListCouriers(r.Context())
+	if errors.Is(err, ErrNotConfigured) {
+		respond.JSON(w, http.StatusOK, []Courier{})
+		return
+	}
+	if err != nil {
+		log.Printf("shipany list-couriers: %v", err)
+		respond.JSON(w, http.StatusOK, []Courier{})
+		return
+	}
+	if couriers == nil {
+		couriers = []Courier{}
+	}
+	respond.JSON(w, http.StatusOK, couriers)
+}
 
 func (h *Handler) testConnection(w http.ResponseWriter, r *http.Request) {
 	if !h.svc.Configured(r.Context()) {

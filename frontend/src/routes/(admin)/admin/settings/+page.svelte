@@ -218,6 +218,58 @@
 
   const SHIPANY_STORAGE_OPTIONS = ['Normal', 'Cold', 'Frozen'];
 
+  type ShipanyCourier = {
+    uid: string;
+    name: string;
+    cour_svc_plans?: { cour_svc_pl: string }[];
+  };
+
+  let shipanyCouriers = $state<ShipanyCourier[]>([]);
+  let shipanyCouriersLoading = $state(false);
+  let shipanyCouriersLoaded = $state(false);
+  let shipanyCourierUID = $state(settingValue('shipany_default_courier'));
+  let shipanyServicePl = $state(settingValue('shipany_default_service'));
+
+  const selectedCourierSvcPlans = $derived(
+    shipanyCouriers.find((c) => c.uid === shipanyCourierUID)?.cour_svc_plans ?? []
+  );
+
+  async function loadShipanyCouriers() {
+    shipanyCouriersLoading = true;
+    try {
+      const res = await fetch('/api/v1/admin/shipany/couriers', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const body = await res.json();
+        shipanyCouriers = Array.isArray(body) ? body : [];
+      } else {
+        shipanyCouriers = [];
+      }
+    } catch {
+      shipanyCouriers = [];
+    } finally {
+      shipanyCouriersLoading = false;
+      shipanyCouriersLoaded = true;
+    }
+  }
+
+  $effect(() => {
+    if (activeTab === 'logistics' && !shipanyCouriersLoaded && !shipanyCouriersLoading) {
+      loadShipanyCouriers();
+    }
+  });
+
+  function onCourierChange(uid: string) {
+    shipanyCourierUID = uid;
+    // Reset service plan when courier changes — the previous plan is unlikely
+    // to belong to the new courier.
+    const plans = shipanyCouriers.find((c) => c.uid === uid)?.cour_svc_plans ?? [];
+    if (!plans.some((p) => p.cour_svc_pl === shipanyServicePl)) {
+      shipanyServicePl = '';
+    }
+  }
+
   async function testShipanyConnection() {
     shipanyTestingConnection = true;
     shipanyTestResult = null;
@@ -688,24 +740,60 @@
               </select>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label for="shipany_default_courier" class="text-xs font-medium text-gray-600">
-                Default courier UID <span class="text-gray-400 font-normal">(cour_uid)</span>
-              </label>
-              <input id="shipany_default_courier" name="shipany_default_courier" type="text"
-                     value={settingValue('shipany_default_courier')}
-                     placeholder="optional, from /couriers/"
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <div class="flex items-center justify-between gap-2">
+                <label for="shipany_default_courier" class="text-xs font-medium text-gray-600">
+                  Default courier <span class="text-gray-400 font-normal">(cour_uid)</span>
+                </label>
+                <button type="button" onclick={loadShipanyCouriers}
+                        disabled={shipanyCouriersLoading}
+                        class="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50">
+                  {shipanyCouriersLoading ? 'Loading…' : 'Refresh'}
+                </button>
+              </div>
+              {#if shipanyCouriers.length > 0}
+                <select id="shipany_default_courier" name="shipany_default_courier"
+                        value={shipanyCourierUID}
+                        onchange={(e) => onCourierChange((e.currentTarget as HTMLSelectElement).value)}
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                               focus:outline-none focus:ring-2 focus:ring-gray-900">
+                  <option value="">— None —</option>
+                  {#each shipanyCouriers as c}
+                    <option value={c.uid} selected={shipanyCourierUID === c.uid}>{c.name}</option>
+                  {/each}
+                </select>
+              {:else}
+                <input id="shipany_default_courier" name="shipany_default_courier" type="text"
+                       bind:value={shipanyCourierUID}
+                       placeholder="optional, paste cour_uid from /couriers/"
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {#if shipanyCouriersLoaded && !shipanyCouriersLoading}
+                  <p class="text-xs text-gray-400">Couldn't load courier list — check credentials and Refresh.</p>
+                {/if}
+              {/if}
             </div>
             <div class="flex flex-col gap-1.5">
               <label for="shipany_default_service" class="text-xs font-medium text-gray-600">
                 Default service plan <span class="text-gray-400 font-normal">(cour_svc_pl)</span>
               </label>
-              <input id="shipany_default_service" name="shipany_default_service" type="text"
-                     value={settingValue('shipany_default_service')}
-                     placeholder="optional"
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              {#if selectedCourierSvcPlans.length > 0}
+                <select id="shipany_default_service" name="shipany_default_service"
+                        bind:value={shipanyServicePl}
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                               focus:outline-none focus:ring-2 focus:ring-gray-900">
+                  <option value="">— Auto —</option>
+                  {#each selectedCourierSvcPlans as p}
+                    <option value={p.cour_svc_pl} selected={shipanyServicePl === p.cour_svc_pl}>{p.cour_svc_pl}</option>
+                  {/each}
+                </select>
+              {:else}
+                <input id="shipany_default_service" name="shipany_default_service" type="text"
+                       bind:value={shipanyServicePl}
+                       placeholder={shipanyCourierUID ? 'optional' : 'pick a courier first'}
+                       disabled={shipanyCouriers.length > 0 && !shipanyCourierUID}
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                              focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50" />
+              {/if}
             </div>
             <div class="flex flex-col gap-1.5 col-span-2">
               <label for="shipany_order_ref_suffix" class="text-xs font-medium text-gray-600">
