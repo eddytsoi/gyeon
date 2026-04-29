@@ -291,7 +291,7 @@
           <p class="text-xs text-gray-400 -mt-0.5">e.g. https://your-store.com</p>
           <input id="wc_url" type="url" placeholder="https://your-store.com"
                  bind:value={wcUrl}
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5">
@@ -301,7 +301,7 @@
           <p class="text-xs text-gray-400 -mt-0.5">WooCommerce → Settings → Advanced → REST API</p>
           <input id="wc_key" type="text" placeholder="ck_..."
                  bind:value={wcKey}
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5">
@@ -310,7 +310,7 @@
           </label>
           <input id="wc_secret" type="password" placeholder="cs_..."
                  bind:value={wcSecret}
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>

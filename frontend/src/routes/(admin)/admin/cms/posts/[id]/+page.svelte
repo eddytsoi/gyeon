@@ -107,7 +107,7 @@
                              text-sm text-gray-400 select-none">/blog/</span>
                 <input type="text" name="slug" bind:value={slug}
                        required placeholder="post-url-slug"
-                       class="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-r-xl text-sm
+                       class="w-full flex-1 px-3.5 py-2.5 border border-gray-200 rounded-r-xl text-sm
                               text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                               focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
               </div>

@@ -579,7 +579,7 @@
             {:else}
               <div class="flex gap-2">
                 <input type="text" bind:value={couponCode} placeholder="優惠券代碼"
-                       class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm
+                       class="w-full flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900"
                        onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), applyCoupon())} />
                 <button type="button" onclick={applyCoupon}

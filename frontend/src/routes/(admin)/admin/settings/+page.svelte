@@ -360,7 +360,7 @@
             <input id="stripe_test_publishable_key" name="stripe_test_publishable_key"
                    type="password" value={settingValue('stripe_test_publishable_key')}
                    placeholder="pk_test_..."
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
@@ -368,7 +368,7 @@
             <input id="stripe_test_secret_key" name="stripe_test_secret_key"
                    type="password" value={settingValue('stripe_test_secret_key')}
                    placeholder="sk_test_..."
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         </div>
@@ -385,7 +385,7 @@
             <input id="stripe_live_publishable_key" name="stripe_live_publishable_key"
                    type="password" value={settingValue('stripe_live_publishable_key')}
                    placeholder="pk_live_..."
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
@@ -393,7 +393,7 @@
             <input id="stripe_live_secret_key" name="stripe_live_secret_key"
                    type="password" value={settingValue('stripe_live_secret_key')}
                    placeholder="sk_live_..."
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         </div>
@@ -411,7 +411,7 @@
           <input id="stripe_webhook_secret" name="stripe_webhook_secret"
                  type="password" value={settingValue('stripe_webhook_secret')}
                  placeholder="whsec_..."
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>
@@ -461,7 +461,7 @@
                    type={field.password ? 'password' : 'text'}
                    value={settingValue(field.key)}
                    placeholder={field.placeholder}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         {/each}
@@ -525,7 +525,7 @@
                      type={setting.key === 'cloudflare_api_token' ? 'password' : 'text'}
                      value={setting.value}
                      placeholder={CLOUDFLARE_PLACEHOLDERS[setting.key] ?? ''}
-                     class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
           {/each}
@@ -578,7 +578,7 @@
                   <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
                 {/if}
                 <input id={setting.key} name={setting.key} value={setting.value}
-                       class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
               </div>
             {/each}

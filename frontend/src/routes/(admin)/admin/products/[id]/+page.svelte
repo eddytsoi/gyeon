@@ -231,14 +231,14 @@
           <label for="name" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
           <input id="name" name="name" required bind:value={name}
                  oninput={() => { autoSlug = true; }}
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="slug" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Slug *</label>
           <input id="slug" name="slug" required bind:value={slug}
                  oninput={() => { autoSlug = false; }}
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
         </div>
         <div class="flex flex-col gap-1.5">
@@ -266,7 +266,7 @@
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</label>
           <textarea id="description" name="description" rows="4"
-                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.description ?? ''}</textarea>
         </div>
@@ -518,25 +518,25 @@
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
-            <input name="sku" required class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+            <input name="sku" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                    focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
             <input name="price" type="number" step="0.01" min="0" required
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
             <input name="compare_at_price" type="number" step="0.01" min="0"
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stock Qty</label>
             <input name="stock_qty" type="number" min="0" value="0"
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         </div>
@@ -626,26 +626,26 @@
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
             <input name="sku" required value={editingVariant.sku}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
             <input name="price" type="number" step="0.01" min="0" required value={editingVariant.price}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
             <input name="compare_at_price" type="number" step="0.01" min="0"
                    value={editingVariant.compare_at_price ?? ''}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stock Qty</label>
             <input name="stock_qty" type="number" min="0" value={editingVariant.stock_qty}
-                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
@@ -723,7 +723,7 @@
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Delta</label>
           <p class="text-xs text-gray-400 mb-1">Positive to add stock, negative to remove.</p>
           <input name="delta" type="number" required value="0"
-                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex gap-3">
@@ -884,7 +884,7 @@
             <div class="flex-1 flex flex-col gap-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alt Text</label>
               <input name="alt_text" placeholder="Optional"
-                     class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
           </div>
