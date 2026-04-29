@@ -4,6 +4,7 @@
   import { notify } from '$lib/stores/notifications.svelte';
   import type { Order } from '$lib/types';
   import type { PageData } from './$types';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -45,7 +46,8 @@
 
 <h1 class="text-2xl font-bold text-gray-900 mb-8">Orders</h1>
 
-<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+     use:spotlight={{ selector: '.js-row' }}>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
@@ -58,7 +60,7 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {#each data.orders as order}
-        <tr class="hover:bg-gray-50 transition-colors">
+        <tr class="js-row transition-colors">
           <td class="px-5 py-3 font-mono text-xs text-gray-700">
             ORD-{order.number}
           </td>
