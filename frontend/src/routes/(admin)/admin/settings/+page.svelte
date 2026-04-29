@@ -13,6 +13,7 @@
   const TABS = [
     { id: 'general',        label: 'General' },
     { id: 'commerce',       label: 'Commerce' },
+    { id: 'logistics',      label: 'Logistics' },
     { id: 'email',          label: 'Email' },
     { id: 'infrastructure', label: 'Infrastructure' }
   ] as const;
@@ -102,6 +103,28 @@
     'stripe_save_cards',
     'stripe_webhook_secret'
   ]);
+  const SHIPANY_KEYS = new Set([
+    'shipany_enabled',
+    'shipany_user_id',
+    'shipany_api_key',
+    'shipany_webhook_secret',
+    'shipany_region',
+    'shipany_origin_name',
+    'shipany_origin_phone',
+    'shipany_origin_line1',
+    'shipany_origin_line2',
+    'shipany_origin_district',
+    'shipany_origin_city',
+    'shipany_origin_postal',
+    'shipany_default_weight_grams',
+    'shipany_default_courier',
+    'shipany_default_service',
+    'shipany_default_storage_type',
+    'shipany_paid_by_receiver',
+    'shipany_self_drop_off',
+    'shipany_order_ref_suffix',
+    'shipany_show_courier_tracking_number'
+  ]);
   const SMTP_KEYS = new Set([
     'smtp_host',
     'smtp_port',
@@ -139,7 +162,8 @@
         !MEDIA_LIMIT_KEYS.has(s.key) &&
         !PAYMENT_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
-        !SHIPPING_KEYS.has(s.key)
+        !SHIPPING_KEYS.has(s.key) &&
+        !SHIPANY_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -176,6 +200,53 @@
 
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
   let stripeSaveCards = $state(settingValue('stripe_save_cards') === 'true');
+
+  // ── ShipAny ─────────────────────────────────────────────────────
+  let shipanyOn = $state(settingValue('shipany_enabled') === 'true');
+  let shipanyPaidByReceiver = $state(settingValue('shipany_paid_by_receiver') === 'true');
+  let shipanySelfDropOff = $state(settingValue('shipany_self_drop_off') === 'true');
+  let shipanyShowCourierTracking = $state(settingValue('shipany_show_courier_tracking_number') === 'true');
+  let shipanyTestingConnection = $state(false);
+  let shipanyTestResult = $state<{ ok: boolean; message: string } | null>(null);
+
+  const SHIPANY_REGION_OPTIONS = [
+    { value: '',    label: 'Hong Kong (api.shipany.io)' },
+    { value: '-tw', label: 'Taiwan (api-tw.shipany.io)' },
+    { value: '-sg', label: 'Singapore (api-sg.shipany.io)' },
+    { value: '-th', label: 'Thailand (api-th.shipany.io)' }
+  ];
+
+  const SHIPANY_STORAGE_OPTIONS = ['Normal', 'Cold', 'Frozen'];
+
+  async function testShipanyConnection() {
+    shipanyTestingConnection = true;
+    shipanyTestResult = null;
+    try {
+      const res = await fetch('/api/v1/admin/shipany/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const body = await res.json();
+        shipanyTestResult = { ok: !!body.ok, message: body.message ?? '' };
+        if (body.ok) {
+          notify.success('ShipAny connected', body.message || '');
+        } else {
+          notify.error('ShipAny connection failed', body.message || '');
+        }
+      } else {
+        const msg = `Server returned ${res.status}`;
+        shipanyTestResult = { ok: false, message: msg };
+        notify.error('ShipAny connection failed', msg);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Network error';
+      shipanyTestResult = { ok: false, message: msg };
+      notify.error('ShipAny connection failed', msg);
+    } finally {
+      shipanyTestingConnection = false;
+    }
+  }
 
   // ── SMTP ────────────────────────────────────────────────────────
   const SMTP_FIELDS: Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }> = [
@@ -439,6 +510,290 @@
     </div>
 
     </div><!-- /Commerce tab -->
+
+    <!-- Logistics tab -->
+    <div class:hidden={activeTab !== 'logistics'}>
+    <!-- Logistics (ShipAny) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">ShipAny</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Live shipping rates at checkout, label printing, pickup booking and tracking via
+            <a href="https://www.shipany.io" target="_blank" rel="noopener" class="underline hover:text-gray-700">ShipAny</a>.
+            Hong Kong only.
+          </p>
+        </div>
+        <button type="button"
+                onclick={() => (shipanyOn = !shipanyOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {shipanyOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={shipanyOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {shipanyOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="shipany_enabled" value={shipanyOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="{shipanyOn ? '' : 'opacity-50 pointer-events-none'}">
+        <!-- Credentials -->
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Credentials</p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="shipany_user_id" class="text-xs font-medium text-gray-600">
+              User ID <span class="text-gray-400 font-normal">(informational)</span>
+            </label>
+            <input id="shipany_user_id" name="shipany_user_id" type="text"
+                   value={settingValue('shipany_user_id')}
+                   placeholder="fac0f9cf-…"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="shipany_api_key" class="text-xs font-medium text-gray-600">
+              API Key
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">
+              From portal.shipany.io → Settings. Env-prefixed keys (SHIPANYDEV / SHIPANYSBX1 / SHIPANYDEMO) are auto-routed to the right subdomain.
+            </p>
+            <input id="shipany_api_key" name="shipany_api_key" type="password"
+                   value={settingValue('shipany_api_key')}
+                   placeholder="paste API token"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="shipany_region" class="text-xs font-medium text-gray-600">Region</label>
+            <select id="shipany_region" name="shipany_region"
+                    value={settingValue('shipany_region')}
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              {#each SHIPANY_REGION_OPTIONS as opt}
+                <option value={opt.value} selected={settingValue('shipany_region') === opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="shipany_webhook_secret" class="text-xs font-medium text-gray-600">
+              Webhook Signing Secret <span class="text-gray-400 font-normal">(optional, untested)</span>
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">
+              ShipAny mostly delivers tracking via polling. If your account supports push callbacks,
+              register <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/shipany/webhook</code>
+              and paste the HMAC secret here.
+            </p>
+            <input id="shipany_webhook_secret" name="shipany_webhook_secret" type="password"
+                   value={settingValue('shipany_webhook_secret')}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+
+        <!-- Pickup origin (warehouse address) -->
+        <div class="pt-5 mt-5 border-t border-gray-100">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pickup Origin</p>
+          <p class="text-xs text-gray-400 mb-4">
+            Sender address used for rate quoting and waybill generation. Falls back to merchant info from the portal when blank.
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_name" class="text-xs font-medium text-gray-600">Contact name</label>
+              <input id="shipany_origin_name" name="shipany_origin_name" type="text"
+                     value={settingValue('shipany_origin_name')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_phone" class="text-xs font-medium text-gray-600">Contact phone</label>
+              <input id="shipany_origin_phone" name="shipany_origin_phone" type="tel"
+                     value={settingValue('shipany_origin_phone')}
+                     placeholder="98765432"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5 col-span-2">
+              <label for="shipany_origin_line1" class="text-xs font-medium text-gray-600">Address line 1</label>
+              <input id="shipany_origin_line1" name="shipany_origin_line1" type="text"
+                     value={settingValue('shipany_origin_line1')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5 col-span-2">
+              <label for="shipany_origin_line2" class="text-xs font-medium text-gray-600">Address line 2</label>
+              <input id="shipany_origin_line2" name="shipany_origin_line2" type="text"
+                     value={settingValue('shipany_origin_line2')}
+                     placeholder="Building / floor / unit"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_district" class="text-xs font-medium text-gray-600">District</label>
+              <input id="shipany_origin_district" name="shipany_origin_district" type="text" list="hk-districts-origin"
+                     value={settingValue('shipany_origin_district')}
+                     placeholder="觀塘區"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <datalist id="hk-districts-origin">
+                {#each ['中西區','灣仔區','東區','南區','油尖旺區','深水埗區','九龍城區','黃大仙區','觀塘區','葵青區','荃灣區','屯門區','元朗區','北區','大埔區','沙田區','西貢區','離島區'] as d}
+                  <option value={d}></option>
+                {/each}
+              </datalist>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_city" class="text-xs font-medium text-gray-600">City</label>
+              <input id="shipany_origin_city" name="shipany_origin_city" type="text"
+                     value={settingValue('shipany_origin_city')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_postal" class="text-xs font-medium text-gray-600">
+                Postal code <span class="text-gray-400 font-normal">(HK has none)</span>
+              </label>
+              <input id="shipany_origin_postal" name="shipany_origin_postal" type="text"
+                     value={settingValue('shipany_origin_postal')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Defaults -->
+        <div class="pt-5 mt-5 border-t border-gray-100">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Defaults</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_default_weight_grams" class="text-xs font-medium text-gray-600">
+                Fallback weight (grams)
+              </label>
+              <input id="shipany_default_weight_grams" name="shipany_default_weight_grams"
+                     type="number" min="1" step="50"
+                     value={settingValue('shipany_default_weight_grams')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_default_storage_type" class="text-xs font-medium text-gray-600">
+                Default storage temperature
+              </label>
+              <select id="shipany_default_storage_type" name="shipany_default_storage_type"
+                      value={settingValue('shipany_default_storage_type')}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                             focus:outline-none focus:ring-2 focus:ring-gray-900">
+                {#each SHIPANY_STORAGE_OPTIONS as t}
+                  <option value={t} selected={settingValue('shipany_default_storage_type') === t}>{t}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_default_courier" class="text-xs font-medium text-gray-600">
+                Default courier UID <span class="text-gray-400 font-normal">(cour_uid)</span>
+              </label>
+              <input id="shipany_default_courier" name="shipany_default_courier" type="text"
+                     value={settingValue('shipany_default_courier')}
+                     placeholder="optional, from /couriers/"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_default_service" class="text-xs font-medium text-gray-600">
+                Default service plan <span class="text-gray-400 font-normal">(cour_svc_pl)</span>
+              </label>
+              <input id="shipany_default_service" name="shipany_default_service" type="text"
+                     value={settingValue('shipany_default_service')}
+                     placeholder="optional"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5 col-span-2">
+              <label for="shipany_order_ref_suffix" class="text-xs font-medium text-gray-600">
+                Order ref suffix <span class="text-gray-400 font-normal">(appended to ext_order_ref)</span>
+              </label>
+              <input id="shipany_order_ref_suffix" name="shipany_order_ref_suffix" type="text"
+                     value={settingValue('shipany_order_ref_suffix')}
+                     placeholder="-GYE"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Behaviour toggles -->
+        <div class="pt-5 mt-5 border-t border-gray-100 flex flex-col gap-4">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-semibold text-gray-900">Paid by receiver</p>
+              <p class="text-xs text-gray-400 mt-0.5">Bill the recipient instead of the merchant.</p>
+            </div>
+            <button type="button"
+                    onclick={() => (shipanyPaidByReceiver = !shipanyPaidByReceiver)}
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                           transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                           {shipanyPaidByReceiver ? 'bg-green-500' : 'bg-gray-200'}"
+                    role="switch"
+                    aria-checked={shipanyPaidByReceiver}>
+              <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                           transition duration-200 {shipanyPaidByReceiver ? 'translate-x-5' : 'translate-x-0'}"></span>
+            </button>
+            <input type="hidden" name="shipany_paid_by_receiver" value={shipanyPaidByReceiver ? 'true' : 'false'} />
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-semibold text-gray-900">Self drop-off</p>
+              <p class="text-xs text-gray-400 mt-0.5">Drop parcels at the courier counter instead of door pickup.</p>
+            </div>
+            <button type="button"
+                    onclick={() => (shipanySelfDropOff = !shipanySelfDropOff)}
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                           transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                           {shipanySelfDropOff ? 'bg-green-500' : 'bg-gray-200'}"
+                    role="switch"
+                    aria-checked={shipanySelfDropOff}>
+              <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                           transition duration-200 {shipanySelfDropOff ? 'translate-x-5' : 'translate-x-0'}"></span>
+            </button>
+            <input type="hidden" name="shipany_self_drop_off" value={shipanySelfDropOff ? 'true' : 'false'} />
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <p class="text-sm font-semibold text-gray-900">Show courier tracking number</p>
+              <p class="text-xs text-gray-400 mt-0.5">Surface the courier-side tracking number to customers.</p>
+            </div>
+            <button type="button"
+                    onclick={() => (shipanyShowCourierTracking = !shipanyShowCourierTracking)}
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                           transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                           {shipanyShowCourierTracking ? 'bg-green-500' : 'bg-gray-200'}"
+                    role="switch"
+                    aria-checked={shipanyShowCourierTracking}>
+              <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                           transition duration-200 {shipanyShowCourierTracking ? 'translate-x-5' : 'translate-x-0'}"></span>
+            </button>
+            <input type="hidden" name="shipany_show_courier_tracking_number" value={shipanyShowCourierTracking ? 'true' : 'false'} />
+          </div>
+        </div>
+
+        <!-- Test connection -->
+        <div class="pt-5 mt-5 border-t border-gray-100 flex items-center gap-3">
+          <button type="button"
+                  onclick={testShipanyConnection}
+                  disabled={shipanyTestingConnection}
+                  class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                         hover:bg-gray-50 transition-colors disabled:opacity-50">
+            {shipanyTestingConnection ? 'Testing…' : 'Test connection'}
+          </button>
+          {#if shipanyTestResult}
+            <span class="text-xs {shipanyTestResult.ok ? 'text-green-600' : 'text-red-500'}">
+              {shipanyTestResult.ok ? '✓' : '✗'} {shipanyTestResult.message || (shipanyTestResult.ok ? 'Connected.' : 'Failed.')}
+            </span>
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /Logistics tab -->
 
     <!-- Email tab -->
     <div class:hidden={activeTab !== 'email'}>

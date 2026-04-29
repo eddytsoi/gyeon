@@ -25,9 +25,13 @@ export const load: PageServerLoad = async ({ cookies }) => {
     settings.find((s) => s.key === 'shipping_countries')?.value
   );
   const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
+  const shipanyEnabled = settings.find((s) => s.key === 'shipany_enabled')?.value === 'true';
 
   if (!token) {
-    return { token: null, customer: null, addresses: [], savedCards: [], saveCardsEnabled, paymentConfig, shippingCountries };
+    return {
+      token: null, customer: null, addresses: [], savedCards: [],
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+    };
   }
 
   try {
@@ -36,8 +40,14 @@ export const load: PageServerLoad = async ({ cookies }) => {
       getMyAddresses(token),
       saveCardsEnabled ? getMySavedCards(token).catch(() => []) : Promise.resolve([])
     ]);
-    return { token, customer, addresses, savedCards, saveCardsEnabled, paymentConfig, shippingCountries };
+    return {
+      token, customer, addresses, savedCards,
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+    };
   } catch {
-    return { token: null, customer: null, addresses: [], savedCards: [], saveCardsEnabled, paymentConfig, shippingCountries };
+    return {
+      token: null, customer: null, addresses: [], savedCards: [],
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+    };
   }
 };

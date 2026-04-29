@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { checkout, getVariantByID, validateCoupon } from '$lib/api';
+  import { checkout, getShipanyQuote, getVariantByID, validateCoupon, type ShipanyPickupPoint, type ShipanyRateOption } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
   import type { SavedPaymentMethod, Variant } from '$lib/types';
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
+  import PickupPointPicker from '$lib/components/PickupPointPicker.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -37,7 +38,17 @@
   const cityListId = 'checkout-city-options';
   const cityOptions = $derived(country === 'HK' ? HK_DISTRICTS : []);
 
-  // ── Remark (section 3) ────────────────────────────────────────
+  // ── ShipAny delivery method (section 3) ───────────────────────
+  let rateOptions = $state<ShipanyRateOption[]>([]);
+  let selectedRate = $state<ShipanyRateOption | null>(null);
+  let quoteLoading = $state(false);
+  let quoteError = $state('');
+  let quoteFetched = $state(false);
+  let pickupPoint = $state<ShipanyPickupPoint | null>(null);
+  let pickupPickerOpen = $state(false);
+  let quoteTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Remark (section 4) ────────────────────────────────────────
   let notes = $state('');
 
   // ── Coupon ────────────────────────────────────────────────────
@@ -86,7 +97,7 @@
     }, 0) ?? 0
   );
   const discount = $derived(couponResult?.valid ? (couponResult.discount_amount ?? 0) : 0);
-  const shippingFee = 0;
+  const shippingFee = $derived(selectedRate?.fee_hkd ?? 0);
   const total = $derived(subtotal - discount + shippingFee);
 
   const customerValid = $derived(
@@ -101,7 +112,76 @@
       : line1.trim() !== '' && country.trim() !== ''
   );
 
-  const formValid = $derived(customerValid && shippingValid && tcAccepted);
+  // Delivery method is only required when ShipAny is enabled. If the
+  // selected rate needs a pickup point, a point must also be chosen.
+  const deliveryValid = $derived(
+    !data.shipanyEnabled
+      ? true
+      : selectedRate !== null && (!selectedRate.requires_pickup_point || pickupPoint !== null)
+  );
+
+  const formValid = $derived(customerValid && shippingValid && deliveryValid && tcAccepted);
+
+  // Resolve the address payload that will be sent to the rate quoter.
+  // For "saved" mode we look up the chosen address; for "new" mode we use
+  // the live form values.
+  const quoteAddress = $derived.by(() => {
+    if (addressMode === 'saved') {
+      const a = data.addresses?.find((x) => x.id === selectedAddressID);
+      if (!a) return null;
+      return {
+        line1: a.line1, line2: a.line2 ?? undefined,
+        city: a.city, district: a.city,
+        postal_code: a.postal_code ?? '',
+        country: a.country
+      };
+    }
+    if (line1.trim() === '' || country.trim() === '') return null;
+    return {
+      line1: line1.trim(), city: city.trim(),
+      district: city.trim(),
+      postal_code: postalCode.trim(),
+      country: country.trim() || 'HK'
+    };
+  });
+
+  // Re-fetch quotes whenever the destination changes, debounced.
+  $effect(() => {
+    if (!data.shipanyEnabled || !activeCart) return;
+    const addr = quoteAddress;
+    if (!addr) return;
+    untrack(() => { selectedRate = null; pickupPoint = null; });
+    if (quoteTimer) clearTimeout(quoteTimer);
+    quoteTimer = setTimeout(() => {
+      void refreshQuote(addr);
+    }, 500);
+  });
+
+  async function refreshQuote(addr: NonNullable<typeof quoteAddress>) {
+    if (!activeCart) return;
+    quoteLoading = true;
+    quoteError = '';
+    try {
+      const rates = await getShipanyQuote(activeCart.id, {
+        line1: addr.line1, line2: addr.line2,
+        city: addr.city, district: addr.district,
+        postal_code: addr.postal_code,
+        country: addr.country
+      });
+      rateOptions = rates;
+      quoteFetched = true;
+    } catch (e) {
+      quoteError = e instanceof Error ? e.message : '無法取得運費報價';
+      rateOptions = [];
+    } finally {
+      quoteLoading = false;
+    }
+  }
+
+  function handlePickupSelected(p: ShipanyPickupPoint) {
+    pickupPoint = p;
+    pickupPickerOpen = false;
+  }
 
   onMount(async () => {
     if (!cartStore.cart) await cartStore.init();
@@ -185,7 +265,11 @@
         couponCode: couponResult?.valid ? couponCode.trim() : undefined,
         notes: notes.trim() || undefined,
         saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
-        savedPaymentMethodId: selectedCard?.stripe_pm_id
+        savedPaymentMethodId: selectedCard?.stripe_pm_id,
+        selectedCarrier: selectedRate?.carrier,
+        selectedService: selectedRate?.service,
+        pickupPointId: pickupPoint?.id,
+        pickupPointLabel: pickupPoint ? `${pickupPoint.name} — ${pickupPoint.address}` : undefined
       });
 
       pendingClientSecret = result.client_secret;
@@ -413,10 +497,77 @@
           {/if}
         </section>
 
-        <!-- ── 3. Remark ───────────────────────────────────────── -->
+        <!-- ── 3. Delivery method (ShipAny) ─────────────────────── -->
+        {#if data.shipanyEnabled}
+          <section class="bg-white rounded-2xl border border-gray-100 p-6">
+            <div class="flex items-center gap-3 mb-4">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">3</span>
+              <h2 class="font-semibold text-gray-900">送貨方式</h2>
+            </div>
+
+            {#if !shippingValid}
+              <p class="text-sm text-gray-400">請先填寫送貨地址。</p>
+            {:else if quoteLoading && rateOptions.length === 0}
+              <div class="flex flex-col gap-2">
+                {#each [0, 1, 2] as _}
+                  <div class="h-14 bg-gray-100 animate-pulse rounded-xl"></div>
+                {/each}
+              </div>
+            {:else if quoteError}
+              <p class="text-sm text-amber-600">
+                ⚠ {quoteError} — 將以免運費繼續結帳，請聯絡店主確認送貨。
+              </p>
+            {:else if quoteFetched && rateOptions.length === 0}
+              <p class="text-sm text-gray-500">此地址暫無可用送貨方式，將以免運費繼續結帳。</p>
+            {:else}
+              <div class="flex flex-col gap-2">
+                {#each rateOptions as rate}
+                  <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border
+                                {selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service
+                                  ? 'border-gray-900 bg-gray-50'
+                                  : 'border-gray-100 hover:border-gray-300'}">
+                    <input type="radio" name="shipany_rate"
+                           value="{rate.carrier}::{rate.service}"
+                           checked={selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service}
+                           onchange={() => { selectedRate = rate; pickupPoint = null; }}
+                           class="mt-0.5 accent-gray-900 flex-shrink-0" />
+                    <div class="flex-1 text-sm">
+                      <div class="flex items-baseline justify-between gap-3">
+                        <span class="font-medium text-gray-900">{rate.carrier_name}</span>
+                        <span class="font-semibold text-gray-900 whitespace-nowrap">HK${rate.fee_hkd.toFixed(2)}</span>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-0.5">
+                        {rate.service_name}{#if rate.eta_days} · {rate.eta_days} 天{/if}
+                      </p>
+                      {#if selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service && rate.requires_pickup_point}
+                        <div class="mt-2 flex items-center gap-3">
+                          {#if pickupPoint}
+                            <div class="text-xs text-gray-700">
+                              <p class="font-medium">{pickupPoint.name}</p>
+                              <p class="text-gray-500">{pickupPoint.address}</p>
+                            </div>
+                            <button type="button"
+                                    onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
+                                    class="text-xs text-gray-700 underline hover:text-gray-900">更改</button>
+                          {:else}
+                            <button type="button"
+                                    onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
+                                    class="text-xs text-gray-700 underline hover:text-gray-900">選擇取貨點 →</button>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </section>
+        {/if}
+
+        <!-- ── 4. Remark ───────────────────────────────────────── -->
         <section class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
-            <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">3</span>
+            <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">{data.shipanyEnabled ? '4' : '3'}</span>
             <h2 class="font-semibold text-gray-900">備註 <span class="font-normal text-gray-400 text-sm">（可選）</span></h2>
           </div>
           <textarea bind:value={notes}
@@ -426,10 +577,10 @@
                            focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"></textarea>
         </section>
 
-        <!-- ── 4. Payment ──────────────────────────────────────── -->
+        <!-- ── 5. Payment ──────────────────────────────────────── -->
         <section id="payment-section" class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
-            <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">4</span>
+            <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">{data.shipanyEnabled ? '5' : '4'}</span>
             <h2 class="font-semibold text-gray-900">付款方式</h2>
           </div>
 
@@ -608,7 +759,13 @@
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
               <span>運費</span>
-              <span class="text-green-600">免運費</span>
+              {#if selectedRate}
+                <span class="text-gray-900 font-medium">HK${selectedRate.fee_hkd.toFixed(2)}</span>
+              {:else if data.shipanyEnabled && shippingValid}
+                <span class="text-gray-400">請選擇送貨方式</span>
+              {:else}
+                <span class="text-green-600">免運費</span>
+              {/if}
             </div>
             <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
               <span>總額</span>
@@ -624,3 +781,12 @@
     </div>
   {/if}
 </div>
+
+{#if pickupPickerOpen && selectedRate}
+  <PickupPointPicker
+    carrier={selectedRate.carrier}
+    carrierName={selectedRate.carrier_name}
+    initialDistrict={addressMode === 'new' ? city.trim() : (data.addresses?.find((a) => a.id === selectedAddressID)?.city ?? '')}
+    onSelect={handlePickupSelected}
+    onClose={() => (pickupPickerOpen = false)} />
+{/if}

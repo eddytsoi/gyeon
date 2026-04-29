@@ -46,6 +46,10 @@ type Order struct {
 	PaymentStatus     *string          `json:"payment_status,omitempty"`
 	PaymentMethod     *string          `json:"payment_method,omitempty"`
 	PaidAt            *string          `json:"paid_at,omitempty"`
+	SelectedCarrier   *string          `json:"selected_carrier,omitempty"`
+	SelectedService   *string          `json:"selected_service,omitempty"`
+	PickupPointID     *string          `json:"pickup_point_id,omitempty"`
+	PickupPointLabel  *string          `json:"pickup_point_label,omitempty"`
 	Items             []OrderItem      `json:"items,omitempty"`
 	CreatedAt         string           `json:"created_at"`
 	UpdatedAt         string           `json:"updated_at"`
@@ -103,6 +107,12 @@ type CheckoutRequest struct {
 	ShippingFee       float64               `json:"shipping_fee"`
 	CouponCode        *string               `json:"coupon_code"`
 	Notes             *string               `json:"notes"`
+	// ShipAny delivery selection (optional). Populated when the storefront
+	// surfaces live rate quotes; null when ShipAny is disabled.
+	SelectedCarrier   *string               `json:"selected_carrier,omitempty"`
+	SelectedService   *string               `json:"selected_service,omitempty"`
+	PickupPointID     *string               `json:"pickup_point_id,omitempty"`
+	PickupPointLabel  *string               `json:"pickup_point_label,omitempty"`
 	// SaveCard, when true and the customer is logged in, triggers a SetupIntent
 	// alongside the PaymentIntent so the customer's card is saved for future use.
 	SaveCard bool `json:"save_card,omitempty"`
@@ -377,17 +387,22 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes, customer_email, customer_phone, customer_name, payment_status)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method')
+		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		                     customer_email, customer_phone, customer_name, payment_status,
+		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method', $11, $12, $13, $14)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
+		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, total, req.Notes,
-		emailPtr, phonePtr, namePtr).
+		emailPtr, phonePtr, namePtr,
+		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
+			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -767,12 +782,14 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
+		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
+			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrOrderNotFound
@@ -898,12 +915,14 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 		`UPDATE orders SET status = $2 WHERE id = $1
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
+		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		id, req.Status).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
+			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
 		return nil, err
