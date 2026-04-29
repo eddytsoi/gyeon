@@ -25,7 +25,21 @@
   };
 
   let updating = $state(false);
+  let creatingShipment = $state(false);
+  let requestingPickup = $state(false);
   const allowed = $derived(nextStatuses[data.order.status] ?? []);
+
+  // Carrier override fields shown when an order pre-dates ShipAny enablement
+  let carrierOverride = $state(data.order.selected_carrier ?? '');
+  let serviceOverride = $state(data.order.selected_service ?? '');
+
+  const canCreateShipment = $derived(
+    !data.shipment &&
+    (data.order.status === 'paid' || data.order.status === 'processing')
+  );
+  const pickupRequested = $derived(
+    data.shipment?.status !== 'created'
+  );
 
   function formatAddress(a: NonNullable<typeof data.order.shipping_address>) {
     return [a.line1, a.line2, [a.city, a.state].filter(Boolean).join(', '), a.postal_code, a.country]
@@ -173,6 +187,113 @@
       </tfoot>
     </table>
   </div>
+
+  <!-- ShipAny shipment card -->
+  {#if data.shipment || canCreateShipment}
+    <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Shipment</h3>
+        {#if data.shipment}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                       {data.shipment.status === 'delivered'
+                         ? 'bg-green-50 text-green-700'
+                         : data.shipment.status === 'in_transit'
+                         ? 'bg-violet-50 text-violet-700'
+                         : data.shipment.status === 'exception'
+                         ? 'bg-red-50 text-red-700'
+                         : 'bg-gray-100 text-gray-500'}">
+            {data.shipment.status}
+          </span>
+        {/if}
+      </div>
+
+      {#if data.shipment}
+        {@const s = data.shipment}
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between gap-2">
+            <span class="text-gray-400">Carrier</span>
+            <span class="font-medium text-gray-900 text-right">{s.carrier}</span>
+          </div>
+          <div class="flex justify-between gap-2">
+            <span class="text-gray-400">Service</span>
+            <span class="font-medium text-gray-900 text-right">{s.service}</span>
+          </div>
+          {#if s.tracking_number}
+            <div class="flex justify-between gap-2">
+              <span class="text-gray-400">Tracking #</span>
+              <a href={s.tracking_url ?? '#'} target="_blank" rel="noopener"
+                 class="font-mono text-gray-900 hover:text-gray-600 transition-colors text-right">
+                {s.tracking_number} ↗
+              </a>
+            </div>
+          {/if}
+          <div class="flex justify-between gap-2">
+            <span class="text-gray-400">Fee</span>
+            <span class="font-medium text-gray-900 text-right">HK${s.fee_hkd.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-4 mt-4 border-t border-gray-100">
+          {#if s.label_url}
+            <a href={s.label_url} target="_blank" rel="noopener"
+               class="px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
+                      hover:bg-gray-50 transition-colors">
+              Download Waybill PDF
+            </a>
+          {/if}
+          {#if !pickupRequested}
+            <form method="POST" action="?/requestPickup"
+                  use:enhance={() => { requestingPickup = true; return async ({ update }) => { await update(); requestingPickup = false; }; }}>
+              <button type="submit" disabled={requestingPickup}
+                      class="px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
+                             hover:bg-gray-50 transition-colors disabled:opacity-50">
+                {requestingPickup ? 'Requesting…' : 'Request Pickup'}
+              </button>
+            </form>
+          {:else}
+            <span class="px-3 py-2 text-xs text-gray-400">Pickup already requested</span>
+          {/if}
+        </div>
+      {:else}
+        <!-- No shipment yet → Create button -->
+        <form method="POST" action="?/createShipment"
+              use:enhance={() => { creatingShipment = true; return async ({ update }) => { await update(); creatingShipment = false; }; }}
+              class="flex flex-col gap-3">
+          {#if !data.order.selected_carrier}
+            <p class="text-xs text-gray-500 leading-relaxed">
+              This order pre-dates ShipAny enablement and has no carrier selected.
+              Pick one to create a shipment.
+            </p>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="carrier" bind:value={carrierOverride}
+                     placeholder="cour_uid (UUID)"
+                     class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+              <input name="service" bind:value={serviceOverride}
+                     placeholder="service plan name"
+                     class="border border-gray-200 rounded-lg px-3 py-2 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+            </div>
+          {:else}
+            <p class="text-xs text-gray-500">
+              Customer chose: <span class="font-medium text-gray-700">{data.order.selected_carrier} / {data.order.selected_service}</span>
+              {#if data.order.pickup_point_label}<br /><span class="text-gray-400">{data.order.pickup_point_label}</span>{/if}
+            </p>
+          {/if}
+
+          {#if form?.error}
+            <p class="text-sm text-red-500">{form.error}</p>
+          {/if}
+
+          <button type="submit" disabled={creatingShipment}
+                  class="self-start px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg
+                         hover:bg-gray-700 transition-colors disabled:opacity-50">
+            {creatingShipment ? 'Creating…' : 'Create Shipment'}
+          </button>
+        </form>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Payment Info — right half on desktop, full width on mobile -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

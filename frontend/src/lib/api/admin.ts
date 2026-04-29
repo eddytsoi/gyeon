@@ -318,6 +318,38 @@ export const adminBulkUpdateSettings = (token: string, updates: Record<string, s
 export const adminSendTestEmail = (token: string, to: string) =>
   request<Record<string, never>>('/admin/settings/test-email', token, { method: 'POST', body: JSON.stringify({ to }) });
 
+// ── ShipAny admin ─────────────────────────────────────────────────────────────
+
+export interface ShipanyShipment {
+  id: string;
+  order_id: string;
+  shipany_shipment_id: string;
+  tracking_number?: string;
+  tracking_url?: string;
+  label_url?: string;
+  carrier: string;
+  service: string;
+  fee_hkd: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const adminTestShipanyConnection = (token: string) =>
+  request<{ ok: boolean; message: string }>('/admin/shipany/test-connection', token, { method: 'POST' });
+
+export const adminGetShipment = (token: string, orderID: string) =>
+  request<ShipanyShipment | null>(`/admin/shipany/orders/${orderID}/shipment`, token);
+
+export const adminCreateShipment = (token: string, orderID: string, override?: { carrier: string; service: string }) =>
+  request<ShipanyShipment>(`/admin/shipany/orders/${orderID}/shipment`, token, {
+    method: 'POST',
+    body: override ? JSON.stringify(override) : '{}'
+  });
+
+export const adminRequestShipanyPickup = (token: string, orderID: string) =>
+  request<ShipanyShipment>(`/admin/shipany/orders/${orderID}/pickup`, token, { method: 'POST' });
+
 // ── Admin Users ───────────────────────────────────────────────────────────────
 
 export interface AdminUser {

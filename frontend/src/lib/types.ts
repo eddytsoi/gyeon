@@ -107,6 +107,10 @@ export interface Order {
   payment_status?: string;
   payment_method?: string;
   paid_at?: string;
+  selected_carrier?: string;
+  selected_service?: string;
+  pickup_point_id?: string;
+  pickup_point_label?: string;
   items: OrderItem[];
   items_count?: number;
   created_at: string;

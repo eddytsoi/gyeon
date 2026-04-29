@@ -56,6 +56,10 @@ export const checkout = (
     notes?: string;
     saveCard?: boolean;
     savedPaymentMethodId?: string;
+    selectedCarrier?: string;
+    selectedService?: string;
+    pickupPointId?: string;
+    pickupPointLabel?: string;
   } = {}
 ) =>
   request<CheckoutResult>('/orders/checkout', {
@@ -71,7 +75,11 @@ export const checkout = (
       coupon_code: options.couponCode ?? null,
       notes: options.notes ?? null,
       save_card: options.saveCard ?? false,
-      saved_payment_method_id: options.savedPaymentMethodId ?? null
+      saved_payment_method_id: options.savedPaymentMethodId ?? null,
+      selected_carrier: options.selectedCarrier ?? null,
+      selected_service: options.selectedService ?? null,
+      pickup_point_id: options.pickupPointId ?? null,
+      pickup_point_label: options.pickupPointLabel ?? null
     })
   });
 
@@ -82,6 +90,50 @@ export const validateCoupon = (code: string, subtotal: number) =>
   );
 
 export const getPaymentConfig = () => request<PaymentConfig>('/payments/config');
+
+// ── ShipAny logistics ───────────────────────────────────────────
+
+export type ShipanyAddress = {
+  name?: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  district?: string;
+  city?: string;
+  postal_code?: string;
+  country: string; // ISO 3166-1 alpha-2
+};
+
+export type ShipanyRateOption = {
+  quot_uid?: string;
+  carrier: string;
+  carrier_name: string;
+  service: string;
+  service_name: string;
+  fee_hkd: number;
+  eta_days?: string;
+  requires_pickup_point: boolean;
+};
+
+export type ShipanyPickupPoint = {
+  id: string;
+  name: string;
+  address: string;
+  district?: string;
+  carrier?: string;
+};
+
+export const getShipanyQuote = (cartID: string, shippingAddress: ShipanyAddress) =>
+  request<ShipanyRateOption[]>('/shipany/quote', {
+    method: 'POST',
+    body: JSON.stringify({ cart_id: cartID, shipping_address: shippingAddress })
+  });
+
+export const listShipanyPickupPoints = (carrier: string, district?: string) => {
+  const q = new URLSearchParams({ carrier });
+  if (district) q.set('district', district);
+  return request<ShipanyPickupPoint[]>(`/shipany/pickup-points?${q.toString()}`);
+};
 
 export type PublicSetting = { key: string; value: string; description?: string; updated_at: string };
 export const getPublicSettings = () => request<PublicSetting[]>('/settings/');

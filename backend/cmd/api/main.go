@@ -24,6 +24,7 @@ import (
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
 	"gyeon/backend/internal/settings"
+	"gyeon/backend/internal/shipany"
 	"gyeon/backend/internal/shop"
 )
 
@@ -65,6 +66,8 @@ func main() {
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
+	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
+	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)
@@ -115,6 +118,7 @@ func main() {
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc))
+	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	adminMW := auth.Middleware(jwtSecret)
 
 	// Admin SSE hub: broadcasts new-order events to all connected admin clients.
@@ -205,6 +209,9 @@ func main() {
 		// Payment config + Stripe webhook (public)
 		r.Mount("/payments", paymentHandler.Routes())
 
+		// ShipAny logistics: quote, pickup-points, webhook (public)
+		r.Mount("/shipany", shipanyHandler.PublicRoutes())
+
 		// Customer routes (public + authenticated)
 		r.Mount("/customers", customerHandler.Routes())
 
@@ -243,6 +250,9 @@ func main() {
 
 			// Order admin (delete; list/update use the public /orders mount with admin JWT)
 			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+
+			// ShipAny admin: test connection, create shipment, request pickup
+			r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
 
 			// Admin user management
 			r.Mount("/admin/users", adminUserHandler.AdminRoutes())
