@@ -405,17 +405,24 @@ func (s *Service) ConsumeSetupToken(ctx context.Context, token, password string)
 }
 
 type OrderSummary struct {
-	ID        string  `json:"id"`
-	Number    int64   `json:"number"`
-	Status    string  `json:"status"`
-	Total     float64 `json:"total"`
-	CreatedAt string  `json:"created_at"`
+	ID         string  `json:"id"`
+	Number     int64   `json:"number"`
+	Status     string  `json:"status"`
+	Total      float64 `json:"total"`
+	CreatedAt  string  `json:"created_at"`
+	ItemsCount int64   `json:"items_count"`
 }
 
 func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offset int) ([]OrderSummary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, number, status, total, created_at FROM orders
-		 WHERE customer_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		`SELECT o.id, o.number, o.status, o.total, o.created_at,
+		        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
+		   FROM orders o
+		   LEFT JOIN order_items oi ON oi.order_id = o.id
+		  WHERE o.customer_id=$1
+		  GROUP BY o.id
+		  ORDER BY o.created_at DESC
+		  LIMIT $2 OFFSET $3`,
 		customerID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -425,7 +432,7 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	orders := make([]OrderSummary, 0)
 	for rows.Next() {
 		var o OrderSummary
-		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.Total, &o.CreatedAt); err != nil {
+		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.Total, &o.CreatedAt, &o.ItemsCount); err != nil {
 			return nil, err
 		}
 		orders = append(orders, o)
