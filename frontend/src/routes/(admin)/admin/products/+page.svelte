@@ -40,7 +40,7 @@
         <tr class="hover:bg-gray-50 transition-colors">
           <td class="px-5 py-3">
             <p class="font-medium text-gray-900">{product.name}</p>
-            <p class="text-xs text-gray-400 font-mono">{product.slug}</p>
+            <p class="text-xs text-gray-400 font-mono">PRD-{product.number}</p>
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
             {data.categories.find(c => c.id === product.category_id)?.name ?? '—'}

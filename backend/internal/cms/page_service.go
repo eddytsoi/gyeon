@@ -12,6 +12,7 @@ import (
 
 type Page struct {
 	ID          string  `json:"id"`
+	Number      int64   `json:"number"`
 	Slug        string  `json:"slug"`
 	Title       string  `json:"title"`
 	Content     string  `json:"content"`
@@ -68,7 +69,7 @@ const pageTranslationJoin = `
 	LEFT JOIN cms_page_translations t ON t.page_id = p.id AND t.locale = $1`
 
 const pageSelect = `
-	SELECT p.id, p.slug,
+	SELECT p.id, p.number, p.slug,
 	       COALESCE(t.title,     p.title)     AS title,
 	       COALESCE(t.content,   p.content)   AS content,
 	       COALESCE(t.meta_title, p.meta_title) AS meta_title,
@@ -78,7 +79,7 @@ const pageSelect = `
 
 func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 	var p Page
-	err := row.Scan(&p.ID, &p.Slug, &p.Title, &p.Content,
+	err := row.Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content,
 		&p.MetaTitle, &p.MetaDesc, &p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
@@ -153,9 +154,9 @@ func (s *PageService) Create(ctx context.Context, req CreatePageRequest) (*Page,
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO cms_pages (slug, title, content, meta_title, meta_desc, is_published)
 		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
+		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
 		req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
-		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
+		Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
 			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -169,9 +170,9 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE cms_pages SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7
 		 WHERE id = $1
-		 RETURNING id, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
+		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
 		id, req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
-		Scan(&p.ID, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
+		Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
 			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
