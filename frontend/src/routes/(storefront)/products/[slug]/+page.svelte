@@ -2,16 +2,39 @@
   import type { PageData } from './$types';
   import type { ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { page } from '$app/state';
 
   let { data }: { data: PageData } = $props();
 
-  let selectedVariantID = $state<string | undefined>(undefined);
+  // Resolve `?variant=` to an actual variant id. Accepts either id or SKU;
+  // unknown values silently fall back to the first variant.
+  function resolveVariantParam(param: string | null): string | undefined {
+    if (!param) return undefined;
+    return (
+      data.variants.find((v) => v.id === param)?.id ??
+      data.variants.find((v) => v.sku === param)?.id
+    );
+  }
+
+  let selectedVariantID = $state<string | undefined>(
+    resolveVariantParam(page.url.searchParams.get('variant'))
+  );
   let activeImageID = $state<string | undefined>(undefined);
   let activeTab = $state<'description' | 'howto' | 'surfaces'>('description');
 
   const selectedVariant = $derived(
     data.variants.find((v) => v.id === selectedVariantID) ?? data.variants[0]
   );
+
+  function selectVariant(id: string, sku: string) {
+    selectedVariantID = id;
+    activeImageID = undefined;
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('variant', sku);
+      history.replaceState(history.state, '', url);
+    }
+  }
   const activeImage = $derived<ProductImage | undefined>(
     data.images.find((i) => i.id === activeImageID) ??
     data.images.find((i) => i.variant_id != null && i.variant_id === selectedVariant?.id) ??
@@ -167,7 +190,7 @@
             <div class="flex flex-wrap gap-2">
               {#each data.variants as v}
                 <button
-                  onclick={() => { selectedVariantID = v.id; activeImageID = undefined; }}
+                  onclick={() => selectVariant(v.id, v.sku)}
                   disabled={v.stock_qty === 0}
                   class="px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all
                          {v.stock_qty === 0 ? 'opacity-25 cursor-not-allowed line-through border-gray-200 text-gray-400' : ''}"
