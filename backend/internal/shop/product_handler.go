@@ -71,7 +71,7 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, products)
 }
 
-// listAll is the admin variant — returns products of all statuses.
+// listAll is the admin variant — returns products regardless of status.
 func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
