@@ -85,7 +85,8 @@
       <a href="/products" class="hover:text-gray-700 transition-colors">Products</a>
       {#if data.category}
         <span>/</span>
-        <span class="text-gray-500">{data.category.name}</span>
+        <a href="/products/category/{data.category.slug}"
+           class="hover:text-gray-700 transition-colors">{data.category.name}</a>
       {/if}
       <span>/</span>
       <span class="font-semibold" style="color: rgb(25,37,63)">{data.product.name}</span>
