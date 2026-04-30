@@ -434,12 +434,11 @@
               ondragleave={handleDragLeave}
               ondrop={(e) => handleDrop(e, i)}
               ondragend={handleDragEnd}
-              class="relative group rounded-xl overflow-hidden border bg-gray-50 aspect-square
+              class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100
                      transition-all duration-150
                      {i !== 0 ? 'cursor-grab' : ''}
-                     {dragSrcIdx === i ? 'opacity-40 scale-95 border-gray-300' :
-                      dragOverIdx === i ? 'border-2 border-gray-900 ring-2 ring-gray-900/20' :
-                      'border-gray-100'}"
+                     {dragSrcIdx === i ? 'opacity-40 scale-95' :
+                      dragOverIdx === i ? 'ring-2 ring-gray-900/40' : ''}"
             >
               <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
 
@@ -453,43 +452,44 @@
                 </span>
               {/if}
 
-              <!-- Hover-revealed action buttons (top-right) -->
-              <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
-                          flex items-center gap-1">
-                {#if !image.is_primary}
-                  <form method="POST" action="?/setPrimary"
+              <!-- Hover overlay with bottom-centered action icons -->
+              <div class="absolute inset-0 bg-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end justify-center p-2.5">
+                <div class="flex items-center justify-center gap-1.5">
+                  {#if !image.is_primary}
+                    <form method="POST" action="?/setPrimary"
+                          use:enhance={() => async ({ result, update }) => {
+                            showResult(result, 'Primary image set', 'Failed to set primary image');
+                            await update();
+                          }}>
+                      <input type="hidden" name="image_id" value={image.id} />
+                      <input type="hidden" name="sort_order" value={image.sort_order} />
+                      <button type="submit"
+                              title="Set as primary" aria-label="Set as primary"
+                              class="p-1.5 rounded-lg bg-white/10 hover:bg-amber-400/90 transition-colors text-white">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                          <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                        </svg>
+                      </button>
+                    </form>
+                  {/if}
+                  <form method="POST" action="?/deleteImage"
                         use:enhance={() => async ({ result, update }) => {
-                          showResult(result, 'Primary image set', 'Failed to set primary image');
+                          showResult(result, 'Image deleted', 'Failed to delete image');
                           await update();
                         }}>
                     <input type="hidden" name="image_id" value={image.id} />
-                    <input type="hidden" name="sort_order" value={image.sort_order} />
                     <button type="submit"
-                            title="Set as primary" aria-label="Set as primary"
-                            class="p-1.5 rounded-lg bg-white/10 hover:bg-amber-400/90 transition-colors text-white">
-                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            title="Delete" aria-label="Delete image"
+                            class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 transition-colors text-white"
+                            onclick={(e) => { if (!confirm('Delete this image?')) e.preventDefault(); }}>
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
                       </svg>
                     </button>
                   </form>
-                {/if}
-                <form method="POST" action="?/deleteImage"
-                      use:enhance={() => async ({ result, update }) => {
-                        showResult(result, 'Image deleted', 'Failed to delete image');
-                        await update();
-                      }}>
-                  <input type="hidden" name="image_id" value={image.id} />
-                  <button type="submit"
-                          title="Delete" aria-label="Delete image"
-                          class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 transition-colors text-white"
-                          onclick={(e) => { if (!confirm('Delete this image?')) e.preventDefault(); }}>
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-                    </svg>
-                  </button>
-                </form>
+                </div>
               </div>
             </div>
           {/each}
