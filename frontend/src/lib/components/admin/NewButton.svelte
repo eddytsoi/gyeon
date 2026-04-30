@@ -6,18 +6,6 @@
   }
 
   let { label, href, action }: Props = $props();
-
-  function clickHandler(node: HTMLElement, fn: (() => void) | undefined) {
-    if (fn) node.addEventListener('click', fn);
-    return {
-      destroy() { if (fn) node.removeEventListener('click', fn); },
-      update(newFn: (() => void) | undefined) {
-        if (fn) node.removeEventListener('click', fn);
-        fn = newFn;
-        if (fn) node.addEventListener('click', fn);
-      }
-    };
-  }
 </script>
 
 {#if href}
@@ -33,7 +21,7 @@
     </span>
   </a>
 {:else}
-  <button type="button" use:clickHandler={action} class="btn" aria-label={label}>
+  <button type="button" onclick={action} class="btn" aria-label={label}>
     <span class="icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
