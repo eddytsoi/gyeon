@@ -14,17 +14,20 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
   const token = cookies.get('admin_token') ?? '';
   const menus = await adminGetNavMenus(token).catch(() => [] as NavMenu[]);
 
-  // Load selected menu with items (default to first)
-  const selectedID = url.searchParams.get('menu') ?? menus[0]?.id ?? '';
-  const selected = selectedID
-    ? await adminGetNavMenu(token, selectedID).catch(() => null)
-    : null;
-
   const sortedMenus = menus.sort((a, b) => {
     if (a.handle === 'header') return -1;
     if (b.handle === 'header') return 1;
     return a.name.localeCompare(b.name);
   });
+
+  // Default to the header menu (sortedMenus[0] is header when present),
+  // otherwise the first available menu. URL ?menu=… still wins.
+  const headerMenu = sortedMenus.find((m) => m.handle === 'header');
+  const selectedID =
+    url.searchParams.get('menu') ?? headerMenu?.id ?? sortedMenus[0]?.id ?? '';
+  const selected = selectedID
+    ? await adminGetNavMenu(token, selectedID).catch(() => null)
+    : null;
 
   return { menus: sortedMenus, selected, selectedID };
 };
