@@ -107,7 +107,6 @@
     'shipany_enabled',
     'shipany_user_id',
     'shipany_api_key',
-    'shipany_client_key',
     'shipany_webhook_secret',
     'shipany_region',
     'shipany_origin_name',
@@ -629,24 +628,10 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label for="shipany_client_key" class="text-xs font-medium text-gray-600">
-              Client Key <span class="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <p class="text-xs text-gray-400 -mt-0.5">
-              Required by some ShipAny endpoints (e.g. <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">/couriers/</code>).
-              If those return <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">401 client-key missing</code>, paste the value from portal.shipany.io here.
-            </p>
-            <input id="shipany_client_key" name="shipany_client_key" type="password"
-                   value={settingValue('shipany_client_key')}
-                   placeholder="paste client-key from ShipAny portal"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
             <label for="shipany_region" class="text-xs font-medium text-gray-600">Region</label>
             <select id="shipany_region" name="shipany_region"
                     value={settingValue('shipany_region')}
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                            focus:outline-none focus:ring-2 focus:ring-gray-900">
               {#each SHIPANY_REGION_OPTIONS as opt}
                 <option value={opt.value} selected={settingValue('shipany_region') === opt.value}>{opt.label}</option>

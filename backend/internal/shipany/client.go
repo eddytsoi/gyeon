@@ -566,9 +566,6 @@ func (c *HTTPClient) do(ctx context.Context, method, route string, body, query a
 	req.Header.Set("api-tk", apiTk)
 	req.Header.Set("order-from", productPlatform)
 	req.Header.Set("order-from-ver", c.pluginVer)
-	if clientKey := strings.TrimSpace(c.read(ctx, "shipany_client_key")); clientKey != "" {
-		req.Header.Set("client-key", clientKey)
-	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
