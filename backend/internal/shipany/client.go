@@ -43,7 +43,7 @@ var envPrefixes = map[string]string{
 	"SHIPANYDEMO": "-demo",
 }
 
-const productPlatform = "Gyeon"
+const productPlatform = "Woocommerce"
 
 // HTTPClient talks to the ShipAny REST API. Credentials are read from
 // site_settings on every call so toggling them in admin takes effect immediately.
