@@ -7,6 +7,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import AdminModal from '$lib/components/admin/AdminModal.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -113,111 +114,101 @@
 </div>
 
 <!-- ── Create User Modal ── -->
-{#if showCreate}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-         onclick={() => showCreate = false} role="button" tabindex="-1" aria-label="Close"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="font-semibold text-gray-900 mb-4">New Admin User</h3>
-      <form method="POST" action="?/create"
-            use:enhance={() => async ({ update }) => { await update(); showCreate = false; }}>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
-            <input name="name" required
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email *</label>
-            <input name="email" type="email" required
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Password *</label>
-            <input name="password" type="password" required minlength="8"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</label>
-            <select name="role"
-                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <option value="editor">Editor</option>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-          </div>
-        </div>
-        <div class="flex gap-3 mt-5">
-          <button type="submit"
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
-            Create User
-          </button>
-          <button type="button" onclick={() => showCreate = false}
-                  class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
-                         hover:border-gray-400 transition-colors">
-            Cancel
-          </button>
-        </div>
-      </form>
+<AdminModal open={showCreate} onClose={() => showCreate = false}>
+  <h3 class="font-semibold text-gray-900 mb-4">New Admin User</h3>
+  <form method="POST" action="?/create"
+        use:enhance={() => async ({ update }) => { await update(); showCreate = false; }}>
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
+        <input name="name" required
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email *</label>
+        <input name="email" type="email" required
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Password *</label>
+        <input name="password" type="password" required minlength="8"
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</label>
+        <select name="role"
+                class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="editor">Editor</option>
+          <option value="admin">Admin</option>
+          <option value="super_admin">Super Admin</option>
+        </select>
+      </div>
     </div>
-  </div>
-{/if}
+    <div class="flex gap-3 mt-5">
+      <button type="submit"
+              class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
+                     hover:bg-gray-700 transition-colors">
+        Create User
+      </button>
+      <button type="button" onclick={() => showCreate = false}
+              class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
+                     hover:border-gray-400 transition-colors">
+        Cancel
+      </button>
+    </div>
+  </form>
+</AdminModal>
 
 <!-- ── Edit User Modal ── -->
-{#if editingUser}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
-         onclick={() => editingUser = null} role="button" tabindex="-1" aria-label="Close"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="font-semibold text-gray-900 mb-4">Edit User</h3>
-      <form method="POST" action="?/update"
-            use:enhance={() => async ({ update }) => { await update(); editingUser = null; }}>
-        <input type="hidden" name="id" value={editingUser.id} />
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
-            <input name="name" required value={editingUser.name}
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</label>
-            <select name="role"
-                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <option value="editor" selected={editingUser.role === 'editor'}>Editor</option>
-              <option value="admin" selected={editingUser.role === 'admin'}>Admin</option>
-              <option value="super_admin" selected={editingUser.role === 'super_admin'}>Super Admin</option>
-            </select>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
-            <select name="is_active"
-                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <option value="true" selected={editingUser.is_active}>Active</option>
-              <option value="false" selected={!editingUser.is_active}>Inactive</option>
-            </select>
-          </div>
+<AdminModal open={!!editingUser} onClose={() => editingUser = null}>
+  {#if editingUser}
+    <h3 class="font-semibold text-gray-900 mb-4">Edit User</h3>
+    <form method="POST" action="?/update"
+          use:enhance={() => async ({ update }) => { await update(); editingUser = null; }}>
+      <input type="hidden" name="id" value={editingUser.id} />
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name *</label>
+          <input name="name" required value={editingUser.name}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
-        <div class="flex gap-3 mt-5">
-          <button type="submit"
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
-            Save Changes
-          </button>
-          <button type="button" onclick={() => editingUser = null}
-                  class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
-                         hover:border-gray-400 transition-colors">
-            Cancel
-          </button>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</label>
+          <select name="role"
+                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="editor" selected={editingUser.role === 'editor'}>Editor</option>
+            <option value="admin" selected={editingUser.role === 'admin'}>Admin</option>
+            <option value="super_admin" selected={editingUser.role === 'super_admin'}>Super Admin</option>
+          </select>
         </div>
-      </form>
-    </div>
-  </div>
-{/if}
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
+          <select name="is_active"
+                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="true" selected={editingUser.is_active}>Active</option>
+            <option value="false" selected={!editingUser.is_active}>Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button type="submit"
+                class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
+                       hover:bg-gray-700 transition-colors">
+          Save Changes
+        </button>
+        <button type="button" onclick={() => editingUser = null}
+                class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
+                       hover:border-gray-400 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </form>
+  {/if}
+</AdminModal>
