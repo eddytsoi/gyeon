@@ -23,11 +23,13 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     adminGetCategories(token).catch(() => [])
   ]);
 
-  const [variants, images, mediaFiles] = isNew ? [[], [], []] : await Promise.all([
-    adminGetVariants(token, id).catch(() => []),
-    adminGetImages(token, id).catch(() => []),
-    adminGetMedia(token).catch(() => [])
-  ]);
+  const [variants, images, mediaFiles] = isNew
+    ? [[], [], await adminGetMedia(token).catch(() => [])]
+    : await Promise.all([
+      adminGetVariants(token, id).catch(() => []),
+      adminGetImages(token, id).catch(() => []),
+      adminGetMedia(token).catch(() => [])
+    ]);
 
   return { product, categories, variants, images, mediaFiles, isNew };
 };
@@ -44,13 +46,13 @@ export const actions: Actions = {
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
       description: form.get('description')?.toString() || undefined,
-      is_active: form.get('is_active') === 'true'
+      status: form.get('status')?.toString() ?? 'active'
     };
 
     let newProductId: string | undefined;
     try {
       if (id === 'new') {
-        const product = await adminCreateProduct(token, { ...body, is_active: true });
+        const product = await adminCreateProduct(token, body);
         newProductId = product.id;
       } else {
         await adminUpdateProduct(token, id, body);
@@ -59,7 +61,49 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to save product' });
     }
 
-    if (newProductId) throw redirect(303, `/admin/products/${newProductId}`);
+    if (newProductId) {
+      // Create pending variants
+      const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
+      let pendingVariants: Array<{
+        sku: string; price: number; compare_at_price?: number;
+        stock_qty: number; image_media_file_id?: string;
+      }> = [];
+      try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
+
+      for (const pv of pendingVariants) {
+        try {
+          const variant = await adminCreateVariant(token, newProductId, {
+            sku: pv.sku, price: pv.price,
+            compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0
+          });
+          if (pv.image_media_file_id) {
+            await adminAddImage(token, newProductId, {
+              variant_id: variant.id, media_file_id: pv.image_media_file_id,
+              sort_order: 0, is_primary: false
+            });
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // Add pending product images
+      const pendingImagesRaw = form.get('pending_images')?.toString() ?? '[]';
+      let pendingImages: Array<{
+        media_file_id: string; is_primary: boolean; alt_text?: string; sort_order: number;
+      }> = [];
+      try { pendingImages = JSON.parse(pendingImagesRaw); } catch { /* ignore */ }
+
+      let sortOrder = 0;
+      for (const pi of pendingImages) {
+        try {
+          await adminAddImage(token, newProductId, {
+            media_file_id: pi.media_file_id, is_primary: pi.is_primary,
+            alt_text: pi.alt_text, sort_order: sortOrder++
+          });
+        } catch { /* non-fatal */ }
+      }
+
+      throw redirect(303, `/admin/products/${newProductId}`);
+    }
     return { success: true };
   },
 
