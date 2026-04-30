@@ -32,14 +32,15 @@ CREATE TABLE products (
     slug            VARCHAR(255) NOT NULL UNIQUE,
     name            VARCHAR(255) NOT NULL,
     description     TEXT,
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    status          TEXT NOT NULL DEFAULT 'active'
+                       CHECK (status IN ('active', 'inactive', 'hidden')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_slug ON products(slug);
-CREATE INDEX idx_products_is_active ON products(is_active);
+CREATE INDEX idx_products_status ON products(status);
 
 -- ------------------------------------------------------------
 -- Product Attributes  (e.g. "Color", "Size")
