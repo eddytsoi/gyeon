@@ -29,14 +29,18 @@
       <div class="flex-1 flex flex-col gap-4">
         {#each cartStore.cart.items as item}
           <div class="flex items-center gap-4 bg-white rounded-2xl p-4 border border-gray-100">
-            <div class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden">
+            <a href="/products/{item.product_slug}"
+               class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden block hover:opacity-80 transition-opacity">
               {#if item.image_url}
                 <img src={item.image_url} alt={item.product_name} class="w-full h-full object-cover" />
               {/if}
-            </div>
+            </a>
 
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-900 truncate">{item.product_name} ({item.sku})</p>
+              <a href="/products/{item.product_slug}"
+                 class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
+                {item.product_name} ({item.sku})
+              </a>
               <p class="text-xs text-gray-400 mt-0.5">SKU: {item.sku}</p>
             </div>
 

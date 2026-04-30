@@ -52,6 +52,7 @@ export interface CartItem {
   quantity: number;
   added_at: string;
   product_name: string;
+  product_slug: string;
   sku: string;
   price: number;
   image_url?: string;
