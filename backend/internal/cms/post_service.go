@@ -240,11 +240,14 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 		             CASE WHEN $8 = TRUE THEN NOW() ELSE NULL END)
 		     RETURNING *
 		 )
-		 SELECT ins.id, ins.number, ins.category_id, ins.slug, ins.title, ins.excerpt, ins.content,
+		 SELECT ins.id, ins.number, ins.category_id, c.slug, c.name,
+		        ins.slug, ins.title, ins.excerpt, ins.content,
 		        ins.cover_media_file_id,
 		        COALESCE(mf.url, ins.cover_image_url) AS cover_image_url,
 		        ins.is_published, ins.published_at, ins.created_at, ins.updated_at
-		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.cover_media_file_id`,
+		 FROM ins
+		 LEFT JOIN media_files mf ON mf.id = ins.cover_media_file_id
+		 LEFT JOIN cms_post_categories c ON c.id = ins.category_id`,
 		req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
 		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
 	if err != nil {
@@ -264,11 +267,14 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 		     WHERE id = $1
 		     RETURNING *
 		 )
-		 SELECT upd.id, upd.number, upd.category_id, upd.slug, upd.title, upd.excerpt, upd.content,
+		 SELECT upd.id, upd.number, upd.category_id, c.slug, c.name,
+		        upd.slug, upd.title, upd.excerpt, upd.content,
 		        upd.cover_media_file_id,
 		        COALESCE(mf.url, upd.cover_image_url) AS cover_image_url,
 		        upd.is_published, upd.published_at, upd.created_at, upd.updated_at
-		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.cover_media_file_id`,
+		 FROM upd
+		 LEFT JOIN media_files mf ON mf.id = upd.cover_media_file_id
+		 LEFT JOIN cms_post_categories c ON c.id = upd.category_id`,
 		id, req.CategoryID, req.Slug, req.Title, req.Excerpt, req.Content,
 		req.CoverMediaFileID, req.CoverImageURL, req.IsPublished))
 	if err != nil {
