@@ -40,9 +40,10 @@ export const adminLogin = async (email: string, password: string): Promise<strin
 export const getStats = (token: string) =>
   request<AdminStats>('/admin/stats', token);
 
-// Products (admin uses same endpoints, protected by token for mutations)
+// Products — admin list hits a dedicated endpoint that returns all statuses;
+// mutations and detail reads use /products/* (token-protected).
 export const adminGetProducts = (token: string, limit = 50, offset = 0) =>
-  request<Product[]>(`/products?limit=${limit}&offset=${offset}`, token);
+  request<Product[]>(`/admin/inventory/?limit=${limit}&offset=${offset}`, token);
 
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
   request<Product>('/products', token, { method: 'POST', body: JSON.stringify(body) });

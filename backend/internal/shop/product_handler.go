@@ -20,6 +20,7 @@ func NewProductHandler(svc *ProductService) *ProductHandler {
 
 func (h *ProductHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/", h.listAll)
 	r.Get("/low-stock", h.lowStock)
 	return r
 }
@@ -63,6 +64,22 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	products, err := h.svc.List(r.Context(), r.URL.Query().Get("lang"), limit, offset)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, products)
+}
+
+// listAll is the admin variant — returns products of all statuses.
+func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	products, err := h.svc.ListAll(r.Context(), r.URL.Query().Get("lang"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
