@@ -151,6 +151,8 @@
   // ── Sidebar magnetic spotlight ──────────────────────────────────
   let navEl = $state<HTMLElement | undefined>();
   let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
+  let footerEl = $state<HTMLElement | undefined>();
+  let footerSpotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
 
   function moveSpotlightTo(item: Element | null) {
     if (!item || !navEl || !navEl.contains(item)) {
@@ -174,6 +176,30 @@
 
   function onNavMouseLeave() {
     spotlight.visible = false;
+  }
+
+  function moveFooterSpotlightTo(item: Element | null) {
+    if (!item || !footerEl || !footerEl.contains(item)) {
+      footerSpotlight.visible = false;
+      return;
+    }
+    const containerRect = footerEl.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    footerSpotlight = {
+      visible: true,
+      top: itemRect.top - containerRect.top,
+      left: itemRect.left - containerRect.left,
+      width: itemRect.width,
+      height: itemRect.height
+    };
+  }
+
+  function onFooterMouseMove(e: MouseEvent) {
+    moveFooterSpotlightTo((e.target as HTMLElement | null)?.closest('.js-footer-item') ?? null);
+  }
+
+  function onFooterMouseLeave() {
+    footerSpotlight.visible = false;
   }
 </script>
 
@@ -324,10 +350,20 @@
       </nav>
 
       <!-- Footer -->
-      <div class="px-3 py-4 border-t border-gray-100 flex-shrink-0">
+      <div bind:this={footerEl}
+           onmousemove={onFooterMouseMove}
+           onmouseleave={onFooterMouseLeave}
+           class="relative px-3 py-4 border-t border-gray-100 flex-shrink-0">
+        <!-- Footer magnetic spotlight -->
+        <div aria-hidden="true"
+             class="pointer-events-none absolute z-0 rounded-xl bg-gray-100
+                    transition-[transform,width,height,opacity] duration-[80ms] ease-out
+                    {footerSpotlight.visible ? 'opacity-100' : 'opacity-0'}"
+             style="top: 0; left: 0; transform: translate3d({footerSpotlight.left}px, {footerSpotlight.top}px, 0); width: {footerSpotlight.width}px; height: {footerSpotlight.height}px;">
+        </div>
         <a href="/" target="_blank"
-           class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-400
-                  hover:text-gray-700 hover:bg-gray-50 transition-colors group mb-1">
+           class="js-footer-item relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm
+                  text-gray-400 hover:text-gray-700 transition-colors group mb-1">
           <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors"
                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -338,8 +374,8 @@
         </a>
         <form method="POST" action="/admin/logout">
           <button type="submit"
-                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm
-                         text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors group">
+                  class="js-footer-item relative z-10 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                         text-sm text-gray-400 hover:text-red-600 transition-colors group">
             <svg class="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors"
                  fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round"
