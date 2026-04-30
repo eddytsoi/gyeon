@@ -22,6 +22,7 @@ type CartItem struct {
 	Quantity    int     `json:"quantity"`
 	AddedAt     string  `json:"added_at"`
 	ProductName string  `json:"product_name"`
+	ProductSlug string  `json:"product_slug"`
 	SKU         string  `json:"sku"`
 	Price       float64 `json:"price"`
 	ImageURL    *string `json:"image_url,omitempty"`
@@ -98,7 +99,7 @@ func (s *CartService) GetByID(ctx context.Context, id string) (*Cart, error) {
 func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
-		        p.name, pv.sku, pv.price,
+		        p.name, p.slug, pv.sku, pv.price,
 		        COALESCE(vmf.url, vi.url, pmf.url, pi.url) AS image_url
 		 FROM cart_items ci
 		 JOIN product_variants pv ON pv.id = ci.variant_id
@@ -119,7 +120,7 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	for rows.Next() {
 		var item CartItem
 		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,
-			&item.ProductName, &item.SKU, &item.Price, &item.ImageURL); err != nil {
+			&item.ProductName, &item.ProductSlug, &item.SKU, &item.Price, &item.ImageURL); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
