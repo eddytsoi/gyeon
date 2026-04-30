@@ -328,7 +328,8 @@
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
             <th class="px-5 py-3 w-12"></th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Variant</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">SKU</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Name</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Price</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Compare at</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Stock</th>
@@ -347,14 +348,8 @@
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
                   {/if}
                 </td>
-                <td class="px-5 py-3">
-                  {#if pv.name}
-                    <div class="text-sm font-medium text-gray-900">{pv.name}</div>
-                    <div class="font-mono text-xs text-gray-400">{pv.sku}</div>
-                  {:else}
-                    <div class="font-mono text-xs text-gray-700">{pv.sku}</div>
-                  {/if}
-                </td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-700">{pv.sku}</td>
+                <td class="px-5 py-3 text-sm text-gray-900">{pv.name ?? '—'}</td>
                 <td class="px-5 py-3 font-medium text-gray-900">HK${pv.price.toFixed(2)}</td>
                 <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
                   {pv.compare_at_price ? `HK$${pv.compare_at_price.toFixed(2)}` : '—'}
@@ -380,7 +375,7 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="8" class="px-5 py-8 text-center text-gray-400 text-sm">
                   No variants yet. Add one to set pricing and stock.
                 </td>
               </tr>
@@ -395,14 +390,8 @@
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
                   {/if}
                 </td>
-                <td class="px-5 py-3">
-                  {#if variant.name}
-                    <div class="text-sm font-medium text-gray-900">{variant.name}</div>
-                    <div class="font-mono text-xs text-gray-400">{variant.sku}</div>
-                  {:else}
-                    <div class="font-mono text-xs text-gray-700">{variant.sku}</div>
-                  {/if}
-                </td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-700">{variant.sku}</td>
+                <td class="px-5 py-3 text-sm text-gray-900">{variant.name ?? '—'}</td>
                 <td class="px-5 py-3 font-medium text-gray-900">HK${variant.price.toFixed(2)}</td>
                 <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
                   {variant.compare_at_price ? `HK$${variant.compare_at_price.toFixed(2)}` : '—'}
@@ -472,7 +461,7 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="8" class="px-5 py-8 text-center text-gray-400 text-sm">
                   No variants yet. Add one to set pricing and stock.
                 </td>
               </tr>
