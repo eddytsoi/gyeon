@@ -1,11 +1,21 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData } from './$types';
   import type { Category } from '$lib/types';
-  import { showResult } from '$lib/stores/notifications.svelte';
+  import { adminReorderCategories } from '$lib/api/admin';
+  import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
+
+  // Local list mirrors data.categories; we reorder this instantly on drop and
+  // resync whenever the server data changes.
+  let items = $state<Category[]>([]);
+  $effect(() => {
+    items = [...data.categories].sort((a, b) => a.sort_order - b.sort_order);
+  });
 
   let showForm = $state(false);
   let editing = $state<Category | null>(null);
@@ -13,13 +23,11 @@
 
   let fName = $state('');
   let fSlug = $state('');
-  let fOrder = $state(0);
 
   function openNew() {
     editing = null;
     fName = '';
     fSlug = '';
-    fOrder = data.categories.length;
     showForm = true;
   }
 
@@ -27,7 +35,6 @@
     editing = cat;
     fName = cat.name;
     fSlug = cat.slug;
-    fOrder = cat.sort_order;
     showForm = true;
   }
 
@@ -41,6 +48,57 @@
         .replace(/^-|-$/g, '');
     }
   }
+
+  // ── Drag & Drop ─────────────────────────────────────────────────
+  let draggingId = $state<string | null>(null);
+  let dropTargetId = $state<string | null>(null);
+
+  function onDragStart(e: DragEvent, id: string) {
+    draggingId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    }
+  }
+  function onDragOver(e: DragEvent, id: string) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (draggingId && id !== draggingId) dropTargetId = id;
+  }
+  function onDragLeave(id: string) {
+    if (dropTargetId === id) dropTargetId = null;
+  }
+  async function onDrop(e: DragEvent, targetId: string) {
+    e.preventDefault();
+    const sourceId = draggingId;
+    draggingId = null;
+    dropTargetId = null;
+    if (!sourceId || sourceId === targetId) return;
+
+    const src = items.findIndex((c) => c.id === sourceId);
+    const dst = items.findIndex((c) => c.id === targetId);
+    if (src === -1 || dst === -1) return;
+
+    // Move src into dst's slot, preserving direction
+    const next = [...items];
+    const [moved] = next.splice(src, 1);
+    next.splice(dst, 0, moved);
+    // Optimistic local update + sort_order rewrite for stable display
+    items = next.map((c, i) => ({ ...c, sort_order: i + 1 }));
+
+    const token = page.data.token ?? '';
+    try {
+      await adminReorderCategories(token, items.map((c) => c.id));
+      await invalidateAll();
+    } catch {
+      notify.error('Reorder failed', 'Categories were not saved. Refresh to retry.');
+      await invalidateAll();
+    }
+  }
+  function onDragEnd() {
+    draggingId = null;
+    dropTargetId = null;
+  }
 </script>
 
 <div class="max-w-2xl mx-auto space-y-6">
@@ -48,7 +106,7 @@
   <div class="flex items-center justify-between">
     <div>
       <h2 class="text-xl font-bold text-gray-900">Product Categories</h2>
-      <p class="text-sm text-gray-500 mt-0.5">{data.categories.length} categor{data.categories.length !== 1 ? 'ies' : 'y'}</p>
+      <p class="text-sm text-gray-500 mt-0.5">{items.length} categor{items.length !== 1 ? 'ies' : 'y'} · drag to reorder</p>
     </div>
     <button onclick={openNew}
             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
@@ -63,7 +121,7 @@
   <!-- List -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
        use:spotlight={{ selector: '.js-row' }}>
-    {#if data.categories.length === 0}
+    {#if items.length === 0}
       <div class="flex flex-col items-center justify-center py-20 text-center">
         <div class="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
           <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -78,12 +136,25 @@
       </div>
     {:else}
       <ul class="divide-y divide-gray-50">
-        {#each data.categories.toSorted((a, b) => a.sort_order - b.sort_order) as cat}
-          <li class="js-row flex items-center gap-4 px-5 py-4 transition-colors">
-            <span class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center
-                         text-xs font-semibold text-gray-500 flex-shrink-0">
-              {cat.sort_order}
-            </span>
+        {#each items as cat (cat.id)}
+          <li class="js-row flex items-center gap-4 px-5 py-4 transition-colors
+                     {draggingId === cat.id ? 'opacity-40' : ''}
+                     {dropTargetId === cat.id ? 'bg-gray-50' : ''}"
+              ondragover={(e) => onDragOver(e, cat.id)}
+              ondragleave={() => onDragLeave(cat.id)}
+              ondrop={(e) => onDrop(e, cat.id)}>
+            <!-- Drag handle -->
+            <button type="button"
+                    draggable="true"
+                    ondragstart={(e) => onDragStart(e, cat.id)}
+                    ondragend={onDragEnd}
+                    aria-label="Drag to reorder"
+                    class="cursor-grab active:cursor-grabbing p-1 -m-1 text-gray-300
+                           hover:text-gray-600 transition-colors flex-shrink-0">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M7 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm6-10a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+              </svg>
+            </button>
 
             <div class="flex-1 min-w-0">
               <p class="text-sm font-semibold text-gray-900">{cat.name}</p>
@@ -156,14 +227,6 @@
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sort Order</label>
-          <input type="number" name="sort_order" bind:value={fOrder} min="0"
-                 class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                        text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
-                        focus:border-transparent transition" />
         </div>
 
         <div class="flex gap-3 pt-2">

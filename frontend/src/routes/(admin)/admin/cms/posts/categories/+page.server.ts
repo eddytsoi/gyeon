@@ -19,10 +19,12 @@ export const actions: Actions = {
     const token = cookies.get('admin_token') ?? '';
     const data = await request.formData();
     try {
+      // New categories go to the end of the list — drag-and-drop later.
+      const existing = await adminGetPostCategories(token).catch(() => [] as PostCategory[]);
       await adminCreatePostCategory(token, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
-        sort_order: parseInt(data.get('sort_order') as string) || 0
+        sort_order: existing.length + 1
       });
       return { success: true };
     } catch {
@@ -35,10 +37,13 @@ export const actions: Actions = {
     const data = await request.formData();
     const id = data.get('id') as string;
     try {
+      // Preserve existing sort_order — order is managed via drag-and-drop.
+      const existing = await adminGetPostCategories(token).catch(() => [] as PostCategory[]);
+      const current = existing.find((c) => c.id === id);
       await adminUpdatePostCategory(token, id, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
-        sort_order: parseInt(data.get('sort_order') as string) || 0
+        sort_order: current?.sort_order ?? 0
       });
       return { success: true };
     } catch {

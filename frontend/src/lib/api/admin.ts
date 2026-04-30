@@ -100,6 +100,12 @@ export const adminUpdateCategory = (token: string, id: string, body: Partial<Cat
 export const adminDeleteCategory = (token: string, id: string) =>
   request<void>(`/categories/${id}`, token, { method: 'DELETE' });
 
+export const adminReorderCategories = (token: string, ids: string[]) =>
+  request<void>(`/categories/reorder`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ ids })
+  });
+
 // Orders
 export const adminGetOrders = (token: string, limit = 50, offset = 0) =>
   request<Order[]>(`/orders?limit=${limit}&offset=${offset}`, token);
@@ -207,6 +213,12 @@ export const adminUpdatePostCategory = (token: string, id: string, body: Omit<Po
 
 export const adminDeletePostCategory = (token: string, id: string) =>
   request(`/admin/cms/post-categories/${id}`, token, { method: 'DELETE' });
+
+export const adminReorderPostCategories = (token: string, ids: string[]) =>
+  request<void>(`/admin/cms/post-categories/reorder`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ ids })
+  });
 
 // Navigation
 export interface NavItem {

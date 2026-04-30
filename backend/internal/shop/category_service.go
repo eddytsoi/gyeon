@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	"gyeon/backend/internal/cache"
 )
 
@@ -179,6 +180,30 @@ func (s *CategoryService) Update(ctx context.Context, id string, req UpdateCateg
 
 func (s *CategoryService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM categories WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(categoryPrefix)
+	return nil
+}
+
+// Reorder rewrites sort_order for the given category IDs to match the
+// supplied list (1-based, natural order). IDs not included are left
+// alone. Runs in a single statement to keep the rewrite atomic.
+func (s *CategoryService) Reorder(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	orders := make([]int64, len(ids))
+	for i := range ids {
+		orders[i] = int64(i + 1)
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE categories AS c
+		 SET sort_order = u.idx
+		 FROM unnest($1::uuid[], $2::int[]) AS u(cid, idx)
+		 WHERE c.id = u.cid`,
+		pq.Array(ids), pq.Array(orders))
 	if err != nil {
 		return err
 	}

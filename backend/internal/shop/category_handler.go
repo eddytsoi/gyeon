@@ -21,12 +21,28 @@ func (h *CategoryHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Post("/", h.create)
-	// Lookup by slug must be defined before /{id} so chi prefers the literal segment.
+	// Literal segments (by-slug, reorder) defined before /{id} so chi prefers them.
 	r.Get("/by-slug/{slug}", h.getBySlug)
+	r.Patch("/reorder", h.reorder)
 	r.Get("/{id}", h.getByID)
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	return r
+}
+
+func (h *CategoryHandler) reorder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if err := h.svc.Reorder(r.Context(), req.IDs); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *CategoryHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
