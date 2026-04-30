@@ -214,7 +214,7 @@
   <!-- ── Product Details ── -->
   <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
     <h2 class="font-semibold text-gray-900 mb-4">Product Details</h2>
-    <form method="POST" action="?/saveProduct"
+    <form id="product-form" method="POST" action="?/saveProduct"
           use:enhance={() => {
             saving = true;
             const productName = name;
@@ -270,18 +270,6 @@
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.description ?? ''}</textarea>
         </div>
-      </div>
-      <div class="flex gap-3 mt-5">
-        <button type="submit" disabled={saving}
-                class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                       hover:bg-gray-700 transition-colors disabled:opacity-50">
-          {saving ? 'Saving…' : (data.isNew ? 'Create Product' : 'Save Changes')}
-        </button>
-        <a href="/admin/products"
-           class="px-5 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
-                  hover:border-gray-400 transition-colors">
-          Cancel
-        </a>
       </div>
     </form>
   </section>
@@ -497,6 +485,23 @@
       {/if}
     </section>
   {/if}
+
+  <!-- ── Actions ── -->
+  <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5
+              flex flex-col sm:flex-row sm:items-center gap-4">
+    <div class="sm:ml-auto flex gap-3">
+      <a href="/admin/products"
+         class="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
+                text-gray-700 hover:bg-gray-50 transition-colors">
+        Cancel
+      </a>
+      <button type="submit" form="product-form" disabled={saving}
+              class="px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium
+                     hover:bg-gray-700 transition-colors disabled:opacity-50">
+        {saving ? 'Saving…' : (data.isNew ? 'Create Product' : 'Save Changes')}
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Add Variant Modal ── -->
