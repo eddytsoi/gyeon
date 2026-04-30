@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/lib/pq"
 )
 
 type PostCategory struct {
@@ -95,5 +97,25 @@ func (s *PostCategoryService) Update(ctx context.Context, id string, req UpdateP
 func (s *PostCategoryService) Delete(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM cms_post_categories WHERE id = $1`, id)
+	return err
+}
+
+// Reorder rewrites sort_order for the given post-category IDs to match
+// the supplied list (1-based natural order). IDs not in the list are
+// left untouched.
+func (s *PostCategoryService) Reorder(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	orders := make([]int64, len(ids))
+	for i := range ids {
+		orders[i] = int64(i + 1)
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE cms_post_categories AS c
+		 SET sort_order = u.idx
+		 FROM unnest($1::uuid[], $2::int[]) AS u(cid, idx)
+		 WHERE c.id = u.cid`,
+		pq.Array(ids), pq.Array(orders))
 	return err
 }
