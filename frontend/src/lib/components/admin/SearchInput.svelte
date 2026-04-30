@@ -65,3 +65,12 @@
     </button>
   {/if}
 </div>
+
+<style>
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
+</style>
