@@ -4,6 +4,7 @@
   import { adminUploadMedia } from '$lib/api/admin';
   import type { PageData } from './$types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
 
   let { data }: { data: PageData } = $props();
 
@@ -286,6 +287,7 @@
         </button>
       </div>
 
+      <div use:spotlight={{ selector: '.js-variant-row' }}>
       <table class="w-full text-sm">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
@@ -300,7 +302,7 @@
         </thead>
         <tbody class="divide-y divide-gray-50">
           {#each data.variants as variant}
-            <tr class="hover:bg-gray-50 transition-colors">
+            <tr class="js-variant-row">
               <td class="px-5 py-3">
                 {#if variant.image_url}
                   <img src={variant.image_url} alt="" class="w-8 h-8 rounded object-cover" />
@@ -385,6 +387,7 @@
           {/each}
         </tbody>
       </table>
+      </div>
     </section>
 
     <!-- ── Images ── -->
