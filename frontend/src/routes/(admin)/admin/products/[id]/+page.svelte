@@ -44,6 +44,26 @@
       : (editingVariant?.image_url ?? null))
   );
 
+  // Pending state for new products
+  type PendingVariant = {
+    _localId: string;
+    sku: string; price: number; compare_at_price?: number; stock_qty: number;
+    image_media_file_id?: string; image_preview_url?: string;
+  };
+  type PendingImage = {
+    _localId: string;
+    media_file_id: string; preview_url: string; is_primary: boolean; alt_text?: string;
+  };
+  let pendingVariants = $state<PendingVariant[]>([]);
+  let pendingImages = $state<PendingImage[]>([]);
+
+  const pendingVariantsJson = $derived(
+    JSON.stringify(pendingVariants.map(({ _localId, image_preview_url, ...rest }) => rest))
+  );
+  const pendingImagesJson = $derived(
+    JSON.stringify(pendingImages.map(({ _localId, preview_url, ...rest }) => rest))
+  );
+
   // Confirm delete image modal state
   let confirmDeleteImageId = $state<string | null>(null);
 
@@ -92,7 +112,7 @@
   }
 
   async function handleFiles(files: File[]) {
-    if (!data.product || !data.token) return;
+    if (!data.token) return;
     const token = data.token;
     const valid = files.filter((f) => ACCEPTED_IMAGE.test(f.type));
     const rejected = files.length - valid.length;
@@ -113,21 +133,31 @@
     for (const item of newItems) {
       try {
         const media = await adminUploadMedia(token, item.file);
-        const fd = new FormData();
-        fd.set('media_file_id', media.id);
-        fd.set('sort_order', '0');
-        fd.set('is_primary', 'false');
-        const res = await fetch('?/addImage', { method: 'POST', body: fd });
-        if (!res.ok) throw new Error(`Failed to attach (${res.status})`);
+        if (data.isNew) {
+          pendingImages = [...pendingImages, {
+            _localId: item.id,
+            media_file_id: media.id,
+            preview_url: media.webp_url ?? media.url,
+            is_primary: pendingImages.length === 0,
+            alt_text: undefined
+          }];
+        } else {
+          const fd = new FormData();
+          fd.set('media_file_id', media.id);
+          fd.set('sort_order', '0');
+          fd.set('is_primary', 'false');
+          const res = await fetch('?/addImage', { method: 'POST', body: fd });
+          if (!res.ok) throw new Error(`Failed to attach (${res.status})`);
+          attached++;
+        }
         item.status = 'success';
-        attached++;
       } catch (e) {
         item.status = 'error';
         item.error = e instanceof Error ? e.message : 'Upload failed';
       }
       uploadFiles = [...uploadFiles];
     }
-    if (attached > 0) await invalidateAll();
+    if (!data.isNew && attached > 0) await invalidateAll();
   }
 
   // Image drag-and-drop reorder state
@@ -143,6 +173,7 @@
   let dragOverIdx = $state<number | null>(null);
   let reorderSaving = $state(false);
   let reorderError = $state<string | null>(null);
+  const anyUploading = $derived(uploadFiles.some(f => f.status === 'uploading'));
 
   $effect(() => { images = sortedImages(data.images); });
 
@@ -256,17 +287,15 @@
             {/each}
           </select>
         </div>
-        {#if !data.isNew}
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
-            <select name="is_active"
-                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <option value="true" selected={data.product?.is_active}>Active</option>
-              <option value="false" selected={!data.product?.is_active}>Inactive</option>
-            </select>
-          </div>
-        {/if}
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</label>
+          <select name="status"
+                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="active" selected={data.isNew || data.product?.status === 'active'}>Active</option>
+            <option value="inactive" selected={!data.isNew && data.product?.status === 'inactive'}>Inactive</option>
+          </select>
+        </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</label>
           <textarea id="description" name="description" rows="4"
@@ -275,11 +304,14 @@
                     >{data.product?.description ?? ''}</textarea>
         </div>
       </div>
+      {#if data.isNew}
+        <input type="hidden" name="pending_variants" value={pendingVariantsJson} />
+        <input type="hidden" name="pending_images"   value={pendingImagesJson} />
+      {/if}
     </form>
   </section>
 
-  {#if !data.isNew}
-    <!-- ── Variants ── -->
+  <!-- ── Variants ── -->
     <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
         <h2 class="font-semibold text-gray-900">Variants</h2>
@@ -304,118 +336,212 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-50">
-          {#each data.variants as variant}
-            <tr class="js-variant-row">
-              <td class="px-5 py-3">
-                {#if variant.image_url}
-                  <img src={variant.image_url} alt="" class="w-8 h-8 rounded object-cover" />
-                {:else}
-                  <div class="w-8 h-8 rounded bg-gray-100"></div>
-                {/if}
-              </td>
-              <td class="px-5 py-3 font-mono text-xs text-gray-700">{variant.sku}</td>
-              <td class="px-5 py-3 font-medium text-gray-900">HK${variant.price.toFixed(2)}</td>
-              <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
-                {variant.compare_at_price ? `HK$${variant.compare_at_price.toFixed(2)}` : '—'}
-              </td>
-              <td class="px-5 py-3">
-                <span class="font-medium {variant.stock_qty <= 5 ? 'text-red-600' : 'text-gray-900'}">
-                  {variant.stock_qty}
-                </span>
-              </td>
-              <td class="px-5 py-3 hidden md:table-cell">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                             {variant.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
-                  {variant.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </td>
-              <td class="px-5 py-3 text-right">
-                <div class="flex items-center justify-end gap-1">
-                  <!-- Adjust Stock -->
-                  <button onclick={() => showStockModal = variant}
-                          title="Adjust stock"
-                          aria-label="Adjust stock"
-                          class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+          {#if data.isNew}
+            {#each pendingVariants as pv (pv._localId)}
+              <tr class="js-variant-row">
+                <td class="px-5 py-3">
+                  {#if pv.image_preview_url}
+                    <img src={pv.image_preview_url} alt="" class="w-8 h-8 rounded object-cover" />
+                  {:else}
+                    <div class="w-8 h-8 rounded bg-gray-100"></div>
+                  {/if}
+                </td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-700">{pv.sku}</td>
+                <td class="px-5 py-3 font-medium text-gray-900">HK${pv.price.toFixed(2)}</td>
+                <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
+                  {pv.compare_at_price ? `HK$${pv.compare_at_price.toFixed(2)}` : '—'}
+                </td>
+                <td class="px-5 py-3">
+                  <span class="font-medium text-gray-900">{pv.stock_qty}</span>
+                </td>
+                <td class="px-5 py-3 hidden md:table-cell">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Active</span>
+                </td>
+                <td class="px-5 py-3 text-right">
+                  <button type="button"
+                          title="Remove"
+                          aria-label="Remove pending variant"
+                          onclick={() => pendingVariants = pendingVariants.filter(v => v._localId !== pv._localId)}
+                          class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                       <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
                     </svg>
                   </button>
-                  <!-- Edit -->
-                  <button onclick={() => {
-                            editingVariant = variant;
-                            const cur = data.images.find(img => img.variant_id === variant.id);
-                            editVariantOldImageId = cur?.id ?? null;
-                            editVariantImageId = cur?.media_file_id ?? null;
-                            editVariantRemoveImage = false;
-                          }}
-                          title="Edit"
-                          aria-label="Edit variant"
-                          class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
-                    </svg>
-                  </button>
-                  <!-- Delete -->
-                  <form method="POST" action="?/deleteVariant" class="inline-flex"
-                        use:enhance={() => {
-                          const sku = variant.sku;
-                          return async ({ result, update }) => {
-                            showResult(result, `Variant '${sku}' deleted`, `Failed to delete variant '${sku}'`);
-                            await update();
-                          };
-                        }}>
-                    <input type="hidden" name="variant_id" value={variant.id} />
-                    <button type="submit"
-                            title="Delete"
-                            aria-label="Delete variant"
-                            class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                            onclick={(e) => { if (!confirm('Delete this variant?')) e.preventDefault(); }}>
+                </td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
+                  No variants yet. Add one to set pricing and stock.
+                </td>
+              </tr>
+            {/each}
+          {:else}
+            {#each data.variants as variant}
+              <tr class="js-variant-row">
+                <td class="px-5 py-3">
+                  {#if variant.image_url}
+                    <img src={variant.image_url} alt="" class="w-8 h-8 rounded object-cover" />
+                  {:else}
+                    <div class="w-8 h-8 rounded bg-gray-100"></div>
+                  {/if}
+                </td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-700">{variant.sku}</td>
+                <td class="px-5 py-3 font-medium text-gray-900">HK${variant.price.toFixed(2)}</td>
+                <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
+                  {variant.compare_at_price ? `HK$${variant.compare_at_price.toFixed(2)}` : '—'}
+                </td>
+                <td class="px-5 py-3">
+                  <span class="font-medium {variant.stock_qty <= 5 ? 'text-red-600' : 'text-gray-900'}">
+                    {variant.stock_qty}
+                  </span>
+                </td>
+                <td class="px-5 py-3 hidden md:table-cell">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                               {variant.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
+                    {variant.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td class="px-5 py-3 text-right">
+                  <div class="flex items-center justify-end gap-1">
+                    <!-- Adjust Stock -->
+                    <button onclick={() => showStockModal = variant}
+                            title="Adjust stock"
+                            aria-label="Adjust stock"
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                          d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
                       </svg>
                     </button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {:else}
-            <tr>
-              <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
-                No variants yet. Add one to set pricing and stock.
-              </td>
-            </tr>
-          {/each}
+                    <!-- Edit -->
+                    <button onclick={() => {
+                              editingVariant = variant;
+                              const cur = data.images.find(img => img.variant_id === variant.id);
+                              editVariantOldImageId = cur?.id ?? null;
+                              editVariantImageId = cur?.media_file_id ?? null;
+                              editVariantRemoveImage = false;
+                            }}
+                            title="Edit"
+                            aria-label="Edit variant"
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                      </svg>
+                    </button>
+                    <!-- Delete -->
+                    <form method="POST" action="?/deleteVariant" class="inline-flex"
+                          use:enhance={() => {
+                            const sku = variant.sku;
+                            return async ({ result, update }) => {
+                              showResult(result, `Variant '${sku}' deleted`, `Failed to delete variant '${sku}'`);
+                              await update();
+                            };
+                          }}>
+                      <input type="hidden" name="variant_id" value={variant.id} />
+                      <button type="submit"
+                              title="Delete"
+                              aria-label="Delete variant"
+                              class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              onclick={(e) => { if (!confirm('Delete this variant?')) e.preventDefault(); }}>
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                          <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                        </svg>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="7" class="px-5 py-8 text-center text-gray-400 text-sm">
+                  No variants yet. Add one to set pricing and stock.
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
       </div>
     </section>
 
-    <!-- ── Images ── -->
-    <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <h2 class="font-semibold text-gray-900">
-          Images
-          {#if reorderSaving}
-            <span class="ml-2 text-xs font-normal text-gray-400">Saving order…</span>
-          {/if}
-        </h2>
-        <button onclick={() => showAddImage = true}
-                class="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg
-                       hover:bg-gray-700 transition-colors">
-          + Add Image
-        </button>
-      </div>
+  <!-- ── Images ── -->
+  <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 class="font-semibold text-gray-900">
+        Images
+        {#if !data.isNew && reorderSaving}
+          <span class="ml-2 text-xs font-normal text-gray-400">Saving order…</span>
+        {/if}
+      </h2>
+      <button onclick={() => showAddImage = true}
+              class="px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg
+                     hover:bg-gray-700 transition-colors">
+        + Add Image
+      </button>
+    </div>
 
-      {#if reorderError}
-        <div class="px-6 py-2 text-sm text-red-500 bg-red-50 border-b border-red-100 flex items-center justify-between">
-          {reorderError}
-          <button onclick={() => reorderError = null} class="ml-4 text-red-400 hover:text-red-600">✕</button>
+    {#if !data.isNew && reorderError}
+      <div class="px-6 py-2 text-sm text-red-500 bg-red-50 border-b border-red-100 flex items-center justify-between">
+        {reorderError}
+        <button onclick={() => reorderError = null} class="ml-4 text-red-400 hover:text-red-600">✕</button>
+      </div>
+    {/if}
+
+    {#if data.isNew}
+      {#if pendingImages.length === 0}
+        <div class="px-6 py-8 text-center text-gray-400 text-sm">No images yet.</div>
+      {:else}
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
+          {#each pendingImages as pi (pi._localId)}
+            <div class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100">
+              <img src={pi.preview_url} alt={pi.alt_text ?? ''} class="w-full h-full object-cover" />
+              {#if pi.is_primary}
+                <span class="absolute top-2 left-2 p-1.5 rounded-lg bg-amber-400/90 text-white"
+                      title="Primary image" aria-label="Primary image">
+                  <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                  </svg>
+                </span>
+              {/if}
+              <div class="absolute inset-0 bg-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end justify-center p-2.5">
+                <div class="flex items-center justify-center gap-1.5">
+                  {#if !pi.is_primary}
+                    <button type="button"
+                            title="Set as primary" aria-label="Set as primary"
+                            onclick={() => { pendingImages = pendingImages.map(p => ({ ...p, is_primary: p._localId === pi._localId })); }}
+                            class="p-1.5 rounded-lg bg-white/10 hover:bg-amber-400/90 transition-colors text-white">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/>
+                      </svg>
+                    </button>
+                  {/if}
+                  <button type="button"
+                          title="Remove" aria-label="Remove image"
+                          onclick={() => {
+                            const removing = pendingImages.find(p => p._localId === pi._localId);
+                            pendingImages = pendingImages.filter(p => p._localId !== pi._localId);
+                            if (removing?.is_primary && pendingImages.length > 0) {
+                              pendingImages = pendingImages.map((p, i) => i === 0 ? { ...p, is_primary: true } : p);
+                            }
+                          }}
+                          class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 transition-colors text-white">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/each}
         </div>
       {/if}
-
+    {:else}
       {#if images.length === 0}
         <div class="px-6 py-8 text-center text-gray-400 text-sm">No images yet.</div>
       {:else}
@@ -436,7 +562,6 @@
             >
               <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
 
-              <!-- Always-visible primary indicator -->
               {#if image.is_primary}
                 <span class="absolute top-2 left-2 p-1.5 rounded-lg bg-amber-400/90 text-white"
                       title="Primary image" aria-label="Primary image">
@@ -446,7 +571,6 @@
                 </span>
               {/if}
 
-              <!-- Hover overlay with bottom-centered action icons -->
               <div class="absolute inset-0 bg-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-end justify-center p-2.5">
                 <div class="flex items-center justify-center gap-1.5">
                   {#if !image.is_primary}
@@ -482,22 +606,25 @@
           {/each}
         </div>
       {/if}
-    </section>
-  {/if}
+    {/if}
+  </section>
 
   <!-- ── Actions ── -->
   <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5
               flex flex-col sm:flex-row sm:items-center gap-4">
+    {#if data.isNew && anyUploading}
+      <p class="text-xs text-amber-600 sm:mr-auto">Waiting for image upload to complete…</p>
+    {/if}
     <div class="sm:ml-auto flex gap-3">
       <a href="/admin/products"
          class="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                 text-gray-700 hover:bg-gray-50 transition-colors">
         Cancel
       </a>
-      <button type="submit" form="product-form" disabled={saving}
+      <button type="submit" form="product-form" disabled={saving || (data.isNew && anyUploading)}
               class="px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium
                      hover:bg-gray-700 transition-colors disabled:opacity-50">
-        {saving ? 'Saving…' : (data.isNew ? 'Create Product' : 'Save Changes')}
+        {saving ? 'Saving…' : (data.isNew && anyUploading ? 'Uploading…' : data.isNew ? 'Create Product' : 'Save Changes')}
       </button>
     </div>
   </div>
@@ -511,8 +638,32 @@
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
       <h3 class="font-semibold text-gray-900 mb-4">Add Variant</h3>
       <form method="POST" action="?/addVariant"
-            use:enhance={({ formData }) => {
+            use:enhance={({ formData, cancel }) => {
               const sku = formData.get('sku')?.toString() ?? '';
+              if (data.isNew) {
+                cancel();
+                if (!sku) return;
+                if (pendingVariants.some(v => v.sku === sku)) {
+                  notify.warning('Duplicate SKU', `A pending variant with SKU '${sku}' already exists.`);
+                  return;
+                }
+                const imageId = addVariantImageId ?? undefined;
+                const imageMedia_ = imageMedia.find(m => m.id === imageId);
+                pendingVariants = [...pendingVariants, {
+                  _localId: crypto.randomUUID(),
+                  sku,
+                  price: parseFloat(formData.get('price')?.toString() ?? '0'),
+                  compare_at_price: formData.get('compare_at_price')?.toString()
+                    ? parseFloat(formData.get('compare_at_price')!.toString())
+                    : undefined,
+                  stock_qty: parseInt(formData.get('stock_qty')?.toString() ?? '0', 10),
+                  image_media_file_id: imageId,
+                  image_preview_url: imageMedia_?.webp_url ?? imageMedia_?.url
+                }];
+                showAddVariant = false;
+                addVariantImageId = null;
+                return;
+              }
               return async ({ result, update }) => {
                 showResult(result, `Variant '${sku}' added`, `Failed to add variant '${sku}'`);
                 await update();
@@ -845,10 +996,34 @@
       {:else}
         <!-- Library tab — pick from existing media -->
         <form method="POST" action="?/addImage"
-              use:enhance={() => async ({ result, update }) => {
-                showResult(result, 'Image added', 'Failed to add image');
-                await update();
-                if (result.type === 'success') resetAddImageModal();
+              use:enhance={({ formData, cancel }) => {
+                if (data.isNew) {
+                  cancel();
+                  if (!addImageSelectedId) return;
+                  const mf = imageMedia.find(m => m.id === addImageSelectedId);
+                  if (!mf) return;
+                  const wantPrimary = formData.get('is_primary') === 'true';
+                  const isFirst = pendingImages.length === 0;
+                  const newEntry: typeof pendingImages[0] = {
+                    _localId: crypto.randomUUID(),
+                    media_file_id: addImageSelectedId,
+                    preview_url: mf.webp_url ?? mf.url,
+                    is_primary: wantPrimary || isFirst,
+                    alt_text: formData.get('alt_text')?.toString() || undefined
+                  };
+                  if (wantPrimary && !isFirst) {
+                    pendingImages = [...pendingImages.map(p => ({ ...p, is_primary: false })), newEntry];
+                  } else {
+                    pendingImages = [...pendingImages, newEntry];
+                  }
+                  resetAddImageModal();
+                  return;
+                }
+                return async ({ result, update }) => {
+                  showResult(result, 'Image added', 'Failed to add image');
+                  await update();
+                  if (result.type === 'success') resetAddImageModal();
+                };
               }}>
           <input type="hidden" name="media_file_id" value={addImageSelectedId ?? ''} />
           <input type="hidden" name="sort_order" value="0" />
