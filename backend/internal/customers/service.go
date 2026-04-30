@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"gyeon/backend/internal/util"
 )
 
 var ErrNotFound = errors.New("customer not found")
@@ -165,10 +167,24 @@ func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfil
 	return &c, err
 }
 
-func (s *Service) List(ctx context.Context, limit, offset int) ([]Customer, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
-		 FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+// customerSearchFields are matched by the optional admin `search` param on List.
+// The trailing concatenated full-name expression makes "Mary Tam" match.
+var customerSearchFields = []string{
+	"email", "first_name", "last_name", "phone",
+	"(first_name || ' ' || last_name)",
+}
+
+func (s *Service) List(ctx context.Context, search string, limit, offset int) ([]Customer, error) {
+	args := []any{limit, offset}
+	query := `SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		 FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	if clause, arg := util.BuildSearchClause(search, customerSearchFields, 3); clause != "" {
+		query = `SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		 FROM customers WHERE ` + clause + ` ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+		args = append(args, arg)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

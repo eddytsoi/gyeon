@@ -145,7 +145,7 @@ func (s *Service) syncCategories(ctx context.Context, wc *wcClient, p *ProgressU
 func (s *Service) fetchExistingSlugs(ctx context.Context) (map[string]bool, error) {
 	slugs := make(map[string]bool)
 	for offset := 0; ; offset += 100 {
-		products, err := s.productSvc.ListAll(ctx, "", 100, offset)
+		products, err := s.productSvc.ListAll(ctx, "", "", 100, offset)
 		if err != nil {
 			return nil, err
 		}

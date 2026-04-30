@@ -2,12 +2,14 @@ import { adminGetProducts, adminGetCategories, adminGetVariants } from '$lib/api
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
+  const q = url.searchParams.get('q') ?? '';
+
   const [products, categories] = await Promise.all([
-    adminGetProducts(token).catch(() => []).then(r => r ?? []),
+    adminGetProducts(token, 50, 0, q).catch(() => []).then(r => r ?? []),
     adminGetCategories(token).catch(() => []).then(r => r ?? [])
   ]);
 
@@ -18,7 +20,7 @@ export const load: PageServerLoad = async ({ parent }) => {
     }))
   );
 
-  return { products: enriched, categories };
+  return { products: enriched, categories, q };
 };
 
 export const actions: Actions = {

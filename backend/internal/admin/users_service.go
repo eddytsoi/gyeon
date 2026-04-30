@@ -6,7 +6,12 @@ import (
 	"errors"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"gyeon/backend/internal/util"
 )
+
+// adminUserSearchFields are matched by the optional `search` param on List.
+var adminUserSearchFields = []string{"email", "name"}
 
 var ErrUserNotFound = errors.New("admin user not found")
 var ErrEmailTaken = errors.New("email already registered")
@@ -67,10 +72,17 @@ func (s *UserService) Login(ctx context.Context, req AdminLoginRequest) (*AdminU
 	return &u, nil
 }
 
-func (s *UserService) List(ctx context.Context) ([]AdminUser, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, email, name, role, is_active, created_at, updated_at
-		 FROM admin_users ORDER BY created_at ASC`)
+func (s *UserService) List(ctx context.Context, search string) ([]AdminUser, error) {
+	args := []any{}
+	query := `SELECT id, email, name, role, is_active, created_at, updated_at
+		 FROM admin_users ORDER BY created_at ASC`
+	if clause, arg := util.BuildSearchClause(search, adminUserSearchFields, 1); clause != "" {
+		query = `SELECT id, email, name, role, is_active, created_at, updated_at
+		 FROM admin_users WHERE ` + clause + ` ORDER BY created_at ASC`
+		args = append(args, arg)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

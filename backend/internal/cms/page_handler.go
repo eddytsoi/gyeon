@@ -40,7 +40,8 @@ func (h *PageHandler) PublicRoutes() chi.Router {
 }
 
 func (h *PageHandler) list(w http.ResponseWriter, r *http.Request) {
-	pages, err := h.svc.List(r.Context(), r.URL.Query().Get("lang"))
+	pages, err := h.svc.List(r.Context(),
+		r.URL.Query().Get("lang"), r.URL.Query().Get("q"))
 	if err != nil {
 		respond.InternalError(w)
 		return

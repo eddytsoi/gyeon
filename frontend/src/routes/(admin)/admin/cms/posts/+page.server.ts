@@ -2,10 +2,11 @@ import { adminGetPosts, adminDeletePost, type CmsPost } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, url }) => {
   const token = cookies.get('admin_token') ?? '';
-  const posts = await adminGetPosts(token).catch(() => [] as CmsPost[]);
-  return { posts };
+  const q = url.searchParams.get('q') ?? '';
+  const posts = await adminGetPosts(token, 50, 0, q).catch(() => [] as CmsPost[]);
+  return { posts, q };
 };
 
 export const actions: Actions = {

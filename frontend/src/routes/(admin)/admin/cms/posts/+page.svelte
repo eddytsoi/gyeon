@@ -1,15 +1,25 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData } from './$types';
   import type { CmsPost } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
+  import SearchInput from '$lib/components/admin/SearchInput.svelte';
 
   let { data }: { data: PageData } = $props();
 
   let deleteTarget = $state<CmsPost | null>(null);
 
   const publishedCount = $derived(data.posts.filter(p => p.is_published).length);
+
+  function onSearch(q: string) {
+    const url = new URL(page.url);
+    if (q) url.searchParams.set('q', q);
+    else url.searchParams.delete('q');
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 </script>
 
 <div class="space-y-6">
@@ -31,6 +41,8 @@
     </a>
   </div>
 
+  <SearchInput value={data.q} placeholder="Search by title, excerpt, slug or POST-…" onChange={onSearch} />
+
   <!-- List -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
        use:spotlight={{ selector: '.js-row' }}>
@@ -42,10 +54,14 @@
               d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"/>
           </svg>
         </div>
-        <p class="text-sm font-medium text-gray-400">No posts yet</p>
-        <a href="/admin/cms/posts/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
-          Write your first post
-        </a>
+        {#if data.q}
+          <p class="text-sm font-medium text-gray-400">No posts matching "{data.q}"</p>
+        {:else}
+          <p class="text-sm font-medium text-gray-400">No posts yet</p>
+          <a href="/admin/cms/posts/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
+            Write your first post
+          </a>
+        {/if}
       </div>
     {:else}
       <!-- Mobile cards -->

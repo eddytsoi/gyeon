@@ -2,12 +2,13 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { adminGetUsers, adminCreateUser, adminUpdateUser, adminDeleteUser } from '$lib/api/admin';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
-  const users = await adminGetUsers(token).catch(() => []);
-  return { users };
+  const q = url.searchParams.get('q') ?? '';
+  const users = await adminGetUsers(token, q).catch(() => []);
+  return { users, q };
 };
 
 export const actions: Actions = {

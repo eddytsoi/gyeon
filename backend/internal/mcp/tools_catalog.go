@@ -23,9 +23,10 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("list_products",
-		mcplib.WithDescription("List active products with optional pagination and language selection"),
+		mcplib.WithDescription("List active products with optional pagination, search and language selection"),
 		mcplib.WithNumber("limit", mcplib.Description("Max products to return (1–100, default 20)"), mcplib.DefaultNumber(20)),
 		mcplib.WithNumber("offset", mcplib.Description("Number of products to skip for pagination (default 0)"), mcplib.DefaultNumber(0)),
+		mcplib.WithString("search", mcplib.Description("Optional case-insensitive substring matched against product name, slug and number. Omit to list all.")),
 		mcplib.WithString("lang", mcplib.Description("Language locale for translations, e.g. 'en' or 'zh-TW'. Omit for default.")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 		limit := req.GetInt("limit", 20)
@@ -40,8 +41,9 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 			offset = 0
 		}
 		lang := req.GetString("lang", "")
+		search := req.GetString("search", "")
 
-		products, err := prodSvc.List(ctx, lang, limit, offset)
+		products, err := prodSvc.List(ctx, lang, search, limit, offset)
 		if err != nil {
 			return nil, err
 		}
