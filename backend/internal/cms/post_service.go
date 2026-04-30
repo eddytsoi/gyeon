@@ -8,7 +8,12 @@ import (
 	"time"
 
 	"gyeon/backend/internal/cache"
+	"gyeon/backend/internal/util"
 )
+
+// postSearchFields are matched by the optional admin `search` param on List.
+// Body content is intentionally excluded.
+var postSearchFields = []string{"p.title", "p.excerpt", "p.slug", "p.number::text"}
 
 type Post struct {
 	ID               string  `json:"id"`
@@ -89,13 +94,22 @@ func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 }
 
 // List returns all posts (admin). locale may be empty for base content.
-func (s *PostService) List(ctx context.Context, locale string, limit, offset int) ([]Post, error) {
-	key := fmt.Sprintf("cms:posts:all:%s:%d:%d", locale, limit, offset)
+// search is an optional case-insensitive substring matched against
+// postSearchFields; pass "" to disable.
+func (s *PostService) List(ctx context.Context, locale, search string, limit, offset int) ([]Post, error) {
+	key := fmt.Sprintf("cms:posts:all:%s:%s:%d:%d", locale, search, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Post), nil
 	}
-	rows, err := s.db.QueryContext(ctx,
-		postSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, locale, limit, offset)
+
+	args := []any{locale, limit, offset}
+	query := postSelect + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	if clause, arg := util.BuildSearchClause(search, postSearchFields, 4); clause != "" {
+		query = postSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+		args = append(args, arg)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

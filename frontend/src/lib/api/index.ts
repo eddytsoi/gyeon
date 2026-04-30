@@ -17,8 +17,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const getCategories = () => request<Category[]>('/categories');
 export const getCategoryBySlug = (slug: string) => request<Category>(`/categories/${slug}`);
 
-export const getProducts = (limit = 20, offset = 0) =>
-  request<Product[]>(`/products?limit=${limit}&offset=${offset}`);
+export const getProducts = (limit = 20, offset = 0, search = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (search) qs.set('q', search);
+  return request<Product[]>(`/products?${qs.toString()}`);
+};
 export const getProductByID = (id: string) => request<Product>(`/products/${id}`);
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
 export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);

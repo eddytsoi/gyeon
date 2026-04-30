@@ -7,7 +7,13 @@ import (
 	"time"
 
 	"gyeon/backend/internal/cache"
+	"gyeon/backend/internal/util"
 )
+
+// productSearchFields are the columns matched by the optional `search` param
+// on List / ListAll. Body content (description) is intentionally excluded —
+// noisy on substring match and slow without a trigram index.
+var productSearchFields = []string{"p.name", "p.slug", "p.number::text"}
 
 type Product struct {
 	ID          string  `json:"id"`
@@ -138,14 +144,23 @@ func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time
 }
 
 // List returns active products. locale may be empty for base content.
-func (s *ProductService) List(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
-	key := fmt.Sprintf("shop:products:pub:%s:%d:%d", locale, limit, offset)
+// search is an optional case-insensitive substring matched against
+// productSearchFields; pass "" to disable.
+func (s *ProductService) List(ctx context.Context, locale, search string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d", locale, search, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
+
+	args := []any{locale, limit, offset}
+	where := "p.status = 'active'" // public: active only
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
+		where += " AND " + clause
+		args = append(args, arg)
+	}
 	rows, err := s.db.QueryContext(ctx,
-		productSelect+` WHERE p.status = 'active' ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, // public: active only
-		locale, limit, offset)
+		productSelect+` WHERE `+where+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		args...)
 	if err != nil {
 		return nil, err
 	}
@@ -167,14 +182,20 @@ func (s *ProductService) List(ctx context.Context, locale string, limit, offset 
 }
 
 // ListAll returns all products regardless of is_active (admin). locale may be empty.
-func (s *ProductService) ListAll(ctx context.Context, locale string, limit, offset int) ([]Product, error) {
-	key := fmt.Sprintf("shop:products:all:%s:%d:%d", locale, limit, offset)
+// search is optional; see List.
+func (s *ProductService) ListAll(ctx context.Context, locale, search string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:all:%s:%s:%d:%d", locale, search, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
-	rows, err := s.db.QueryContext(ctx,
-		productSelect+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
-		locale, limit, offset)
+
+	args := []any{locale, limit, offset}
+	query := productSelect + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
+		query = productSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+		args = append(args, arg)
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

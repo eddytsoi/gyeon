@@ -8,7 +8,12 @@ import (
 	"time"
 
 	"gyeon/backend/internal/cache"
+	"gyeon/backend/internal/util"
 )
+
+// pageSearchFields are matched by the optional admin `search` param on List.
+// Body content is intentionally excluded.
+var pageSearchFields = []string{"p.title", "p.slug", "p.number::text"}
 
 type Page struct {
 	ID          string  `json:"id"`
@@ -85,13 +90,22 @@ func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 }
 
 // List returns all pages. locale may be empty for base content.
-func (s *PageService) List(ctx context.Context, locale string) ([]Page, error) {
-	key := fmt.Sprintf("cms:pages:list:%s", locale)
+// search is an optional case-insensitive substring matched against
+// pageSearchFields; pass "" to disable.
+func (s *PageService) List(ctx context.Context, locale, search string) ([]Page, error) {
+	key := fmt.Sprintf("cms:pages:list:%s:%s", locale, search)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Page), nil
 	}
-	rows, err := s.db.QueryContext(ctx,
-		pageSelect+` ORDER BY p.created_at DESC`, locale)
+
+	args := []any{locale}
+	query := pageSelect + ` ORDER BY p.created_at DESC`
+	if clause, arg := util.BuildSearchClause(search, pageSearchFields, 2); clause != "" {
+		query = pageSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC`
+		args = append(args, arg)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

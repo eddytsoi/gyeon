@@ -1,18 +1,28 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData } from './$types';
   import type { Product } from '$lib/types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
+  import SearchInput from '$lib/components/admin/SearchInput.svelte';
 
   let { data }: { data: PageData } = $props();
 
   let deleteTarget = $state<Product | null>(null);
+
+  function onSearch(q: string) {
+    const url = new URL(page.url);
+    if (q) url.searchParams.set('q', q);
+    else url.searchParams.delete('q');
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 </script>
 
 <svelte:head><title>Products — Gyeon Admin</title></svelte:head>
 
-<div class="flex items-center justify-between mb-8">
+<div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold text-gray-900">Products</h1>
   <a href="/admin/products/new"
      class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
@@ -22,6 +32,10 @@
     </svg>
     New Product
   </a>
+</div>
+
+<div class="mb-4">
+  <SearchInput value={data.q} placeholder="Search by name, slug or PRD-…" onChange={onSearch} />
 </div>
 
 <!-- Products table -->
@@ -91,7 +105,9 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-gray-400">No products yet.</td>
+          <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+            {data.q ? `No products matching "${data.q}".` : 'No products yet.'}
+          </td>
         </tr>
       {/each}
     </tbody>

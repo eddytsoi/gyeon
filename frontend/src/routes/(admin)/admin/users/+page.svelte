@@ -1,13 +1,23 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData, ActionData } from './$types';
   import type { AdminUser } from '$lib/api/admin';
   import { spotlight } from '$lib/actions/spotlight';
+  import SearchInput from '$lib/components/admin/SearchInput.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   let showCreate = $state(false);
   let editingUser = $state<AdminUser | null>(null);
+
+  function onSearch(q: string) {
+    const url = new URL(page.url);
+    if (q) url.searchParams.set('q', q);
+    else url.searchParams.delete('q');
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 
   const roleLabel: Record<string, string> = {
     super_admin: 'Super Admin',
@@ -25,13 +35,17 @@
 <svelte:head><title>Users — Gyeon Admin</title></svelte:head>
 
 <div class="max-w-4xl">
-  <div class="flex items-center justify-between mb-8">
+  <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Admin Users</h1>
     <button onclick={() => showCreate = true}
             class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
                    hover:bg-gray-700 transition-colors">
       + New User
     </button>
+  </div>
+
+  <div class="mb-4">
+    <SearchInput value={data.q} placeholder="Search by name or email…" onChange={onSearch} />
   </div>
 
   {#if form?.error}
@@ -91,7 +105,9 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">No admin users found.</td>
+            <td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">
+              {data.q ? `No admin users matching "${data.q}".` : 'No admin users found.'}
+            </td>
           </tr>
         {/each}
       </tbody>

@@ -38,16 +38,20 @@ const tools: ToolDefinition[] = [
   {
     name: 'browse_products',
     title: 'Browse products',
-    description: 'List products in the catalog with pagination.',
+    description: 'List products in the catalog with pagination and optional substring search.',
     inputSchema: {
       type: 'object',
       properties: {
         limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-        offset: { type: 'integer', minimum: 0, default: 0 }
+        offset: { type: 'integer', minimum: 0, default: 0 },
+        search: {
+          type: 'string',
+          description: 'Optional case-insensitive substring matched against product name, slug and number.'
+        }
       }
     },
     annotations: { readOnlyHint: true },
-    execute: ({ limit, offset } = {}) => getProducts(limit ?? 20, offset ?? 0)
+    execute: ({ limit, offset, search } = {}) => getProducts(limit ?? 20, offset ?? 0, search ?? '')
   },
   {
     name: 'get_product_detail',

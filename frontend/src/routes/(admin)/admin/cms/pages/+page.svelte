@@ -1,13 +1,23 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData } from './$types';
   import type { CmsPage } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
+  import SearchInput from '$lib/components/admin/SearchInput.svelte';
 
   let { data }: { data: PageData } = $props();
 
   let deleteTarget = $state<CmsPage | null>(null);
+
+  function onSearch(q: string) {
+    const url = new URL(page.url);
+    if (q) url.searchParams.set('q', q);
+    else url.searchParams.delete('q');
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 </script>
 
 <div class="space-y-6">
@@ -27,6 +37,8 @@
     </a>
   </div>
 
+  <SearchInput value={data.q} placeholder="Search by title, slug or PG-…" onChange={onSearch} />
+
   <!-- Table -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
        use:spotlight={{ selector: '.js-row' }}>
@@ -38,10 +50,14 @@
               d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
           </svg>
         </div>
-        <p class="text-sm font-medium text-gray-400">No pages yet</p>
-        <a href="/admin/cms/pages/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
-          Create your first page
-        </a>
+        {#if data.q}
+          <p class="text-sm font-medium text-gray-400">No pages matching "{data.q}"</p>
+        {:else}
+          <p class="text-sm font-medium text-gray-400">No pages yet</p>
+          <a href="/admin/cms/pages/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
+            Create your first page
+          </a>
+        {/if}
       </div>
     {:else}
       <!-- Mobile cards -->

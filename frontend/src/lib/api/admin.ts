@@ -42,8 +42,11 @@ export const getStats = (token: string) =>
 
 // Products — admin list hits a dedicated endpoint that returns all statuses;
 // mutations and detail reads use /products/* (token-protected).
-export const adminGetProducts = (token: string, limit = 50, offset = 0) =>
-  request<Product[]>(`/admin/inventory/?limit=${limit}&offset=${offset}`, token);
+export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) qs.set('q', q);
+  return request<Product[]>(`/admin/inventory/?${qs.toString()}`, token);
+};
 
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
   request<Product>('/products', token, { method: 'POST', body: JSON.stringify(body) });
@@ -144,8 +147,10 @@ export interface CmsPost {
 }
 
 // Pages
-export const adminGetPages = (token: string) =>
-  request<CmsPage[]>('/admin/cms/pages', token);
+export const adminGetPages = (token: string, q = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  return request<CmsPage[]>(`/admin/cms/pages${qs}`, token);
+};
 
 export const adminGetPage = (token: string, id: string) =>
   request<CmsPage>(`/admin/cms/pages/${id}`, token);
@@ -160,8 +165,11 @@ export const adminDeletePage = (token: string, id: string) =>
   request(`/admin/cms/pages/${id}`, token, { method: 'DELETE' });
 
 // Posts
-export const adminGetPosts = (token: string, limit = 50, offset = 0) =>
-  request<CmsPost[]>(`/admin/cms/posts?limit=${limit}&offset=${offset}`, token);
+export const adminGetPosts = (token: string, limit = 50, offset = 0, q = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) qs.set('q', q);
+  return request<CmsPost[]>(`/admin/cms/posts?${qs.toString()}`, token);
+};
 
 export const adminGetPost = (token: string, id: string) =>
   request<CmsPost>(`/admin/cms/posts/${id}`, token);
@@ -276,8 +284,11 @@ export interface CustomerOrderSummary {
   created_at: string;
 }
 
-export const adminGetCustomers = (token: string, limit = 50, offset = 0) =>
-  request<Customer[]>(`/admin/customers?limit=${limit}&offset=${offset}`, token);
+export const adminGetCustomers = (token: string, limit = 50, offset = 0, q = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) qs.set('q', q);
+  return request<Customer[]>(`/admin/customers?${qs.toString()}`, token);
+};
 
 export const adminGetCustomer = (token: string, id: string) =>
   request<Customer>(`/admin/customers/${id}`, token);
@@ -363,8 +374,10 @@ export interface AdminUser {
   updated_at: string;
 }
 
-export const adminGetUsers = (token: string) =>
-  request<AdminUser[]>('/admin/users', token);
+export const adminGetUsers = (token: string, q = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  return request<AdminUser[]>(`/admin/users${qs}`, token);
+};
 
 export const adminCreateUser = (token: string, body: { email: string; password: string; name: string; role: string }) =>
   request<AdminUser>('/admin/users', token, { method: 'POST', body: JSON.stringify(body) });

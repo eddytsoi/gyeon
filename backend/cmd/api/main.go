@@ -270,8 +270,9 @@ func main() {
 	mcpServer := mcpsrv.NewServer(categorySvc, productSvc, cartSvc, orderSvc, pricingSvc)
 	r.With(mcpGate).Mount("/mcp", mcpServer.Handler())
 
-	log.Println("API server listening on :8080")
-	if err := http.ListenAndServe(":8080", r); err != nil {
+	addr := ":" + getenv("PORT", "8080")
+	log.Println("API server listening on", addr)
+	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatal(err)
 	}
 }

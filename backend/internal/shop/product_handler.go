@@ -63,7 +63,8 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	products, err := h.svc.List(r.Context(), r.URL.Query().Get("lang"), limit, offset)
+	products, err := h.svc.List(r.Context(),
+		r.URL.Query().Get("lang"), r.URL.Query().Get("q"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -79,7 +80,8 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	products, err := h.svc.ListAll(r.Context(), r.URL.Query().Get("lang"), limit, offset)
+	products, err := h.svc.ListAll(r.Context(),
+		r.URL.Query().Get("lang"), r.URL.Query().Get("q"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return

@@ -57,7 +57,7 @@ func (h *UserHandler) AdminRoutes() chi.Router {
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
-	users, err := h.svc.List(r.Context())
+	users, err := h.svc.List(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
 		respond.InternalError(w)
 		return
