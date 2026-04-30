@@ -63,8 +63,17 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	products, err := h.svc.List(r.Context(),
-		r.URL.Query().Get("lang"), r.URL.Query().Get("q"), limit, offset)
+	lang := r.URL.Query().Get("lang")
+	search := r.URL.Query().Get("q")
+	category := r.URL.Query().Get("category")
+
+	var products []Product
+	var err error
+	if category != "" {
+		products, err = h.svc.ListByCategorySlug(r.Context(), lang, category, search, limit, offset)
+	} else {
+		products, err = h.svc.List(r.Context(), lang, search, limit, offset)
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return

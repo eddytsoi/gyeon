@@ -54,7 +54,16 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *PostHandler) listPublished(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pagination(r)
-	posts, err := h.svc.ListPublished(r.Context(), r.URL.Query().Get("lang"), limit, offset)
+	lang := r.URL.Query().Get("lang")
+	category := r.URL.Query().Get("category")
+
+	var posts []Post
+	var err error
+	if category != "" {
+		posts, err = h.svc.ListPublishedByCategorySlug(r.Context(), lang, category, limit, offset)
+	} else {
+		posts, err = h.svc.ListPublished(r.Context(), lang, limit, offset)
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return

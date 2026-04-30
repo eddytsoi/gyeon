@@ -220,6 +220,8 @@ export interface Address {
 export interface CmsPost {
   id: string;
   category_id?: string;
+  category_slug?: string;
+  category_name?: string;
   slug: string;
   title: string;
   excerpt?: string;

@@ -2,6 +2,7 @@ package shop
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -20,10 +21,26 @@ func (h *CategoryHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Post("/", h.create)
+	// Lookup by slug must be defined before /{id} so chi prefers the literal segment.
+	r.Get("/by-slug/{slug}", h.getBySlug)
 	r.Get("/{id}", h.getByID)
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	return r
+}
+
+func (h *CategoryHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	cat, err := h.svc.GetBySlug(r.Context(), slug)
+	if errors.Is(err, ErrCategoryNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, cat)
 }
 
 func (h *CategoryHandler) list(w http.ResponseWriter, r *http.Request) {

@@ -32,7 +32,22 @@ func (h *PostCategoryHandler) AdminRoutes() chi.Router {
 func (h *PostCategoryHandler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
+	r.Get("/by-slug/{slug}", h.getBySlug)
 	return r
+}
+
+func (h *PostCategoryHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	cat, err := h.svc.GetBySlug(r.Context(), slug)
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, cat)
 }
 
 func (h *PostCategoryHandler) list(w http.ResponseWriter, r *http.Request) {

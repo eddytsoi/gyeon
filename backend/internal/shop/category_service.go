@@ -3,11 +3,15 @@ package shop
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"gyeon/backend/internal/cache"
 )
+
+// ErrCategoryNotFound is returned when a category lookup misses.
+var ErrCategoryNotFound = errors.New("category not found")
 
 type Category struct {
 	ID          string  `json:"id"`
@@ -87,6 +91,29 @@ func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
 	}
 	s.cache.Set(key, cats, s.ttl(ctx))
 	return cats, nil
+}
+
+func (s *CategoryService) GetBySlug(ctx context.Context, slug string) (*Category, error) {
+	key := fmt.Sprintf("shop:categories:slug:%s", slug)
+	if v, ok := s.cache.Get(key); ok {
+		c := v.(Category)
+		return &c, nil
+	}
+	c, err := scanCategory(s.db.QueryRowContext(ctx,
+		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
+		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
+		        c.sort_order, c.is_active, c.created_at, c.updated_at
+		 FROM categories c
+		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
+		 WHERE c.slug = $1 AND c.is_active = TRUE`, slug))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrCategoryNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, c, s.ttl(ctx))
+	return &c, nil
 }
 
 func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, error) {
