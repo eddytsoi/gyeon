@@ -369,7 +369,13 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 
 func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req UpdateImageRequest) (*ProductImage, error) {
 	img, err := scanProductImage(s.db.QueryRowContext(ctx,
-		`WITH upd AS (
+		`WITH unset_others AS (
+		     UPDATE product_images SET is_primary = FALSE
+		     WHERE product_id = (SELECT product_id FROM product_images WHERE id = $1)
+		       AND id <> $1
+		       AND $4 = TRUE
+		 ),
+		 upd AS (
 		     UPDATE product_images SET alt_text=$2, sort_order=$3, is_primary=$4
 		     WHERE id=$1
 		     RETURNING *
