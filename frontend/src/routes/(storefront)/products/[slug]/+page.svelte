@@ -185,7 +185,7 @@
         {#if data.variants.length > 0}
           <div>
             <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-3">
-              {data.variants.length > 1 ? 'Select Size / Volume' : 'Available'}
+              {data.variants.length > 1 ? 'OPTIONS' : 'Available'}
             </p>
             <div class="flex flex-wrap gap-2">
               {#each data.variants as v}
