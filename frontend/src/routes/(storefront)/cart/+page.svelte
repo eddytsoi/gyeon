@@ -29,7 +29,7 @@
       <div class="flex-1 flex flex-col gap-4">
         {#each cartStore.cart.items as item}
           <div class="flex items-center gap-4 bg-white rounded-2xl p-4 border border-gray-100">
-            <a href="/products/{item.product_slug}"
+            <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
                class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden block hover:opacity-80 transition-opacity">
               {#if item.image_url}
                 <img src={item.image_url} alt={item.product_name} class="w-full h-full object-cover" />
@@ -37,7 +37,7 @@
             </a>
 
             <div class="flex-1 min-w-0">
-              <a href="/products/{item.product_slug}"
+              <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
                  class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
                 {item.product_name} ({item.sku})
               </a>
