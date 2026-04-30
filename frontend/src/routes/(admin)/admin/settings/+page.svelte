@@ -372,7 +372,7 @@
         }}>
 
     <!-- General tab -->
-    <div class:hidden={activeTab !== 'general'}>
+    <div class="tab-panel" class:active={activeTab === 'general'}>
     <!-- Maintenance Mode -->
     {#if maintenanceSetting}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
@@ -431,7 +431,7 @@
     </div><!-- /General tab -->
 
     <!-- Commerce tab -->
-    <div class:hidden={activeTab !== 'commerce'}>
+    <div class="tab-panel" class:active={activeTab === 'commerce'}>
     <!-- Shipping Countries -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>
@@ -575,7 +575,7 @@
     </div><!-- /Commerce tab -->
 
     <!-- Logistics tab -->
-    <div class:hidden={activeTab !== 'logistics'}>
+    <div class="tab-panel" class:active={activeTab === 'logistics'}>
     <!-- Logistics (ShipAny) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
@@ -899,7 +899,7 @@
     </div><!-- /Logistics tab -->
 
     <!-- Email tab -->
-    <div class:hidden={activeTab !== 'email'}>
+    <div class="tab-panel" class:active={activeTab === 'email'}>
     <!-- SMTP / Email -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Email (SMTP)</h2>
@@ -937,7 +937,7 @@
     </div><!-- /Email tab -->
 
     <!-- Infrastructure tab -->
-    <div class:hidden={activeTab !== 'infrastructure'}>
+    <div class="tab-panel" class:active={activeTab === 'infrastructure'}>
     <!-- Cache TTL Settings -->
     {#if cacheTTLSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
@@ -1022,7 +1022,7 @@
 
     <!-- General tab (continued — catch-all text settings) -->
     {#if textSettings.length > 0}
-      <div class:hidden={activeTab !== 'general'}>
+      <div class="tab-panel" class:active={activeTab === 'general'}>
         <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
           <h2 class="text-sm font-semibold text-gray-900 mb-5">Other</h2>
           <div class="flex flex-col gap-5">
@@ -1089,3 +1089,21 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* Tab panel transitions — Linear/Radix-style snappy fade + slide.
+     Keeps panels mounted (form fields persist across tab switches), but
+     hides inactive ones via display:none and animates the active panel in. */
+  .tab-panel { display: none; }
+  .tab-panel.active {
+    display: block;
+    animation: tab-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes tab-in {
+    from { opacity: 0; transform: translateX(8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tab-panel.active { animation: none; }
+  }
+</style>
