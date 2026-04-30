@@ -152,7 +152,7 @@
   let navEl = $state<HTMLElement | undefined>();
   let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
   let footerEl = $state<HTMLElement | undefined>();
-  let footerSpotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
+  let footerSpotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0, danger: false });
 
   function moveSpotlightTo(item: Element | null) {
     if (!item || !navEl || !navEl.contains(item)) {
@@ -190,7 +190,8 @@
       top: itemRect.top - containerRect.top,
       left: itemRect.left - containerRect.left,
       width: itemRect.width,
-      height: itemRect.height
+      height: itemRect.height,
+      danger: (item as HTMLElement).classList.contains('js-footer-item--danger')
     };
   }
 
@@ -356,8 +357,9 @@
            class="relative px-3 py-4 border-t border-gray-100 flex-shrink-0">
         <!-- Footer magnetic spotlight -->
         <div aria-hidden="true"
-             class="pointer-events-none absolute z-0 rounded-xl bg-gray-100
-                    transition-[transform,width,height,opacity] duration-[80ms] ease-out
+             class="pointer-events-none absolute z-0 rounded-xl
+                    transition-[transform,width,height,opacity,background-color] duration-[80ms] ease-out
+                    {footerSpotlight.danger ? 'bg-red-50' : 'bg-gray-100'}
                     {footerSpotlight.visible ? 'opacity-100' : 'opacity-0'}"
              style="top: 0; left: 0; transform: translate3d({footerSpotlight.left}px, {footerSpotlight.top}px, 0); width: {footerSpotlight.width}px; height: {footerSpotlight.height}px;">
         </div>
@@ -374,7 +376,7 @@
         </a>
         <form method="POST" action="/admin/logout">
           <button type="submit"
-                  class="js-footer-item relative z-10 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                  class="js-footer-item js-footer-item--danger relative z-10 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
                          text-sm text-gray-400 hover:text-red-600 transition-colors group">
             <svg class="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors"
                  fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
