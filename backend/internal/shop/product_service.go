@@ -16,7 +16,7 @@ type Product struct {
 	Slug        string  `json:"slug"`
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
-	IsActive    bool    `json:"is_active"`
+	Status      string  `json:"status"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
 }
@@ -64,11 +64,11 @@ type CreateProductRequest struct {
 	Slug        string  `json:"slug"`
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
+	Status      string  `json:"status"`
 }
 
 type UpdateProductRequest struct {
 	CreateProductRequest
-	IsActive bool `json:"is_active"`
 }
 
 type CreateVariantRequest struct {
@@ -115,13 +115,13 @@ const productSelect = `
 	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.name,        p.name)        AS name,
 	       COALESCE(t.description, p.description) AS description,
-	       p.is_active, p.created_at, p.updated_at
+	       p.status, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
 	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
-		&p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
+		&p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -144,7 +144,7 @@ func (s *ProductService) List(ctx context.Context, locale string, limit, offset 
 		return v.([]Product), nil
 	}
 	rows, err := s.db.QueryContext(ctx,
-		productSelect+` WHERE p.is_active = TRUE ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		productSelect+` WHERE p.status = 'active' ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, // public: active only
 		locale, limit, offset)
 	if err != nil {
 		return nil, err
@@ -214,11 +214,11 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (*Product, error) {
 	var p Product
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, description)
-		 VALUES ($1, $2, $3, $4)
-		 RETURNING id, category_id, slug, name, description, is_active, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Description).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
+		`INSERT INTO products (category_id, slug, name, description, status)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id, category_id, slug, name, description, status, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Description, req.Status).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -229,11 +229,11 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 func (s *ProductService) Update(ctx context.Context, id string, req UpdateProductRequest) (*Product, error) {
 	var p Product
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, is_active=$6
+		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, status=$6
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, description, is_active, created_at, updated_at`,
-		id, req.CategoryID, req.Slug, req.Name, req.Description, req.IsActive).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.IsActive, &p.CreatedAt, &p.UpdatedAt)
+		 RETURNING id, category_id, slug, name, description, status, created_at, updated_at`,
+		id, req.CategoryID, req.Slug, req.Name, req.Description, req.Status).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

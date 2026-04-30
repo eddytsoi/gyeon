@@ -52,8 +52,8 @@
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                         {product.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
-              {product.is_active ? 'Active' : 'Inactive'}
+                         {product.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
+              {product.status === 'active' ? 'Active' : 'Inactive'}
             </span>
           </td>
           <td class="px-5 py-3">

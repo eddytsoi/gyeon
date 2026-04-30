@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ params }) => {
   const category = categories.find((c) => c.id === product.category_id) ?? null;
 
   const related = products
-    .filter((p) => p.id !== product.id && p.category_id === product.category_id && p.is_active)
+    .filter((p) => p.id !== product.id && p.category_id === product.category_id && p.status === 'active')
     .slice(0, 4);
 
   const [variants, images, ...relatedImages] = await Promise.all([

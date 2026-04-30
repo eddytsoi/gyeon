@@ -32,7 +32,7 @@ export const actions: Actions = {
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
       description: form.get('description')?.toString() || undefined,
-      is_active: true
+      status: 'active'
     };
 
     try {
@@ -63,14 +63,14 @@ export const actions: Actions = {
 
     const form = await request.formData();
     const id = form.get('id')?.toString() ?? '';
-    const is_active = form.get('is_active') === 'true';
+    const currentStatus = form.get('status')?.toString() ?? 'inactive';
 
     try {
       const { adminUpdateProduct } = await import('$lib/api/admin');
       await adminUpdateProduct(token, id, {
         slug: form.get('slug')?.toString() ?? '',
         name: form.get('name')?.toString() ?? '',
-        is_active: !is_active
+        status: currentStatus === 'active' ? 'inactive' : 'active'
       });
     } catch {
       return fail(400, { error: 'Failed to update product' });

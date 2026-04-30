@@ -47,7 +47,7 @@ export const adminGetProducts = (token: string, limit = 50, offset = 0) =>
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
   request<Product>('/products', token, { method: 'POST', body: JSON.stringify(body) });
 
-export const adminUpdateProduct = (token: string, id: string, body: Partial<Product> & { is_active: boolean }) =>
+export const adminUpdateProduct = (token: string, id: string, body: Partial<Product> & { status: string }) =>
   request<Product>(`/products/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
 export const adminDeleteProduct = (token: string, id: string) =>

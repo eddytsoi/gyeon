@@ -44,13 +44,13 @@ export const actions: Actions = {
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
       description: form.get('description')?.toString() || undefined,
-      is_active: form.get('is_active') === 'true'
+      status: form.get('status')?.toString() ?? 'active'
     };
 
     let newProductId: string | undefined;
     try {
       if (id === 'new') {
-        const product = await adminCreateProduct(token, { ...body, is_active: true });
+        const product = await adminCreateProduct(token, body);
         newProductId = product.id;
       } else {
         await adminUpdateProduct(token, id, body);
