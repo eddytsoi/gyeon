@@ -65,7 +65,7 @@ export const actions: Actions = {
       // Create pending variants
       const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
       let pendingVariants: Array<{
-        sku: string; price: number; compare_at_price?: number;
+        sku: string; name?: string; price: number; compare_at_price?: number;
         stock_qty: number; image_media_file_id?: string;
       }> = [];
       try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
@@ -73,7 +73,7 @@ export const actions: Actions = {
       for (const pv of pendingVariants) {
         try {
           const variant = await adminCreateVariant(token, newProductId, {
-            sku: pv.sku, price: pv.price,
+            sku: pv.sku, name: pv.name, price: pv.price,
             compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0
           });
           if (pv.image_media_file_id) {
@@ -116,6 +116,7 @@ export const actions: Actions = {
     try {
       const variant = await adminCreateVariant(token, id, {
         sku: form.get('sku')?.toString() ?? '',
+        name: form.get('name')?.toString() || undefined,
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
           ? parseFloat(form.get('compare_at_price')!.toString())
@@ -147,6 +148,7 @@ export const actions: Actions = {
     try {
       await adminUpdateVariant(token, id, variantID, {
         sku: form.get('sku')?.toString() ?? '',
+        name: form.get('name')?.toString() || undefined,
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
           ? parseFloat(form.get('compare_at_price')!.toString())

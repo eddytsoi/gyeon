@@ -47,7 +47,8 @@
   // Pending state for new products
   type PendingVariant = {
     _localId: string;
-    sku: string; price: number; compare_at_price?: number; stock_qty: number;
+    sku: string; name?: string;
+    price: number; compare_at_price?: number; stock_qty: number;
     image_media_file_id?: string; image_preview_url?: string;
   };
   type PendingImage = {
@@ -327,7 +328,7 @@
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
             <th class="px-5 py-3 w-12"></th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">SKU</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Variant</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Price</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Compare at</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Stock</th>
@@ -346,7 +347,14 @@
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
                   {/if}
                 </td>
-                <td class="px-5 py-3 font-mono text-xs text-gray-700">{pv.sku}</td>
+                <td class="px-5 py-3">
+                  {#if pv.name}
+                    <div class="text-sm font-medium text-gray-900">{pv.name}</div>
+                    <div class="font-mono text-xs text-gray-400">{pv.sku}</div>
+                  {:else}
+                    <div class="font-mono text-xs text-gray-700">{pv.sku}</div>
+                  {/if}
+                </td>
                 <td class="px-5 py-3 font-medium text-gray-900">HK${pv.price.toFixed(2)}</td>
                 <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
                   {pv.compare_at_price ? `HK$${pv.compare_at_price.toFixed(2)}` : '—'}
@@ -387,7 +395,14 @@
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
                   {/if}
                 </td>
-                <td class="px-5 py-3 font-mono text-xs text-gray-700">{variant.sku}</td>
+                <td class="px-5 py-3">
+                  {#if variant.name}
+                    <div class="text-sm font-medium text-gray-900">{variant.name}</div>
+                    <div class="font-mono text-xs text-gray-400">{variant.sku}</div>
+                  {:else}
+                    <div class="font-mono text-xs text-gray-700">{variant.sku}</div>
+                  {/if}
+                </td>
                 <td class="px-5 py-3 font-medium text-gray-900">HK${variant.price.toFixed(2)}</td>
                 <td class="px-5 py-3 text-gray-400 hidden sm:table-cell">
                   {variant.compare_at_price ? `HK$${variant.compare_at_price.toFixed(2)}` : '—'}
@@ -649,9 +664,11 @@
                 }
                 const imageId = addVariantImageId ?? undefined;
                 const imageMedia_ = imageMedia.find(m => m.id === imageId);
+                const nameVal = formData.get('name')?.toString().trim() ?? '';
                 pendingVariants = [...pendingVariants, {
                   _localId: crypto.randomUUID(),
                   sku,
+                  name: nameVal || undefined,
                   price: parseFloat(formData.get('price')?.toString() ?? '0'),
                   compare_at_price: formData.get('compare_at_price')?.toString()
                     ? parseFloat(formData.get('compare_at_price')!.toString())
@@ -675,6 +692,12 @@
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU *</label>
             <input name="sku" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                    focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>
+            <input name="name" placeholder="Optional human-readable label, e.g. Navy / Medium"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
@@ -783,6 +806,13 @@
             <input name="sku" required value={editingVariant.sku}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>
+            <input name="name" value={editingVariant.name ?? ''}
+                   placeholder="Optional human-readable label, e.g. Navy / Medium"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
