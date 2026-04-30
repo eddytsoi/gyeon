@@ -56,6 +56,17 @@ func (s *PostCategoryService) GetByID(ctx context.Context, id string) (*PostCate
 	return &c, err
 }
 
+func (s *PostCategoryService) GetBySlug(ctx context.Context, slug string) (*PostCategory, error) {
+	var c PostCategory
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, slug, name, sort_order FROM cms_post_categories WHERE slug = $1`, slug).
+		Scan(&c.ID, &c.Slug, &c.Name, &c.SortOrder)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &c, err
+}
+
 func (s *PostCategoryService) Create(ctx context.Context, req CreatePostCategoryRequest) (*PostCategory, error) {
 	var c PostCategory
 	err := s.db.QueryRowContext(ctx,

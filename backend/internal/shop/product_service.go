@@ -181,6 +181,43 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 	return products, nil
 }
 
+// ListByCategorySlug returns active products filtered to a single category
+// (resolved from its slug). locale and search behave like List.
+func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d", locale, categorySlug, search, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Product), nil
+	}
+
+	args := []any{locale, limit, offset, categorySlug}
+	where := "p.status = 'active' AND p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, 5); clause != "" {
+		where += " AND " + clause
+		args = append(args, arg)
+	}
+	rows, err := s.db.QueryContext(ctx,
+		productSelect+` WHERE `+where+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]Product, 0)
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, products, s.ttl(ctx))
+	return products, nil
+}
+
 // ListAll returns all products regardless of is_active (admin). locale may be empty.
 // search is optional; see List.
 func (s *ProductService) ListAll(ctx context.Context, locale, search string, limit, offset int) ([]Product, error) {

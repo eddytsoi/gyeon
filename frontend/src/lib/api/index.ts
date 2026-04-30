@@ -15,10 +15,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getCategories = () => request<Category[]>('/categories');
-export const getCategoryBySlug = (slug: string) => request<Category>(`/categories/${slug}`);
+export const getCategoryBySlug = (slug: string) => request<Category>(`/categories/by-slug/${slug}`);
 
 export const getProducts = (limit = 20, offset = 0, search = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (search) qs.set('q', search);
+  return request<Product[]>(`/products?${qs.toString()}`);
+};
+export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') => {
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    category: categorySlug
+  });
   if (search) qs.set('q', search);
   return request<Product[]>(`/products?${qs.toString()}`);
 };
@@ -159,8 +168,22 @@ export const requestPasswordReset = (email: string) =>
 export const getBlogPosts = (limit = 20, offset = 0) =>
   request<CmsPost[]>(`/cms/posts?limit=${limit}&offset=${offset}`);
 
+export const getBlogPostsByCategorySlug = (categorySlug: string, limit = 20, offset = 0) => {
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    category: categorySlug
+  });
+  return request<CmsPost[]>(`/cms/posts?${qs.toString()}`);
+};
+
 export const getBlogPostBySlug = (slug: string) =>
   request<CmsPost>(`/cms/posts/by-slug/${slug}`);
+
+export const getBlogCategoryBySlug = (slug: string) =>
+  request<{ id: string; slug: string; name: string; sort_order: number }>(
+    `/cms/post-categories/by-slug/${slug}`
+  );
 
 export const getCmsPageBySlug = (slug: string) =>
   request<CmsPage>(`/cms/pages/by-slug/${slug}`);

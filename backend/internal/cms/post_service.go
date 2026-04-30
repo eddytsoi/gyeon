@@ -19,6 +19,8 @@ type Post struct {
 	ID               string  `json:"id"`
 	Number           int64   `json:"number"`
 	CategoryID       *string `json:"category_id,omitempty"`
+	CategorySlug     *string `json:"category_slug,omitempty"`
+	CategoryName     *string `json:"category_name,omitempty"`
 	Slug             string  `json:"slug"`
 	Title            string  `json:"title"`
 	Excerpt          *string `json:"excerpt,omitempty"`
@@ -75,7 +77,7 @@ const postTranslationJoin = `
 	LEFT JOIN cms_post_translations t ON t.post_id = p.id AND t.locale = $1`
 
 const postSelect = `
-	SELECT p.id, p.number, p.category_id, p.slug,
+	SELECT p.id, p.number, p.category_id, c.slug, c.name, p.slug,
 	       COALESCE(t.title,   p.title)   AS title,
 	       COALESCE(t.excerpt, p.excerpt) AS excerpt,
 	       COALESCE(t.content, p.content) AS content,
@@ -83,11 +85,13 @@ const postSelect = `
 	       COALESCE(mf.url, p.cover_image_url) AS cover_image_url,
 	       p.is_published, p.published_at, p.created_at, p.updated_at
 	FROM cms_posts p` + postTranslationJoin + `
-	LEFT JOIN media_files mf ON mf.id = p.cover_media_file_id`
+	LEFT JOIN media_files mf ON mf.id = p.cover_media_file_id
+	LEFT JOIN cms_post_categories c ON c.id = p.category_id`
 
 func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 	var p Post
-	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Title, &p.Excerpt,
+	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.CategorySlug, &p.CategoryName,
+		&p.Slug, &p.Title, &p.Excerpt,
 		&p.Content, &p.CoverMediaFileID, &p.CoverImageURL,
 		&p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
@@ -110,6 +114,37 @@ func (s *PostService) List(ctx context.Context, locale, search string, limit, of
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	posts := make([]Post, 0)
+	for rows.Next() {
+		p, err := scanPost(rows)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, posts, s.ttl(ctx))
+	return posts, nil
+}
+
+// ListPublishedByCategorySlug returns published posts filtered by a category
+// (matched by its slug). locale may be empty.
+func (s *PostService) ListPublishedByCategorySlug(ctx context.Context, locale, categorySlug string, limit, offset int) ([]Post, error) {
+	key := fmt.Sprintf("cms:posts:pub:bycat:%s:%s:%d:%d", locale, categorySlug, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]Post), nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		postSelect+` WHERE p.is_published = TRUE
+		             AND p.category_id = (SELECT id FROM cms_post_categories WHERE slug = $4)
+		             ORDER BY p.published_at DESC NULLS LAST LIMIT $2 OFFSET $3`,
+		locale, limit, offset, categorySlug)
 	if err != nil {
 		return nil, err
 	}
