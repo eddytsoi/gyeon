@@ -33,7 +33,7 @@ CREATE TABLE products (
     name            VARCHAR(255) NOT NULL,
     description     TEXT,
     status          TEXT NOT NULL DEFAULT 'active'
-                       CHECK (status IN ('active', 'inactive', 'hidden')),
+                       CHECK (status IN ('active', 'inactive')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
