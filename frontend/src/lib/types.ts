@@ -26,6 +26,7 @@ export interface Variant {
   id: string;
   product_id: string;
   sku: string;
+  name?: string;
   price: number;
   compare_at_price?: number;
   stock_qty: number;
