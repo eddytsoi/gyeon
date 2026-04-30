@@ -7,6 +7,7 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -24,14 +25,7 @@
 
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold text-gray-900">Products</h1>
-  <a href="/admin/products/new"
-     class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
-            text-sm font-medium hover:bg-gray-700 transition-colors">
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-    </svg>
-    New Product
-  </a>
+  <NewButton label="New Product" href="/admin/products/new" />
 </div>
 
 <div class="mb-4">

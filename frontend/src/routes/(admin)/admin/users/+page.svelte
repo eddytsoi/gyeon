@@ -6,6 +6,7 @@
   import type { AdminUser } from '$lib/api/admin';
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -37,11 +38,7 @@
 <div class="max-w-4xl">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-900">Admin Users</h1>
-    <button onclick={() => showCreate = true}
-            class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
-                   hover:bg-gray-700 transition-colors">
-      + New User
-    </button>
+    <NewButton label="New User" action={() => showCreate = true} />
   </div>
 
   <div class="mb-4">

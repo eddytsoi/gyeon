@@ -7,6 +7,7 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -31,14 +32,7 @@
         {data.posts.length} total · {publishedCount} published
       </p>
     </div>
-    <a href="/admin/cms/posts/new"
-       class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
-              text-sm font-medium hover:bg-gray-700 transition-colors">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
-      </svg>
-      New Post
-    </a>
+    <NewButton label="New Post" href="/admin/cms/posts/new" />
   </div>
 
   <SearchInput value={data.q} placeholder="Search by title, excerpt, slug or POST-…" onChange={onSearch} />
