@@ -761,32 +761,30 @@
                   {shipanyCouriersLoading ? 'Loading…' : 'Refresh'}
                 </button>
               </div>
-              {#if shipanyCouriers.length > 0}
-                <select id="shipany_default_courier" name="shipany_default_courier"
-                        value={shipanyCourierUID}
-                        onchange={(e) => onCourierChange((e.currentTarget as HTMLSelectElement).value)}
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
-                               focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <select id="shipany_default_courier" name="shipany_default_courier"
+                      disabled={shipanyCouriersLoading}
+                      value={shipanyCourierUID}
+                      onchange={(e) => onCourierChange((e.currentTarget as HTMLSelectElement).value)}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                             focus:outline-none focus:ring-2 focus:ring-gray-900
+                             disabled:opacity-50 disabled:cursor-not-allowed">
+                {#if shipanyCouriersLoading}
+                  <option value="">Loading…</option>
+                {:else}
                   <option value="">— None —</option>
                   {#each shipanyCouriers as c}
                     <option value={c.uid} selected={shipanyCourierUID === c.uid}>{c.name}</option>
                   {/each}
-                </select>
-              {:else}
-                <input id="shipany_default_courier" name="shipany_default_courier" type="text"
-                       bind:value={shipanyCourierUID}
-                       placeholder="optional, paste cour_uid from /couriers/"
-                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                {#if shipanyCouriersLoaded && !shipanyCouriersLoading}
-                  <p class="text-xs text-gray-400">
-                    {#if shipanyCouriersError}
-                      Couldn't load courier list: {shipanyCouriersError}
-                    {:else}
-                      Couldn't load courier list — check credentials and Refresh.
-                    {/if}
-                  </p>
                 {/if}
+              </select>
+              {#if shipanyCouriersLoaded && !shipanyCouriersLoading && (shipanyCouriersError || shipanyCouriers.length === 0)}
+                <p class="text-xs text-gray-400">
+                  {#if shipanyCouriersError}
+                    Couldn't load courier list: {shipanyCouriersError}
+                  {:else}
+                    Couldn't load courier list — check credentials and Refresh.
+                  {/if}
+                </p>
               {/if}
             </div>
             <div class="flex flex-col gap-1.5">
