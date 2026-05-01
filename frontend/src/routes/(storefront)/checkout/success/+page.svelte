@@ -1,7 +1,14 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { PageData } from './$types';
+  import { cartStore } from '$lib/stores/cart.svelte';
 
   let { data }: { data: PageData } = $props();
+
+  // Cart is now cleared by the Stripe webhook (payment_intent.succeeded).
+  // Refresh the local cart store so the header badge / cart page reflect
+  // the empty cart as soon as the customer reaches the success page.
+  onMount(() => { cartStore.init(); });
 </script>
 
 <svelte:head>

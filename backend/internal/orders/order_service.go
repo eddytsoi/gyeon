@@ -389,15 +389,15 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
-		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method', $11, $12, $13, $14)
+		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method', $11, $12, $13, $14, $15)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
-		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel).
+		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
@@ -434,7 +434,10 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		}
 	}
 
-	tx.ExecContext(ctx, `DELETE FROM cart_items WHERE cart_id = $1`, req.CartID)
+	// NOTE: cart is NOT cleared here. Orders start in 'pending' until the
+	// Stripe webhook fires payment_intent.succeeded; the cart is only
+	// emptied at that point so an abandoned payment leaves the cart intact
+	// for the customer to retry. See MarkPaidByPaymentIntent below.
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -689,6 +692,16 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 		_, err := s.UpdateStatus(ctx, orderID, UpdateStatusRequest{Status: StatusPaid})
 		if err != nil {
 			log.Printf("webhook: update status for order %s: %v", orderID, err)
+		}
+		// Empty the source cart now that payment is confirmed. Best-effort:
+		// failure here shouldn't block payment processing or email delivery.
+		var cartID sql.NullString
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT cart_id FROM orders WHERE id=$1`, orderID).Scan(&cartID); err == nil && cartID.Valid {
+			if _, err := s.db.ExecContext(ctx,
+				`DELETE FROM cart_items WHERE cart_id = $1`, cartID.String); err != nil {
+				log.Printf("webhook: clear cart for order %s: %v", orderID, err)
+			}
 		}
 		// Send confirmation email (best-effort)
 		s.sendConfirmationEmail(ctx, order)
