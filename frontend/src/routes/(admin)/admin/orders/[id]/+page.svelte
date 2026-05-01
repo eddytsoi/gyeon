@@ -328,35 +328,49 @@
     </div>
   </div>
 
-  <!-- Update status -->
+  <!-- Order Management (status + note) + action bar share one form -->
   {#if allowed.length > 0}
-    <div class="bg-white rounded-2xl border border-gray-100 p-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Update Status</h2>
-      {#if form?.error}
-        <p class="text-sm text-red-500 mb-3">{form.error}</p>
-      {/if}
-      <form method="POST" action="?/updateStatus"
-            use:enhance={() => { updating = true; return async ({ update }) => { await update(); updating = false; }; }}>
-        <div class="flex flex-col sm:flex-row gap-3">
-          <select name="status"
-                  class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                         focus:ring-2 focus:ring-gray-900 flex-1">
-            {#each allowed as s}
-              <option value={s}>{s}</option>
-            {/each}
-          </select>
-          <input name="note" type="text" placeholder="Note (optional)"
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
-                        focus:ring-2 focus:ring-gray-900 flex-1" />
-          <button type="submit" disabled={updating}
-                  class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
-                         text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
-                         disabled:opacity-50 whitespace-nowrap">
-            <SaveIcon />
-            {updating ? 'Updating…' : 'Update'}
-          </button>
+    <form method="POST" action="?/updateStatus"
+          use:enhance={() => { updating = true; return async ({ update }) => { await update(); updating = false; }; }}>
+      <!-- Status & Notes — right half, matches Payment Info width -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="hidden md:block"></div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Order Management</h3>
+          <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label for="status-select" class="text-xs font-medium text-gray-600">Status</label>
+              <select id="status-select" name="status"
+                      class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
+                             focus:ring-2 focus:ring-gray-900">
+                {#each allowed as s}
+                  <option value={s}>{s}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="status-note" class="text-xs font-medium text-gray-600">Note</label>
+              <input id="status-note" name="note" type="text" placeholder="Optional"
+                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
+                            focus:ring-2 focus:ring-gray-900" />
+            </div>
+          </div>
         </div>
-      </form>
-    </div>
+      </div>
+
+      <!-- Action bar -->
+      <div class="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-end gap-4">
+        {#if form?.error}
+          <p class="text-sm text-red-500 mr-auto">{form.error}</p>
+        {/if}
+        <button type="submit" disabled={updating}
+                class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
+                       text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
+                       disabled:opacity-50 whitespace-nowrap">
+          <SaveIcon />
+          {updating ? 'Updating…' : 'Update'}
+        </button>
+      </div>
+    </form>
   {/if}
 </div>
