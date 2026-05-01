@@ -24,7 +24,7 @@
     </div>
     <h1 class="text-3xl font-bold text-gray-900 mb-2">Order Confirmed!</h1>
     <p class="text-gray-500">
-      Your order <strong class="text-gray-900">#{data.order.id.slice(0, 8).toUpperCase()}</strong> has been placed successfully.
+      Your order <strong class="text-gray-900">#{data.order.order_number || `ORD-${data.order.number}`}</strong> has been placed successfully.
     </p>
   </div>
 

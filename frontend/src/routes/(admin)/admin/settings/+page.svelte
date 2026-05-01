@@ -114,6 +114,7 @@
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
+  const ORDER_NUMBER_KEYS = new Set(['order_number_prefix']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
     'stripe_country',
@@ -234,7 +235,8 @@
         !PAYMENT_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
-        !SHIPANY_KEYS.has(s.key)
+        !SHIPANY_KEYS.has(s.key) &&
+        !ORDER_NUMBER_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -508,6 +510,28 @@
 
     <!-- Commerce tab -->
     <div class="tab-panel" class:active={activeTab === 'commerce'}>
+    <!-- Order Numbering -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">Order Numbering</h2>
+      <p class="text-xs text-gray-400 mb-4">
+        Prefix used on the customer-facing order number. Format is
+        <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">{`{prefix}-{0001}`}</code>
+        — only new orders get the new prefix.
+      </p>
+      <div class="flex flex-col gap-1.5">
+        <label for="order_number_prefix" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Prefix
+        </label>
+        <input id="order_number_prefix" name="order_number_prefix"
+               type="text"
+               value={settingValue('order_number_prefix') || 'ORD'}
+               placeholder="ORD"
+               maxlength="16"
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+    </div>
+
     <!-- Shipping Countries -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>

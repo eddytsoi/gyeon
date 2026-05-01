@@ -30,6 +30,7 @@ const (
 type Order struct {
 	ID                string           `json:"id"`
 	Number            int64            `json:"number"`
+	OrderNumber       string           `json:"order_number"`
 	CustomerID        *string          `json:"customer_id,omitempty"`
 	Status            OrderStatus      `json:"status"`
 	ShippingAddressID *string          `json:"shipping_address_id,omitempty"`
@@ -171,6 +172,19 @@ type OrderService struct {
 // (best-effort, non-blocking). Used for SSE broadcasts to admin clients.
 func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 	s.onCreated = fn
+}
+
+// orderNumberPrefix reads the configurable prefix from site_settings,
+// falling back to "ORD" so old data and admins who haven't touched
+// settings still get a sensible default.
+func (s *OrderService) orderNumberPrefix(ctx context.Context) string {
+	var v string
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT value FROM site_settings WHERE key = 'order_number_prefix'`).Scan(&v)
+	if v == "" {
+		return "ORD"
+	}
+	return v
 }
 
 func NewOrderService(
@@ -405,6 +419,16 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
+		return nil, err
+	}
+
+	// Format the customer-facing order number using the configurable
+	// prefix and the auto-assigned sequential `number`. Persist it back
+	// to the row so subsequent reads are stable.
+	order.OrderNumber = fmt.Sprintf("%s-%04d", s.orderNumberPrefix(ctx), order.Number)
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE orders SET order_number = $2 WHERE id = $1`,
+		order.ID, order.OrderNumber); err != nil {
 		return nil, err
 	}
 
@@ -793,12 +817,13 @@ func splitName(full string) (string, string) {
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
+		        subtotal, shipping_fee, discount_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
-		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
+		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
@@ -853,7 +878,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 
 func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, number, customer_id, status, subtotal, shipping_fee, discount_amount, total,
+		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
 		 FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
@@ -865,7 +890,7 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 	var orders []Order
 	for rows.Next() {
 		var o Order
-		rows.Scan(&o.ID, &o.Number, &o.CustomerID, &o.Status, &o.Subtotal,
+		rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status, &o.Subtotal,
 			&o.ShippingFee, &o.DiscountAmount, &o.Total,
 			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName,
 			&o.PaymentIntentID, &o.PaymentStatus,
@@ -926,12 +951,13 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`UPDATE orders SET status = $2 WHERE id = $1
-		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		 RETURNING id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
+		           subtotal, shipping_fee, discount_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		id, req.Status).
-		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
+		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,

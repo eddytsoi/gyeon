@@ -125,17 +125,13 @@ func main() {
 	adminHub := admin.NewHub()
 	adminEventsHandler := admin.NewEventsHandler(adminHub, jwtSecret)
 	orderSvc.SetOnOrderCreated(func(_ context.Context, o *orders.Order) {
-		short := o.ID
-		if len(short) > 8 {
-			short = short[:8]
-		}
 		name := ""
 		if o.CustomerName != nil {
 			name = *o.CustomerName
 		}
 		adminHub.Broadcast("new_order", map[string]any{
 			"order_id":      o.ID,
-			"short_id":      short,
+			"order_number":  o.OrderNumber,
 			"customer_name": name,
 			"total":         o.Total,
 		})

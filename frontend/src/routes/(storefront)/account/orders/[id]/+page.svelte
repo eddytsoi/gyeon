@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-  <title>Order ORD-{order.number} — Gyeon</title>
+  <title>Order {order.order_number || `ORD-${order.number}`} — Gyeon</title>
 </svelte:head>
 
 <div class="flex flex-col gap-6">
@@ -30,7 +30,7 @@
       <div>
         <a href="/account/orders" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">← Orders</a>
         <h1 class="text-xl font-bold text-gray-900 mt-1 font-mono">
-          ORD-{order.number}
+          {order.order_number || `ORD-${order.number}`}
         </h1>
         <p class="text-sm text-gray-500 mt-0.5">
           Placed {new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' })}

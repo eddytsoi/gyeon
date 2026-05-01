@@ -24,7 +24,7 @@
   async function confirmDelete() {
     if (!deleteTarget || !data.token) return;
     const target = deleteTarget;
-    const shortId = `ORD-${target.number}`;
+    const shortId = target.order_number || `ORD-${target.number}`;
     deleting = true;
     try {
       await adminDeleteOrder(data.token, target.id);
@@ -62,7 +62,7 @@
       {#each data.orders as order}
         <tr class="js-row transition-colors">
           <td class="px-5 py-3 font-mono text-xs text-gray-700">
-            ORD-{order.number}
+            {order.order_number || `ORD-${order.number}`}
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
             {new Date(order.created_at).toLocaleDateString('en-HK')}
@@ -119,7 +119,7 @@
       <h3 class="text-base font-bold text-gray-900 mb-1">Delete order?</h3>
       <p class="text-sm text-gray-500 mb-5">
         Are you sure you want to delete order
-        <span class="font-mono font-medium text-gray-700">ORD-{deleteTarget.number}</span>?
+        <span class="font-mono font-medium text-gray-700">{deleteTarget.order_number || `ORD-${deleteTarget.number}`}</span>?
         This action cannot be undone.
       </p>
       <div class="flex gap-3">
