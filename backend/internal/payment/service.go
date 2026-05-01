@@ -309,12 +309,19 @@ func (s *Service) FetchPaymentMethodDetails(ctx context.Context, stripePMID stri
 }
 
 // VerifyWebhook validates the Stripe-Signature header and parses the event.
+// We deliberately ignore the API version mismatch check: webhook endpoints
+// are pinned to the API version that was current when they were created in
+// the Stripe Dashboard, but the stripe-go SDK we ship here may be newer.
+// Treating that as a hard error stops payment_intent.succeeded events from
+// flipping orders to paid; the per-event payload we read (id, customer,
+// payment_method) is stable across versions, so the bypass is safe.
 func (s *Service) VerifyWebhook(ctx context.Context, body []byte, sigHeader string) (stripe.Event, error) {
 	secret := s.WebhookSecret(ctx)
 	if secret == "" {
 		return stripe.Event{}, ErrNotConfigured
 	}
-	return webhook.ConstructEvent(body, sigHeader, secret)
+	return webhook.ConstructEventWithOptions(body, sigHeader, secret,
+		webhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true})
 }
 
 // FetchPaymentIntent loads a PaymentIntent from Stripe (used as a fallback in tests / debugging).
