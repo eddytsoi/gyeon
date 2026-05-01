@@ -116,6 +116,7 @@
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
+    'stripe_country',
     'stripe_test_publishable_key',
     'stripe_test_secret_key',
     'stripe_live_publishable_key',
@@ -123,6 +124,56 @@
     'stripe_save_cards',
     'stripe_webhook_secret'
   ]);
+
+  // Stripe-supported countries (ISO 3166-1 alpha-2). Source: stripe.com/global.
+  const STRIPE_COUNTRY_OPTIONS = [
+    { value: 'AU', label: 'Australia' },
+    { value: 'AT', label: 'Austria' },
+    { value: 'BE', label: 'Belgium' },
+    { value: 'BR', label: 'Brazil' },
+    { value: 'BG', label: 'Bulgaria' },
+    { value: 'CA', label: 'Canada' },
+    { value: 'HR', label: 'Croatia' },
+    { value: 'CY', label: 'Cyprus' },
+    { value: 'CZ', label: 'Czech Republic' },
+    { value: 'DK', label: 'Denmark' },
+    { value: 'EE', label: 'Estonia' },
+    { value: 'FI', label: 'Finland' },
+    { value: 'FR', label: 'France' },
+    { value: 'DE', label: 'Germany' },
+    { value: 'GI', label: 'Gibraltar' },
+    { value: 'GR', label: 'Greece' },
+    { value: 'HK', label: 'Hong Kong' },
+    { value: 'HU', label: 'Hungary' },
+    { value: 'IN', label: 'India' },
+    { value: 'ID', label: 'Indonesia' },
+    { value: 'IE', label: 'Ireland' },
+    { value: 'IT', label: 'Italy' },
+    { value: 'JP', label: 'Japan' },
+    { value: 'LV', label: 'Latvia' },
+    { value: 'LI', label: 'Liechtenstein' },
+    { value: 'LT', label: 'Lithuania' },
+    { value: 'LU', label: 'Luxembourg' },
+    { value: 'MY', label: 'Malaysia' },
+    { value: 'MT', label: 'Malta' },
+    { value: 'MX', label: 'Mexico' },
+    { value: 'NL', label: 'Netherlands' },
+    { value: 'NZ', label: 'New Zealand' },
+    { value: 'NO', label: 'Norway' },
+    { value: 'PL', label: 'Poland' },
+    { value: 'PT', label: 'Portugal' },
+    { value: 'RO', label: 'Romania' },
+    { value: 'SG', label: 'Singapore' },
+    { value: 'SK', label: 'Slovakia' },
+    { value: 'SI', label: 'Slovenia' },
+    { value: 'ES', label: 'Spain' },
+    { value: 'SE', label: 'Sweden' },
+    { value: 'CH', label: 'Switzerland' },
+    { value: 'TH', label: 'Thailand' },
+    { value: 'AE', label: 'United Arab Emirates' },
+    { value: 'GB', label: 'United Kingdom' },
+    { value: 'US', label: 'United States' }
+  ];
   const SHIPANY_KEYS = new Set([
     'shipany_enabled',
     'shipany_user_id',
@@ -506,6 +557,29 @@
           <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">Live</span>
         </div>
         <input type="hidden" name="stripe_mode" value={stripeLiveMode ? 'live' : 'test'} />
+      </div>
+
+      <!-- Country / Region -->
+      <div class="pt-5 border-t border-gray-100 mt-5">
+        <div class="flex flex-col gap-1.5">
+          <label for="stripe_country" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Country / Region
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">
+            Country your Stripe account is registered in. Drives the default
+            country shown in the payment address fields.
+          </p>
+          <select id="stripe_country" name="stripe_country"
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            {#each STRIPE_COUNTRY_OPTIONS as opt}
+              <option value={opt.value}
+                      selected={(settingValue('stripe_country') || 'HK') === opt.value}>
+                {opt.label}
+              </option>
+            {/each}
+          </select>
+        </div>
       </div>
 
       <!-- Test keys -->

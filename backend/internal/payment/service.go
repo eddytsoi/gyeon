@@ -25,13 +25,19 @@ func NewService(s *settings.Service, db *sql.DB) *Service {
 type Config struct {
 	PublishableKey string `json:"publishable_key"`
 	Mode           string `json:"mode"`
+	Country        string `json:"country"`
 }
 
-// PublicConfig returns the publishable key + mode for the storefront (no secrets).
+// PublicConfig returns the publishable key + mode + country for the storefront
+// (no secrets). Country falls back to "HK" when not configured.
 func (s *Service) PublicConfig(ctx context.Context) Config {
 	mode := s.mode(ctx)
 	pk := s.read(ctx, "stripe_"+mode+"_publishable_key")
-	return Config{PublishableKey: pk, Mode: mode}
+	country := s.read(ctx, "stripe_country")
+	if country == "" {
+		country = "HK"
+	}
+	return Config{PublishableKey: pk, Mode: mode, Country: country}
 }
 
 // Mode returns "test" or "live".

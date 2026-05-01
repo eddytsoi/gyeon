@@ -121,6 +121,7 @@ export interface Order {
 export interface PaymentConfig {
   publishable_key: string;
   mode: 'test' | 'live';
+  country: string;
 }
 
 export interface CheckoutResult {
