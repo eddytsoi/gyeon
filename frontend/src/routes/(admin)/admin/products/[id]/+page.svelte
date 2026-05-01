@@ -5,6 +5,7 @@
   import type { PageData } from './$types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
+  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -626,8 +627,9 @@
         Cancel
       </a>
       <button type="submit" form="product-form" disabled={saving || (data.isNew && anyUploading)}
-              class="px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium
-                     hover:bg-gray-700 transition-colors disabled:opacity-50">
+              class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
+                     text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
+        <SaveIcon />
         {saving ? 'Saving…' : (data.isNew && anyUploading ? 'Uploading…' : data.isNew ? 'Create Product' : 'Save Changes')}
       </button>
     </div>
@@ -731,8 +733,9 @@
         </div>
         <div class="flex gap-3 mt-5">
           <button type="submit"
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
+                  class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
+            <SaveIcon />
             Add Variant
           </button>
           <button type="button" onclick={() => { showAddVariant = false; addVariantImageId = null; }}
@@ -855,8 +858,9 @@
         </div>
         <div class="flex gap-3 mt-5">
           <button type="submit"
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
+                  class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
+            <SaveIcon />
             Save Changes
           </button>
           <button type="button" onclick={() => editingVariant = null}
@@ -902,8 +906,9 @@
         </div>
         <div class="flex gap-3">
           <button type="submit"
-                  class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors">
+                  class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
+            <SaveIcon />
             Apply
           </button>
           <button type="button" onclick={() => showStockModal = null}
@@ -1089,8 +1094,10 @@
 
           <div class="flex gap-3">
             <button type="submit" disabled={!addImageSelectedId}
-                    class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                           hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
+                           text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors
+                           disabled:opacity-40 disabled:cursor-not-allowed">
+              <SaveIcon />
               Add Image
             </button>
             <button type="button" onclick={resetAddImageModal}

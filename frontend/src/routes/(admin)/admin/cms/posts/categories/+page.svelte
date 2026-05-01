@@ -8,6 +8,7 @@
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import { sortable } from '$lib/actions/sortable';
+  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -198,8 +199,10 @@
             Cancel
           </button>
           <button type="submit"
-                  class="flex-1 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium
+                  class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
+                         bg-gray-900 text-white text-sm font-medium
                          hover:bg-gray-700 transition-colors">
+            <SaveIcon />
             {editing ? 'Save Changes' : 'Create'}
           </button>
         </div>

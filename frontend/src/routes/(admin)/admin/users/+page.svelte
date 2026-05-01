@@ -8,6 +8,7 @@
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
   import AdminModal from '$lib/components/admin/AdminModal.svelte';
+  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -162,8 +163,9 @@
     </div>
     <div class="flex gap-3 mt-5">
       <button type="submit"
-              class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                     hover:bg-gray-700 transition-colors">
+              class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900 text-white
+                     text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
+        <SaveIcon />
         Create User
       </button>
       <button type="button" onclick={() => showCreate = false}
@@ -211,8 +213,9 @@
       </div>
       <div class="flex gap-3 mt-5">
         <button type="submit"
-                class="flex-1 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                       hover:bg-gray-700 transition-colors">
+                class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900 text-white
+                       text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
+          <SaveIcon />
           Save Changes
         </button>
         <button type="button" onclick={() => editingUser = null}

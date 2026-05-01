@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
+  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -272,8 +273,9 @@
           <button
             type="submit"
             disabled={saving}
-            class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
           >
+            <SaveIcon />
             {saving ? 'Saving…' : 'Save'}
           </button>
           <a
