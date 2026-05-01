@@ -341,7 +341,7 @@
             <div class="flex flex-col gap-1.5">
               <label for="status-select" class="text-xs font-medium text-gray-600">Status</label>
               <select id="status-select" name="status"
-                      class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
+                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
                              focus:ring-2 focus:ring-gray-900">
                 {#each allowed as s}
                   <option value={s}>{s}</option>
