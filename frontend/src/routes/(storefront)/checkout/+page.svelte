@@ -577,6 +577,18 @@
                            focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"></textarea>
         </section>
 
+        <!-- ── T&C ─────────────────────────────────────────────── -->
+        <section class="bg-white rounded-2xl border border-gray-100 p-6">
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" bind:checked={tcAccepted}
+                   class="mt-0.5 accent-gray-900 flex-shrink-0" />
+            <span class="text-sm text-gray-700 leading-relaxed">
+              我已閱讀並同意網站的<a href="/pages/terms-and-conditions" target="_blank"
+                 class="text-gray-900 underline font-medium">〈條款與條件〉</a>
+            </span>
+          </label>
+        </section>
+
         <!-- ── 5. Payment ──────────────────────────────────────── -->
         <section id="payment-section" class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
@@ -666,31 +678,24 @@
           {/if}
         </section>
 
-        <!-- ── 5. T&C + Pay ────────────────────────────────────── -->
-        <section class="bg-white rounded-2xl border border-gray-100 p-6">
-          <label class="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" bind:checked={tcAccepted}
-                   class="mt-0.5 accent-gray-900 flex-shrink-0" />
-            <span class="text-sm text-gray-700 leading-relaxed">
-              我已閱讀並同意網站的<a href="/pages/terms-and-conditions" target="_blank"
-                 class="text-gray-900 underline font-medium">〈條款與條件〉</a>
-            </span>
-          </label>
+        <!-- ── Pay ─────────────────────────────────────────────── -->
+        {#if error || paymentReady}
+          <section class="bg-white rounded-2xl border border-gray-100 p-6">
+            {#if error}
+              <p class="text-sm text-red-500 leading-relaxed">{error}</p>
+            {/if}
 
-          {#if error}
-            <p class="mt-4 text-sm text-red-500 leading-relaxed">{error}</p>
-          {/if}
-
-          {#if paymentReady}
-            <button type="button"
-                    onclick={confirmPay}
-                    disabled={placing || !tcAccepted}
-                    class="mt-5 w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
-                           hover:bg-gray-700 transition-colors disabled:opacity-50">
-              {placing ? '處理中…' : `付款 HK$${total.toFixed(2)}`}
-            </button>
-          {/if}
-        </section>
+            {#if paymentReady}
+              <button type="button"
+                      onclick={confirmPay}
+                      disabled={placing || !tcAccepted}
+                      class="{error ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
+                             hover:bg-gray-700 transition-colors disabled:opacity-50">
+                {placing ? '處理中…' : `付款 HK$${total.toFixed(2)}`}
+              </button>
+            {/if}
+          </section>
+        {/if}
       </div>
 
       <!-- Right: Order summary -->
