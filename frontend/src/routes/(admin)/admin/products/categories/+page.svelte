@@ -7,6 +7,7 @@
   import { adminReorderCategories } from '$lib/api/admin';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
+  import { sortable } from '$lib/actions/sortable';
 
   let { data }: { data: PageData } = $props();
 
@@ -49,55 +50,22 @@
     }
   }
 
-  // ── Drag & Drop ─────────────────────────────────────────────────
-  let draggingId = $state<string | null>(null);
-  let dropTargetId = $state<string | null>(null);
-
-  function onDragStart(e: DragEvent, id: string) {
-    draggingId = id;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', id);
-    }
-  }
-  function onDragOver(e: DragEvent, id: string) {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    if (draggingId && id !== draggingId) dropTargetId = id;
-  }
-  function onDragLeave(id: string) {
-    if (dropTargetId === id) dropTargetId = null;
-  }
-  async function onDrop(e: DragEvent, targetId: string) {
-    e.preventDefault();
-    const sourceId = draggingId;
-    draggingId = null;
-    dropTargetId = null;
-    if (!sourceId || sourceId === targetId) return;
-
-    const src = items.findIndex((c) => c.id === sourceId);
-    const dst = items.findIndex((c) => c.id === targetId);
-    if (src === -1 || dst === -1) return;
-
-    // Move src into dst's slot, preserving direction
-    const next = [...items];
-    const [moved] = next.splice(src, 1);
-    next.splice(dst, 0, moved);
-    // Optimistic local update + sort_order rewrite for stable display
-    items = next.map((c, i) => ({ ...c, sort_order: i + 1 }));
+  async function persistReorder(orderedIds: string[]) {
+    // Optimistic: rewrite local order so the row positions stay stable while
+    // the request is in flight.
+    items = orderedIds
+      .map((id) => items.find((c) => c.id === id))
+      .filter((c): c is Category => !!c)
+      .map((c, i) => ({ ...c, sort_order: i + 1 }));
 
     const token = page.data.token ?? '';
     try {
-      await adminReorderCategories(token, items.map((c) => c.id));
+      await adminReorderCategories(token, orderedIds);
       await invalidateAll();
     } catch {
       notify.error('Reorder failed', 'Categories were not saved. Refresh to retry.');
       await invalidateAll();
     }
-  }
-  function onDragEnd() {
-    draggingId = null;
-    dropTargetId = null;
   }
 </script>
 
@@ -135,19 +103,14 @@
         </button>
       </div>
     {:else}
-      <ul class="divide-y divide-gray-50">
+      <ul class="divide-y divide-gray-50"
+          use:sortable={{ onReorder: persistReorder }}>
         {#each items as cat (cat.id)}
-          <li class="js-row flex items-center gap-4 px-5 py-4 transition-colors
-                     {draggingId === cat.id ? 'opacity-40' : ''}
-                     {dropTargetId === cat.id ? 'bg-gray-50' : ''}"
-              ondragover={(e) => onDragOver(e, cat.id)}
-              ondragleave={() => onDragLeave(cat.id)}
-              ondrop={(e) => onDrop(e, cat.id)}>
+          <li class="js-row flex items-center gap-4 px-5 py-4 transition-colors bg-white"
+              data-id={cat.id}>
             <!-- Drag handle -->
             <button type="button"
-                    draggable="true"
-                    ondragstart={(e) => onDragStart(e, cat.id)}
-                    ondragend={onDragEnd}
+                    data-drag-handle
                     aria-label="Drag to reorder"
                     class="cursor-grab active:cursor-grabbing p-1 -m-1 text-gray-500
                            hover:text-gray-800 transition-colors flex-shrink-0">
@@ -283,3 +246,31 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* SortableJS visual classes — Gyeon palette.
+     gy-ghost  — placeholder slot left where the row was picked up
+     gy-chosen — the original row while a drag is in progress
+     gy-drag   — the floating clone that follows the cursor */
+  :global(.gy-ghost) {
+    background: #f3f4f6;
+    border: 1px dashed #d1d5db;
+    border-radius: 0.75rem;
+    margin: 0.25rem 0;
+  }
+  :global(.gy-ghost) > * {
+    opacity: 0;
+  }
+  :global(.gy-chosen) {
+    background: #f9fafb;
+  }
+  :global(.gy-drag) {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 32px -8px rgba(17, 24, 39, 0.25),
+                0 4px 12px -2px rgba(17, 24, 39, 0.1);
+    border: 1px solid #e5e7eb;
+    cursor: grabbing !important;
+    opacity: 1;
+  }
+</style>
