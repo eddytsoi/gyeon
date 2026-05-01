@@ -75,7 +75,7 @@
           class="js-order-row relative z-10 flex items-center justify-between px-6 py-4 transition-colors"
         >
           <div class="flex flex-col gap-0.5">
-            <p class="text-sm font-semibold text-gray-900 font-mono">ORD-{order.number}</p>
+            <p class="text-sm font-semibold text-gray-900 font-mono">{order.order_number || `ORD-${order.number}`}</p>
             <p class="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
           </div>
           <div class="flex items-center gap-4">

@@ -19,7 +19,7 @@
       try {
         const o = JSON.parse((e as MessageEvent).data) as {
           order_id: string;
-          short_id: string;
+          order_number: string;
           customer_name: string;
           total: number;
         };
@@ -27,7 +27,7 @@
         const who = o.customer_name?.trim() || 'Guest';
         notify.info(
           'New Order Received',
-          `Order ${o.short_id} · ${who} · ${total}`,
+          `New order #${o.order_number} · ${who} · ${total}`,
           0,
           `/admin/orders/${o.order_id}`
         );

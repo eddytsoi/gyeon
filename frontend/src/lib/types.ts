@@ -93,6 +93,7 @@ export interface ShippingAddress {
 export interface Order {
   id: string;
   number: number;
+  order_number: string;
   customer_id?: string;
   status: string;
   shipping_address_id?: string;
