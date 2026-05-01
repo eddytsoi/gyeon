@@ -75,6 +75,7 @@ type OrderEmailItem struct {
 
 type OrderEmailParams struct {
 	OrderID         string
+	OrderNumber     string // customer-facing, e.g. ORD-0001
 	CustomerName    string
 	CustomerEmail   string
 	Items           []OrderEmailItem
@@ -93,6 +94,7 @@ type OrderEmailParams struct {
 
 type PaymentLinkParams struct {
 	OrderID       string
+	OrderNumber   string // customer-facing, e.g. ORD-0001
 	CustomerName  string
 	CustomerEmail string
 	Items         []OrderEmailItem
@@ -143,7 +145,7 @@ func (s *Service) SendPaymentLink(ctx context.Context, p PaymentLinkParams) erro
 	if p.Currency == "" {
 		p.Currency = "HKD"
 	}
-	subject := fmt.Sprintf("完成付款 — %s", shortOrderID(p.OrderID))
+	subject := fmt.Sprintf("完成付款 — %s", orderRef(p.OrderNumber, p.OrderID))
 	html := renderPaymentLinkHTML(p)
 	text := renderPaymentLinkText(p)
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
@@ -178,7 +180,7 @@ func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams)
 		p.Currency = "HKD"
 	}
 
-	subject := fmt.Sprintf("訂單確認 — %s", shortOrderID(p.OrderID))
+	subject := fmt.Sprintf("訂單確認 — %s", orderRef(p.OrderNumber, p.OrderID))
 	html := renderOrderHTML(p)
 	text := renderOrderText(p)
 
@@ -217,17 +219,22 @@ func (s *Service) send(cfg Config, to, subject, text, html string) error {
 	return smtp.SendMail(addr, auth, cfg.FromEmail, []string{to}, msg.Bytes())
 }
 
-func shortOrderID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
+// orderRef prefers the customer-facing number; falls back to the
+// truncated UUID when the number isn't available (e.g. legacy callers).
+func orderRef(orderNumber, orderID string) string {
+	if orderNumber != "" {
+		return orderNumber
 	}
-	return id
+	if len(orderID) > 8 {
+		return orderID[:8]
+	}
+	return orderID
 }
 
 func renderOrderText(p OrderEmailParams) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
-	fmt.Fprintf(&b, "感謝您的訂購！我們已收到您的付款，訂單編號：%s\n\n", shortOrderID(p.OrderID))
+	fmt.Fprintf(&b, "感謝您的訂購！我們已收到您的付款，訂單編號：%s\n\n", orderRef(p.OrderNumber, p.OrderID))
 	b.WriteString("──────── 訂單明細 ────────\n")
 	for _, it := range p.Items {
 		fmt.Fprintf(&b, "%s × %d   %s %.2f\n", it.Name, it.Quantity, p.Currency, it.LineTotal)
@@ -324,7 +331,7 @@ func renderOrderHTML(p OrderEmailParams) string {
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
   </div>
 </body></html>`,
-		htmlEscape(p.CustomerName), htmlEscape(shortOrderID(p.OrderID)),
+		htmlEscape(p.CustomerName), htmlEscape(orderRef(p.OrderNumber, p.OrderID)),
 		rows.String(),
 		p.Currency, p.Subtotal,
 		discountRow,
@@ -338,7 +345,7 @@ func renderOrderHTML(p OrderEmailParams) string {
 func renderPaymentLinkText(p PaymentLinkParams) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
-	fmt.Fprintf(&b, "您的訂單 %s 已建立，請按以下連結完成付款：\n\n", shortOrderID(p.OrderID))
+	fmt.Fprintf(&b, "您的訂單 %s 已建立，請按以下連結完成付款：\n\n", orderRef(p.OrderNumber, p.OrderID))
 	fmt.Fprintf(&b, "%s\n\n", p.PaymentURL)
 	b.WriteString("──────── 訂單明細 ────────\n")
 	for _, it := range p.Items {
@@ -383,7 +390,7 @@ func renderPaymentLinkHTML(p PaymentLinkParams) string {
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
   </div>
 </body></html>`,
-		htmlEscape(p.CustomerName), htmlEscape(shortOrderID(p.OrderID)),
+		htmlEscape(p.CustomerName), htmlEscape(orderRef(p.OrderNumber, p.OrderID)),
 		p.PaymentURL,
 		rows.String(),
 		p.Currency, p.Total,
