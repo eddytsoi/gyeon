@@ -3,6 +3,7 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
+  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
 
@@ -1072,8 +1073,9 @@
     <!-- Save bar (always visible across tabs) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-2 flex justify-end">
       <button type="submit" disabled={saving}
-              class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
-                     hover:bg-gray-700 transition-colors disabled:opacity-50">
+              class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 bg-gray-900 text-white
+                     text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
+        <SaveIcon />
         {saving ? 'Saving…' : 'Save Settings'}
       </button>
     </div>
