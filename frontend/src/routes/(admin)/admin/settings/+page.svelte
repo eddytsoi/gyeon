@@ -510,28 +510,6 @@
 
     <!-- Commerce tab -->
     <div class="tab-panel" class:active={activeTab === 'commerce'}>
-    <!-- Order Numbering -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <h2 class="text-sm font-semibold text-gray-900 mb-1">Order Numbering</h2>
-      <p class="text-xs text-gray-400 mb-4">
-        Prefix used on the customer-facing order number. Format is
-        <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">{`{prefix}-{0001}`}</code>
-        — only new orders get the new prefix.
-      </p>
-      <div class="flex flex-col gap-1.5">
-        <label for="order_number_prefix" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Prefix
-        </label>
-        <input id="order_number_prefix" name="order_number_prefix"
-               type="text"
-               value={settingValue('order_number_prefix') || 'ORD'}
-               placeholder="ORD"
-               maxlength="16"
-               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
-      </div>
-    </div>
-
     <!-- Shipping Countries -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>
