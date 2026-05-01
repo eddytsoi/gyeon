@@ -277,11 +277,17 @@
       pendingSetupClientSecret = result.setup_client_secret ?? null;
 
       if (!usingSavedCard) {
+        const stripeCountry = data.paymentConfig?.country || 'HK';
         elements = stripe.elements({
           clientSecret: result.client_secret,
           appearance: { theme: 'stripe', variables: { colorPrimary: '#111827' } }
         });
-        const paymentElement = elements.create('payment', { layout: 'tabs' });
+        const paymentElement = elements.create('payment', {
+          layout: 'tabs',
+          defaultValues: {
+            billingDetails: { address: { country: stripeCountry } }
+          }
+        });
         paymentElement.mount('#payment-element');
         paymentElementMounted = true;
       }
