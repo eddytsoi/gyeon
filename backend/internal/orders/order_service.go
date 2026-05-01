@@ -555,6 +555,7 @@ func (s *OrderService) sendPaymentLinkEmail(ctx context.Context, order *Order, c
 	}
 	err := s.emailSvc.SendPaymentLink(ctx, email.PaymentLinkParams{
 		OrderID:       order.ID,
+		OrderNumber:   order.OrderNumber,
 		CustomerName:  name,
 		CustomerEmail: *order.CustomerEmail,
 		Items:         items,
@@ -782,6 +783,7 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 
 	err := s.emailSvc.SendOrderConfirmation(ctx, email.OrderEmailParams{
 		OrderID:         order.ID,
+		OrderNumber:     order.OrderNumber,
 		CustomerName:    name,
 		CustomerEmail:   *order.CustomerEmail,
 		Items:           items,
