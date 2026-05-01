@@ -59,9 +59,10 @@
     const token = page.data.token ?? '';
     try {
       await adminReorderPostCategories(token, orderedIds);
+      notify.success('Category order updated');
       await invalidateAll();
     } catch {
-      notify.error('Reorder failed', 'Categories were not saved. Refresh to retry.');
+      notify.error('Failed to update category order');
       await invalidateAll();
     }
   }
