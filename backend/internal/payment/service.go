@@ -288,24 +288,27 @@ func (s *Service) LookupCustomerByStripeID(ctx context.Context, stripeCustomerID
 	return customerID, err
 }
 
-// FetchPaymentMethodDetails retrieves card brand/last4/exp from Stripe.
-func (s *Service) FetchPaymentMethodDetails(ctx context.Context, stripePMID string) (brand, last4 string, expMonth, expYear int, err error) {
+// FetchPaymentMethodDetails retrieves PM type + card brand/last4/exp from Stripe.
+// pmType is the Stripe PaymentMethod type ("card", "alipay", etc.); brand/last4/exp
+// are populated only when pmType == "card".
+func (s *Service) FetchPaymentMethodDetails(ctx context.Context, stripePMID string) (pmType, brand, last4 string, expMonth, expYear int, err error) {
 	sk := s.SecretKey(ctx)
 	if sk == "" {
-		return "", "", 0, 0, ErrNotConfigured
+		return "", "", "", 0, 0, ErrNotConfigured
 	}
 	sc := stripe.NewClient(sk)
 	pm, apiErr := sc.V1PaymentMethods.Retrieve(ctx, stripePMID, nil)
 	if apiErr != nil {
-		return "", "", 0, 0, fmt.Errorf("fetch payment method: %w", apiErr)
+		return "", "", "", 0, 0, fmt.Errorf("fetch payment method: %w", apiErr)
 	}
+	pmType = string(pm.Type)
 	if pm.Card != nil {
 		brand = string(pm.Card.Brand)
 		last4 = pm.Card.Last4
 		expMonth = int(pm.Card.ExpMonth)
 		expYear = int(pm.Card.ExpYear)
 	}
-	return brand, last4, expMonth, expYear, nil
+	return pmType, brand, last4, expMonth, expYear, nil
 }
 
 // VerifyWebhook validates the Stripe-Signature header and parses the event.

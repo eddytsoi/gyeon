@@ -43,6 +43,19 @@
     if (!uid) return '—';
     return courierByUid.get(uid)?.name ?? uid;
   };
+
+  const BRAND_LABELS: Record<string, string> = {
+    visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', discover: 'Discover',
+    jcb: 'JCB', diners: 'Diners', unionpay: 'UnionPay', unknown: 'Card'
+  };
+  function formatPaymentMethod(o: { card_brand?: string; card_last4?: string; payment_method?: string }): string {
+    if (o.card_brand && o.card_last4) {
+      const label = BRAND_LABELS[o.card_brand.toLowerCase()] ?? o.card_brand;
+      return `${label} •••• ${o.card_last4}`;
+    }
+    if (o.payment_method) return o.payment_method;
+    return '—';
+  }
   const selectedCourierPlans = $derived(
     courierByUid.get(carrierOverride)?.cour_svc_plans ?? []
   );
@@ -366,7 +379,7 @@
         <div class="flex justify-between gap-2">
           <span class="text-gray-400">Method</span>
           <span class="font-medium text-gray-900 capitalize">
-            {data.order.payment_method ?? '—'}
+            {formatPaymentMethod(data.order)}
           </span>
         </div>
         <div class="flex justify-between gap-2">

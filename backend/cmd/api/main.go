@@ -83,8 +83,19 @@ func main() {
 	pricingHandler := pricing.NewHandler(pricingSvc)
 	paymentHandler := payment.NewHandler(
 		paymentSvc,
-		func(r *http.Request, paymentIntentID string) {
-			if err := orderSvc.MarkPaidByPaymentIntent(r.Context(), paymentIntentID); err != nil {
+		func(r *http.Request, paymentIntentID, paymentMethodID string) {
+			ctx := r.Context()
+			var pmType, cardBrand, cardLast4 string
+			if paymentMethodID != "" {
+				t, b, l4, _, _, err := paymentSvc.FetchPaymentMethodDetails(ctx, paymentMethodID)
+				if err != nil {
+					// Non-fatal: still mark order paid; Method just stays "—".
+					log.Printf("payment_intent.succeeded: fetch pm details %s: %v", paymentMethodID, err)
+				} else {
+					pmType, cardBrand, cardLast4 = t, b, l4
+				}
+			}
+			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4); err != nil {
 				log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
 			}
 		},
@@ -95,7 +106,7 @@ func main() {
 				log.Printf("setup_intent.succeeded: lookup customer for stripe %s: %v", stripeCustomerID, err)
 				return
 			}
-			brand, last4, expMonth, expYear, err := paymentSvc.FetchPaymentMethodDetails(ctx, stripePMID)
+			_, brand, last4, expMonth, expYear, err := paymentSvc.FetchPaymentMethodDetails(ctx, stripePMID)
 			if err != nil {
 				log.Printf("setup_intent.succeeded: fetch pm details %s: %v", stripePMID, err)
 				return

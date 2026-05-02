@@ -13,7 +13,7 @@ import (
 
 type Handler struct {
 	svc               *Service
-	onSuccess         func(r *http.Request, paymentIntentID string)
+	onSuccess         func(r *http.Request, paymentIntentID, paymentMethodID string)
 	onSetupSucceeded  func(r *http.Request, stripeCustomerID, stripePMID string)
 	customerJWTSecret string
 }
@@ -22,7 +22,7 @@ type Handler struct {
 // webhook on `payment_intent.succeeded` events.
 func NewHandler(
 	svc *Service,
-	onSuccess func(r *http.Request, paymentIntentID string),
+	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID string),
 	onSetupSucceeded func(r *http.Request, stripeCustomerID, stripePMID string),
 	customerJWTSecret string,
 ) *Handler {
@@ -69,15 +69,17 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 	switch event.Type {
 	case "payment_intent.succeeded":
 		var pi struct {
-			ID string `json:"id"`
+			ID            string          `json:"id"`
+			PaymentMethod json.RawMessage `json:"payment_method"`
 		}
 		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
 			log.Printf("stripe webhook decode pi: %v", err)
 			respond.BadRequest(w, "bad event payload")
 			return
 		}
+		pmID := decodePMRef(pi.PaymentMethod)
 		if pi.ID != "" && h.onSuccess != nil {
-			h.onSuccess(r, pi.ID)
+			h.onSuccess(r, pi.ID, pmID)
 		}
 
 	case "setup_intent.succeeded":
@@ -132,4 +134,25 @@ func (h *Handler) setDefaultCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// decodePMRef tolerates both forms Stripe may send for a PaymentMethod field:
+// a bare ID string ("pm_xxx") or an expanded object {"id":"pm_xxx", ...}.
+// Webhooks today always send the string form, but expansion may change in
+// future API versions. Returns "" for null/absent/unparseable input.
+func decodePMRef(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var obj struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		return obj.ID
+	}
+	return ""
 }
