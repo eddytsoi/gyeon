@@ -18,6 +18,34 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
+// GetCredentials returns the saved WooCommerce credentials, if any.
+// GET /api/v1/admin/import/woocommerce/credentials
+func (h *Handler) GetCredentials(w http.ResponseWriter, r *http.Request) {
+	creds, err := h.svc.GetCredentials(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respond.JSON(w, http.StatusOK, creds)
+}
+
+// SaveCredentials persists the WooCommerce credentials to site_settings
+// without running an import. The Test endpoint is the way to verify the
+// values; this one just stores whatever the admin sent.
+// PUT /api/v1/admin/import/woocommerce/credentials
+func (h *Handler) SaveCredentials(w http.ResponseWriter, r *http.Request) {
+	var creds Credentials
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if err := h.svc.SaveCredentials(r.Context(), creds); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // Test handles POST /api/v1/admin/import/woocommerce/test.
 // Verifies WC credentials and read access without making any changes.
 func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
