@@ -70,13 +70,17 @@ func (h *Handler) quote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// v1: weight metadata isn't stored on variants, so every line falls
-	// back to the configured default. When variant weights land we extend
-	// this loop to read from product_variants.
+	// Per-variant weight is now persisted (product_variants.weight_grams).
+	// Lines without it fall back to shipany_default_weight_grams in
+	// QuoteForCart.
 	lines := make([]CartLine, len(cart.Items))
 	subtotal := 0.0
 	for i, item := range cart.Items {
-		lines[i] = CartLine{Quantity: item.Quantity}
+		w := 0
+		if item.WeightGrams != nil {
+			w = *item.WeightGrams
+		}
+		lines[i] = CartLine{WeightGrams: w, Quantity: item.Quantity}
 		subtotal += item.Price * float64(item.Quantity)
 	}
 

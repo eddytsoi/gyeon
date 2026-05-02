@@ -149,7 +149,7 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 	}
 
 	parcel := Parcel{
-		WeightGrams: s.defaultWeight(ctx),
+		WeightGrams: s.orderWeightGrams(ctx, orderID),
 		ValueHKD:    order.Subtotal,
 	}
 
@@ -336,6 +336,40 @@ func (s *Service) read(ctx context.Context, key string) string {
 		return ""
 	}
 	return st.Value
+}
+
+// orderWeightGrams sums per-variant weight × quantity for an order's
+// items. Items missing variant weight fall back to the configured
+// default; if no items have weight, the whole parcel falls back too.
+func (s *Service) orderWeightGrams(ctx context.Context, orderID string) int {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT oi.quantity, pv.weight_grams
+		   FROM order_items oi
+		   LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+		  WHERE oi.order_id = $1`, orderID)
+	if err != nil {
+		return s.defaultWeight(ctx)
+	}
+	defer rows.Close()
+
+	fallback := s.defaultWeight(ctx)
+	total := 0
+	for rows.Next() {
+		var qty int
+		var w sql.NullInt64
+		if err := rows.Scan(&qty, &w); err != nil {
+			continue
+		}
+		grams := fallback
+		if w.Valid && w.Int64 > 0 {
+			grams = int(w.Int64)
+		}
+		total += grams * qty
+	}
+	if total <= 0 {
+		return fallback
+	}
+	return total
 }
 
 func (s *Service) defaultWeight(ctx context.Context) int {

@@ -30,6 +30,7 @@ export interface Variant {
   price: number;
   compare_at_price?: number;
   stock_qty: number;
+  weight_grams?: number;
   is_active: boolean;
   product_name?: string;
   image_url?: string;
@@ -56,6 +57,7 @@ export interface CartItem {
   product_slug: string;
   sku: string;
   price: number;
+  weight_grams?: number;
   image_url?: string;
 }
 

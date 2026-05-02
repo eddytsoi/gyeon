@@ -50,6 +50,7 @@
     _localId: string;
     sku: string; name?: string;
     price: number; compare_at_price?: number; stock_qty: number;
+    weight_grams?: number;
     image_media_file_id?: string; image_preview_url?: string;
   };
   type PendingImage = {
@@ -334,6 +335,7 @@
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Price</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Compare at</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Stock</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell">Weight</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Status</th>
             <th class="px-5 py-3"></th>
           </tr>
@@ -358,6 +360,9 @@
                 <td class="px-5 py-3">
                   <span class="font-medium text-gray-900">{pv.stock_qty}</span>
                 </td>
+                <td class="px-5 py-3 hidden lg:table-cell text-gray-700">
+                  {pv.weight_grams ? `${pv.weight_grams} g` : '—'}
+                </td>
                 <td class="px-5 py-3 hidden md:table-cell">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Active</span>
                 </td>
@@ -376,7 +381,7 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="8" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="9" class="px-5 py-8 text-center text-gray-400 text-sm">
                   No variants yet. Add one to set pricing and stock.
                 </td>
               </tr>
@@ -401,6 +406,9 @@
                   <span class="font-medium {variant.stock_qty <= 5 ? 'text-red-600' : 'text-gray-900'}">
                     {variant.stock_qty}
                   </span>
+                </td>
+                <td class="px-5 py-3 hidden lg:table-cell text-gray-700">
+                  {variant.weight_grams ? `${variant.weight_grams} g` : '—'}
                 </td>
                 <td class="px-5 py-3 hidden md:table-cell">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -462,7 +470,7 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="8" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="9" class="px-5 py-8 text-center text-gray-400 text-sm">
                   No variants yet. Add one to set pricing and stock.
                 </td>
               </tr>
@@ -656,6 +664,7 @@
                 const imageId = addVariantImageId ?? undefined;
                 const imageMedia_ = imageMedia.find(m => m.id === imageId);
                 const nameVal = formData.get('name')?.toString().trim() ?? '';
+                const weightStr = formData.get('weight_grams')?.toString().trim() ?? '';
                 pendingVariants = [...pendingVariants, {
                   _localId: crypto.randomUUID(),
                   sku,
@@ -665,6 +674,7 @@
                     ? parseFloat(formData.get('compare_at_price')!.toString())
                     : undefined,
                   stock_qty: parseInt(formData.get('stock_qty')?.toString() ?? '0', 10),
+                  weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
                   image_media_file_id: imageId,
                   image_preview_url: imageMedia_?.webp_url ?? imageMedia_?.url
                 }];
@@ -705,6 +715,13 @@
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stock Qty</label>
             <input name="stock_qty" type="number" min="0" value="0"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
+            <input name="weight_grams" type="number" min="0" step="1"
+                   placeholder="Optional"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
@@ -822,6 +839,14 @@
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Stock Qty</label>
             <input name="stock_qty" type="number" min="0" value={editingVariant.stock_qty}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
+            <input name="weight_grams" type="number" min="0" step="1"
+                   value={editingVariant.weight_grams ?? ''}
+                   placeholder="Optional"
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
