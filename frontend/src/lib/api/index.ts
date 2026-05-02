@@ -1,4 +1,4 @@
-import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
+import type { Address, BundleItem, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -35,6 +35,7 @@ export const getProductByID = (id: string) => request<Product>(`/products/${id}`
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
 export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);
 export const getProductImages = (id: string) => request<ProductImage[]>(`/products/${id}/images`);
+export const getProductBundleItems = (id: string) => request<BundleItem[]>(`/products/${id}/bundle-items`);
 
 export const getOrCreateCart = (sessionToken: string, customerID?: string) =>
   request<Cart>('/cart', {

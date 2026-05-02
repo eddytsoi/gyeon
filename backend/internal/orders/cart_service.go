@@ -134,14 +134,30 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, req AddItemReq
 		req.Quantity = 1
 	}
 
-	// check stock
+	// check stock — for bundle products use derived stock instead of variant stock_qty
 	var stock int
+	var productKind, productID string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT stock_qty FROM product_variants WHERE id = $1 AND is_active = TRUE`, req.VariantID).
-		Scan(&stock)
+		`SELECT pv.stock_qty, p.kind, p.id
+		 FROM product_variants pv
+		 JOIN products p ON p.id = pv.product_id
+		 WHERE pv.id = $1 AND pv.is_active = TRUE`, req.VariantID).
+		Scan(&stock, &productKind, &productID)
 	if err != nil {
 		return nil, err
 	}
+
+	if productKind == "bundle" {
+		err = s.db.QueryRowContext(ctx,
+			`SELECT COALESCE(MIN(FLOOR(pv.stock_qty::float / bi.quantity)), 0)::int
+			 FROM bundle_items bi
+			 JOIN product_variants pv ON pv.id = bi.component_variant_id
+			 WHERE bi.bundle_product_id = $1`, productID).Scan(&stock)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if stock < req.Quantity {
 		return nil, ErrInsufficientStock
 	}

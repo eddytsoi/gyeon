@@ -1,4 +1,4 @@
-import { getProducts, getProductImages, getProductVariants, getCategories } from '$lib/api';
+import { getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems } from '$lib/api';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
@@ -17,9 +17,10 @@ export const load: PageServerLoad = async ({ params }) => {
     .filter((p) => p.id !== product.id && p.category_id === product.category_id && p.status === 'active')
     .slice(0, 4);
 
-  const [variants, images, ...relatedImages] = await Promise.all([
+  const [variants, images, bundleItems, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
     getProductImages(product.id).catch(() => []),
+    product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
@@ -28,5 +29,5 @@ export const load: PageServerLoad = async ({ params }) => {
     primaryImage: relatedImages[i]?.find((img) => img.is_primary) ?? relatedImages[i]?.[0] ?? null
   }));
 
-  return { product, variants, images, category, related: relatedWithImage };
+  return { product, variants, images, bundleItems, category, related: relatedWithImage };
 };

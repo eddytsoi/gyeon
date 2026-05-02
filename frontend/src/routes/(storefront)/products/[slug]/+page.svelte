@@ -271,6 +271,37 @@
   </div>
 </div>
 
+<!-- ── BUNDLE CONTENTS ───────────────────────────────────────────── -->
+{#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
+  <div class="bg-gray-50 border-t border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <p class="text-[11px] font-bold uppercase tracking-[0.25em] mb-2"
+         style="color: rgb(113,135,183)">Everything You Need</p>
+      <h2 class="text-2xl font-black text-gray-900 mb-8">What's Included</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each data.bundleItems as item}
+          <div class="flex items-center gap-4 bg-white rounded-2xl border border-gray-100 px-5 py-4">
+            <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
+                 style="background: rgb(51,73,119)">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <p class="font-semibold text-gray-900 text-sm truncate">
+                {item.display_name_override || item.component_product_name || item.component_sku}
+              </p>
+              {#if item.quantity > 1}
+                <p class="text-xs text-gray-400">× {item.quantity}</p>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- ── SPECS STRIP ────────────────────────────────────────────────── -->
 <div style="background: rgb(25,37,63)">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

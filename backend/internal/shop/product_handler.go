@@ -1,6 +1,7 @@
 package shop
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -53,6 +54,10 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Get("/{id}/translations", h.listTranslations)
 	r.Put("/{id}/translations/{locale}", h.upsertTranslation)
 	r.Delete("/{id}/translations/{locale}", h.deleteTranslation)
+
+	// Bundle item sub-routes — GET is public (storefront); PUT is admin-only in practice.
+	r.Get("/{id}/bundle-items", h.getBundleItems)
+	r.Put("/{id}/bundle-items", h.setBundleItems)
 	return r
 }
 
@@ -320,4 +325,33 @@ func (h *ProductHandler) deleteTranslation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) getBundleItems(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	items, err := h.svc.GetBundleItems(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) setBundleItems(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req SetBundleItemsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	items, err := h.svc.SetBundleItems(r.Context(), id, req.Items)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respond.NotFound(w)
+			return
+		}
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
 }

@@ -52,7 +52,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("get_product",
-		mcplib.WithDescription("Get full product detail including all variants and images"),
+		mcplib.WithDescription("Get full product detail including all variants, images, and (for bundles) bundle items"),
 		mcplib.WithString("product_id", mcplib.Description("Product UUID"), mcplib.Required()),
 		mcplib.WithString("lang", mcplib.Description("Language locale for translated content (optional)")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
@@ -80,7 +80,63 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 			"variants": variants,
 			"images":   images,
 		}
+
+		// For bundle products, include bundle items and derived stock.
+		if product.Kind == "bundle" {
+			bundleItems, err := prodSvc.GetBundleItems(ctx, productID)
+			if err == nil {
+				result["bundle_items"] = bundleItems
+			}
+			derived, _ := prodSvc.GetDerivedStock(ctx, productID)
+			result["derived_stock"] = derived
+		}
+
 		data, _ := json.Marshal(result)
+		return mcplib.NewToolResultText(string(data)), nil
+	})
+
+	s.AddTool(mcplib.NewTool("get_bundle_items",
+		mcplib.WithDescription("Get the component items of a bundle product, including component product name, SKU, quantity, and derived stock"),
+		mcplib.WithString("product_id", mcplib.Description("Bundle product UUID"), mcplib.Required()),
+	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+		productID, err := req.RequireString("product_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		items, err := prodSvc.GetBundleItems(ctx, productID)
+		if err != nil {
+			return nil, err
+		}
+		derived, _ := prodSvc.GetDerivedStock(ctx, productID)
+		data, _ := json.Marshal(map[string]any{
+			"items":         items,
+			"derived_stock": derived,
+		})
+		return mcplib.NewToolResultText(string(data)), nil
+	})
+
+	s.AddTool(mcplib.NewTool("set_bundle_items",
+		mcplib.WithDescription("Replace all bundle items for a bundle product. Pass an empty items array to clear the bundle contents."),
+		mcplib.WithString("product_id", mcplib.Description("Bundle product UUID"), mcplib.Required()),
+		mcplib.WithString("items_json", mcplib.Description(`JSON array of bundle items. Each item: {"component_variant_id":"<uuid>","quantity":<int>,"sort_order":<int>,"display_name_override":"<optional string>"}`), mcplib.Required()),
+	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+		productID, err := req.RequireString("product_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		itemsJSON, err := req.RequireString("items_json")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		var inputs []shop.BundleItemInput
+		if err := json.Unmarshal([]byte(itemsJSON), &inputs); err != nil {
+			return mcplib.NewToolResultError("invalid items_json: " + err.Error()), nil
+		}
+		items, err := prodSvc.SetBundleItems(ctx, productID, inputs)
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		data, _ := json.Marshal(items)
 		return mcplib.NewToolResultText(string(data)), nil
 	})
 

@@ -25,8 +25,39 @@ type Product struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	Status      string  `json:"status"`
+	Kind        string  `json:"kind"` // "simple" | "bundle"
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
+}
+
+// BundleItem represents a component row in a bundle product.
+type BundleItem struct {
+	ID                   string  `json:"id"`
+	BundleProductID      string  `json:"bundle_product_id"`
+	ComponentVariantID   string  `json:"component_variant_id"`
+	Quantity             int     `json:"quantity"`
+	SortOrder            int     `json:"sort_order"`
+	DisplayNameOverride  *string `json:"display_name_override,omitempty"`
+	// Derived from joined tables
+	ComponentProductName string  `json:"component_product_name"`
+	ComponentVariantName *string `json:"component_variant_name,omitempty"`
+	ComponentSKU         string  `json:"component_sku"`
+	ComponentStockQty    int     `json:"component_stock_qty"`
+	ComponentPrice       float64 `json:"component_price"`
+	CreatedAt            string  `json:"created_at"`
+}
+
+// BundleItemInput is used when setting bundle items via SetBundleItems.
+type BundleItemInput struct {
+	ComponentVariantID  string  `json:"component_variant_id"`
+	Quantity            int     `json:"quantity"`
+	SortOrder           int     `json:"sort_order"`
+	DisplayNameOverride *string `json:"display_name_override,omitempty"`
+}
+
+// SetBundleItemsRequest wraps the item list for the PUT handler.
+type SetBundleItemsRequest struct {
+	Items []BundleItemInput `json:"items"`
 }
 
 type ProductTranslation struct {
@@ -75,6 +106,7 @@ type CreateProductRequest struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
 	Status      string  `json:"status"`
+	Kind        string  `json:"kind"` // "simple" | "bundle"; defaults to "simple"
 }
 
 type UpdateProductRequest struct {
@@ -129,13 +161,13 @@ const productSelect = `
 	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.name,        p.name)        AS name,
 	       COALESCE(t.description, p.description) AS description,
-	       p.status, p.created_at, p.updated_at
+	       p.status, p.kind, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
 	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
-		&p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+		&p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -278,13 +310,17 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 }
 
 func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (*Product, error) {
+	kind := req.Kind
+	if kind == "" {
+		kind = "simple"
+	}
 	var p Product
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, description, status)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, category_id, slug, name, description, status, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Description, req.Status).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+		`INSERT INTO products (category_id, slug, name, description, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -293,13 +329,33 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 }
 
 func (s *ProductService) Update(ctx context.Context, id string, req UpdateProductRequest) (*Product, error) {
+	kind := req.Kind
+	if kind == "" {
+		kind = "simple"
+	}
+
+	// Enforce 1-variant rule when switching to bundle.
+	if kind == "bundle" {
+		var count int
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM product_variants WHERE product_id = $1 AND is_active = TRUE`, id).
+			Scan(&count)
+		if count == 0 {
+			// Auto-create a default bundle variant so the product is immediately usable.
+			_, _ = s.db.ExecContext(ctx,
+				`INSERT INTO product_variants (product_id, sku, price, stock_qty)
+				 VALUES ($1, 'BUNDLE-' || UPPER(SUBSTRING($1::text, 1, 8)), 0, 0)`,
+				id)
+		}
+	}
+
 	var p Product
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, status=$6
+		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, status=$6, kind=$7
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, description, status, created_at, updated_at`,
-		id, req.CategoryID, req.Slug, req.Name, req.Description, req.Status).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
+		id, req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -546,27 +602,37 @@ func (s *ProductService) DeleteAll(ctx context.Context) error {
 
 func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (*Variant, error) {
 	var v Variant
+	var productKind string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
 		        pv.stock_qty, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at,
-		        p.name AS product_name,
-		        pi.url AS image_url
+		        p.name AS product_name, p.kind AS product_kind,
+		        COALESCE(mf.url, pi.url) AS image_url
 		 FROM product_variants pv
 		 JOIN products p ON p.id = pv.product_id
 		 LEFT JOIN product_images pi
 		     ON pi.product_id = pv.product_id AND pi.is_primary = TRUE
+		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		 WHERE pv.id = $1
 		 LIMIT 1`, variantID).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
 			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
-			&v.ProductName, &v.ImageURL)
+			&v.ProductName, &productKind, &v.ImageURL)
 	if err != nil {
 		return nil, err
+	}
+	// For bundle products, replace stock_qty with dynamically derived stock.
+	if productKind == "bundle" {
+		v.StockQty, _ = s.GetDerivedStock(ctx, v.ProductID)
 	}
 	return &v, nil
 }
 
 func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]Variant, error) {
+	// Determine product kind upfront so we can apply derived stock to bundles.
+	var productKind string
+	_ = s.db.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, productID).Scan(&productKind)
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
 		        pv.stock_qty, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at,
@@ -590,10 +656,38 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 		}
 		variants = append(variants, v)
 	}
-	return variants, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// For bundle products, replace stock_qty with derived stock.
+	if productKind == "bundle" && len(variants) > 0 {
+		derived, _ := s.GetDerivedStock(ctx, productID)
+		for i := range variants {
+			variants[i].StockQty = derived
+		}
+	}
+	return variants, nil
 }
 
 func (s *ProductService) CreateVariant(ctx context.Context, productID string, req CreateVariantRequest) (*Variant, error) {
+	// Enforce 1-variant rule for bundle products.
+	var kind string
+	if err := s.db.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, productID).Scan(&kind); err != nil {
+		return nil, err
+	}
+	if kind == "bundle" {
+		var count int
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM product_variants WHERE product_id = $1 AND is_active = TRUE`, productID).
+			Scan(&count); err != nil {
+			return nil, err
+		}
+		if count >= 1 {
+			return nil, fmt.Errorf("bundle products can only have one variant")
+		}
+	}
+
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams)
@@ -797,3 +891,109 @@ func (s *ProductService) DeleteTranslation(ctx context.Context, productID, local
 }
 
 var errProductNotFound = sql.ErrNoRows
+
+// --- Bundle product methods ---
+
+// GetDerivedStock computes min(component.stock_qty / bundle_item.quantity) across
+// all bundle_items for the given bundle_product_id. Returns 0 if no items exist.
+func (s *ProductService) GetDerivedStock(ctx context.Context, productID string) (int, error) {
+	var derived int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(MIN(FLOOR(pv.stock_qty::float / bi.quantity)), 0)::int
+		 FROM bundle_items bi
+		 JOIN product_variants pv ON pv.id = bi.component_variant_id
+		 WHERE bi.bundle_product_id = $1`, productID).Scan(&derived)
+	return derived, err
+}
+
+// GetBundleItems returns all component rows for a bundle product, enriched with
+// the component variant's product name, SKU, stock, and price.
+func (s *ProductService) GetBundleItems(ctx context.Context, productID string) ([]BundleItem, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT bi.id, bi.bundle_product_id, bi.component_variant_id, bi.quantity,
+		        bi.sort_order, bi.display_name_override,
+		        p.name  AS component_product_name,
+		        pv.name AS component_variant_name,
+		        pv.sku  AS component_sku,
+		        pv.stock_qty AS component_stock_qty,
+		        pv.price     AS component_price,
+		        bi.created_at
+		 FROM bundle_items bi
+		 JOIN product_variants pv ON pv.id = bi.component_variant_id
+		 JOIN products p ON p.id = pv.product_id
+		 WHERE bi.bundle_product_id = $1
+		 ORDER BY bi.sort_order ASC, bi.created_at ASC`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]BundleItem, 0)
+	for rows.Next() {
+		var bi BundleItem
+		if err := rows.Scan(
+			&bi.ID, &bi.BundleProductID, &bi.ComponentVariantID, &bi.Quantity,
+			&bi.SortOrder, &bi.DisplayNameOverride,
+			&bi.ComponentProductName, &bi.ComponentVariantName, &bi.ComponentSKU,
+			&bi.ComponentStockQty, &bi.ComponentPrice, &bi.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, bi)
+	}
+	return items, rows.Err()
+}
+
+// SetBundleItems atomically replaces all bundle_items for a product.
+// Validates that no component variant belongs to another bundle product (no nesting).
+func (s *ProductService) SetBundleItems(ctx context.Context, productID string, inputs []BundleItemInput) ([]BundleItem, error) {
+	// Validate: no nested bundles.
+	for _, input := range inputs {
+		var compKind string
+		err := s.db.QueryRowContext(ctx,
+			`SELECT p.kind FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $1`,
+			input.ComponentVariantID).Scan(&compKind)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("component variant %s not found", input.ComponentVariantID)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if compKind == "bundle" {
+			return nil, fmt.Errorf("nested bundles are not allowed: component variant %s belongs to a bundle product", input.ComponentVariantID)
+		}
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Delete all existing items for this product.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM bundle_items WHERE bundle_product_id = $1`, productID); err != nil {
+		return nil, err
+	}
+
+	// Insert new items.
+	for _, input := range inputs {
+		qty := input.Quantity
+		if qty <= 0 {
+			qty = 1
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO bundle_items (bundle_product_id, component_variant_id, quantity, sort_order, display_name_override)
+			 VALUES ($1, $2, $3, $4, $5)`,
+			productID, input.ComponentVariantID, qty, input.SortOrder, input.DisplayNameOverride,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	s.cache.DeleteByPrefix(productPrefix)
+	return s.GetBundleItems(ctx, productID)
+}

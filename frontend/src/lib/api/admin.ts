@@ -1,4 +1,4 @@
-import type { Category, Order, OrderNotice, Product, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, Order, OrderNotice, Product, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -86,6 +86,20 @@ export const adminUpdateImage = (token: string, productID: string, imageID: stri
 
 export const adminDeleteImage = (token: string, productID: string, imageID: string) =>
   request(`/products/${productID}/images/${imageID}`, token, { method: 'DELETE' });
+
+// Bundle items
+export const adminGetBundleItems = (token: string, productID: string) =>
+  request<BundleItem[]>(`/products/${productID}/bundle-items`, token);
+
+export const adminSetBundleItems = (
+  token: string,
+  productID: string,
+  items: Array<{ component_variant_id: string; quantity: number; sort_order: number; display_name_override?: string }>
+) =>
+  request<BundleItem[]>(`/products/${productID}/bundle-items`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ items })
+  });
 
 // Categories
 export const adminGetCategories = (token: string) =>

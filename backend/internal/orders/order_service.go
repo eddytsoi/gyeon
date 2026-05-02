@@ -76,6 +76,7 @@ type OrderItem struct {
 	ID           string                 `json:"id"`
 	OrderID      string                 `json:"order_id"`
 	VariantID    *string                `json:"variant_id,omitempty"`
+	ParentItemID *string                `json:"parent_item_id,omitempty"` // set for bundle component rows
 	ProductName  string                 `json:"product_name"`
 	VariantSKU   string                 `json:"variant_sku"`
 	VariantAttrs map[string]interface{} `json:"variant_attrs,omitempty"`
@@ -311,6 +312,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	}
 
 	// Fetch line item info (outside the transaction so we can compute discounts first)
+	type bundleComponent struct {
+		variantID   string
+		productName string
+		sku         string
+		price       float64
+		quantity    int // component quantity × cart item quantity
+	}
 	type lineItem struct {
 		variantID   string
 		productID   string
@@ -319,6 +327,8 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		sku         string
 		price       float64
 		quantity    int
+		kind        string
+		components  []bundleComponent // populated for bundle items
 	}
 
 	var lines []lineItem
@@ -329,16 +339,44 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		li.quantity = item.Quantity
 
 		err := s.db.QueryRowContext(ctx,
-			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name
+			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, p.kind
 			 FROM product_variants pv
 			 JOIN products p ON p.id = pv.product_id
 			 WHERE pv.id = $1`, item.VariantID).
-			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName)
+			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &li.kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("variant %s not found", item.VariantID)
 		}
 		if err != nil {
 			return nil, err
+		}
+
+		// For bundle products, load components for later stock decrement and child order items.
+		if li.kind == "bundle" {
+			compRows, err := s.db.QueryContext(ctx,
+				`SELECT bi.component_variant_id, p.name, pv.sku, pv.price, bi.quantity
+				 FROM bundle_items bi
+				 JOIN product_variants pv ON pv.id = bi.component_variant_id
+				 JOIN products p ON p.id = pv.product_id
+				 WHERE bi.bundle_product_id = $1
+				 ORDER BY bi.sort_order ASC`, li.productID)
+			if err != nil {
+				return nil, err
+			}
+			for compRows.Next() {
+				var bc bundleComponent
+				var compQty int
+				if err := compRows.Scan(&bc.variantID, &bc.productName, &bc.sku, &bc.price, &compQty); err != nil {
+					compRows.Close()
+					return nil, err
+				}
+				bc.quantity = compQty * item.Quantity // scale by cart qty
+				li.components = append(li.components, bc)
+			}
+			compRows.Close()
+			if err := compRows.Err(); err != nil {
+				return nil, err
+			}
 		}
 
 		subtotal += li.price * float64(li.quantity)
@@ -376,17 +414,34 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	}
 	defer tx.Rollback()
 
-	// Decrement stock atomically
-	for _, item := range cart.Items {
-		res, err := tx.ExecContext(ctx,
-			`UPDATE product_variants SET stock_qty = stock_qty - $2
-			 WHERE id = $1 AND stock_qty >= $2`,
-			item.VariantID, item.Quantity)
-		if err != nil {
-			return nil, err
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return nil, fmt.Errorf("insufficient stock for variant %s", item.VariantID)
+	// Decrement stock atomically.
+	// For bundle products: decrement each component's stock (not the bundle variant's own stock_qty).
+	// For simple products: decrement the variant stock directly.
+	for _, li := range lines {
+		if li.kind == "bundle" {
+			for _, bc := range li.components {
+				res, err := tx.ExecContext(ctx,
+					`UPDATE product_variants SET stock_qty = stock_qty - $2
+					 WHERE id = $1 AND stock_qty >= $2`,
+					bc.variantID, bc.quantity)
+				if err != nil {
+					return nil, err
+				}
+				if n, _ := res.RowsAffected(); n == 0 {
+					return nil, fmt.Errorf("insufficient stock for bundle component %s", bc.variantID)
+				}
+			}
+		} else {
+			res, err := tx.ExecContext(ctx,
+				`UPDATE product_variants SET stock_qty = stock_qty - $2
+				 WHERE id = $1 AND stock_qty >= $2`,
+				li.variantID, li.quantity)
+			if err != nil {
+				return nil, err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil, fmt.Errorf("insufficient stock for variant %s", li.variantID)
+			}
 		}
 	}
 
@@ -434,7 +489,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		return nil, err
 	}
 
-	// Insert order items
+	// Insert order items. For bundles, insert a parent row then child rows per component.
 	for _, li := range lines {
 		lineTotal := li.price * float64(li.quantity)
 		var item OrderItem
@@ -449,6 +504,23 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			return nil, err
 		}
 		order.Items = append(order.Items, item)
+
+		// For bundle products, insert child order items linked via parent_item_id.
+		for _, bc := range li.components {
+			var child OrderItem
+			childTotal := bc.price * float64(bc.quantity)
+			cerr := tx.QueryRowContext(ctx,
+				`INSERT INTO order_items (order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total, parent_item_id)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				 RETURNING id, order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total`,
+				order.ID, bc.variantID, bc.productName, bc.sku, bc.price, bc.quantity, childTotal, item.ID).
+				Scan(&child.ID, &child.OrderID, &child.VariantID, &child.ProductName,
+					&child.VariantSKU, &child.UnitPrice, &child.Quantity, &child.LineTotal)
+			if cerr != nil {
+				return nil, cerr
+			}
+			child.ParentItemID = &item.ID
+		}
 	}
 
 	tx.ExecContext(ctx,

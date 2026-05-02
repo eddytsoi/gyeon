@@ -18,8 +18,24 @@ export interface Product {
   name: string;
   description?: string;
   status: string;
+  kind?: string; // 'simple' | 'bundle'
   created_at: string;
   updated_at: string;
+}
+
+export interface BundleItem {
+  id: string;
+  bundle_product_id: string;
+  component_variant_id: string;
+  quantity: number;
+  sort_order: number;
+  display_name_override?: string;
+  // joined fields
+  component_product_name?: string;
+  component_sku?: string;
+  component_variant_name?: string;
+  component_price?: number;
+  component_stock_qty?: number;
 }
 
 export interface Variant {

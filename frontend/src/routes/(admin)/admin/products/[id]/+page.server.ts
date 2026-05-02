@@ -4,7 +4,8 @@ import {
   adminGetProduct, adminGetCategories, adminGetVariants, adminGetImages, adminGetMedia,
   adminCreateProduct, adminUpdateProduct,
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
-  adminAddImage, adminUpdateImage, adminDeleteImage
+  adminAddImage, adminUpdateImage, adminDeleteImage,
+  adminGetBundleItems, adminSetBundleItems, adminGetProducts
 } from '$lib/api/admin';
 import { resolveAdminId } from '$lib/admin/resolveId';
 
@@ -31,7 +32,15 @@ export const load: PageServerLoad = async ({ parent, params }) => {
       adminGetMedia(token).catch(() => [])
     ]);
 
-  return { product, categories, variants, images, mediaFiles, isNew };
+  const isBundle = !isNew && product?.kind === 'bundle';
+  const [bundleItems, allProducts] = isBundle
+    ? await Promise.all([
+        adminGetBundleItems(token, id).catch(() => []),
+        adminGetProducts(token, 200, 0).catch(() => [])
+      ])
+    : [[], []];
+
+  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew };
 };
 
 export const actions: Actions = {
@@ -41,12 +50,14 @@ export const actions: Actions = {
     const id = await resolve(token, params.id);
 
     const form = await request.formData();
+    const kind = form.get('kind')?.toString() ?? 'simple';
     const body = {
       category_id: form.get('category_id')?.toString() || undefined,
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
       description: form.get('description')?.toString() || undefined,
-      status: form.get('status')?.toString() ?? 'active'
+      status: form.get('status')?.toString() ?? 'active',
+      kind
     };
 
     let newProductId: string | undefined;
@@ -103,6 +114,10 @@ export const actions: Actions = {
         } catch { /* non-fatal */ }
       }
 
+      // For bundle products, redirect to the edit page so admin can configure bundle contents
+      if (kind === 'bundle') {
+        throw redirect(303, `/admin/products/${newProductId}`);
+      }
       throw redirect(303, '/admin/products');
     }
     return { success: true };
@@ -282,6 +297,24 @@ export const actions: Actions = {
       }
     } catch {
       return fail(400, { error: 'Failed to reorder images' });
+    }
+    return { success: true };
+  },
+
+  saveBundleItems: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const itemsJson = form.get('bundle_items_json')?.toString() ?? '[]';
+    let items: Array<{ component_variant_id: string; quantity: number; sort_order: number; display_name_override?: string }> = [];
+    try { items = JSON.parse(itemsJson); } catch { return fail(400, { error: 'Invalid bundle items JSON' }); }
+
+    try {
+      await adminSetBundleItems(token, id, items);
+    } catch {
+      return fail(400, { error: 'Failed to save bundle contents' });
     }
     return { success: true };
   }

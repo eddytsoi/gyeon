@@ -1,8 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { adminUploadMedia } from '$lib/api/admin';
+  import { adminUploadMedia, adminGetVariants } from '$lib/api/admin';
   import type { PageData } from './$types';
+  import type { BundleItem, Variant } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
@@ -16,6 +17,7 @@
   // Product form state
   let name = $state(data.product?.name ?? '');
   let slug = $state(data.product?.slug ?? '');
+  let kind = $state(data.product?.kind ?? 'simple');
   let autoSlug = $state(!data.product);
   let saving = $state(false);
   let savingVariant = $state(false);
@@ -74,6 +76,78 @@
 
   // Confirm delete image modal state
   let confirmDeleteImageId = $state<string | null>(null);
+
+  // ── Bundle state ─────────────────────────────────────────────────────────────
+  type EditableBundleItem = BundleItem & { _localId: string };
+
+  let bundleItems = $state<EditableBundleItem[]>(
+    (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id }))
+  );
+  let bundleItemsSaving = $state(false);
+
+  const bundleItemsJson = $derived(
+    JSON.stringify(bundleItems.map(({ _localId, ...rest }) => ({
+      component_variant_id: rest.component_variant_id,
+      quantity: rest.quantity,
+      sort_order: rest.sort_order,
+      display_name_override: rest.display_name_override || undefined
+    })))
+  );
+
+  // Bundle component picker
+  let pickerProductId = $state('');
+  let pickerVariants = $state<Variant[]>([]);
+  let pickerVariantId = $state('');
+  let pickerQty = $state(1);
+  let pickerDisplayName = $state('');
+  let loadingPickerVariants = $state(false);
+
+  async function loadPickerVariants(productId: string) {
+    pickerVariantId = '';
+    pickerVariants = [];
+    if (!data.token || !productId) return;
+    loadingPickerVariants = true;
+    try {
+      pickerVariants = await adminGetVariants(data.token, productId);
+    } catch {
+      pickerVariants = [];
+    } finally {
+      loadingPickerVariants = false;
+    }
+  }
+
+  function addBundleComponent() {
+    if (!pickerVariantId) return;
+    const variant = pickerVariants.find(v => v.id === pickerVariantId);
+    const product = (data.allProducts ?? []).find(p => p.id === pickerProductId);
+    if (!variant || !product) return;
+    if (bundleItems.some(bi => bi.component_variant_id === pickerVariantId)) {
+      notify.warning('Duplicate component', `${variant.sku} is already in this bundle.`);
+      return;
+    }
+    bundleItems = [...bundleItems, {
+      _localId: crypto.randomUUID(),
+      id: '',
+      bundle_product_id: data.product?.id ?? '',
+      component_variant_id: pickerVariantId,
+      quantity: pickerQty > 0 ? pickerQty : 1,
+      sort_order: bundleItems.length,
+      display_name_override: pickerDisplayName.trim() || undefined,
+      component_product_name: product.name,
+      component_sku: variant.sku,
+      component_variant_name: variant.name,
+      component_price: variant.price,
+      component_stock_qty: variant.stock_qty
+    }];
+    pickerProductId = '';
+    pickerVariantId = '';
+    pickerVariants = [];
+    pickerQty = 1;
+    pickerDisplayName = '';
+  }
+
+  // Simple products for bundle component picker (exclude bundles to prevent nesting)
+  const simpleProducts = $derived((data.allProducts ?? []).filter(p => p.kind !== 'bundle' && p.id !== data.product?.id));
 
   // Add Image modal state
   let showAddImage = $state(false);
@@ -184,6 +258,7 @@
   const anyUploading = $derived(uploadFiles.some(f => f.status === 'uploading'));
 
   $effect(() => { images = sortedImages(data.images); });
+  $effect(() => { bundleItems = (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id })); });
 
   function handleDragStart(e: DragEvent, idx: number) {
     dragSrcIdx = idx;
@@ -305,6 +380,15 @@
             <option value="inactive" selected={!data.isNew && data.product?.status === 'inactive'}>Inactive</option>
           </select>
         </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</label>
+          <select name="kind" bind:value={kind}
+                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="simple">Simple</option>
+            <option value="bundle">Bundle</option>
+          </select>
+        </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</label>
           <textarea id="description" name="description" rows="4"
@@ -320,7 +404,8 @@
     </form>
   </section>
 
-  <!-- ── Variants ── -->
+  <!-- ── Variants (simple products only) ── -->
+  {#if kind === 'simple'}
     <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
         <h2 class="font-semibold text-gray-900">Variants</h2>
@@ -486,6 +571,203 @@
       </table>
       </div>
     </section>
+  {/if}
+
+  <!-- ── Bundle Pricing (bundle products only) ── -->
+  {#if kind === 'bundle' && !data.isNew && data.variants.length > 0}
+    {@const bv = data.variants[0]}
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-1">Bundle Pricing</h2>
+      <p class="text-xs text-gray-400 mb-4">Set the price for this bundle. Stock is derived automatically from components.</p>
+      <form method="POST" action="?/updateVariant"
+            use:enhance={({ formData }) => {
+              if (updatingVariant) return;
+              updatingVariant = true;
+              return async ({ result, update }) => {
+                showResult(result, 'Bundle pricing saved', 'Failed to save bundle pricing');
+                await update();
+                updatingVariant = false;
+              };
+            }}>
+        <input type="hidden" name="variant_id" value={bv.id} />
+        <input type="hidden" name="sku" value={bv.sku} />
+        <input type="hidden" name="is_active" value="true" />
+        <input type="hidden" name="stock_qty" value={bv.stock_qty} />
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
+            <input name="price" type="number" step="0.01" min="0" required value={bv.price}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
+            <input name="compare_at_price" type="number" step="0.01" min="0"
+                   value={bv.compare_at_price ?? ''}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
+            <input name="weight_grams" type="number" min="0" step="1"
+                   value={bv.weight_grams ?? ''} placeholder="Optional"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Derived Stock</label>
+            <div class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">
+              {bv.stock_qty} units (auto)
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+          <SaveButton loading={updatingVariant}
+                  class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
+                         text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
+            Save Pricing
+          </SaveButton>
+        </div>
+      </form>
+    </section>
+  {/if}
+
+  <!-- ── Bundle Contents (bundle products only) ── -->
+  {#if kind === 'bundle' && !data.isNew}
+    <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div>
+          <h2 class="font-semibold text-gray-900">Bundle Contents</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Components included in this bundle. Stock is derived as the minimum of floor(component_stock / quantity).</p>
+        </div>
+      </div>
+
+      <!-- Component list -->
+      {#if bundleItems.length === 0}
+        <p class="px-6 py-6 text-sm text-gray-400 text-center">No components yet. Add some below.</p>
+      {:else}
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Product</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">SKU</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Qty</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Display Name Override</th>
+              <th class="px-5 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {#each bundleItems as bi, idx (bi._localId)}
+              <tr>
+                <td class="px-5 py-3 font-medium text-gray-900">{bi.component_product_name ?? '—'}</td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-600">{bi.component_sku ?? '—'}</td>
+                <td class="px-5 py-3">
+                  <input type="number" min="1" value={bi.quantity}
+                         oninput={(e) => { bundleItems[idx] = { ...bundleItems[idx], quantity: parseInt((e.target as HTMLInputElement).value) || 1 }; }}
+                         class="w-16 border border-gray-200 rounded-lg px-2 py-1 text-sm
+                                focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </td>
+                <td class="px-5 py-3 hidden md:table-cell">
+                  <input type="text" value={bi.display_name_override ?? ''}
+                         placeholder="Optional"
+                         oninput={(e) => { bundleItems[idx] = { ...bundleItems[idx], display_name_override: (e.target as HTMLInputElement).value || undefined }; }}
+                         class="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm
+                                focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                </td>
+                <td class="px-5 py-3 text-right">
+                  <button type="button"
+                          title="Remove component"
+                          aria-label="Remove component"
+                          onclick={() => bundleItems = bundleItems.filter(b => b._localId !== bi._localId)}
+                          class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+
+      <!-- Add component row -->
+      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Add Component</p>
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Product</label>
+            <select bind:value={pickerProductId}
+                    onchange={() => loadPickerVariants(pickerProductId)}
+                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[180px]">
+              <option value="">— Select product —</option>
+              {#each simpleProducts as p}
+                <option value={p.id}>{p.name}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Variant</label>
+            <select bind:value={pickerVariantId}
+                    disabled={!pickerProductId || loadingPickerVariants}
+                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[160px]
+                           disabled:opacity-50">
+              <option value="">
+                {loadingPickerVariants ? 'Loading…' : '— Select variant —'}
+              </option>
+              {#each pickerVariants as v}
+                <option value={v.id}>{v.sku}{v.name ? ` — ${v.name}` : ''}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Qty</label>
+            <input type="number" min="1" bind:value={pickerQty}
+                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900 w-20" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-gray-500">Display Name (optional)</label>
+            <input type="text" bind:value={pickerDisplayName}
+                   placeholder="Override label"
+                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[160px]" />
+          </div>
+          <button type="button"
+                  onclick={addBundleComponent}
+                  disabled={!pickerVariantId}
+                  class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
+                         hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            + Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Save bundle contents -->
+      <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
+        <form method="POST" action="?/saveBundleItems"
+              use:enhance={() => {
+                if (bundleItemsSaving) return;
+                bundleItemsSaving = true;
+                return async ({ result, update }) => {
+                  showResult(result, 'Bundle contents saved', 'Failed to save bundle contents');
+                  await update();
+                  bundleItemsSaving = false;
+                };
+              }}>
+          <input type="hidden" name="bundle_items_json" value={bundleItemsJson} />
+          <SaveButton loading={bundleItemsSaving}
+                  class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
+                         text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
+            Save Bundle Contents
+          </SaveButton>
+        </form>
+      </div>
+    </section>
+  {/if}
 
   <!-- ── Images ── -->
   <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
