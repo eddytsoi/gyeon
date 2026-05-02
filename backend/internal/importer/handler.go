@@ -48,6 +48,8 @@ func (h *Handler) SaveCredentials(w http.ResponseWriter, r *http.Request) {
 
 // Test handles POST /api/v1/admin/import/woocommerce/test.
 // Verifies WC credentials and read access without making any changes.
+// On success returns the total product count so the admin UI can display
+// a meaningful "connection ok — N products" message.
 func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	var req ImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -62,7 +64,10 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	respond.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"ok":             true,
+		"total_products": h.svc.ProductTotal(req),
+	})
 }
 
 // ImportStream handles POST /api/v1/admin/import/woocommerce/stream.
