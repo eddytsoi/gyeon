@@ -5,7 +5,7 @@ import {
   adminCreateProduct, adminUpdateProduct,
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
   adminAddImage, adminUpdateImage, adminDeleteImage,
-  adminGetBundleItems, adminSetBundleItems, adminGetProducts
+  adminGetBundleItems, adminSetBundleItems, adminGetProducts,
 } from '$lib/api/admin';
 import { resolveAdminId } from '$lib/admin/resolveId';
 
@@ -33,12 +33,12 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     ]);
 
   const isBundle = !isNew && product?.kind === 'bundle';
-  const [bundleItems, allProducts] = isBundle
-    ? await Promise.all([
-        adminGetBundleItems(token, id).catch(() => []),
-        adminGetProducts(token, 200, 0).catch(() => [])
-      ])
-    : [[], []];
+  // Always load allProducts when creating (so user can pick components if they switch kind to bundle).
+  const needsAllProducts = isNew || isBundle;
+  const [bundleItems, allProducts] = await Promise.all([
+    isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
+    needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => []) : Promise.resolve([])
+  ]);
 
   return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew };
 };
@@ -73,31 +73,61 @@ export const actions: Actions = {
     }
 
     if (newProductId) {
-      // Create pending variants
-      const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
-      let pendingVariants: Array<{
-        sku: string; name?: string; price: number; compare_at_price?: number;
-        stock_qty: number; weight_grams?: number; image_media_file_id?: string;
-      }> = [];
-      try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
-
-      for (const pv of pendingVariants) {
+      if (kind === 'bundle') {
+        // Bundle products: backend auto-creates a single default variant. Apply pending pricing to it,
+        // and persist the pending bundle items the user filled in on the new-product form.
+        const priceStr = form.get('pending_bundle_price')?.toString() ?? '';
+        const compareStr = form.get('pending_bundle_compare_at_price')?.toString() ?? '';
+        const weightStr = form.get('pending_bundle_weight_grams')?.toString() ?? '';
         try {
-          const variant = await adminCreateVariant(token, newProductId, {
-            sku: pv.sku, name: pv.name, price: pv.price,
-            compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0,
-            weight_grams: pv.weight_grams
-          });
-          if (pv.image_media_file_id) {
-            await adminAddImage(token, newProductId, {
-              variant_id: variant.id, media_file_id: pv.image_media_file_id,
-              sort_order: 0, is_primary: false
+          const variants = await adminGetVariants(token, newProductId);
+          const bv = variants[0];
+          if (bv) {
+            await adminUpdateVariant(token, newProductId, bv.id, {
+              sku: bv.sku,
+              name: bv.name,
+              price: priceStr ? parseFloat(priceStr) : 0,
+              compare_at_price: compareStr ? parseFloat(compareStr) : undefined,
+              stock_qty: bv.stock_qty,
+              weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
+              is_active: true
             });
           }
         } catch { /* non-fatal */ }
+
+        const itemsRaw = form.get('pending_bundle_items')?.toString() ?? '[]';
+        let items: Array<{ component_variant_id: string; quantity: number; sort_order: number; display_name_override?: string }> = [];
+        try { items = JSON.parse(itemsRaw); } catch { /* ignore */ }
+        if (items.length > 0) {
+          try { await adminSetBundleItems(token, newProductId, items); } catch { /* non-fatal */ }
+        }
+      } else {
+        // Simple products: create pending variants
+        const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
+        let pendingVariants: Array<{
+          sku: string; name?: string; price: number; compare_at_price?: number;
+          stock_qty: number; weight_grams?: number; image_media_file_id?: string;
+        }> = [];
+        try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
+
+        for (const pv of pendingVariants) {
+          try {
+            const variant = await adminCreateVariant(token, newProductId, {
+              sku: pv.sku, name: pv.name, price: pv.price,
+              compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0,
+              weight_grams: pv.weight_grams
+            });
+            if (pv.image_media_file_id) {
+              await adminAddImage(token, newProductId, {
+                variant_id: variant.id, media_file_id: pv.image_media_file_id,
+                sort_order: 0, is_primary: false
+              });
+            }
+          } catch { /* non-fatal */ }
+        }
       }
 
-      // Add pending product images
+      // Add pending product images (applies to both simple and bundle)
       const pendingImagesRaw = form.get('pending_images')?.toString() ?? '[]';
       let pendingImages: Array<{
         media_file_id: string; is_primary: boolean; alt_text?: string; sort_order: number;
@@ -114,10 +144,6 @@ export const actions: Actions = {
         } catch { /* non-fatal */ }
       }
 
-      // For bundle products, redirect to the edit page so admin can configure bundle contents
-      if (kind === 'bundle') {
-        throw redirect(303, `/admin/products/${newProductId}`);
-      }
       throw redirect(303, '/admin/products');
     }
     return { success: true };

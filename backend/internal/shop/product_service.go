@@ -324,6 +324,15 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 	if err != nil {
 		return nil, err
 	}
+
+	// Auto-create the default bundle variant so the product is immediately usable.
+	if kind == "bundle" {
+		_, _ = s.db.ExecContext(ctx,
+			`INSERT INTO product_variants (product_id, sku, price, stock_qty)
+			 VALUES ($1, 'BUNDLE-' || UPPER(SUBSTRING($1::text, 1, 8)), 0, 0)`,
+			p.ID)
+	}
+
 	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
