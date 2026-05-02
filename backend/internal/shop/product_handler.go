@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -121,6 +122,7 @@ func (h *ProductHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	product, err := h.svc.Create(r.Context(), req)
 	if err != nil {
+		log.Printf("product create failed: %v (req: %+v)", err, req)
 		respond.InternalError(w)
 		return
 	}
