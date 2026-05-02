@@ -98,6 +98,13 @@
           } catch { /* ignore malformed */ }
         }
       }
+
+      // Stream ended without a final {done:true} message — treat as a dropped
+      // connection so the user sees a terminal state instead of an endless spinner.
+      if (step === 'importing') {
+        errorMsg = '匯入過程中連線中斷，請查看伺服器記錄並重新匯入。';
+        step = 'error';
+      }
     } catch {
       errorMsg = '匯入過程中發生錯誤，請稍後再試。';
       step = 'error';
