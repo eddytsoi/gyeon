@@ -29,6 +29,50 @@
   let wcSecret = $state('');
   let limit = $state<number | null>(null);
 
+  let savingCreds = $state(false);
+  let saveMsg = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  async function loadCredentials() {
+    try {
+      const res = await fetch('/api/v1/admin/import/woocommerce/credentials', {
+        headers: { Authorization: `Bearer ${data.token}` }
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      wcUrl = j.wc_url ?? '';
+      wcKey = j.wc_key ?? '';
+      wcSecret = j.wc_secret ?? '';
+    } catch { /* silent — admin can still type creds manually */ }
+  }
+
+  async function saveCredentials() {
+    savingCreds = true;
+    saveMsg = null;
+    try {
+      const res = await fetch('/api/v1/admin/import/woocommerce/credentials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
+      });
+      if (!res.ok) {
+        saveMsg = { kind: 'err', text: '儲存失敗，請稍後再試。' };
+      } else {
+        saveMsg = { kind: 'ok', text: '已儲存。' };
+        setTimeout(() => { saveMsg = null; }, 3000);
+      }
+    } catch {
+      saveMsg = { kind: 'err', text: '儲存失敗，請稍後再試。' };
+    } finally {
+      savingCreds = false;
+    }
+  }
+
+  // Prefill saved credentials on mount; tracking-free $effect runs once
+  // because nothing reactive is read inside loadCredentials.
+  $effect(() => {
+    loadCredentials();
+  });
+
   function openConfirm() {
     if (!wcUrl || !wcKey || !wcSecret) {
       errorMsg = '請填寫所有欄位。';
@@ -319,6 +363,22 @@
                  bind:value={wcSecret}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <!-- Save credentials (does not run an import) -->
+        <div class="flex items-center gap-3 -mt-1">
+          <button type="button" onclick={saveCredentials} disabled={savingCreds}
+                  class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl
+                         hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {savingCreds ? '儲存中…' : '儲存憑證'}
+          </button>
+          {#if saveMsg}
+            <span class="text-xs {saveMsg.kind === 'ok' ? 'text-green-600' : 'text-red-500'}">
+              {saveMsg.text}
+            </span>
+          {:else}
+            <span class="text-xs text-gray-400">只儲存上方三個欄位，不執行匯入。</span>
+          {/if}
         </div>
 
         <!-- Limit input -->

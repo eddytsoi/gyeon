@@ -130,7 +130,7 @@ func main() {
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
-	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc))
+	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc, settingsSvc))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	adminMW := auth.Middleware(jwtSecret)
 
@@ -279,6 +279,8 @@ func main() {
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
 
 			// WooCommerce import
+			r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)
+			r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
 			r.Post("/admin/import/woocommerce/test", importHandler.Test)
 			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
 		})

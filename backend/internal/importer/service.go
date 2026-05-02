@@ -6,7 +6,16 @@ import (
 	"strconv"
 
 	"gyeon/backend/internal/media"
+	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shop"
+)
+
+// site_settings keys for the saved WC credentials. Mirrors the keys
+// inserted by migration 033.
+const (
+	settingKeyWCURL    = "wc_url"
+	settingKeyWCKey    = "wc_consumer_key"
+	settingKeyWCSecret = "wc_consumer_secret"
 )
 
 // ImportMode controls how an existing Gyeon product matches a WC product
@@ -55,11 +64,49 @@ type Service struct {
 	categorySvc *shop.CategoryService
 	productSvc  *shop.ProductService
 	mediaSvc    *media.Service
+	settingsSvc *settings.Service
 }
 
 // NewService creates an import Service.
-func NewService(categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service) *Service {
-	return &Service{categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc}
+func NewService(categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service) *Service {
+	return &Service{categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc, settingsSvc: settingsSvc}
+}
+
+// Credentials carries the persisted WooCommerce REST API credentials.
+// Empty strings mean nothing has been saved yet.
+type Credentials struct {
+	WCURL    string `json:"wc_url"`
+	WCKey    string `json:"wc_key"`
+	WCSecret string `json:"wc_secret"`
+}
+
+// GetCredentials reads the saved WC credentials from site_settings.
+// Missing rows are treated as empty strings rather than errors so a
+// fresh deployment without migration-seeded rows still returns cleanly.
+func (s *Service) GetCredentials(ctx context.Context) (Credentials, error) {
+	read := func(key string) string {
+		st, err := s.settingsSvc.Get(ctx, key)
+		if err != nil || st == nil {
+			return ""
+		}
+		return st.Value
+	}
+	return Credentials{
+		WCURL:    read(settingKeyWCURL),
+		WCKey:    read(settingKeyWCKey),
+		WCSecret: read(settingKeyWCSecret),
+	}, nil
+}
+
+// SaveCredentials writes all three values atomically. Empty strings
+// clear the corresponding key (admin can reset by saving blanks).
+func (s *Service) SaveCredentials(ctx context.Context, c Credentials) error {
+	_, err := s.settingsSvc.BulkSet(ctx, map[string]string{
+		settingKeyWCURL:    c.WCURL,
+		settingKeyWCKey:    c.WCKey,
+		settingKeyWCSecret: c.WCSecret,
+	})
+	return err
 }
 
 // TestConnection verifies that the WooCommerce credentials are valid and
