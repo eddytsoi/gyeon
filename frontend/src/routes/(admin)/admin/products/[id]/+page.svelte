@@ -83,8 +83,6 @@
   let bundleItems = $state<EditableBundleItem[]>(
     (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id }))
   );
-  let bundleItemsSaving = $state(false);
-
   // Pending bundle pricing (used in new-product mode — applied to the auto-created variant on save).
   let pendingBundlePrice = $state<number | ''>('');
   let pendingBundleCompareAtPrice = $state<number | ''>('');
@@ -411,6 +409,8 @@
           <input type="hidden" name="pending_bundle_weight_grams"     value={pendingBundleWeightGrams} />
           <input type="hidden" name="pending_bundle_items"            value={bundleItemsJson} />
         {/if}
+      {:else if kind === 'bundle'}
+        <input type="hidden" name="bundle_items_json" value={bundleItemsJson} />
       {/if}
     </form>
   </section>
@@ -790,32 +790,11 @@
         </div>
       </div>
 
-      <!-- Save bundle contents -->
-      {#if data.isNew}
-        <div class="px-6 py-3 border-t border-gray-100 text-xs text-gray-400">
-          Components will be saved together with the product when you click Create Product.
-        </div>
-      {:else}
-        <div class="px-6 py-4 border-t border-gray-100 flex justify-end">
-          <form method="POST" action="?/saveBundleItems"
-                use:enhance={() => {
-                  if (bundleItemsSaving) return;
-                  bundleItemsSaving = true;
-                  return async ({ result, update }) => {
-                    showResult(result, 'Bundle contents saved', 'Failed to save bundle contents');
-                    await update();
-                    bundleItemsSaving = false;
-                  };
-                }}>
-            <input type="hidden" name="bundle_items_json" value={bundleItemsJson} />
-            <SaveButton loading={bundleItemsSaving}
-                    class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
-                           text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-              Save Bundle Contents
-            </SaveButton>
-          </form>
-        </div>
-      {/if}
+      <div class="px-6 py-3 border-t border-gray-100 text-xs text-gray-400">
+        {data.isNew
+          ? 'Components will be saved together with the product when you click Create Product.'
+          : 'Component changes will be saved when you click Save Changes at the bottom of the page.'}
+      </div>
     </section>
   {/if}
 

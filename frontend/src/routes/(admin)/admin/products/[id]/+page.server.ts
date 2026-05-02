@@ -72,6 +72,16 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to save product' });
     }
 
+    // Edit-mode bundle: persist component changes alongside the product save.
+    if (!newProductId && kind === 'bundle') {
+      const itemsRaw = form.get('bundle_items_json')?.toString();
+      if (itemsRaw !== undefined) {
+        let items: Array<{ component_variant_id: string; quantity: number; sort_order: number; display_name_override?: string }> = [];
+        try { items = JSON.parse(itemsRaw); } catch { /* ignore */ }
+        try { await adminSetBundleItems(token, id, items); } catch { /* non-fatal */ }
+      }
+    }
+
     if (newProductId) {
       if (kind === 'bundle') {
         // Bundle products: backend auto-creates a single default variant. Apply pending pricing to it,
