@@ -305,6 +305,67 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 	return products, nil
 }
 
+// ListEnrichedByCategorySlug is the category-filtered counterpart of
+// ListEnriched. Kept in lockstep so the REST list endpoint exposes the
+// same shape regardless of the `?category=` filter.
+func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]ProductWithMeta, error) {
+	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d", locale, categorySlug, search, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]ProductWithMeta), nil
+	}
+
+	args := []any{locale, limit, offset, categorySlug}
+	where := "p.status = 'active' AND p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, 5); clause != "" {
+		where += " AND " + clause
+		args = append(args, arg)
+	}
+
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.description, p.description) AS description,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       (SELECT pv.id FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		FROM products p` + productTranslationJoin + `
+		WHERE ` + where + `
+		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]ProductWithMeta, 0)
+	for rows.Next() {
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+		); err != nil {
+			return nil, err
+		}
+		products = append(products, pm)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, products, s.ttl(ctx))
+	return products, nil
+}
+
 // ListByCategorySlug returns active products filtered to a single category
 // (resolved from its slug). locale and search behave like List.
 func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]Product, error) {

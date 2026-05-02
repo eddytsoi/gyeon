@@ -72,12 +72,12 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("q")
 	category := r.URL.Query().Get("category")
 
-	var products []Product
+	var products []ProductWithMeta
 	var err error
 	if category != "" {
-		products, err = h.svc.ListByCategorySlug(r.Context(), lang, category, search, limit, offset)
+		products, err = h.svc.ListEnrichedByCategorySlug(r.Context(), lang, category, search, limit, offset)
 	} else {
-		products, err = h.svc.List(r.Context(), lang, search, limit, offset)
+		products, err = h.svc.ListEnriched(r.Context(), lang, search, limit, offset)
 	}
 	if err != nil {
 		respond.InternalError(w)
