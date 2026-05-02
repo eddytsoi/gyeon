@@ -349,21 +349,23 @@ type UpsertWCProductRequest struct {
 	Status      string
 }
 
-// UpsertWCProduct inserts or updates a product keyed by wc_product_id.
-// Existing manual edits to translations / images / extra variants are
-// untouched — only the WC-sourced base fields are synced.
-func (s *ProductService) UpsertWCProduct(ctx context.Context, req UpsertWCProductRequest) (string, error) {
+// CreateWCProduct does a plain INSERT for a brand-new WC import row. The
+// caller must have verified (e.g. via GetIDByWCProductID) that no row
+// with this wc_product_id exists yet — otherwise the unique constraint
+// surfaces as an error.
+//
+// We deliberately do NOT use INSERT ... ON CONFLICT DO UPDATE here:
+// PostgreSQL allocates a sequence value before checking the conflict,
+// so an UPDATE-via-conflict burns a products.number (BIGSERIAL) every
+// time, leaving large gaps in the human-readable PRD-{number} sequence
+// after every re-import. Splitting INSERT and UPDATE keeps the sequence
+// monotone-without-gaps for the upsert mode (replace mode is already
+// gap-free because it deletes rows up front so no conflicts ever fire).
+func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProductRequest) (string, error) {
 	var id string
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO products (wc_product_id, category_id, slug, name, description, status)
 		 VALUES ($1, $2, $3, $4, $5, $6)
-		 ON CONFLICT (wc_product_id) DO UPDATE
-		    SET category_id = EXCLUDED.category_id,
-		        slug        = EXCLUDED.slug,
-		        name        = EXCLUDED.name,
-		        description = EXCLUDED.description,
-		        status      = EXCLUDED.status,
-		        updated_at  = NOW()
 		 RETURNING id`,
 		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Description, req.Status).Scan(&id)
 	if err != nil {
@@ -371,6 +373,27 @@ func (s *ProductService) UpsertWCProduct(ctx context.Context, req UpsertWCProduc
 	}
 	s.cache.DeleteByPrefix(productPrefix)
 	return id, nil
+}
+
+// UpdateWCProduct syncs WC-sourced fields onto an existing row. id /
+// number are intentionally untouched so admin URLs (PRD-N) remain stable
+// across re-imports.
+func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, req UpsertWCProductRequest) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE products
+		    SET category_id = $2,
+		        slug        = $3,
+		        name        = $4,
+		        description = $5,
+		        status      = $6,
+		        updated_at  = NOW()
+		  WHERE id = $1`,
+		productID, req.CategoryID, req.Slug, req.Name, req.Description, req.Status)
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
 }
 
 // UpsertWCVariantRequest carries the WC-derived fields for a variant upsert.
