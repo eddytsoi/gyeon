@@ -66,7 +66,7 @@ export const actions: Actions = {
       const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
       let pendingVariants: Array<{
         sku: string; name?: string; price: number; compare_at_price?: number;
-        stock_qty: number; image_media_file_id?: string;
+        stock_qty: number; weight_grams?: number; image_media_file_id?: string;
       }> = [];
       try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
 
@@ -74,7 +74,8 @@ export const actions: Actions = {
         try {
           const variant = await adminCreateVariant(token, newProductId, {
             sku: pv.sku, name: pv.name, price: pv.price,
-            compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0
+            compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0,
+            weight_grams: pv.weight_grams
           });
           if (pv.image_media_file_id) {
             await adminAddImage(token, newProductId, {
@@ -121,7 +122,10 @@ export const actions: Actions = {
         compare_at_price: form.get('compare_at_price')?.toString()
           ? parseFloat(form.get('compare_at_price')!.toString())
           : undefined,
-        stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10)
+        stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
+        weight_grams: form.get('weight_grams')?.toString()
+          ? parseInt(form.get('weight_grams')!.toString(), 10)
+          : undefined
       });
       const imageMediaFileId = form.get('image_media_file_id')?.toString();
       if (imageMediaFileId) {
@@ -154,6 +158,9 @@ export const actions: Actions = {
           ? parseFloat(form.get('compare_at_price')!.toString())
           : undefined,
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
+        weight_grams: form.get('weight_grams')?.toString()
+          ? parseInt(form.get('weight_grams')!.toString(), 10)
+          : undefined,
         is_active: form.get('is_active') === 'true'
       });
       const oldImageId = form.get('old_image_id')?.toString();
