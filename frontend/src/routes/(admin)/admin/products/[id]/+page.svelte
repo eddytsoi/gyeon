@@ -83,10 +83,12 @@
   let bundleItems = $state<EditableBundleItem[]>(
     (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id }))
   );
-  // Pending bundle pricing (used in new-product mode — applied to the auto-created variant on save).
-  let pendingBundlePrice = $state<number | ''>('');
-  let pendingBundleCompareAtPrice = $state<number | ''>('');
-  let pendingBundleWeightGrams = $state<number | ''>('');
+  // Bundle pricing — single source of truth for both new-product and edit modes.
+  // Seeded from the auto-created variant when editing an existing bundle.
+  const initialBundleVariant = data.product?.kind === 'bundle' ? (data.variants?.[0] ?? null) : null;
+  let pendingBundlePrice          = $state<number | ''>(initialBundleVariant?.price ?? '');
+  let pendingBundleCompareAtPrice = $state<number | ''>(initialBundleVariant?.compare_at_price ?? '');
+  let pendingBundleWeightGrams    = $state<number | ''>(initialBundleVariant?.weight_grams ?? '');
 
   const bundleItemsJson = $derived(
     JSON.stringify(bundleItems.map(({ _localId, ...rest }) => ({
@@ -262,6 +264,14 @@
 
   $effect(() => { images = sortedImages(data.images); });
   $effect(() => { bundleItems = (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id })); });
+  $effect(() => {
+    if (data.product?.kind === 'bundle') {
+      const bv = data.variants?.[0];
+      pendingBundlePrice          = bv?.price ?? '';
+      pendingBundleCompareAtPrice = bv?.compare_at_price ?? '';
+      pendingBundleWeightGrams    = bv?.weight_grams ?? '';
+    }
+  });
 
   function handleDragStart(e: DragEvent, idx: number) {
     dragSrcIdx = idx;
@@ -410,7 +420,10 @@
           <input type="hidden" name="pending_bundle_items"            value={bundleItemsJson} />
         {/if}
       {:else if kind === 'bundle'}
-        <input type="hidden" name="bundle_items_json" value={bundleItemsJson} />
+        <input type="hidden" name="bundle_items_json"            value={bundleItemsJson} />
+        <input type="hidden" name="bundle_price"                 value={pendingBundlePrice} />
+        <input type="hidden" name="bundle_compare_at_price"      value={pendingBundleCompareAtPrice} />
+        <input type="hidden" name="bundle_weight_grams"          value={pendingBundleWeightGrams} />
       {/if}
     </form>
   </section>
@@ -590,89 +603,40 @@
     <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
       <h2 class="font-semibold text-gray-900 mb-1">Bundle Pricing</h2>
       <p class="text-xs text-gray-400 mb-4">Set the price for this bundle. Stock is derived automatically from components.</p>
-      {#if data.isNew}
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
-            <input type="number" step="0.01" min="0" required bind:value={pendingBundlePrice} form="product-form"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
-            <input type="number" step="0.01" min="0" bind:value={pendingBundleCompareAtPrice} form="product-form"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
-            <input type="number" min="0" step="1" placeholder="Optional"
-                   bind:value={pendingBundleWeightGrams} form="product-form"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Derived Stock</label>
-            <div class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">
-              0 units (auto)
-            </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
+          <input type="number" step="0.01" min="0" required form="product-form"
+                 bind:value={pendingBundlePrice}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
+          <input type="number" step="0.01" min="0" form="product-form"
+                 bind:value={pendingBundleCompareAtPrice}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
+          <input type="number" min="0" step="1" placeholder="Optional" form="product-form"
+                 bind:value={pendingBundleWeightGrams}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Derived Stock</label>
+          <div class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">
+            {bv ? `${bv.stock_qty} units (auto)` : '0 units (auto)'}
           </div>
         </div>
-        <p class="mt-3 text-xs text-gray-400">Saved together with the product when you click Create Product.</p>
-      {:else if bv}
-        <form method="POST" action="?/updateVariant"
-              use:enhance={() => {
-                if (updatingVariant) return;
-                updatingVariant = true;
-                return async ({ result, update }) => {
-                  showResult(result, 'Bundle pricing saved', 'Failed to save bundle pricing');
-                  await update();
-                  updatingVariant = false;
-                };
-              }}>
-          <input type="hidden" name="variant_id" value={bv.id} />
-          <input type="hidden" name="sku" value={bv.sku} />
-          <input type="hidden" name="is_active" value="true" />
-          <input type="hidden" name="stock_qty" value={bv.stock_qty} />
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (HKD) *</label>
-              <input name="price" type="number" step="0.01" min="0" required value={bv.price}
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compare at</label>
-              <input name="compare_at_price" type="number" step="0.01" min="0"
-                     value={bv.compare_at_price ?? ''}
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weight (g)</label>
-              <input name="weight_grams" type="number" min="0" step="1"
-                     value={bv.weight_grams ?? ''} placeholder="Optional"
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Derived Stock</label>
-              <div class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-500 bg-gray-50">
-                {bv.stock_qty} units (auto)
-              </div>
-            </div>
-          </div>
-          <div class="mt-4 flex justify-end">
-            <SaveButton loading={updatingVariant}
-                    class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
-                           text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-              Save Pricing
-            </SaveButton>
-          </div>
-        </form>
-      {:else}
-        <p class="text-sm text-gray-400">No variant available — try saving the product again.</p>
-      {/if}
+      </div>
+      <p class="mt-3 text-xs text-gray-400">
+        {data.isNew
+          ? 'Saved together with the product when you click Create Product.'
+          : 'Pricing changes will be saved when you click Save Changes at the bottom of the page.'}
+      </p>
     </section>
   {/if}
 

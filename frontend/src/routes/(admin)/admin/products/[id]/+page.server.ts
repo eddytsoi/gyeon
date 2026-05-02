@@ -72,7 +72,7 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to save product' });
     }
 
-    // Edit-mode bundle: persist component changes alongside the product save.
+    // Edit-mode bundle: persist component changes + pricing alongside the product save.
     if (!newProductId && kind === 'bundle') {
       const itemsRaw = form.get('bundle_items_json')?.toString();
       if (itemsRaw !== undefined) {
@@ -80,6 +80,25 @@ export const actions: Actions = {
         try { items = JSON.parse(itemsRaw); } catch { /* ignore */ }
         try { await adminSetBundleItems(token, id, items); } catch { /* non-fatal */ }
       }
+
+      const priceStr   = form.get('bundle_price')?.toString() ?? '';
+      const compareStr = form.get('bundle_compare_at_price')?.toString() ?? '';
+      const weightStr  = form.get('bundle_weight_grams')?.toString() ?? '';
+      try {
+        const variants = await adminGetVariants(token, id);
+        const bv = variants[0];
+        if (bv) {
+          await adminUpdateVariant(token, id, bv.id, {
+            sku: bv.sku,
+            name: bv.name,
+            price: priceStr ? parseFloat(priceStr) : 0,
+            compare_at_price: compareStr ? parseFloat(compareStr) : undefined,
+            stock_qty: bv.stock_qty,
+            weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
+            is_active: true
+          });
+        }
+      } catch { /* non-fatal */ }
     }
 
     if (newProductId) {
