@@ -316,13 +316,11 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 	if prod.StockQuantity != nil {
 		stockQty = *prod.StockQuantity
 	}
-	sku := prod.SKU
-	if sku == "" {
-		sku = prod.Slug
-	}
+	// SKU is generated from the product slug — WC's own SKU is ignored so
+	// every Gyeon variant follows one predictable scheme.
 	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  nil, // simple-product fallback — identified by NULL
-		SKU:            sku,
+		SKU:            prod.Slug,
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
@@ -337,14 +335,12 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 	if v.StockQuantity != nil {
 		stockQty = *v.StockQuantity
 	}
-	sku := v.SKU
-	if sku == "" {
-		sku = fmt.Sprintf("%s-%d", productSlug, v.ID)
-	}
 	wcID := v.ID
+	// SKU is generated from product slug + WC variation ID; WC's own SKU
+	// is ignored so every Gyeon variant follows one predictable scheme.
 	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  &wcID,
-		SKU:            sku,
+		SKU:            fmt.Sprintf("%s-%d", productSlug, v.ID),
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,

@@ -33,7 +33,6 @@ type wcProduct struct {
 	Type          string              `json:"type"`
 	Status        string              `json:"status"`
 	Description   string              `json:"description"`
-	SKU           string              `json:"sku"`
 	RegularPrice  string              `json:"regular_price"`
 	SalePrice     string              `json:"sale_price"`
 	StockQuantity *int                `json:"stock_quantity"`
@@ -45,7 +44,6 @@ type wcProduct struct {
 
 type wcVariation struct {
 	ID            int           `json:"id"`
-	SKU           string        `json:"sku"`
 	RegularPrice  string        `json:"regular_price"`
 	SalePrice     string        `json:"sale_price"`
 	StockQuantity *int          `json:"stock_quantity"`
