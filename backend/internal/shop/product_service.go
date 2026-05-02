@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -11,6 +12,17 @@ import (
 	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/util"
 )
+
+// defaultBundleSKU returns the auto-generated SKU for a bundle product's
+// default variant. Computed in Go (rather than via SQL `SUBSTRING($1::text, …)`)
+// because lib/pq can't deduce a single type for a parameter used as both
+// uuid and text in the same statement (error 42P08).
+func defaultBundleSKU(productID string) string {
+	if len(productID) >= 8 {
+		return "BUNDLE-" + strings.ToUpper(productID[:8])
+	}
+	return "BUNDLE-" + strings.ToUpper(productID)
+}
 
 // productSearchFields are the columns matched by the optional `search` param
 // on List / ListAll. Body content (description) is intentionally excluded —
@@ -335,8 +347,8 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 	if kind == "bundle" {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO product_variants (product_id, sku, price, stock_qty)
-			 VALUES ($1, 'BUNDLE-' || UPPER(SUBSTRING($1::text, 1, 8)), 0, 0)`,
-			p.ID); err != nil {
+			 VALUES ($1, $2, 0, 0)`,
+			p.ID, defaultBundleSKU(p.ID)); err != nil {
 			return nil, fmt.Errorf("auto-create bundle variant: %w", err)
 		}
 	}
@@ -363,10 +375,12 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 			Scan(&count)
 		if count == 0 {
 			// Auto-create a default bundle variant so the product is immediately usable.
-			_, _ = s.db.ExecContext(ctx,
+			if _, err := s.db.ExecContext(ctx,
 				`INSERT INTO product_variants (product_id, sku, price, stock_qty)
-				 VALUES ($1, 'BUNDLE-' || UPPER(SUBSTRING($1::text, 1, 8)), 0, 0)`,
-				id)
+				 VALUES ($1, $2, 0, 0)`,
+				id, defaultBundleSKU(id)); err != nil {
+				return nil, fmt.Errorf("auto-create bundle variant: %w", err)
+			}
 		}
 	}
 
