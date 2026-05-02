@@ -103,7 +103,7 @@ export const actions: Actions = {
         } catch { /* non-fatal */ }
       }
 
-      throw redirect(303, `/admin/products/${newProductId}`);
+      throw redirect(303, '/admin/products');
     }
     return { success: true };
   },
