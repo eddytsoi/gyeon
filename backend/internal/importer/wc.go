@@ -31,22 +31,25 @@ type wcProduct struct {
 	Name          string              `json:"name"`
 	Slug          string              `json:"slug"`
 	Type          string              `json:"type"`
+	Status        string              `json:"status"`
 	Description   string              `json:"description"`
 	SKU           string              `json:"sku"`
 	RegularPrice  string              `json:"regular_price"`
 	SalePrice     string              `json:"sale_price"`
 	StockQuantity *int                `json:"stock_quantity"`
+	Weight        string              `json:"weight"`
 	Categories    []wcProductCategory `json:"categories"`
 	Images        []wcImage           `json:"images"`
 	Variations    []int               `json:"variations"`
 }
 
 type wcVariation struct {
-	ID            int          `json:"id"`
-	SKU           string       `json:"sku"`
-	RegularPrice  string       `json:"regular_price"`
-	SalePrice     string       `json:"sale_price"`
-	StockQuantity *int         `json:"stock_quantity"`
+	ID            int           `json:"id"`
+	SKU           string        `json:"sku"`
+	RegularPrice  string        `json:"regular_price"`
+	SalePrice     string        `json:"sale_price"`
+	StockQuantity *int          `json:"stock_quantity"`
+	Weight        string        `json:"weight"`
 	Attributes    []wcAttribute `json:"attributes"`
 }
 
