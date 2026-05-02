@@ -184,21 +184,29 @@ func (s *Service) importProduct(
 		desc = &prod.Description
 	}
 
-	// Was this WC product already imported? Determines whether the SSE
-	// counters report it as "imported" (new) or "updated" (existing).
-	existedBefore := false
-	if _, err := s.productSvc.GetIDByWCProductID(ctx, prod.ID); err == nil {
-		existedBefore = true
-	}
+	// Lookup first: lets us pick INSERT vs UPDATE explicitly so we don't
+	// burn a products.number sequence value on every re-imported row
+	// (ON CONFLICT DO UPDATE always allocates one before the conflict
+	// check). Also feeds the new/updated counter split.
+	existingID, lookupErr := s.productSvc.GetIDByWCProductID(ctx, prod.ID)
+	existedBefore := lookupErr == nil
 
-	productID, err := s.productSvc.UpsertWCProduct(ctx, shop.UpsertWCProductRequest{
+	upsertReq := shop.UpsertWCProductRequest{
 		WCProductID: prod.ID,
 		CategoryID:  categoryID,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
 		Description: desc,
 		Status:      mapStatus(prod.Status),
-	})
+	}
+	var productID string
+	var err error
+	if existedBefore {
+		productID = existingID
+		err = s.productSvc.UpdateWCProduct(ctx, productID, upsertReq)
+	} else {
+		productID, err = s.productSvc.CreateWCProduct(ctx, upsertReq)
+	}
 	if err != nil {
 		p.Errors = append(p.Errors, fmt.Sprintf("upsert product %q: %v", prod.Slug, err))
 		p.Failed++
