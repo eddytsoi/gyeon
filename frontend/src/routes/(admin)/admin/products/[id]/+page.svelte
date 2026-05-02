@@ -20,6 +20,14 @@
   let kind = $state(data.product?.kind ?? 'simple');
   let autoSlug = $state(!data.product);
   let saving = $state(false);
+
+  // bundle → simple destructive-change confirmation flow
+  const originalKind = data.product?.kind ?? 'simple';
+  const isBundleToSimplePending = $derived(
+    !data.isNew && originalKind === 'bundle' && kind === 'simple'
+  );
+  let confirmKindChange = $state(false);
+  let kindChangeConfirmed = $state(false);
   let savingVariant = $state(false);
   let updatingVariant = $state(false);
   let adjustingStock = $state(false);
@@ -346,7 +354,13 @@
   <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
     <h2 class="font-semibold text-gray-900 mb-4">Product Details</h2>
     <form id="product-form" method="POST" action="?/saveProduct"
-          use:enhance={() => {
+          use:enhance={({ cancel }) => {
+            // Gate destructive bundle→simple change behind a confirm dialog.
+            if (isBundleToSimplePending && !kindChangeConfirmed) {
+              cancel();
+              confirmKindChange = true;
+              return;
+            }
             if (saving) return;
             saving = true;
             const productName = name;
@@ -356,6 +370,7 @@
                 data.isNew ? `Failed to create product '${productName}'` : `Failed to save product '${productName}'`);
               await update();
               saving = false;
+              kindChangeConfirmed = false;
             };
           }}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -427,6 +442,24 @@
       {/if}
     </form>
   </section>
+
+  <!-- ── bundle → simple destructive change warning ── -->
+  {#if isBundleToSimplePending}
+    <section class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+      </svg>
+      <div class="text-sm text-amber-900">
+        <p class="font-semibold mb-1">Switching from Bundle to Simple</p>
+        <p class="text-amber-800">
+          切換至一般商品後儲存，將會永久刪除所有 bundle components 設定及自動建立的 variant
+          {#if (data.bundleItems ?? []).length > 0}（{(data.bundleItems ?? []).length} 個 component{(data.bundleItems ?? []).length === 1 ? '' : 's'}）{/if}
+          。歷史訂單不受影響。
+        </p>
+      </div>
+    </section>
+  {/if}
 
   <!-- ── Variants (simple products only) ── -->
   {#if kind === 'simple'}
@@ -1468,6 +1501,54 @@
           </SaveButton>
         </div>
       </form>
+    </div>
+  </div>
+{/if}
+
+<!-- ── Confirm Bundle → Simple Modal ── -->
+{#if confirmKindChange}
+  {@const componentCount = (data.bundleItems ?? []).length}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => { confirmKindChange = false; kind = 'bundle'; }}
+         role="button" tabindex="-1" aria-label="Close"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex-none w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+          <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900">確認更改商品類型？</h3>
+          <p class="text-sm text-gray-500">This action cannot be undone.</p>
+        </div>
+      </div>
+      <div class="text-sm text-gray-700 mb-5 space-y-2">
+        <p>由 <span class="font-semibold">Bundle</span> 切換至 <span class="font-semibold">Simple</span> 將會永久刪除：</p>
+        <ul class="list-disc list-inside text-gray-600 space-y-1">
+          <li>{componentCount} 個 bundle component{componentCount === 1 ? '' : 's'} 設定</li>
+          <li>自動建立的 BUNDLE-XXX variant（連同其價格設定）</li>
+        </ul>
+        <p class="text-gray-500 text-xs pt-1">歷史訂單不受影響（snapshot 仍保留）。現有 cart 中的此 bundle 會自動移除。</p>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button"
+                onclick={() => { confirmKindChange = false; kind = 'bundle'; }}
+                class="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
+          取消
+        </button>
+        <button type="button"
+                onclick={() => {
+                  kindChangeConfirmed = true;
+                  confirmKindChange = false;
+                  (document.getElementById('product-form') as HTMLFormElement | null)?.requestSubmit();
+                }}
+                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors">
+          確認刪除並儲存
+        </button>
+      </div>
     </div>
   </div>
 {/if}

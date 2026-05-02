@@ -367,15 +367,39 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		kind = "simple"
 	}
 
-	// Enforce 1-variant rule when switching to bundle.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var existingKind string
+	if err := tx.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, id).Scan(&existingKind); err != nil {
+		return nil, err
+	}
+
+	// bundle → simple: clean up bundle-specific data so we don't leave orphans.
+	// FK cascades handle cart_items (variant DELETE CASCADEs to carts) and
+	// order_items.variant_id (SET NULL — order snapshots stay readable).
+	if existingKind == "bundle" && kind == "simple" {
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM bundle_items WHERE bundle_product_id = $1`, id); err != nil {
+			return nil, fmt.Errorf("cleanup bundle_items: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM product_variants WHERE product_id = $1 AND sku LIKE 'BUNDLE-%'`, id); err != nil {
+			return nil, fmt.Errorf("cleanup bundle variant: %w", err)
+		}
+	}
+
+	// simple → bundle (or already bundle with no variants): enforce 1-variant rule.
 	if kind == "bundle" {
 		var count int
-		_ = s.db.QueryRowContext(ctx,
+		_ = tx.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM product_variants WHERE product_id = $1 AND is_active = TRUE`, id).
 			Scan(&count)
 		if count == 0 {
-			// Auto-create a default bundle variant so the product is immediately usable.
-			if _, err := s.db.ExecContext(ctx,
+			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO product_variants (product_id, sku, price, stock_qty)
 				 VALUES ($1, $2, 0, 0)`,
 				id, defaultBundleSKU(id)); err != nil {
@@ -385,15 +409,19 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	}
 
 	var p Product
-	err := s.db.QueryRowContext(ctx,
+	if err := tx.QueryRowContext(ctx,
 		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, status=$6, kind=$7
 		 WHERE id=$1
 		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
 		id, req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
-	if err != nil {
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
