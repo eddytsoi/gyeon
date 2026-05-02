@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { notify } from '$lib/stores/notifications.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -30,7 +31,7 @@
   let limit = $state<number | null>(null);
 
   let savingCreds = $state(false);
-  let saveMsg = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  let testingConn = $state(false);
 
   async function loadCredentials() {
     try {
@@ -47,7 +48,6 @@
 
   async function saveCredentials() {
     savingCreds = true;
-    saveMsg = null;
     try {
       const res = await fetch('/api/v1/admin/import/woocommerce/credentials', {
         method: 'PUT',
@@ -55,15 +55,44 @@
         body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
       });
       if (!res.ok) {
-        saveMsg = { kind: 'err', text: '儲存失敗，請稍後再試。' };
+        notify.error('儲存失敗', (await res.text()) || '請稍後再試。');
       } else {
-        saveMsg = { kind: 'ok', text: '已儲存。' };
-        setTimeout(() => { saveMsg = null; }, 3000);
+        notify.success('已儲存憑證');
       }
-    } catch {
-      saveMsg = { kind: 'err', text: '儲存失敗，請稍後再試。' };
+    } catch (e) {
+      notify.error('儲存失敗', e instanceof Error ? e.message : '請稍後再試。');
     } finally {
       savingCreds = false;
+    }
+  }
+
+  async function testConnection() {
+    if (!wcUrl || !wcKey || !wcSecret) {
+      notify.error('Connection failed', '請先填寫 URL、Consumer Key 和 Consumer Secret。');
+      return;
+    }
+    testingConn = true;
+    try {
+      const res = await fetch('/api/v1/admin/import/woocommerce/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
+      });
+      if (!res.ok) {
+        const msg = (await res.text()) || '請檢查 URL 與 API 金鑰。';
+        notify.error('Connection failed', msg);
+        return;
+      }
+      const j = await res.json();
+      const total = typeof j.total_products === 'number' ? j.total_products : null;
+      notify.success(
+        'Connection successful',
+        total !== null ? `WooCommerce 共有 ${total} 個商品。` : undefined
+      );
+    } catch (e) {
+      notify.error('Connection failed', e instanceof Error ? e.message : '連線逾時或網路錯誤。');
+    } finally {
+      testingConn = false;
     }
   }
 
@@ -365,20 +394,19 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
 
-        <!-- Save credentials (does not run an import) -->
-        <div class="flex items-center gap-3 -mt-1">
-          <button type="button" onclick={saveCredentials} disabled={savingCreds}
+        <!-- Save / Test credentials (neither runs an import) -->
+        <div class="flex flex-wrap items-center gap-2 -mt-1">
+          <button type="button" onclick={saveCredentials} disabled={savingCreds || testingConn}
                   class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl
                          hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {savingCreds ? '儲存中…' : '儲存憑證'}
           </button>
-          {#if saveMsg}
-            <span class="text-xs {saveMsg.kind === 'ok' ? 'text-green-600' : 'text-red-500'}">
-              {saveMsg.text}
-            </span>
-          {:else}
-            <span class="text-xs text-gray-400">只儲存上方三個欄位，不執行匯入。</span>
-          {/if}
+          <button type="button" onclick={testConnection} disabled={savingCreds || testingConn}
+                  class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl
+                         hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {testingConn ? '測試中…' : '測試連線'}
+          </button>
+          <span class="text-xs text-gray-400">不會執行匯入。</span>
         </div>
 
         <!-- Limit input -->

@@ -115,6 +115,14 @@ func (s *Service) TestConnection(req ImportRequest) error {
 	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).testConnection()
 }
 
+// ProductTotal returns the WC store's total product count via the
+// X-WP-Total header. Returns 0 on any error — the test endpoint already
+// validated connectivity, so a missing total is just a UX nicety we can
+// surface or skip without breaking the success case.
+func (s *Service) ProductTotal(req ImportRequest) int {
+	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchProductTotal()
+}
+
 // RunStreaming performs the full import, calling send() with a ProgressUpdate
 // after each meaningful step. The final call always has Done = true.
 func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func(ProgressUpdate)) {
