@@ -5,7 +5,7 @@
   import type { PageData } from './$types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -18,6 +18,11 @@
   let slug = $state(data.product?.slug ?? '');
   let autoSlug = $state(!data.product);
   let saving = $state(false);
+  let savingVariant = $state(false);
+  let updatingVariant = $state(false);
+  let adjustingStock = $state(false);
+  let attachingImage = $state(false);
+  let deletingImage = $state(false);
 
   $effect(() => {
     if (autoSlug) slug = slugify(name);
@@ -254,6 +259,7 @@
     <h2 class="font-semibold text-gray-900 mb-4">Product Details</h2>
     <form id="product-form" method="POST" action="?/saveProduct"
           use:enhance={() => {
+            if (saving) return;
             saving = true;
             const productName = name;
             return async ({ result, update }) => {
@@ -634,12 +640,11 @@
                 text-gray-700 hover:bg-gray-50 transition-colors">
         Cancel
       </a>
-      <button type="submit" form="product-form" disabled={saving || (data.isNew && anyUploading)}
+      <SaveButton type="submit" form="product-form" loading={saving} disabled={data.isNew && anyUploading}
               class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
                      text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-        <SaveIcon />
-        {saving ? 'Saving…' : (data.isNew && anyUploading ? 'Uploading…' : data.isNew ? 'Create Product' : 'Save Changes')}
-      </button>
+        {data.isNew && anyUploading ? 'Uploading…' : data.isNew ? 'Create Product' : 'Save Changes'}
+      </SaveButton>
     </div>
   </div>
 </div>
@@ -653,6 +658,7 @@
       <h3 class="font-semibold text-gray-900 mb-4">Add Variant</h3>
       <form method="POST" action="?/addVariant"
             use:enhance={({ formData, cancel }) => {
+              if (savingVariant) { cancel(); return; }
               const sku = formData.get('sku')?.toString() ?? '';
               if (data.isNew) {
                 cancel();
@@ -682,9 +688,11 @@
                 addVariantImageId = null;
                 return;
               }
+              savingVariant = true;
               return async ({ result, update }) => {
                 showResult(result, `Variant '${sku}' added`, `Failed to add variant '${sku}'`);
                 await update();
+                savingVariant = false;
                 if (result.type === 'success') { showAddVariant = false; addVariantImageId = null; }
               };
             }}>
@@ -749,12 +757,11 @@
           {/if}
         </div>
         <div class="flex gap-3 mt-5">
-          <button type="submit"
+          <SaveButton loading={savingVariant}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
-                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
-            <SaveIcon />
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
             Add Variant
-          </button>
+          </SaveButton>
           <button type="button" onclick={() => { showAddVariant = false; addVariantImageId = null; }}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
@@ -777,10 +784,13 @@
       </div>
       <form method="POST" action="?/updateVariant"
             use:enhance={({ formData }) => {
+              if (updatingVariant) return;
+              updatingVariant = true;
               const sku = formData.get('sku')?.toString() ?? '';
               return async ({ result, update }) => {
                 showResult(result, `Variant '${sku}' saved`, `Failed to save variant '${sku}'`);
                 await update();
+                updatingVariant = false;
                 if (result.type === 'success') editingVariant = null;
               };
             }}>
@@ -882,12 +892,11 @@
           {/if}
         </div>
         <div class="flex gap-3 mt-5">
-          <button type="submit"
+          <SaveButton loading={updatingVariant}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
-                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
-            <SaveIcon />
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
             Save Changes
-          </button>
+          </SaveButton>
           <button type="button" onclick={() => editingVariant = null}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
@@ -912,12 +921,15 @@
       </p>
       <form method="POST" action="?/adjustStock"
             use:enhance={({ formData }) => {
+              if (adjustingStock) return;
+              adjustingStock = true;
               const sku = showStockModal?.sku ?? '';
               const delta = formData.get('delta')?.toString() ?? '0';
               return async ({ result, update }) => {
                 const signed = parseInt(delta, 10) >= 0 ? `+${delta}` : delta;
                 showResult(result, `Stock adjusted ${signed} for '${sku}'`, `Failed to adjust stock for '${sku}'`);
                 await update();
+                adjustingStock = false;
                 if (result.type === 'success') showStockModal = null;
               };
             }}>
@@ -930,12 +942,11 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex gap-3">
-          <button type="submit"
+          <SaveButton loading={adjustingStock}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
-                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors">
-            <SaveIcon />
+                         text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
             Apply
-          </button>
+          </SaveButton>
           <button type="button" onclick={() => showStockModal = null}
                   class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                          hover:border-gray-400 transition-colors">
@@ -1046,6 +1057,7 @@
         <!-- Library tab — pick from existing media -->
         <form method="POST" action="?/addImage"
               use:enhance={({ formData, cancel }) => {
+                if (attachingImage) { cancel(); return; }
                 if (data.isNew) {
                   cancel();
                   if (!addImageSelectedId) return;
@@ -1068,9 +1080,11 @@
                   resetAddImageModal();
                   return;
                 }
+                attachingImage = true;
                 return async ({ result, update }) => {
                   showResult(result, 'Image added', 'Failed to add image');
                   await update();
+                  attachingImage = false;
                   if (result.type === 'success') resetAddImageModal();
                 };
               }}>
@@ -1118,13 +1132,12 @@
           </div>
 
           <div class="flex gap-3">
-            <button type="submit" disabled={!addImageSelectedId}
+            <SaveButton loading={attachingImage} disabled={!addImageSelectedId}
                     class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
                            text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors
                            disabled:opacity-40 disabled:cursor-not-allowed">
-              <SaveIcon />
               Add Image
-            </button>
+            </SaveButton>
             <button type="button" onclick={resetAddImageModal}
                     class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                            hover:border-gray-400 transition-colors">
@@ -1157,10 +1170,15 @@
         </div>
       </div>
       <form method="POST" action="?/deleteImage"
-            use:enhance={() => async ({ result, update }) => {
-              showResult(result, 'Image deleted', 'Failed to delete image');
-              confirmDeleteImageId = null;
-              await update();
+            use:enhance={() => {
+              if (deletingImage) return;
+              deletingImage = true;
+              return async ({ result, update }) => {
+                showResult(result, 'Image deleted', 'Failed to delete image');
+                confirmDeleteImageId = null;
+                await update();
+                deletingImage = false;
+              };
             }}>
         <input type="hidden" name="image_id" value={confirmDeleteImageId} />
         <div class="flex gap-2 justify-end">
@@ -1169,10 +1187,10 @@
                   class="px-4 py-2 rounded-xl text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
             Cancel
           </button>
-          <button type="submit"
-                  class="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors">
+          <SaveButton loading={deletingImage}
+                  class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50">
             Delete
-          </button>
+          </SaveButton>
         </div>
       </form>
     </div>

@@ -2,12 +2,13 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
   const p = data.post;
   const isNew = !p;
+  let saving = $state(false);
 
   let title = $state(p?.title ?? '');
   let slug = $state(p?.slug ?? '');
@@ -75,12 +76,15 @@
 
   <form method="POST" action="?/save" class="space-y-6"
         use:enhance={() => {
+          if (saving) return;
+          saving = true;
           const postTitle = title;
           return async ({ result, update }) => {
             showResult(result,
               isNew ? `Post '${postTitle}' created` : `Post '${postTitle}' saved`,
               isNew ? `Failed to create post '${postTitle}'` : `Failed to save post '${postTitle}'`);
             await update();
+            saving = false;
           };
         }}>
     <div class="{preview ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'space-y-6'}">
@@ -228,12 +232,11 @@
                   text-gray-700 hover:bg-gray-50 transition-colors">
           Cancel
         </a>
-        <button type="submit"
+        <SaveButton loading={saving}
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
-                       text-white text-sm font-medium hover:bg-gray-700 transition-colors">
-          <SaveIcon />
+                       text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
           {isNew ? 'Create Post' : 'Save Changes'}
-        </button>
+        </SaveButton>
       </div>
     </div>
   </form>

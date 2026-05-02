@@ -4,9 +4,12 @@
   import type { PageData } from './$types';
   import type { NavItem } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data }: { data: PageData } = $props();
+
+  let saving = $state(false);
+  let removing = $state(false);
 
   let showItemForm = $state(false);
   let editingItem = $state<NavItem | null>(null);
@@ -197,6 +200,8 @@
 
       <form method="POST" action={editingItem ? '?/updateItem' : '?/addItem'}
             use:enhance={() => {
+              if (saving) return;
+              saving = true;
               const wasEditing = !!editingItem;
               const linkLabel = fLabel;
               return async ({ result, update }) => {
@@ -204,6 +209,7 @@
                   wasEditing ? `Link '${linkLabel}' saved` : `Link '${linkLabel}' added`,
                   wasEditing ? `Failed to save link '${linkLabel}'` : `Failed to add link '${linkLabel}'`);
                 await update({ invalidateAll: true });
+                saving = false;
                 if (result.type === 'success') showItemForm = false;
               };
             }}
@@ -255,13 +261,12 @@
                          text-gray-700 hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button type="submit"
+          <SaveButton loading={saving}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
                          bg-gray-900 text-white text-sm font-medium
-                         hover:bg-gray-700 transition-colors">
-            <SaveIcon />
+                         hover:bg-gray-700 transition-colors disabled:opacity-50">
             {editingItem ? 'Save Changes' : 'Add Link'}
-          </button>
+          </SaveButton>
         </div>
       </form>
     </div>
@@ -289,20 +294,23 @@
         </button>
         <form method="POST" action="?/deleteItem" class="flex-1"
               use:enhance={() => {
+                if (removing) return;
+                removing = true;
                 const linkLabel = deleteTarget?.label ?? '';
                 return async ({ result }) => {
                   showResult(result, `Link '${linkLabel}' removed`, `Failed to remove link '${linkLabel}'`);
                   if (result.type === 'success') await invalidateAll();
+                  removing = false;
                   deleteTarget = null;
                 };
               }}>
           <input type="hidden" name="menu_id" value={data.selected.id} />
           <input type="hidden" name="item_id" value={deleteTarget.id} />
-          <button type="submit"
-                  class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
-                         hover:bg-red-600 transition-colors">
+          <SaveButton loading={removing}
+                  class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
+                         hover:bg-red-600 transition-colors disabled:opacity-50">
             Remove
-          </button>
+          </SaveButton>
         </form>
       </div>
     </div>

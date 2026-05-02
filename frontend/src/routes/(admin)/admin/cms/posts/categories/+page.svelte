@@ -8,10 +8,12 @@
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import { sortable } from '$lib/actions/sortable';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
+  let saving = $state(false);
+  let deleting = $state(false);
   let items = $state<PostCategory[]>([]);
   $effect(() => {
     items = [...data.categories].sort((a, b) => a.sort_order - b.sort_order);
@@ -159,6 +161,8 @@
 
       <form method="POST" action={editing ? '?/update' : '?/create'}
             use:enhance={() => {
+              if (saving) return;
+              saving = true;
               const wasEditing = !!editing;
               const catName = fName;
               return async ({ result, update }) => {
@@ -166,6 +170,7 @@
                   wasEditing ? `Category '${catName}' saved` : `Category '${catName}' created`,
                   wasEditing ? `Failed to save category '${catName}'` : `Failed to create category '${catName}'`);
                 await update();
+                saving = false;
                 if (result.type === 'success') showForm = false;
               };
             }}
@@ -198,13 +203,12 @@
                          text-gray-700 hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button type="submit"
+          <SaveButton loading={saving}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
                          bg-gray-900 text-white text-sm font-medium
-                         hover:bg-gray-700 transition-colors">
-            <SaveIcon />
+                         hover:bg-gray-700 transition-colors disabled:opacity-50">
             {editing ? 'Save Changes' : 'Create'}
-          </button>
+          </SaveButton>
         </div>
       </form>
     </div>
@@ -230,19 +234,22 @@
         </button>
         <form method="POST" action="?/delete" class="flex-1"
               use:enhance={() => {
+                if (deleting) return;
+                deleting = true;
                 const catName = deleteTarget?.name ?? '';
                 return async ({ result, update }) => {
                   showResult(result, `Category '${catName}' deleted`, `Failed to delete category '${catName}'`);
                   await update();
+                  deleting = false;
                   deleteTarget = null;
                 };
               }}>
           <input type="hidden" name="id" value={deleteTarget.id} />
-          <button type="submit"
-                  class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
-                         hover:bg-red-600 transition-colors">
+          <SaveButton loading={deleting}
+                  class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
+                         hover:bg-red-600 transition-colors disabled:opacity-50">
             Delete
-          </button>
+          </SaveButton>
         </form>
       </div>
     </div>

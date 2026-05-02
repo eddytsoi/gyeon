@@ -2,12 +2,13 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data }: { data: PageData } = $props();
 
   const p = data.page;
   const isNew = !p;
+  let saving = $state(false);
 
   let title = $state(p?.title ?? '');
   let slug = $state(p?.slug ?? '');
@@ -43,12 +44,15 @@
 
   <form method="POST" action="?/save" class="space-y-6"
         use:enhance={() => {
+          if (saving) return;
+          saving = true;
           const pageTitle = title;
           return async ({ result, update }) => {
             showResult(result,
               isNew ? `Page '${pageTitle}' created` : `Page '${pageTitle}' saved`,
               isNew ? `Failed to create page '${pageTitle}'` : `Failed to save page '${pageTitle}'`);
             await update();
+            saving = false;
           };
         }}>
     <!-- Main card -->
@@ -148,12 +152,11 @@
                   text-gray-700 hover:bg-gray-50 transition-colors">
           Cancel
         </a>
-        <button type="submit"
+        <SaveButton loading={saving}
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
-                       text-white text-sm font-medium hover:bg-gray-700 transition-colors">
-          <SaveIcon />
+                       text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
           {isNew ? 'Create Page' : 'Save Changes'}
-        </button>
+        </SaveButton>
       </div>
     </div>
   </form>
