@@ -23,7 +23,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("list_products",
-		mcplib.WithDescription("List active products with optional pagination, search and language selection"),
+		mcplib.WithDescription("List active products (both simple and bundle products inline) with optional pagination, search and language selection. Each row carries `kind` (simple|bundle), `variant_count` (active variants; bundles always have 1), `primary_image_url` (may be null), and `default_variant_id` (the variant ready for add_to_cart — for bundles this is the auto-generated BUNDLE-* variant)."),
 		mcplib.WithNumber("limit", mcplib.Description("Max products to return (1–100, default 20)"), mcplib.DefaultNumber(20)),
 		mcplib.WithNumber("offset", mcplib.Description("Number of products to skip for pagination (default 0)"), mcplib.DefaultNumber(0)),
 		mcplib.WithString("search", mcplib.Description("Optional case-insensitive substring matched against product name, slug and number. Omit to list all.")),
@@ -43,7 +43,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 		lang := req.GetString("lang", "")
 		search := req.GetString("search", "")
 
-		products, err := prodSvc.List(ctx, lang, search, limit, offset)
+		products, err := prodSvc.ListEnriched(ctx, lang, search, limit, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +52,15 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("get_product",
-		mcplib.WithDescription("Get full product detail including all variants, images, and (for bundles) bundle items"),
+		mcplib.WithDescription("Get full product detail: returns {product, variants, images}. "+
+			"`product.kind` is one of: \"simple\" (regular product, may have multiple variants) or \"bundle\" (a fixed bundle of component variants).\n\n"+
+			"For bundle products the response additionally contains:\n"+
+			"  • bundle_items — component rows: {component_variant_id, quantity, component_product_name, component_sku, component_stock_qty, component_price, ...}\n"+
+			"  • derived_stock — integer = min(floor(component_stock_qty / quantity)) across all bundle_items, or 0 when there are no items.\n\n"+
+			"Bundle invariants:\n"+
+			"  • A bundle product ALWAYS has exactly one variant; its SKU is auto-generated as \"BUNDLE-<UPPER(first 8 chars of product_id)>\".\n"+
+			"  • To add a bundle to a cart, use that single variant's id with add_to_cart (the variant's reported stock_qty is automatically replaced with derived_stock).\n"+
+			"  • Bundles cannot be nested (a bundle's components must be variants of simple products)."),
 		mcplib.WithString("product_id", mcplib.Description("Product UUID"), mcplib.Required()),
 		mcplib.WithString("lang", mcplib.Description("Language locale for translated content (optional)")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {

@@ -42,6 +42,16 @@ type Product struct {
 	UpdatedAt   string  `json:"updated_at"`
 }
 
+// ProductWithMeta enriches Product with quick-glance fields useful for list
+// views (MCP catalog browsing, agent decision-making) so callers don't need
+// an N+1 follow-up GET per product.
+type ProductWithMeta struct {
+	Product
+	VariantCount     int     `json:"variant_count"`
+	PrimaryImageURL  *string `json:"primary_image_url,omitempty"`
+	DefaultVariantID *string `json:"default_variant_id,omitempty"`
+}
+
 // BundleItem represents a component row in a bundle product.
 type BundleItem struct {
 	ID                   string  `json:"id"`
@@ -225,6 +235,68 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 			return nil, err
 		}
 		products = append(products, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, products, s.ttl(ctx))
+	return products, nil
+}
+
+// ListEnriched returns active products plus variant_count, primary_image_url
+// and default_variant_id in a single round-trip. Used by the MCP list_products
+// tool so agents can act on a result without N+1 follow-ups (notably: bundles
+// expose their single BUNDLE-* variant id directly, ready for add_to_cart).
+func (s *ProductService) ListEnriched(ctx context.Context, locale, search string, limit, offset int) ([]ProductWithMeta, error) {
+	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d", locale, search, limit, offset)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]ProductWithMeta), nil
+	}
+
+	args := []any{locale, limit, offset}
+	where := "p.status = 'active'"
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
+		where += " AND " + clause
+		args = append(args, arg)
+	}
+
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.description, p.description) AS description,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       (SELECT pv.id FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		FROM products p` + productTranslationJoin + `
+		WHERE ` + where + `
+		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]ProductWithMeta, 0)
+	for rows.Next() {
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+		); err != nil {
+			return nil, err
+		}
+		products = append(products, pm)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

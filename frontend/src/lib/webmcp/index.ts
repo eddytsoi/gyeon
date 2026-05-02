@@ -1,5 +1,6 @@
 import {
   getCategories,
+  getProductBundleItems,
   getProductByID,
   getProductImages,
   getProductVariants,
@@ -56,7 +57,11 @@ const tools: ToolDefinition[] = [
   {
     name: 'get_product_detail',
     title: 'Get product detail',
-    description: 'Fetch a product with its variants and images by product ID.',
+    description:
+      'Fetch a product with its variants and images by product ID. ' +
+      'For bundle products (kind="bundle"), the response also includes ' +
+      'bundle_items (component variants with quantity) and derived_stock ' +
+      '(min over components of floor(component_stock_qty / quantity)).',
     inputSchema: {
       type: 'object',
       properties: { productID: { type: 'string' } },
@@ -69,7 +74,20 @@ const tools: ToolDefinition[] = [
         getProductVariants(productID),
         getProductImages(productID)
       ]);
-      return { product, variants, images };
+      const result: Record<string, unknown> = { product, variants, images };
+      if (product?.kind === 'bundle') {
+        const bundleItems = await getProductBundleItems(productID);
+        const derivedStock = bundleItems.length === 0
+          ? 0
+          : Math.min(
+              ...bundleItems.map((it) =>
+                Math.floor((it.component_stock_qty ?? 0) / Math.max(1, it.quantity))
+              )
+            );
+        result.bundle_items = bundleItems;
+        result.derived_stock = derivedStock;
+      }
+      return result;
     }
   },
   {
