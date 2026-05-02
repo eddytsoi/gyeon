@@ -359,8 +359,19 @@ export interface ShipanyShipment {
   updated_at: string;
 }
 
+export interface ShipanyCourier {
+  uid: string;
+  name: string;
+  cour_svc_plans?: { cour_svc_pl: string }[];
+}
+
 export const adminTestShipanyConnection = (token: string) =>
   request<{ ok: boolean; message: string }>('/admin/shipany/test-connection', token, { method: 'POST' });
+
+export const adminListShipanyCouriers = async (token: string): Promise<ShipanyCourier[]> => {
+  const body = await request<ShipanyCourier[] | { couriers?: ShipanyCourier[] }>('/admin/shipany/couriers', token);
+  return Array.isArray(body) ? body : (body.couriers ?? []);
+};
 
 export const adminGetShipment = (token: string, orderID: string) =>
   request<ShipanyShipment | null>(`/admin/shipany/orders/${orderID}/shipment`, token);

@@ -36,6 +36,25 @@
   let carrierOverride = $state(data.order.selected_carrier || data.defaultCarrier || '');
   let serviceOverride = $state(data.order.selected_service || data.defaultService || '');
 
+  // Build a uid → courier map so we can show human-readable courier names while
+  // still submitting cour_uid to the ShipAny API.
+  const courierByUid = $derived(new Map((data.couriers ?? []).map((c) => [c.uid, c])));
+  const courierLabel = (uid: string | null | undefined) => {
+    if (!uid) return '—';
+    return courierByUid.get(uid)?.name ?? uid;
+  };
+  const selectedCourierPlans = $derived(
+    courierByUid.get(carrierOverride)?.cour_svc_plans ?? []
+  );
+
+  function onCarrierChange(uid: string) {
+    carrierOverride = uid;
+    const plans = courierByUid.get(uid)?.cour_svc_plans ?? [];
+    if (!plans.some((p) => p.cour_svc_pl === serviceOverride)) {
+      serviceOverride = '';
+    }
+  }
+
   const canCreateShipment = $derived(
     !data.shipment &&
     (data.order.status === 'paid' || data.order.status === 'processing')
@@ -215,7 +234,7 @@
         <div class="space-y-2 text-sm">
           <div class="flex justify-between gap-2">
             <span class="text-gray-400">Carrier</span>
-            <span class="font-medium text-gray-900 text-right">{s.carrier}</span>
+            <span class="font-medium text-gray-900 text-right">{courierLabel(s.carrier)}</span>
           </div>
           <div class="flex justify-between gap-2">
             <span class="text-gray-400">Service</span>
@@ -276,18 +295,49 @@
               Pick one to create a shipment.
             </p>
             <div class="grid grid-cols-2 gap-2">
-              <input name="carrier" bind:value={carrierOverride}
-                     placeholder="cour_uid (UUID)"
-                     class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" required />
-              <input name="service" bind:value={serviceOverride}
-                     placeholder="service plan name"
-                     class="border border-gray-200 rounded-lg px-3 py-2 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+              {#if (data.couriers?.length ?? 0) > 0}
+                <select name="carrier"
+                        value={carrierOverride}
+                        onchange={(e) => onCarrierChange(e.currentTarget.value)}
+                        class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
+                               focus:outline-none focus:ring-2 focus:ring-gray-900" required>
+                  <option value="" disabled>Select courier</option>
+                  {#each data.couriers as c}
+                    <option value={c.uid}>{c.name}</option>
+                  {/each}
+                  {#if carrierOverride && !courierByUid.has(carrierOverride)}
+                    <option value={carrierOverride}>{carrierOverride}</option>
+                  {/if}
+                </select>
+                {#if selectedCourierPlans.length > 0}
+                  <select name="service" bind:value={serviceOverride}
+                          class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
+                                 focus:outline-none focus:ring-2 focus:ring-gray-900" required>
+                    <option value="" disabled>Select service plan</option>
+                    {#each selectedCourierPlans as p}
+                      <option value={p.cour_svc_pl}>{p.cour_svc_pl}</option>
+                    {/each}
+                  </select>
+                {:else}
+                  <input name="service" bind:value={serviceOverride}
+                         placeholder="service plan name"
+                         class="border border-gray-200 rounded-lg px-3 py-2 text-sm
+                                focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+                {/if}
+              {:else}
+                <input name="carrier" bind:value={carrierOverride}
+                       placeholder="cour_uid (UUID)"
+                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+                <input name="service" bind:value={serviceOverride}
+                       placeholder="service plan name"
+                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+              {/if}
             </div>
           {:else}
             <p class="text-xs text-gray-500">
-              Customer chose: <span class="font-medium text-gray-700">{data.order.selected_carrier} / {data.order.selected_service}</span>
+              Customer chose: <span class="font-medium text-gray-700">{courierLabel(data.order.selected_carrier)} / {data.order.selected_service}</span>
               {#if data.order.pickup_point_label}<br /><span class="text-gray-400">{data.order.pickup_point_label}</span>{/if}
             </p>
           {/if}

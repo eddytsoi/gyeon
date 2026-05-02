@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -10,14 +10,15 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
   const id = await resolve(token, params.id);
-  const [order, shipment, settings] = await Promise.all([
+  const [order, shipment, settings, couriers] = await Promise.all([
     adminGetOrder(token, id),
     adminGetShipment(token, id).catch(() => null),
-    adminGetSettings(token).catch(() => [])
+    adminGetSettings(token).catch(() => []),
+    adminListShipanyCouriers(token).catch(() => [])
   ]);
   const defaultCarrier = settings.find((s) => s.key === 'shipany_default_courier')?.value ?? '';
   const defaultService = settings.find((s) => s.key === 'shipany_default_service')?.value ?? '';
-  return { order, shipment, defaultCarrier, defaultService };
+  return { order, shipment, defaultCarrier, defaultService, couriers };
 };
 
 export const actions: Actions = {
