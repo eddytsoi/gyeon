@@ -30,9 +30,11 @@
   let requestingPickup = $state(false);
   const allowed = $derived(nextStatuses[data.order.status] ?? []);
 
-  // Carrier override fields shown when an order pre-dates ShipAny enablement
-  let carrierOverride = $state(data.order.selected_carrier ?? '');
-  let serviceOverride = $state(data.order.selected_service ?? '');
+  // Carrier override fields shown when an order pre-dates ShipAny enablement.
+  // Fall back to Logistics defaults from site settings so admins don't have to
+  // re-type the same courier UID and service plan on every legacy order.
+  let carrierOverride = $state(data.order.selected_carrier || data.defaultCarrier || '');
+  let serviceOverride = $state(data.order.selected_service || data.defaultService || '');
 
   const canCreateShipment = $derived(
     !data.shipment &&
