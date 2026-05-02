@@ -191,6 +191,7 @@ func (s *Service) importProduct(
 		Slug:        prod.Slug,
 		Name:        prod.Name,
 		Description: desc,
+		Status:      mapStatus(prod.Status),
 	})
 	if err != nil {
 		p.Errors = append(p.Errors, fmt.Sprintf("create product %q: %v", prod.Slug, err))
@@ -200,30 +201,38 @@ func (s *Service) importProduct(
 	productID := created.ID
 	existingSlugs[prod.Slug] = true
 
-	// Variants
-	variantsBefore := p.ImportedVariants
+	// Variants — Gyeon requires at least one variant per product.
+	// Variable products map each WC variation to a Gyeon variant; everything
+	// else (simple, grouped, external, or variable-with-no-variations) gets
+	// one default variant built from the product-level fields.
+	variantCount := 0
 	if prod.Type == "variable" {
 		variations, err := wc.fetchVariations(prod.ID)
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch variations for %q: %v", prod.Slug, err))
-			p.Failed++
-			return
 		}
 		for _, v := range variations {
 			if err := s.createVariantFromVariation(ctx, productID, prod.Slug, v); err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("variant for %q (id=%d): %v", prod.Slug, v.ID, err))
-			} else {
-				p.ImportedVariants++
+				continue
 			}
-		}
-	} else {
-		if err := s.createVariantFromSimple(ctx, productID, prod); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("variant for %q: %v", prod.Slug, err))
-		} else {
 			p.ImportedVariants++
+			variantCount++
 		}
 	}
-	_ = variantsBefore
+	if variantCount == 0 {
+		if err := s.createVariantFromSimple(ctx, productID, prod); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("default variant for %q: %v", prod.Slug, err))
+			// Roll back: a product with zero variants violates Gyeon's invariant.
+			if delErr := s.productSvc.Delete(ctx, productID); delErr != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("rollback orphan product %q: %v", prod.Slug, delErr))
+			}
+			delete(existingSlugs, prod.Slug)
+			p.Failed++
+			return
+		}
+		p.ImportedVariants++
+	}
 
 	// Images
 	for _, img := range prod.Images {
@@ -266,6 +275,7 @@ func (s *Service) createVariantFromSimple(ctx context.Context, productID string,
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
+		WeightGrams:    parseWeightKg(prod.Weight),
 	})
 	return err
 }
@@ -285,6 +295,7 @@ func (s *Service) createVariantFromVariation(ctx context.Context, productID, pro
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
+		WeightGrams:    parseWeightKg(v.Weight),
 	})
 	return err
 }
@@ -300,4 +311,32 @@ func parsePrices(regularPrice, salePrice string) (price float64, compareAt *floa
 		}
 	}
 	return regular, nil
+}
+
+// parseWeightKg converts a WooCommerce weight (kg, decimal string) to *int
+// grams. Returns nil for empty / zero / invalid input so the variant falls
+// back to shipany_default_weight_grams instead of being shipped as 0g.
+func parseWeightKg(kg string) *int {
+	if kg == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(kg, 64)
+	if err != nil || f <= 0 {
+		return nil
+	}
+	g := int(f*1000 + 0.5)
+	if g <= 0 {
+		return nil
+	}
+	return &g
+}
+
+// mapStatus translates a WooCommerce product status to Gyeon's. WC uses
+// publish/draft/pending/private; only "publish" maps to "active" — everything
+// else is imported as "inactive" so the merchant can review before exposing it.
+func mapStatus(wcStatus string) string {
+	if wcStatus == "publish" {
+		return "active"
+	}
+	return "inactive"
 }
