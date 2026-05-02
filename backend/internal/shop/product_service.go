@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/util"
 )
@@ -320,6 +322,193 @@ func (s *ProductService) Delete(ctx context.Context, id string) error {
 	}
 	s.cache.DeleteByPrefix(productPrefix)
 	return nil
+}
+
+// --- WooCommerce import helpers -----------------------------------------
+// These methods exist only for the importer; regular CRUD does not touch
+// wc_product_id / wc_variation_id. They keep the importer self-contained
+// so its dedup model (WC ID is the stable key) doesn't leak into the rest
+// of the shop service.
+
+// GetIDByWCProductID resolves a WC product ID to its Gyeon UUID.
+// Returns sql.ErrNoRows if no row is mapped to that WC ID.
+func (s *ProductService) GetIDByWCProductID(ctx context.Context, wcID int) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM products WHERE wc_product_id = $1`, wcID).Scan(&id)
+	return id, err
+}
+
+// UpsertWCProductRequest carries the WC-derived fields for an upsert.
+type UpsertWCProductRequest struct {
+	WCProductID int
+	CategoryID  *string
+	Slug        string
+	Name        string
+	Description *string
+	Status      string
+}
+
+// UpsertWCProduct inserts or updates a product keyed by wc_product_id.
+// Existing manual edits to translations / images / extra variants are
+// untouched — only the WC-sourced base fields are synced.
+func (s *ProductService) UpsertWCProduct(ctx context.Context, req UpsertWCProductRequest) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO products (wc_product_id, category_id, slug, name, description, status)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (wc_product_id) DO UPDATE
+		    SET category_id = EXCLUDED.category_id,
+		        slug        = EXCLUDED.slug,
+		        name        = EXCLUDED.name,
+		        description = EXCLUDED.description,
+		        status      = EXCLUDED.status,
+		        updated_at  = NOW()
+		 RETURNING id`,
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Description, req.Status).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return id, nil
+}
+
+// UpsertWCVariantRequest carries the WC-derived fields for a variant upsert.
+// WCVariationID is nil for the simple-product fallback variant (one per
+// product, identified by wc_variation_id IS NULL).
+type UpsertWCVariantRequest struct {
+	WCVariationID  *int
+	SKU            string
+	Price          float64
+	CompareAtPrice *float64
+	StockQty       int
+	WeightGrams    *int
+}
+
+// UpsertWCVariant inserts or updates a variant keyed by wc_variation_id
+// (for variations) or by (product_id, wc_variation_id IS NULL) for the
+// simple-product fallback. Returns the variant ID.
+func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, req UpsertWCVariantRequest) (string, error) {
+	if req.WCVariationID != nil {
+		var id string
+		err := s.db.QueryRowContext(ctx,
+			`INSERT INTO product_variants
+			     (product_id, wc_variation_id, sku, price, compare_at_price, stock_qty, weight_grams)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 ON CONFLICT (wc_variation_id) DO UPDATE
+			    SET product_id        = EXCLUDED.product_id,
+			        sku               = EXCLUDED.sku,
+			        price             = EXCLUDED.price,
+			        compare_at_price  = EXCLUDED.compare_at_price,
+			        stock_qty         = EXCLUDED.stock_qty,
+			        weight_grams      = EXCLUDED.weight_grams,
+			        updated_at        = NOW()
+			 RETURNING id`,
+			productID, *req.WCVariationID, req.SKU, req.Price,
+			req.CompareAtPrice, req.StockQty, req.WeightGrams).Scan(&id)
+		return id, err
+	}
+
+	// Simple-product fallback: look up existing (product_id, wc_variation_id IS NULL),
+	// then UPDATE or INSERT. ON CONFLICT can't help here because there's no
+	// matching unique index for the IS NULL predicate.
+	var existing string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM product_variants
+		 WHERE product_id = $1 AND wc_variation_id IS NULL`, productID).Scan(&existing)
+	switch {
+	case err == sql.ErrNoRows:
+		var id string
+		err := s.db.QueryRowContext(ctx,
+			`INSERT INTO product_variants
+			     (product_id, sku, price, compare_at_price, stock_qty, weight_grams)
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 RETURNING id`,
+			productID, req.SKU, req.Price, req.CompareAtPrice,
+			req.StockQty, req.WeightGrams).Scan(&id)
+		return id, err
+	case err != nil:
+		return "", err
+	default:
+		_, uerr := s.db.ExecContext(ctx,
+			`UPDATE product_variants
+			    SET sku=$2, price=$3, compare_at_price=$4,
+			        stock_qty=$5, weight_grams=$6, updated_at=NOW()
+			  WHERE id=$1`,
+			existing, req.SKU, req.Price, req.CompareAtPrice,
+			req.StockQty, req.WeightGrams)
+		return existing, uerr
+	}
+}
+
+// DeleteStaleWCProducts removes WC-imported products whose wc_product_id
+// was not seen in the current import (i.e. the WC store no longer has
+// them). Manually-created products (wc_product_id IS NULL) are never
+// touched. Returns rows deleted.
+func (s *ProductService) DeleteStaleWCProducts(ctx context.Context, keepWCIDs []int) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM products
+		  WHERE wc_product_id IS NOT NULL
+		    AND NOT (wc_product_id = ANY($1))`,
+		pq.Array(keepWCIDs))
+	if err != nil {
+		return 0, err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return res.RowsAffected()
+}
+
+// DeleteStaleWCVariants removes WC-imported variants for one product whose
+// wc_variation_id is not in keepWCIDs. Variants without a wc_variation_id
+// (manually added by admin) are kept. Pass an empty slice to remove all
+// WC-imported variants of the product (e.g. variable→simple conversion).
+func (s *ProductService) DeleteStaleWCVariants(ctx context.Context, productID string, keepWCIDs []int) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM product_variants
+		  WHERE product_id = $1
+		    AND wc_variation_id IS NOT NULL
+		    AND NOT (wc_variation_id = ANY($2))`,
+		productID, pq.Array(keepWCIDs))
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteSimpleWCVariant removes the simple-product fallback variant of a
+// product (wc_variation_id IS NULL) — used when a WC product converts from
+// simple to variable. No-op if the product has none.
+func (s *ProductService) DeleteSimpleWCVariant(ctx context.Context, productID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM product_variants
+		  WHERE product_id = $1 AND wc_variation_id IS NULL`, productID)
+	return err
+}
+
+// DeleteAllWCImported removes all WC-imported products. Manually-created
+// products are kept. Used by the "replace" import mode.
+func (s *ProductService) DeleteAllWCImported(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM products WHERE wc_product_id IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
+}
+
+// DeleteWCSourcedImages removes product_images for the given product whose
+// underlying media_files row was downloaded from WC (source_url IS NOT NULL).
+// Admin-uploaded images survive. Used by the importer to refresh the WC
+// image set on upsert without trampling manual additions.
+func (s *ProductService) DeleteWCSourcedImages(ctx context.Context, productID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM product_images
+		  WHERE product_id = $1
+		    AND media_file_id IN (
+		        SELECT id FROM media_files WHERE source_url IS NOT NULL
+		    )`, productID)
+	return err
 }
 
 // DeleteAll removes every product (cascades to variants and images).

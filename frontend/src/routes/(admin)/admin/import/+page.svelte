@@ -4,14 +4,15 @@
   let { data }: { data: PageData } = $props();
 
   type Step = 'idle' | 'confirming' | 'testing' | 'importing' | 'done' | 'error';
+  type Mode = 'upsert' | 'replace';
 
   interface Progress {
     total_products: number;
     processed_products: number;
     imported_products: number;
+    updated_products: number;
     imported_variants: number;
-    skipped: number;
-    skipped_details: string[];
+    stale_deleted: number;
     failed: number;
     current_product?: string;
     done: boolean;
@@ -21,7 +22,7 @@
   let step = $state<Step>('idle');
   let errorMsg = $state('');
   let progress = $state<Progress | null>(null);
-  let showSkipped = $state(false);
+  let mode = $state<Mode>('upsert');
 
   let wcUrl = $state('');
   let wcKey = $state('');
@@ -69,7 +70,7 @@
       const res = await fetch('/api/v1/admin/import/woocommerce/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, clear_all: true })
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, mode })
       });
 
       if (!res.ok || !res.body) {
@@ -115,7 +116,6 @@
     step = 'idle';
     errorMsg = '';
     progress = null;
-    showSkipped = false;
   }
 
   const pct = $derived(
@@ -134,7 +134,13 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-3">確認匯入</h2>
       <p class="text-sm text-gray-600 leading-relaxed mb-6">
-        即將清除所有現有商品、變體及圖片資料，並從 WooCommerce 重新匯入。此操作無法復原，確定繼續？
+        {#if mode === 'upsert'}
+          將以 WooCommerce 資料更新現有商品，並新增缺少的商品。WC 端已刪除的商品會從 Gyeon 一併移除；
+          管理員手動建立的商品、翻譯、圖片不受影響。確定繼續？
+        {:else}
+          將先刪除所有先前由 WooCommerce 匯入的商品（含翻譯、變體、圖片），再從 WooCommerce 重新匯入。
+          管理員手動建立的商品仍然保留。此操作無法復原，確定繼續？
+        {/if}
       </p>
       <div class="flex gap-3 justify-end">
         <button onclick={cancelConfirm}
@@ -228,16 +234,11 @@
 
           <!-- Sub-counts + current product -->
           <div class="flex items-center justify-between mt-2">
-            <div class="flex gap-3 text-xs">
-              <span class="text-green-600">✓ {progress.imported_products} 已匯入</span>
-              {#if progress.skipped > 0}
-                <button
-                  onclick={() => showSkipped = !showSkipped}
-                  class="text-gray-400 hover:text-gray-600 transition-colors underline-offset-2 hover:underline">
-                  ⊘ {progress.skipped} 略過
-                </button>
-              {:else}
-                <span class="text-gray-400">⊘ 0 略過</span>
+            <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              <span class="text-green-600">+ {progress.imported_products} 新增</span>
+              <span class="text-blue-600">↻ {progress.updated_products} 更新</span>
+              {#if progress.stale_deleted > 0}
+                <span class="text-gray-500">− {progress.stale_deleted} 刪除（WC 已移除）</span>
               {/if}
               {#if progress.failed > 0}
                 <span class="text-red-500">✕ {progress.failed} 失敗</span>
@@ -245,14 +246,6 @@
             </div>
             <span class="text-xs text-gray-400">{pct}%</span>
           </div>
-
-          {#if showSkipped && progress.skipped_details?.length > 0}
-            <ul class="mt-2 max-h-32 overflow-y-auto flex flex-col gap-1">
-              {#each progress.skipped_details as detail}
-                <li class="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-1.5">{detail}</li>
-              {/each}
-            </ul>
-          {/if}
 
           {#if progress.current_product}
             <p class="text-xs text-gray-400 mt-2 truncate">
@@ -319,6 +312,36 @@
                  bind:value={wcSecret}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <!-- Mode selector -->
+        <div class="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+            匯入模式
+          </span>
+          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
+                        {mode === 'upsert' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="mode" value="upsert" bind:group={mode}
+                   class="mt-1 accent-gray-900" />
+            <span class="flex-1">
+              <span class="block text-sm font-medium text-gray-900">更新現有 WC 商品（建議）</span>
+              <span class="block text-xs text-gray-500 mt-0.5">
+                以 WooCommerce 為來源更新庫存、價格、重量等資料；保留管理員的翻譯、手動上傳圖片與手動建立的商品。
+                WC 端已刪除的商品會一併從 Gyeon 移除。
+              </span>
+            </span>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
+                        {mode === 'replace' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="mode" value="replace" bind:group={mode}
+                   class="mt-1 accent-gray-900" />
+            <span class="flex-1">
+              <span class="block text-sm font-medium text-gray-900">重新匯入（清除舊 WC 商品後重灌）</span>
+              <span class="block text-xs text-gray-500 mt-0.5">
+                先刪除所有先前由 WC 匯入的商品（含其翻譯與圖片），再重新匯入一份。管理員手動建立的商品保留。
+              </span>
+            </span>
+          </label>
         </div>
       </div>
       <div class="mt-6 pt-5 border-t border-gray-100">
