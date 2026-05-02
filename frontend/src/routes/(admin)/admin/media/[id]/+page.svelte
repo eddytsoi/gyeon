@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -72,6 +72,7 @@
           method="POST"
           action="?/delete"
           use:enhance={() => {
+            if (deleting) return;
             deleting = true;
             return async ({ update }) => {
               await update();
@@ -79,13 +80,12 @@
             };
           }}
         >
-          <button
-            type="submit"
-            disabled={deleting}
-            class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+          <SaveButton
+            loading={deleting}
+            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
           >
-            {deleting ? 'Deleting…' : 'Delete'}
-          </button>
+            Delete
+          </SaveButton>
         </form>
       </div>
     </div>
@@ -183,6 +183,7 @@
         method="POST"
         action="?/save"
         use:enhance={() => {
+          if (saving) return;
           saving = true;
           return async ({ update }) => {
             await update({ reset: false });
@@ -270,14 +271,12 @@
 
         <!-- Action bar -->
         <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
-          <button
-            type="submit"
-            disabled={saving}
+          <SaveButton
+            loading={saving}
             class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
           >
-            <SaveIcon />
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+            Save
+          </SaveButton>
           <a
             href="/admin/media"
             class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"

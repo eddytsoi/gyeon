@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
-  import SaveIcon from '$lib/components/admin/SaveIcon.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -244,12 +244,16 @@
           {/if}
           {#if !pickupRequested}
             <form method="POST" action="?/requestPickup"
-                  use:enhance={() => { requestingPickup = true; return async ({ update }) => { await update(); requestingPickup = false; }; }}>
-              <button type="submit" disabled={requestingPickup}
-                      class="px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
+                  use:enhance={() => {
+                    if (requestingPickup) return;
+                    requestingPickup = true;
+                    return async ({ update }) => { await update(); requestingPickup = false; };
+                  }}>
+              <SaveButton loading={requestingPickup}
+                      class="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
                              hover:bg-gray-50 transition-colors disabled:opacity-50">
-                {requestingPickup ? 'Requesting…' : 'Request Pickup'}
-              </button>
+                Request Pickup
+              </SaveButton>
             </form>
           {:else}
             <span class="px-3 py-2 text-xs text-gray-400">Pickup already requested</span>
@@ -258,7 +262,11 @@
       {:else}
         <!-- No shipment yet → Create button -->
         <form method="POST" action="?/createShipment"
-              use:enhance={() => { creatingShipment = true; return async ({ update }) => { await update(); creatingShipment = false; }; }}
+              use:enhance={() => {
+                if (creatingShipment) return;
+                creatingShipment = true;
+                return async ({ update }) => { await update(); creatingShipment = false; };
+              }}
               class="flex flex-col gap-3">
           {#if !data.order.selected_carrier}
             <p class="text-xs text-gray-500 leading-relaxed">
@@ -286,13 +294,12 @@
             <p class="text-sm text-red-500">{form.error}</p>
           {/if}
 
-          <button type="submit" disabled={creatingShipment}
+          <SaveButton loading={creatingShipment}
                   class="self-start inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-900
                          text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
                          disabled:opacity-50">
-            <SaveIcon />
-            {creatingShipment ? 'Creating…' : 'Create Shipment'}
-          </button>
+            Create Shipment
+          </SaveButton>
         </form>
       {/if}
     </div>
@@ -331,7 +338,11 @@
   <!-- Order Management (status + note) + action bar share one form -->
   {#if allowed.length > 0}
     <form method="POST" action="?/updateStatus"
-          use:enhance={() => { updating = true; return async ({ update }) => { await update(); updating = false; }; }}>
+          use:enhance={() => {
+            if (updating) return;
+            updating = true;
+            return async ({ update }) => { await update(); updating = false; };
+          }}>
       <!-- Status & Notes — right half, matches Payment Info width -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div class="hidden md:block"></div>
@@ -363,13 +374,12 @@
         {#if form?.error}
           <p class="text-sm text-red-500 mr-auto">{form.error}</p>
         {/if}
-        <button type="submit" disabled={updating}
+        <SaveButton loading={updating}
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
                        text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
                        disabled:opacity-50 whitespace-nowrap">
-          <SaveIcon />
-          {updating ? 'Updating…' : 'Update'}
-        </button>
+          Update
+        </SaveButton>
       </div>
     </form>
   {/if}

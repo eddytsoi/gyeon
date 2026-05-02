@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -172,6 +173,7 @@
             method="POST"
             action="?/sendResetPassword"
             use:enhance={() => {
+              if (sending) return;
               sending = true;
               return async ({ update }) => {
                 await update();
@@ -189,13 +191,12 @@
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={sending}
-              class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            <SaveButton
+              loading={sending}
+              class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
             >
-              {sending ? '寄送中…' : 'Send'}
-            </button>
+              Send
+            </SaveButton>
           </form>
         </div>
       </div>
