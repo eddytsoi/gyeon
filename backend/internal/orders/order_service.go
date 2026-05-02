@@ -46,6 +46,8 @@ type Order struct {
 	PaymentIntentID   *string          `json:"payment_intent_id,omitempty"`
 	PaymentStatus     *string          `json:"payment_status,omitempty"`
 	PaymentMethod     *string          `json:"payment_method,omitempty"`
+	CardBrand         *string          `json:"card_brand,omitempty"`
+	CardLast4         *string          `json:"card_last4,omitempty"`
 	PaidAt            *string          `json:"paid_at,omitempty"`
 	SelectedCarrier   *string          `json:"selected_carrier,omitempty"`
 	SelectedService   *string          `json:"selected_service,omitempty"`
@@ -693,7 +695,7 @@ func (s *OrderService) CreateSetupTokenForOrder(ctx context.Context, orderID, pa
 
 // MarkPaidByPaymentIntent flips a pending order to `paid` and triggers the
 // confirmation email. Called from the Stripe webhook on payment_intent.succeeded.
-func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentIntentID string) error {
+func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentIntentID, pmType, cardBrand, cardLast4 string) error {
 	var orderID string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id FROM orders WHERE payment_intent_id=$1`, paymentIntentID).Scan(&orderID)
@@ -705,9 +707,15 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 		return err
 	}
 
-	// Update payment_status (idempotent) and try to flip order status.
+	// Idempotent: COALESCE/NULLIF preserves previously-stored values if Stripe
+	// re-sends the event with a sparser payload.
 	_, _ = s.db.ExecContext(ctx,
-		`UPDATE orders SET payment_status='succeeded' WHERE id=$1`, orderID)
+		`UPDATE orders
+		   SET payment_status='succeeded',
+		       payment_method = COALESCE(NULLIF($2, ''), payment_method),
+		       card_brand     = COALESCE(NULLIF($3, ''), card_brand),
+		       card_last4     = COALESCE(NULLIF($4, ''), card_last4)
+		 WHERE id=$1`, orderID, pmType, cardBrand, cardLast4)
 
 	order, err := s.GetByID(ctx, orderID)
 	if err != nil {
@@ -822,6 +830,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
 		        subtotal, shipping_fee, discount_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
+		        card_brand, card_last4,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
@@ -829,6 +838,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
+			&order.CardBrand, &order.CardLast4,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {

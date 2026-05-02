@@ -111,6 +111,8 @@ export interface Order {
   payment_intent_id?: string;
   payment_status?: string;
   payment_method?: string;
+  card_brand?: string;
+  card_last4?: string;
   paid_at?: string;
   selected_carrier?: string;
   selected_service?: string;
