@@ -22,8 +22,26 @@ func NewService(db *sql.DB, baseURL string) *Service {
 	return &Service{db: db, baseURL: baseURL}
 }
 
+// FindIDBySourceURL returns the media_files.id for an asset previously
+// downloaded from srcURL, or ("", false) if none exists. Used by the
+// WooCommerce importer to skip re-downloading images on re-sync.
+func (s *Service) FindIDBySourceURL(ctx context.Context, srcURL string) (string, bool) {
+	if srcURL == "" {
+		return "", false
+	}
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM media_files WHERE source_url = $1 LIMIT 1`, srcURL).Scan(&id)
+	if err != nil {
+		return "", false
+	}
+	return id, true
+}
+
 // DownloadAndStore fetches srcURL, saves it to the uploads directory, converts
 // to WebP when applicable, and inserts a media_files record. Returns the new ID.
+// The srcURL is also recorded as media_files.source_url so future imports can
+// dedup via FindIDBySourceURL instead of re-downloading.
 func (s *Service) DownloadAndStore(ctx context.Context, srcURL, altText string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)
 	if err != nil {
@@ -97,11 +115,11 @@ func (s *Service) DownloadAndStore(ctx context.Context, srcURL, altText string) 
 	err = s.db.QueryRowContext(ctx,
 		`INSERT INTO media_files
 		     (filename, original_name, mime_type, size_bytes, url,
-		      webp_filename, webp_url, webp_size_bytes)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		      webp_filename, webp_url, webp_size_bytes, source_url)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 RETURNING id`,
 		filename, originalName, mimeType, size, fileURL,
-		webpFilenameDB, webpURLDB, webpSizeBytesDB).Scan(&id)
+		webpFilenameDB, webpURLDB, webpSizeBytesDB, srcURL).Scan(&id)
 	if err != nil {
 		os.Remove(destPath)
 		if webpFilenameDB.Valid {

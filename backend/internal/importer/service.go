@@ -9,22 +9,37 @@ import (
 	"gyeon/backend/internal/shop"
 )
 
+// ImportMode controls how an existing Gyeon product matches a WC product
+// during re-import. Both modes preserve manually-created products
+// (wc_product_id IS NULL); they differ only in how they treat
+// previously-imported rows.
+const (
+	// ModeUpsert (default): match by wc_product_id; UPDATE in place. Admin
+	// edits to translations / images / extra variants survive.
+	ModeUpsert = "upsert"
+	// ModeReplace: DELETE all wc_product_id IS NOT NULL rows first, then
+	// re-import fresh. Admin edits to imported rows are lost. Useful when
+	// the merchant wants to start over.
+	ModeReplace = "replace"
+)
+
 // ImportRequest holds WooCommerce credentials and import options.
 type ImportRequest struct {
 	WCURL    string `json:"wc_url"`
 	WCKey    string `json:"wc_key"`
 	WCSecret string `json:"wc_secret"`
-	ClearAll bool   `json:"clear_all"`
+	// Mode is "upsert" (default) or "replace". Empty falls back to upsert.
+	Mode string `json:"mode"`
 }
 
 // ProgressUpdate is sent via SSE for every meaningful step of the import.
 type ProgressUpdate struct {
 	TotalProducts     int      `json:"total_products"`
-	ProcessedProducts int      `json:"processed_products"` // imported + skipped + failed so far
-	ImportedProducts  int      `json:"imported_products"`
-	ImportedVariants  int      `json:"imported_variants"`
-	Skipped           int      `json:"skipped"`
-	SkippedDetails    []string `json:"skipped_details"` // human-readable reason per skipped product
+	ProcessedProducts int      `json:"processed_products"` // imported + updated + failed so far
+	ImportedProducts  int      `json:"imported_products"`  // newly inserted
+	UpdatedProducts   int      `json:"updated_products"`   // matched by wc_product_id, updated in place
+	ImportedVariants  int      `json:"imported_variants"`  // new + updated variants combined
+	StaleDeleted      int      `json:"stale_deleted"`      // WC-imported products no longer present in WC
 	Failed            int      `json:"failed"`
 	CurrentProduct    string   `json:"current_product,omitempty"`
 	Done              bool     `json:"done"`
@@ -52,24 +67,28 @@ func (s *Service) TestConnection(req ImportRequest) error {
 // RunStreaming performs the full import, calling send() with a ProgressUpdate
 // after each meaningful step. The final call always has Done = true.
 func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func(ProgressUpdate)) {
-	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
-	p := ProgressUpdate{Errors: []string{}, SkippedDetails: []string{}}
+	mode := req.Mode
+	if mode == "" {
+		mode = ModeUpsert
+	}
 
-	// Fetch total product count for the progress bar denominator.
+	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
+	p := ProgressUpdate{Errors: []string{}}
+
 	p.TotalProducts = wc.fetchProductTotal()
 	send(p)
 
-	// Clear existing products before import.
-	if req.ClearAll {
-		if err := s.productSvc.DeleteAll(ctx); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("clear products: %v", err))
+	// Replace mode: nuke all previously WC-imported rows up front.
+	// Manual products (wc_product_id IS NULL) survive.
+	if mode == ModeReplace {
+		if err := s.productSvc.DeleteAllWCImported(ctx); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("clear WC-imported products: %v", err))
 			p.Done = true
 			send(p)
 			return
 		}
 	}
 
-	// Build category slug→ID map, creating missing categories.
 	categoryMap, err := s.syncCategories(ctx, wc, &p)
 	if err != nil {
 		p.Errors = append(p.Errors, fmt.Sprintf("category sync: %v", err))
@@ -78,16 +97,10 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 		return
 	}
 
-	// Build existing-slug set for dedup.
-	existingSlugs, err := s.fetchExistingSlugs(ctx)
-	if err != nil {
-		p.Errors = append(p.Errors, fmt.Sprintf("fetch existing products: %v", err))
-		p.Done = true
-		send(p)
-		return
-	}
+	// Track every WC product ID we see so we can delete stale rows after
+	// the run finishes (products that no longer exist in WC).
+	seenWCProductIDs := make([]int, 0, p.TotalProducts)
 
-	// Paginate and import products.
 	for page := 1; ; page++ {
 		products, err := wc.fetchProducts(page)
 		if err != nil {
@@ -100,11 +113,21 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 		for _, prod := range products {
 			p.CurrentProduct = prod.Name
 			send(p)
-			s.importProduct(ctx, wc, prod, categoryMap, existingSlugs, &p)
+			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
+			s.importProduct(ctx, wc, prod, categoryMap, &p)
 			p.ProcessedProducts++
 			p.CurrentProduct = ""
 			send(p)
 		}
+	}
+
+	// Stale cleanup: delete WC-imported products whose WC ID was not seen
+	// in this run. In replace mode this is a no-op (table was wiped), but
+	// we still call it so the field has a meaningful value.
+	if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, seenWCProductIDs); derr != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("delete stale products: %v", derr))
+	} else {
+		p.StaleDeleted = int(n)
 	}
 
 	p.Done = true
@@ -142,38 +165,13 @@ func (s *Service) syncCategories(ctx context.Context, wc *wcClient, p *ProgressU
 	return catMap, nil
 }
 
-func (s *Service) fetchExistingSlugs(ctx context.Context) (map[string]bool, error) {
-	slugs := make(map[string]bool)
-	for offset := 0; ; offset += 100 {
-		products, err := s.productSvc.ListAll(ctx, "", "", 100, offset)
-		if err != nil {
-			return nil, err
-		}
-		for _, prod := range products {
-			slugs[prod.Slug] = true
-		}
-		if len(products) < 100 {
-			break
-		}
-	}
-	return slugs, nil
-}
-
 func (s *Service) importProduct(
 	ctx context.Context,
 	wc *wcClient,
 	prod wcProduct,
 	categoryMap map[string]string,
-	existingSlugs map[string]bool,
 	p *ProgressUpdate,
 ) {
-	if existingSlugs[prod.Slug] {
-		p.Skipped++
-		p.SkippedDetails = append(p.SkippedDetails,
-			fmt.Sprintf("%s — 商品已存在（slug: %s）", prod.Name, prod.Slug))
-		return
-	}
-
 	var categoryID *string
 	if len(prod.Categories) > 0 {
 		if id, ok := categoryMap[prod.Categories[0].Slug]; ok {
@@ -186,7 +184,15 @@ func (s *Service) importProduct(
 		desc = &prod.Description
 	}
 
-	created, err := s.productSvc.Create(ctx, shop.CreateProductRequest{
+	// Was this WC product already imported? Determines whether the SSE
+	// counters report it as "imported" (new) or "updated" (existing).
+	existedBefore := false
+	if _, err := s.productSvc.GetIDByWCProductID(ctx, prod.ID); err == nil {
+		existedBefore = true
+	}
+
+	productID, err := s.productSvc.UpsertWCProduct(ctx, shop.UpsertWCProductRequest{
+		WCProductID: prod.ID,
 		CategoryID:  categoryID,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
@@ -194,17 +200,16 @@ func (s *Service) importProduct(
 		Status:      mapStatus(prod.Status),
 	})
 	if err != nil {
-		p.Errors = append(p.Errors, fmt.Sprintf("create product %q: %v", prod.Slug, err))
+		p.Errors = append(p.Errors, fmt.Sprintf("upsert product %q: %v", prod.Slug, err))
 		p.Failed++
 		return
 	}
-	productID := created.ID
-	existingSlugs[prod.Slug] = true
 
 	// Variants — Gyeon requires at least one variant per product.
 	// Variable products map each WC variation to a Gyeon variant; everything
 	// else (simple, grouped, external, or variable-with-no-variations) gets
 	// one default variant built from the product-level fields.
+	seenVariationIDs := make([]int, 0)
 	variantCount := 0
 	if prod.Type == "variable" {
 		variations, err := wc.fetchVariations(prod.ID)
@@ -212,29 +217,57 @@ func (s *Service) importProduct(
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch variations for %q: %v", prod.Slug, err))
 		}
 		for _, v := range variations {
-			if err := s.createVariantFromVariation(ctx, productID, prod.Slug, v); err != nil {
+			if err := s.upsertVariantFromVariation(ctx, productID, prod.Slug, v); err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("variant for %q (id=%d): %v", prod.Slug, v.ID, err))
 				continue
 			}
+			seenVariationIDs = append(seenVariationIDs, v.ID)
 			p.ImportedVariants++
 			variantCount++
 		}
+		// A variable product can keep its variations only — drop any leftover
+		// simple-fallback variant from a previous "simple → variable" lifecycle.
+		if variantCount > 0 {
+			if err := s.productSvc.DeleteSimpleWCVariant(ctx, productID); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("drop simple variant for %q: %v", prod.Slug, err))
+			}
+		}
 	}
 	if variantCount == 0 {
-		if err := s.createVariantFromSimple(ctx, productID, prod); err != nil {
+		if err := s.upsertVariantFromSimple(ctx, productID, prod); err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("default variant for %q: %v", prod.Slug, err))
 			// Roll back: a product with zero variants violates Gyeon's invariant.
-			if delErr := s.productSvc.Delete(ctx, productID); delErr != nil {
-				p.Errors = append(p.Errors, fmt.Sprintf("rollback orphan product %q: %v", prod.Slug, delErr))
+			// (Only roll back if the product was newly inserted in this run —
+			// preserving an existing product with translations is more important
+			// than the invariant being temporarily violated; admin can fix.)
+			if !existedBefore {
+				if delErr := s.productSvc.Delete(ctx, productID); delErr != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("rollback orphan product %q: %v", prod.Slug, delErr))
+				}
 			}
-			delete(existingSlugs, prod.Slug)
 			p.Failed++
 			return
 		}
 		p.ImportedVariants++
 	}
 
-	// Images
+	// Stale variant cleanup for this product: drop any wc_variation_id that
+	// is no longer in the WC variations list (variation removed in WC).
+	// Manually-added variants (wc_variation_id IS NULL) are kept, except we
+	// already explicitly handled the simple-fallback above.
+	if prod.Type == "variable" && variantCount > 0 {
+		if _, derr := s.productSvc.DeleteStaleWCVariants(ctx, productID, seenVariationIDs); derr != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("delete stale variants for %q: %v", prod.Slug, derr))
+		}
+	}
+
+	// Images — only refresh the WC-sourced ones; admin uploads (source_url
+	// IS NULL) survive. We delete then re-add so removed-in-WC images
+	// disappear from Gyeon as well, and re-use existing media_files when
+	// the URL is unchanged so we don't re-download.
+	if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
+	}
 	for _, img := range prod.Images {
 		var alt *string
 		if img.Alt != "" {
@@ -246,21 +279,30 @@ func (s *Service) importProduct(
 			SortOrder: img.Position,
 			IsPrimary: img.Position == 0,
 		}
-		mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
-		if err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+		// Reuse existing media_files row if we've downloaded this URL before.
+		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
+			req.MediaFileID = &id
 		} else {
-			req.MediaFileID = &mediaID
+			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
+			if err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+			} else {
+				req.MediaFileID = &mediaID
+			}
 		}
 		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
 		}
 	}
 
-	p.ImportedProducts++
+	if existedBefore {
+		p.UpdatedProducts++
+	} else {
+		p.ImportedProducts++
+	}
 }
 
-func (s *Service) createVariantFromSimple(ctx context.Context, productID string, prod wcProduct) error {
+func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string, prod wcProduct) error {
 	price, compareAt := parsePrices(prod.RegularPrice, prod.SalePrice)
 	stockQty := 0
 	if prod.StockQuantity != nil {
@@ -270,7 +312,8 @@ func (s *Service) createVariantFromSimple(ctx context.Context, productID string,
 	if sku == "" {
 		sku = prod.Slug
 	}
-	_, err := s.productSvc.CreateVariant(ctx, productID, shop.CreateVariantRequest{
+	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
+		WCVariationID:  nil, // simple-product fallback — identified by NULL
 		SKU:            sku,
 		Price:          price,
 		CompareAtPrice: compareAt,
@@ -280,7 +323,7 @@ func (s *Service) createVariantFromSimple(ctx context.Context, productID string,
 	return err
 }
 
-func (s *Service) createVariantFromVariation(ctx context.Context, productID, productSlug string, v wcVariation) error {
+func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, productSlug string, v wcVariation) error {
 	price, compareAt := parsePrices(v.RegularPrice, v.SalePrice)
 	stockQty := 0
 	if v.StockQuantity != nil {
@@ -290,7 +333,9 @@ func (s *Service) createVariantFromVariation(ctx context.Context, productID, pro
 	if sku == "" {
 		sku = fmt.Sprintf("%s-%d", productSlug, v.ID)
 	}
-	_, err := s.productSvc.CreateVariant(ctx, productID, shop.CreateVariantRequest{
+	wcID := v.ID
+	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
+		WCVariationID:  &wcID,
 		SKU:            sku,
 		Price:          price,
 		CompareAtPrice: compareAt,
