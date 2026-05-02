@@ -30,6 +30,10 @@ type ImportRequest struct {
 	WCSecret string `json:"wc_secret"`
 	// Mode is "upsert" (default) or "replace". Empty falls back to upsert.
 	Mode string `json:"mode"`
+	// Limit caps the number of products processed in this run. 0 = no cap.
+	// Used for partial / smoke-test imports; stale cleanup is skipped when
+	// Limit > 0 so a small subset run cannot wipe out the rest of the catalog.
+	Limit int `json:"limit"`
 }
 
 // ProgressUpdate is sent via SSE for every meaningful step of the import.
@@ -76,6 +80,11 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	p := ProgressUpdate{Errors: []string{}}
 
 	p.TotalProducts = wc.fetchProductTotal()
+	// When the caller capped the run, show the cap as the denominator so
+	// the progress bar represents work scheduled, not the WC store size.
+	if req.Limit > 0 && (p.TotalProducts == 0 || p.TotalProducts > req.Limit) {
+		p.TotalProducts = req.Limit
+	}
 	send(p)
 
 	// Replace mode: nuke all previously WC-imported rows up front.
@@ -101,6 +110,7 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	// the run finishes (products that no longer exist in WC).
 	seenWCProductIDs := make([]int, 0, p.TotalProducts)
 
+pages:
 	for page := 1; ; page++ {
 		products, err := wc.fetchProducts(page)
 		if err != nil {
@@ -111,6 +121,9 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 			break
 		}
 		for _, prod := range products {
+			if req.Limit > 0 && p.ProcessedProducts >= req.Limit {
+				break pages
+			}
 			p.CurrentProduct = prod.Name
 			send(p)
 			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
@@ -122,12 +135,15 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	}
 
 	// Stale cleanup: delete WC-imported products whose WC ID was not seen
-	// in this run. In replace mode this is a no-op (table was wiped), but
-	// we still call it so the field has a meaningful value.
-	if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, seenWCProductIDs); derr != nil {
-		p.Errors = append(p.Errors, fmt.Sprintf("delete stale products: %v", derr))
-	} else {
-		p.StaleDeleted = int(n)
+	// in this run. Skipped under Limit > 0 — a partial run hasn't seen the
+	// rest of the catalog, so its "seen" set isn't authoritative and the
+	// delete would wipe products the run never visited.
+	if req.Limit == 0 {
+		if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, seenWCProductIDs); derr != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("delete stale products: %v", derr))
+		} else {
+			p.StaleDeleted = int(n)
+		}
 	}
 
 	p.Done = true
