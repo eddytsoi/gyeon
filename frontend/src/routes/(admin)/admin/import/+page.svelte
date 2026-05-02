@@ -27,6 +27,7 @@
   let wcUrl = $state('');
   let wcKey = $state('');
   let wcSecret = $state('');
+  let limit = $state<number | null>(null);
 
   function openConfirm() {
     if (!wcUrl || !wcKey || !wcSecret) {
@@ -70,7 +71,13 @@
       const res = await fetch('/api/v1/admin/import/woocommerce/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, mode })
+        body: JSON.stringify({
+          wc_url: wcUrl,
+          wc_key: wcKey,
+          wc_secret: wcSecret,
+          mode,
+          limit: limit && limit > 0 ? Math.floor(limit) : 0
+        })
       });
 
       if (!res.ok || !res.body) {
@@ -135,10 +142,10 @@
       <h2 class="text-base font-semibold text-gray-900 mb-3">確認匯入</h2>
       <p class="text-sm text-gray-600 leading-relaxed mb-6">
         {#if mode === 'upsert'}
-          將以 WooCommerce 資料更新現有商品，並新增缺少的商品。WC 端已刪除的商品會從 Gyeon 一併移除；
+          將以 WooCommerce 資料更新現有商品，並新增缺少的商品。{#if limit && limit > 0}本次只處理前 {limit} 個商品；WC 端已刪除的商品<strong>不會</strong>被清除。{:else}WC 端已刪除的商品會從 Gyeon 一併移除；{/if}
           管理員手動建立的商品、翻譯、圖片不受影響。確定繼續？
         {:else}
-          將先刪除所有先前由 WooCommerce 匯入的商品（含翻譯、變體、圖片），再從 WooCommerce 重新匯入。
+          將先刪除所有先前由 WooCommerce 匯入的商品（含翻譯、變體、圖片），再從 WooCommerce 重新匯入{#if limit && limit > 0}前 {limit} 個商品{/if}。
           管理員手動建立的商品仍然保留。此操作無法復原，確定繼續？
         {/if}
       </p>
@@ -312,6 +319,21 @@
                  bind:value={wcSecret}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+
+        <!-- Limit input -->
+        <div class="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
+          <label for="wc_limit" class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+            數量上限
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">留空 / 0 = 匯入全部；輸入 N = 只匯入前 N 個商品（含其變體）。常用於測試。</p>
+          <input id="wc_limit" type="number" min="0" step="1" placeholder="留空為全部"
+                 bind:value={limit}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          {#if limit && limit > 0}
+            <p class="text-xs text-amber-600 mt-1">⚠ 限量模式下不會清除 WC 端已刪除的商品（避免誤刪未掃到的部分）。</p>
+          {/if}
         </div>
 
         <!-- Mode selector -->
