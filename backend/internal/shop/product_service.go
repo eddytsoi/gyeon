@@ -314,23 +314,35 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 	if kind == "" {
 		kind = "simple"
 	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	var p Product
-	err := s.db.QueryRowContext(ctx,
+	if err := tx.QueryRowContext(ctx,
 		`INSERT INTO products (category_id, slug, name, description, status, kind)
 		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
 		req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
-	if err != nil {
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
 	// Auto-create the default bundle variant so the product is immediately usable.
 	if kind == "bundle" {
-		_, _ = s.db.ExecContext(ctx,
+		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO product_variants (product_id, sku, price, stock_qty)
 			 VALUES ($1, 'BUNDLE-' || UPPER(SUBSTRING($1::text, 1, 8)), 0, 0)`,
-			p.ID)
+			p.ID); err != nil {
+			return nil, fmt.Errorf("auto-create bundle variant: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 
 	s.cache.DeleteByPrefix(productPrefix)
