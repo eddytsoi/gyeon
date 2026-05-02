@@ -1,4 +1,4 @@
-import type { Category, Order, Product, Variant, ProductImage } from '$lib/types';
+import type { Category, Order, OrderNotice, Product, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -121,6 +121,22 @@ export const adminUpdateOrderStatus = (token: string, id: string, status: string
 
 export const adminDeleteOrder = (token: string, id: string) =>
   request(`/admin/orders/${id}`, token, { method: 'DELETE' });
+
+// Order notices (admin)
+export const adminListOrderNotices = (token: string, orderID: string) =>
+  request<OrderNotice[]>(`/admin/order-notices/${orderID}`, token);
+
+export const adminCreateOrderNotice = (token: string, orderID: string, role: 'system' | 'admin', body: string) =>
+  request<OrderNotice>(`/admin/order-notices/${orderID}`, token, {
+    method: 'POST',
+    body: JSON.stringify({ role, body })
+  });
+
+export const adminMarkOrderNoticesRead = (token: string, orderID: string) =>
+  request<void>(`/admin/order-notices/${orderID}/read`, token, { method: 'POST' });
+
+export const adminGetOrderNoticeUnreadCounts = (token: string) =>
+  request<Record<string, number>>(`/admin/order-notices/unread-counts`, token);
 
 // ── CMS ──────────────────────────────────────────────────────────────────────
 

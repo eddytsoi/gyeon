@@ -1,4 +1,4 @@
-import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, PaymentConfig, Product, ProductImage, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
+import type { Address, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -281,6 +281,27 @@ export const getMyOrders = (token: string, limit = 20, offset = 0) =>
 
 export const lookupMyOrder = (token: string, n: string) =>
   request<{ id: string }>(`/customers/me/orders/lookup/${n}`, authed(token));
+
+// --- Order notices (customer) ---
+
+export const getMyOrderNotices = (token: string, orderID: string) =>
+  request<OrderNotice[]>(`/order-notices/${orderID}`, authed(token));
+
+export const createMyOrderNotice = (token: string, orderID: string, body: string) =>
+  request<OrderNotice>(`/order-notices/${orderID}`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+    ...authed(token)
+  });
+
+export const markMyOrderNoticesRead = (token: string, orderID: string) =>
+  fetch(`${base()}/order-notices/${orderID}/read`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+export const getMyOrderNoticeUnreadCounts = (token: string) =>
+  request<Record<string, number>>(`/order-notices/unread-counts`, authed(token));
 
 // --- Saved payment methods ---
 

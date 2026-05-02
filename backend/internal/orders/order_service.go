@@ -454,6 +454,12 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	tx.ExecContext(ctx,
 		`INSERT INTO order_status_history (order_id, status) VALUES ($1, $2)`, order.ID, StatusPending)
 
+	// Mirror the audit row as a system notice so the user-visible timeline
+	// starts cleanly on day one. Best-effort — failure here shouldn't break
+	// checkout (the audit row is the source of truth).
+	pending := StatusPending
+	_ = CreateSystemNoticeTx(ctx, tx, order.ID, &pending, "Order placed")
+
 	if discountResult.CouponID != nil {
 		if err := pricing.IncrementCouponUsage(ctx, tx, *discountResult.CouponID); err != nil {
 			return nil, err
@@ -982,6 +988,16 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	tx.ExecContext(ctx,
 		`INSERT INTO order_status_history (order_id, status, note) VALUES ($1, $2, $3)`,
 		id, req.Status, req.Note)
+
+	// Mirror the status change as a system notice so it shows up in the user-
+	// visible timeline alongside admin/customer messages. Use the supplied
+	// note when present, otherwise synthesize a default.
+	noticeBody := fmt.Sprintf("Status updated to %s", req.Status)
+	if req.Note != nil && strings.TrimSpace(*req.Note) != "" {
+		noticeBody = *req.Note
+	}
+	status := req.Status
+	_ = CreateSystemNoticeTx(ctx, tx, id, &status, noticeBody)
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
