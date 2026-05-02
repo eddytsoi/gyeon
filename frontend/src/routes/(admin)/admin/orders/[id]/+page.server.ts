@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -10,15 +10,18 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
   const id = await resolve(token, params.id);
-  const [order, shipment, settings, couriers] = await Promise.all([
+  const [order, shipment, settings, couriers, notices] = await Promise.all([
     adminGetOrder(token, id),
     adminGetShipment(token, id).catch(() => null),
     adminGetSettings(token).catch(() => []),
-    adminListShipanyCouriers(token).catch(() => [])
+    adminListShipanyCouriers(token).catch(() => []),
+    adminListOrderNotices(token, id).catch(() => [])
   ]);
+  // Fire-and-forget: viewing the page clears the customer-message unread badge.
+  adminMarkOrderNoticesRead(token, id).catch(() => {});
   const defaultCarrier = settings.find((s) => s.key === 'shipany_default_courier')?.value ?? '';
   const defaultService = settings.find((s) => s.key === 'shipany_default_service')?.value ?? '';
-  return { order, shipment, defaultCarrier, defaultService, couriers };
+  return { order, shipment, defaultCarrier, defaultService, couriers, notices };
 };
 
 export const actions: Actions = {
@@ -66,6 +69,40 @@ export const actions: Actions = {
       await adminRequestShipanyPickup(token, id);
     } catch (e: unknown) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed to request pickup' });
+    }
+    return { success: true };
+  },
+
+  addInternalNote: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const body = form.get('body')?.toString().trim() || '';
+    if (!body) return fail(400, { error: 'Note body is required' });
+
+    try {
+      await adminCreateOrderNotice(token, id, 'system', body);
+    } catch (e: unknown) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed to add note' });
+    }
+    return { success: true };
+  },
+
+  sendAdminMessage: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const body = form.get('body')?.toString().trim() || '';
+    if (!body) return fail(400, { error: 'Message body is required' });
+
+    try {
+      await adminCreateOrderNotice(token, id, 'admin', body);
+    } catch (e: unknown) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed to send message' });
     }
     return { success: true };
   }

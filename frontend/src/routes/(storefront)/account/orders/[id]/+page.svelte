@@ -1,9 +1,14 @@
 <script lang="ts">
-  import type { PageData } from './$types';
+  import { enhance } from '$app/forms';
+  import type { ActionData, PageData } from './$types';
 
-  let { data }: { data: PageData } = $props();
+  let { data, form }: { data: PageData; form: ActionData } = $props();
 
   const order = $derived(data.order);
+  const notices = $derived(data.notices ?? []);
+
+  let sending = $state(false);
+  let messageBody = $state('');
 
   const statusColors: Record<string, string> = {
     pending:    'bg-yellow-50 text-yellow-700 border-yellow-100',
@@ -17,6 +22,11 @@
 
   const statusSteps = ['pending', 'paid', 'processing', 'shipped', 'delivered'];
   const currentStep = $derived(statusSteps.indexOf(order.status));
+
+  function fmtNoticeTime(iso: string): string {
+    const d = new Date(iso);
+    return d.toLocaleString('en-HK', { dateStyle: 'medium', timeStyle: 'short' });
+  }
 </script>
 
 <svelte:head>
@@ -113,4 +123,66 @@
       <p class="text-sm text-gray-600">{order.notes}</p>
     </div>
   {/if}
+
+  <!-- Messages between customer and admin -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-6">
+    <h2 class="font-semibold text-gray-900 mb-4">Messages</h2>
+
+    {#if notices.length === 0}
+      <p class="text-sm text-gray-400 italic">No messages yet. Send one below if you have a question about this order.</p>
+    {:else}
+      <div class="flex flex-col gap-3">
+        {#each notices as n (n.id)}
+          {#if n.role === 'admin'}
+            <div class="flex items-start gap-3">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 mt-0.5 shrink-0">
+                Store
+              </span>
+              <div class="flex-1 min-w-0 bg-blue-50/40 rounded-lg px-3 py-2">
+                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-xs text-gray-400 mt-1">{fmtNoticeTime(n.created_at)}</p>
+              </div>
+            </div>
+          {:else if n.role === 'customer'}
+            <div class="flex items-start gap-3 flex-row-reverse">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-green-50 text-green-700 mt-0.5 shrink-0">
+                You
+              </span>
+              <div class="flex-1 min-w-0 bg-green-50/40 rounded-lg px-3 py-2">
+                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-xs text-gray-400 mt-1 text-right">{fmtNoticeTime(n.created_at)}</p>
+              </div>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    <form method="POST" action="?/sendMessage"
+          use:enhance={() => {
+            if (sending) return;
+            sending = true;
+            return async ({ update }) => {
+              await update();
+              sending = false;
+              messageBody = '';
+            };
+          }}
+          class="mt-6 pt-5 border-t border-gray-100 flex flex-col gap-2">
+      <label for="customer-message" class="text-xs font-medium text-gray-600">Send a message to the store</label>
+      <textarea id="customer-message" name="body" rows="3" bind:value={messageBody}
+                placeholder="Ask a question or share an update about this order"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+      {#if form?.error}
+        <p class="text-sm text-red-500">{form.error}</p>
+      {/if}
+      <button type="submit" disabled={sending || !messageBody.trim()}
+              class="self-end inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-900 text-white
+                     text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
+                     disabled:opacity-50">
+        {sending ? 'Sending...' : 'Send'}
+      </button>
+    </form>
+  </div>
 </div>

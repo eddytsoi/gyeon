@@ -66,6 +66,8 @@ func main() {
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
+	noticeSvc := orders.NewNoticeService(conn)
+	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailSvc, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
 	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
@@ -222,6 +224,12 @@ func main() {
 		// Customer routes (public + authenticated)
 		r.Mount("/customers", customerHandler.Routes())
 
+		// Customer-side order notices (auth via customer JWT)
+		r.Group(func(r chi.Router) {
+			r.Use(auth.CustomerMiddleware(customerJWTSecret))
+			r.Mount("/order-notices", noticeHandler.CustomerRoutes())
+		})
+
 		// Admin auth (now uses admin_users table)
 		r.Post("/admin/login", adminUserHandler.Login)
 
@@ -257,6 +265,9 @@ func main() {
 
 			// Order admin (delete; list/update use the public /orders mount with admin JWT)
 			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+
+			// Admin-side order notices
+			r.Mount("/admin/order-notices", noticeHandler.AdminRoutes())
 
 			// ShipAny admin: test connection, create shipment, request pickup
 			r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())

@@ -28,7 +28,16 @@
   let updating = $state(false);
   let creatingShipment = $state(false);
   let requestingPickup = $state(false);
+  let addingNote = $state(false);
+  let sendingMessage = $state(false);
+  let internalNoteBody = $state('');
+  let adminMessageBody = $state('');
   const allowed = $derived(nextStatuses[data.order.status] ?? []);
+
+  function fmtNoticeTime(iso: string): string {
+    const d = new Date(iso);
+    return d.toLocaleString('en-HK', { dateStyle: 'medium', timeStyle: 'short' });
+  }
 
   // Carrier override fields shown when an order pre-dates ShipAny enablement.
   // Fall back to Logistics defaults from site settings so admins don't have to
@@ -309,43 +318,55 @@
             </p>
             <div class="grid grid-cols-2 gap-2">
               {#if (data.couriers?.length ?? 0) > 0}
-                <select name="carrier"
-                        value={carrierOverride}
-                        onchange={(e) => onCarrierChange(e.currentTarget.value)}
-                        class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
-                               focus:outline-none focus:ring-2 focus:ring-gray-900" required>
-                  <option value="" disabled>Select courier</option>
-                  {#each data.couriers as c}
-                    <option value={c.uid}>{c.name}</option>
-                  {/each}
-                  {#if carrierOverride && !courierByUid.has(carrierOverride)}
-                    <option value={carrierOverride}>{carrierOverride}</option>
-                  {/if}
-                </select>
-                {#if selectedCourierPlans.length > 0}
-                  <select name="service" bind:value={serviceOverride}
+                <div class="flex flex-col gap-1">
+                  <label for="carrier-select" class="text-xs font-medium text-gray-600">Courier</label>
+                  <select id="carrier-select" name="carrier"
+                          value={carrierOverride}
+                          onchange={(e) => onCarrierChange(e.currentTarget.value)}
                           class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
                                  focus:outline-none focus:ring-2 focus:ring-gray-900" required>
-                    <option value="" disabled>Select service plan</option>
-                    {#each selectedCourierPlans as p}
-                      <option value={p.cour_svc_pl}>{p.cour_svc_pl}</option>
+                    <option value="" disabled>Select courier</option>
+                    {#each data.couriers as c}
+                      <option value={c.uid}>{c.name}</option>
                     {/each}
+                    {#if carrierOverride && !courierByUid.has(carrierOverride)}
+                      <option value={carrierOverride}>{carrierOverride}</option>
+                    {/if}
                   </select>
-                {:else}
-                  <input name="service" bind:value={serviceOverride}
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="service-select" class="text-xs font-medium text-gray-600">Service Plan</label>
+                  {#if selectedCourierPlans.length > 0}
+                    <select id="service-select" name="service" bind:value={serviceOverride}
+                            class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
+                                   focus:outline-none focus:ring-2 focus:ring-gray-900" required>
+                      <option value="" disabled>Select service plan</option>
+                      {#each selectedCourierPlans as p}
+                        <option value={p.cour_svc_pl}>{p.cour_svc_pl}</option>
+                      {/each}
+                    </select>
+                  {:else}
+                    <input id="service-select" name="service" bind:value={serviceOverride}
+                           placeholder="service plan name"
+                           class="border border-gray-200 rounded-lg px-3 py-2 text-sm
+                                  focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+                  {/if}
+                </div>
+              {:else}
+                <div class="flex flex-col gap-1">
+                  <label for="carrier-input" class="text-xs font-medium text-gray-600">Courier</label>
+                  <input id="carrier-input" name="carrier" bind:value={carrierOverride}
+                         placeholder="cour_uid (UUID)"
+                         class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
+                                focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="service-input" class="text-xs font-medium text-gray-600">Service Plan</label>
+                  <input id="service-input" name="service" bind:value={serviceOverride}
                          placeholder="service plan name"
                          class="border border-gray-200 rounded-lg px-3 py-2 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" required />
-                {/if}
-              {:else}
-                <input name="carrier" bind:value={carrierOverride}
-                       placeholder="cour_uid (UUID)"
-                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
-                              focus:outline-none focus:ring-2 focus:ring-gray-900" required />
-                <input name="service" bind:value={serviceOverride}
-                       placeholder="service plan name"
-                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm
-                              focus:outline-none focus:ring-2 focus:ring-gray-900" required />
+                </div>
               {/if}
             </div>
           {:else}
@@ -369,6 +390,111 @@
       {/if}
     </div>
   {/if}
+
+  <!-- Notices: system events + admin/customer messages timeline -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Notices</h3>
+
+    {#if (data.notices?.length ?? 0) === 0}
+      <p class="text-sm text-gray-400 italic">No notices yet.</p>
+    {:else}
+      <div class="flex flex-col gap-3">
+        {#each data.notices as n (n.id)}
+          {#if n.role === 'system'}
+            <div class="flex items-start gap-3 text-sm">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 mt-0.5 shrink-0">
+                System
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-gray-700 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-xs text-gray-400 mt-1">
+                  {#if n.status}
+                    <span class="capitalize {statusColour[n.status] ?? 'bg-gray-100 text-gray-500'} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium mr-2">{n.status}</span>
+                  {/if}
+                  {fmtNoticeTime(n.created_at)}
+                </p>
+              </div>
+            </div>
+          {:else if n.role === 'admin'}
+            <div class="flex items-start gap-3 text-sm">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 mt-0.5 shrink-0">
+                Admin → Customer
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-xs text-gray-400 mt-1">
+                  {fmtNoticeTime(n.created_at)}
+                  {#if !n.read_at}
+                    <span class="ml-2 text-amber-600">• unread by customer</span>
+                  {/if}
+                </p>
+              </div>
+            </div>
+          {:else}
+            <div class="flex items-start gap-3 text-sm">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-green-50 text-green-700 mt-0.5 shrink-0">
+                Customer
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-xs text-gray-400 mt-1">{fmtNoticeTime(n.created_at)}</p>
+              </div>
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    <div class="mt-6 pt-5 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form method="POST" action="?/addInternalNote"
+            use:enhance={() => {
+              if (addingNote) return;
+              addingNote = true;
+              return async ({ update }) => {
+                await update();
+                addingNote = false;
+                internalNoteBody = '';
+              };
+            }}
+            class="flex flex-col gap-2">
+        <label for="internal-note" class="text-xs font-medium text-gray-600">Internal note (admin-only)</label>
+        <textarea id="internal-note" name="body" rows="3" bind:value={internalNoteBody}
+                  placeholder="Visible to admins only"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+        <SaveButton loading={addingNote}
+                class="self-start inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium
+                       text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors
+                       disabled:opacity-50">
+          Add note
+        </SaveButton>
+      </form>
+
+      <form method="POST" action="?/sendAdminMessage"
+            use:enhance={() => {
+              if (sendingMessage) return;
+              sendingMessage = true;
+              return async ({ update }) => {
+                await update();
+                sendingMessage = false;
+                adminMessageBody = '';
+              };
+            }}
+            class="flex flex-col gap-2">
+        <label for="admin-message" class="text-xs font-medium text-gray-600">Reply to customer</label>
+        <textarea id="admin-message" name="body" rows="3" bind:value={adminMessageBody}
+                  placeholder="Customer will receive this by email"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+        <SaveButton loading={sendingMessage}
+                class="self-start inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-900 text-white
+                       text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors
+                       disabled:opacity-50">
+          Send
+        </SaveButton>
+      </form>
+    </div>
+  </div>
 
   <!-- Payment Info — right half on desktop, full width on mobile -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

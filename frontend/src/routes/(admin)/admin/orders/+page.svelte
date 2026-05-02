@@ -62,7 +62,16 @@
       {#each data.orders as order}
         <tr class="js-row transition-colors">
           <td class="px-5 py-3 font-mono text-xs text-gray-700">
-            {order.order_number || `ORD-${order.number}`}
+            <span class="inline-flex items-center gap-2">
+              {order.order_number || `ORD-${order.number}`}
+              {#if (data.unreadCounts?.[order.id] ?? 0) > 0}
+                <span title="Unread customer messages"
+                      class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5
+                             rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
+                  {data.unreadCounts[order.id]}
+                </span>
+              {/if}
+            </span>
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
             {new Date(order.created_at).toLocaleDateString('en-HK')}

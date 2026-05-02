@@ -110,6 +110,14 @@ type PasswordResetParams struct {
 	ExpiryHours   int
 }
 
+type AdminMessageParams struct {
+	To           string
+	CustomerName string
+	OrderNumber  string
+	OrderURL     string // links the customer back to /account/orders/{id}
+	Body         string
+}
+
 // SendTest sends a plain test email to verify SMTP configuration.
 func (s *Service) SendTest(ctx context.Context, to string) error {
 	cfg, err := s.loadConfig(ctx)
@@ -166,6 +174,20 @@ func (s *Service) SendPasswordResetEmail(ctx context.Context, p PasswordResetPar
 	html := renderPasswordResetHTML(p)
 	text := renderPasswordResetText(p)
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+// SendAdminMessageNotification emails the customer when an admin posts a
+// reply to their order. Best-effort — caller should not fail the request on
+// SMTP errors.
+func (s *Service) SendAdminMessageNotification(ctx context.Context, p AdminMessageParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	subject := fmt.Sprintf("店家回覆 — %s", orderRef(p.OrderNumber, ""))
+	html := renderAdminMessageHTML(p)
+	text := renderAdminMessageText(p)
+	return s.send(cfg, p.To, subject, text, html)
 }
 
 // SendOrderConfirmation renders and sends the order confirmation email.
@@ -436,6 +458,55 @@ func renderPasswordResetHTML(p PasswordResetParams) string {
 		p.ExpiryHours,
 		htmlEscape(p.ResetURL),
 	)
+}
+
+func renderAdminMessageText(p AdminMessageParams) string {
+	var b strings.Builder
+	if p.CustomerName != "" {
+		fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	} else {
+		b.WriteString("您好，\n\n")
+	}
+	fmt.Fprintf(&b, "您的訂單 %s 收到一則新訊息：\n\n", orderRef(p.OrderNumber, ""))
+	b.WriteString("──────── 訊息內容 ────────\n")
+	b.WriteString(p.Body)
+	b.WriteString("\n──────────────────────────\n\n")
+	if p.OrderURL != "" {
+		fmt.Fprintf(&b, "查看訂單詳情或回覆：\n%s\n\n", p.OrderURL)
+	}
+	b.WriteString("— Gyeon")
+	return b.String()
+}
+
+func renderAdminMessageHTML(p AdminMessageParams) string {
+	greeting := "您好，"
+	if p.CustomerName != "" {
+		greeting = "您好 " + htmlEscape(p.CustomerName) + "，"
+	}
+	bodyHTML := strings.ReplaceAll(htmlEscape(p.Body), "\n", "<br>")
+	cta := ""
+	if p.OrderURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">查看訂單並回覆</a>
+      </div>`, p.OrderURL)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>店家回覆</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">店家回覆</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">%s 您的訂單 <strong style="color:#111827">%s</strong> 收到一則新訊息。</p>
+
+      <div style="padding:16px;background:#f9fafb;border-left:3px solid #111827;border-radius:6px;color:#374151;font-size:14px;line-height:1.7;white-space:pre-wrap">%s</div>
+
+      %s
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎登入帳戶回覆 — Gyeon</p>
+  </div>
+</body></html>`,
+		greeting, htmlEscape(orderRef(p.OrderNumber, "")), bodyHTML, cta)
 }
 
 func htmlEscape(s string) string {

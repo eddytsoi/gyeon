@@ -123,6 +123,19 @@ export interface Order {
   created_at: string;
 }
 
+export type NoticeRole = 'system' | 'admin' | 'customer';
+
+export interface OrderNotice {
+  id: string;
+  order_id: string;
+  role: NoticeRole;
+  status?: string;
+  body: string;
+  author_id?: string;
+  read_at?: string;
+  created_at: string;
+}
+
 export interface PaymentConfig {
   publishable_key: string;
   mode: 'test' | 'live';
