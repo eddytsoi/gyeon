@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -49,7 +50,7 @@
   // still submitting cour_uid to the ShipAny API.
   const courierByUid = $derived(new Map((data.couriers ?? []).map((c) => [c.uid, c])));
   const courierLabel = (uid: string | null | undefined) => {
-    if (!uid) return '—';
+    if (!uid) return m.admin_products_dash();
     return courierByUid.get(uid)?.name ?? uid;
   };
 
@@ -63,7 +64,7 @@
       return `${label} •••• ${o.card_last4}`;
     }
     if (o.payment_method) return o.payment_method;
-    return '—';
+    return m.admin_products_dash();
   }
   const selectedCourierPlans = $derived(
     courierByUid.get(carrierOverride)?.cour_svc_plans ?? []
@@ -97,7 +98,7 @@
 <div>
   <div class="flex items-center gap-3 mb-8">
     <a href="/admin/orders" class="text-gray-400 hover:text-gray-700 transition-colors text-sm">
-      ← Orders
+      {m.admin_order_back()}
     </a>
     <span class="text-gray-300">/</span>
     <span class="font-mono text-sm text-gray-700">{data.order.order_number || `ORD-${data.order.number}`}</span>
@@ -105,18 +106,18 @@
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">Status</p>
+      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_status()}</p>
       <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium
                    {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
         {data.order.status}
       </span>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">Total</p>
+      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_total()}</p>
       <p class="text-xl font-bold text-gray-900">HK${data.order.total.toFixed(2)}</p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">Placed</p>
+      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_placed()}</p>
       <p class="text-sm font-medium text-gray-900">
         {new Date(data.order.created_at).toLocaleString('en-HK')}
       </p>
@@ -127,7 +128,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     <!-- Customer Info -->
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Customer</h3>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.admin_order_card_customer()}</h3>
       {#if data.order.customer_name || data.order.customer_email}
         <div class="space-y-1.5 text-sm">
           {#if data.order.customer_name}
@@ -155,22 +156,22 @@
             </p>
           {/if}
           {#if !data.order.customer_id}
-            <p class="text-xs text-gray-400 italic pt-1">Guest checkout</p>
+            <p class="text-xs text-gray-400 italic pt-1">{m.admin_order_card_guest()}</p>
           {/if}
         </div>
       {:else}
-        <p class="text-sm text-gray-400 italic">No customer info</p>
+        <p class="text-sm text-gray-400 italic">{m.admin_order_card_no_customer()}</p>
       {/if}
     </div>
 
     <!-- Shipping Info -->
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Shipping</h3>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.admin_order_card_shipping()}</h3>
       {#if data.order.shipping_address}
         {@const a = data.order.shipping_address}
         <div class="space-y-1.5 text-sm">
           <p class="font-medium text-gray-900">
-            {[a.first_name, a.last_name].filter(Boolean).join(' ') || '—'}
+            {[a.first_name, a.last_name].filter(Boolean).join(' ') || m.admin_products_dash()}
           </p>
           <p class="text-gray-500 whitespace-pre-line leading-relaxed">{formatAddress(a)}</p>
           {#if a.phone}
@@ -180,7 +181,7 @@
           {/if}
         </div>
       {:else}
-        <p class="text-sm text-gray-400 italic">No shipping address</p>
+        <p class="text-sm text-gray-400 italic">{m.admin_order_card_no_shipping()}</p>
       {/if}
     </div>
 
@@ -189,14 +190,14 @@
   <!-- Order items -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
     <div class="px-5 py-4 border-b border-gray-50">
-      <h2 class="font-semibold text-gray-900">Items</h2>
+      <h2 class="font-semibold text-gray-900">{m.admin_order_items_heading()}</h2>
     </div>
     <table class="w-full text-sm">
       <thead class="bg-gray-50">
         <tr>
-          <th class="text-left px-5 py-3 font-medium text-gray-500">Product</th>
-          <th class="text-right px-5 py-3 font-medium text-gray-500">Qty</th>
-          <th class="text-right px-5 py-3 font-medium text-gray-500">Line Total</th>
+          <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_order_items_col_product()}</th>
+          <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_order_items_col_qty()}</th>
+          <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_order_items_col_line_total()}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
@@ -204,7 +205,7 @@
           <tr>
             <td class="px-5 py-3">
               <p class="font-medium text-gray-900">{item.product_name}</p>
-              <p class="text-xs text-gray-400">SKU: {item.variant_sku}</p>
+              <p class="text-xs text-gray-400">{m.admin_order_items_sku({ sku: item.variant_sku })}</p>
             </td>
             <td class="px-5 py-3 text-right text-gray-700">{item.quantity}</td>
             <td class="px-5 py-3 text-right font-medium text-gray-900">
@@ -212,20 +213,20 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan="3" class="px-5 py-6 text-center text-gray-400">No items</td></tr>
+          <tr><td colspan="3" class="px-5 py-6 text-center text-gray-400">{m.admin_order_items_empty()}</td></tr>
         {/each}
       </tbody>
       <tfoot class="border-t border-gray-100 bg-gray-50">
         <tr>
-          <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">Subtotal</td>
+          <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_subtotal()}</td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">HK${data.order.subtotal.toFixed(2)}</td>
         </tr>
         <tr>
-          <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">Shipping</td>
+          <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_shipping()}</td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">HK${data.order.shipping_fee.toFixed(2)}</td>
         </tr>
         <tr>
-          <td colspan="2" class="px-5 py-3 text-right text-sm font-bold text-gray-900">Total</td>
+          <td colspan="2" class="px-5 py-3 text-right text-sm font-bold text-gray-900">{m.admin_order_items_total()}</td>
           <td class="px-5 py-3 text-right font-bold text-gray-900">HK${data.order.total.toFixed(2)}</td>
         </tr>
       </tfoot>
@@ -236,7 +237,7 @@
   {#if data.shipment || canCreateShipment}
     <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
       <div class="flex items-center justify-between gap-3 mb-3">
-        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Shipment</h3>
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_order_shipment_heading()}</h3>
         {#if data.shipment}
           <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                        {data.shipment.status === 'delivered'
@@ -255,16 +256,16 @@
         {@const s = data.shipment}
         <div class="space-y-2 text-sm">
           <div class="flex justify-between gap-2">
-            <span class="text-gray-400">Carrier</span>
+            <span class="text-gray-400">{m.admin_order_shipment_carrier()}</span>
             <span class="font-medium text-gray-900 text-right">{courierLabel(s.carrier)}</span>
           </div>
           <div class="flex justify-between gap-2">
-            <span class="text-gray-400">Service</span>
+            <span class="text-gray-400">{m.admin_order_shipment_service()}</span>
             <span class="font-medium text-gray-900 text-right">{s.service}</span>
           </div>
           {#if s.tracking_number}
             <div class="flex justify-between gap-2">
-              <span class="text-gray-400">Tracking #</span>
+              <span class="text-gray-400">{m.admin_order_shipment_tracking()}</span>
               <a href={s.tracking_url ?? '#'} target="_blank" rel="noopener"
                  class="font-mono text-gray-900 hover:text-gray-600 transition-colors text-right">
                 {s.tracking_number} ↗
@@ -272,7 +273,7 @@
             </div>
           {/if}
           <div class="flex justify-between gap-2">
-            <span class="text-gray-400">Fee</span>
+            <span class="text-gray-400">{m.admin_order_shipment_fee()}</span>
             <span class="font-medium text-gray-900 text-right">HK${s.fee_hkd.toFixed(2)}</span>
           </div>
         </div>
@@ -282,7 +283,7 @@
             <a href={s.label_url} target="_blank" rel="noopener"
                class="px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
                       hover:bg-gray-50 transition-colors">
-              Download Waybill PDF
+              {m.admin_order_shipment_download_waybill()}
             </a>
           {/if}
           {#if !pickupRequested}
@@ -295,11 +296,11 @@
               <SaveButton loading={requestingPickup}
                       class="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
                              hover:bg-gray-50 transition-colors disabled:opacity-50">
-                Request Pickup
+                {m.admin_order_shipment_request_pickup()}
               </SaveButton>
             </form>
           {:else}
-            <span class="px-3 py-2 text-xs text-gray-400">Pickup already requested</span>
+            <span class="px-3 py-2 text-xs text-gray-400">{m.admin_order_shipment_pickup_already()}</span>
           {/if}
         </div>
       {:else}
@@ -313,19 +314,18 @@
               class="flex flex-col gap-3">
           {#if !data.order.selected_carrier}
             <p class="text-xs text-gray-500 leading-relaxed">
-              This order pre-dates ShipAny enablement and has no carrier selected.
-              Pick one to create a shipment.
+              {m.admin_order_shipment_legacy_intro()}
             </p>
             <div class="grid grid-cols-2 gap-2">
               {#if (data.couriers?.length ?? 0) > 0}
                 <div class="flex flex-col gap-1">
-                  <label for="carrier-select" class="text-xs font-medium text-gray-600">Courier</label>
+                  <label for="carrier-select" class="text-xs font-medium text-gray-600">{m.admin_order_shipment_label_courier()}</label>
                   <select id="carrier-select" name="carrier"
                           value={carrierOverride}
                           onchange={(e) => onCarrierChange(e.currentTarget.value)}
                           class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
                                  focus:outline-none focus:ring-2 focus:ring-gray-900" required>
-                    <option value="" disabled>Select courier</option>
+                    <option value="" disabled>{m.admin_order_shipment_select_courier()}</option>
                     {#each data.couriers as c}
                       <option value={c.uid}>{c.name}</option>
                     {/each}
@@ -335,35 +335,35 @@
                   </select>
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label for="service-select" class="text-xs font-medium text-gray-600">Service Plan</label>
+                  <label for="service-select" class="text-xs font-medium text-gray-600">{m.admin_order_shipment_label_service_plan()}</label>
                   {#if selectedCourierPlans.length > 0}
                     <select id="service-select" name="service" bind:value={serviceOverride}
                             class="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white
                                    focus:outline-none focus:ring-2 focus:ring-gray-900" required>
-                      <option value="" disabled>Select service plan</option>
+                      <option value="" disabled>{m.admin_order_shipment_select_service()}</option>
                       {#each selectedCourierPlans as p}
                         <option value={p.cour_svc_pl}>{p.cour_svc_pl}</option>
                       {/each}
                     </select>
                   {:else}
                     <input id="service-select" name="service" bind:value={serviceOverride}
-                           placeholder="service plan name"
+                           placeholder={m.admin_order_shipment_service_placeholder()}
                            class="border border-gray-200 rounded-lg px-3 py-2 text-sm
                                   focus:outline-none focus:ring-2 focus:ring-gray-900" required />
                   {/if}
                 </div>
               {:else}
                 <div class="flex flex-col gap-1">
-                  <label for="carrier-input" class="text-xs font-medium text-gray-600">Courier</label>
+                  <label for="carrier-input" class="text-xs font-medium text-gray-600">{m.admin_order_shipment_label_courier()}</label>
                   <input id="carrier-input" name="carrier" bind:value={carrierOverride}
-                         placeholder="cour_uid (UUID)"
+                         placeholder={m.admin_order_shipment_uid_placeholder()}
                          class="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" required />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label for="service-input" class="text-xs font-medium text-gray-600">Service Plan</label>
+                  <label for="service-input" class="text-xs font-medium text-gray-600">{m.admin_order_shipment_label_service_plan()}</label>
                   <input id="service-input" name="service" bind:value={serviceOverride}
-                         placeholder="service plan name"
+                         placeholder={m.admin_order_shipment_service_placeholder()}
                          class="border border-gray-200 rounded-lg px-3 py-2 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" required />
                 </div>
@@ -371,7 +371,7 @@
             </div>
           {:else}
             <p class="text-xs text-gray-500">
-              Customer chose: <span class="font-medium text-gray-700">{courierLabel(data.order.selected_carrier)} / {data.order.selected_service}</span>
+              {m.admin_order_shipment_customer_chose()}<span class="font-medium text-gray-700">{courierLabel(data.order.selected_carrier)} / {data.order.selected_service}</span>
               {#if data.order.pickup_point_label}<br /><span class="text-gray-400">{data.order.pickup_point_label}</span>{/if}
             </p>
           {/if}
@@ -384,7 +384,7 @@
                   class="self-start inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-900
                          text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
                          disabled:opacity-50">
-            Create Shipment
+            {m.admin_order_shipment_create()}
           </SaveButton>
         </form>
       {/if}
@@ -393,17 +393,17 @@
 
   <!-- Notices: system events + admin/customer messages timeline -->
   <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
-    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Notices</h3>
+    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">{m.admin_order_notices_heading()}</h3>
 
     {#if (data.notices?.length ?? 0) === 0}
-      <p class="text-sm text-gray-400 italic">No notices yet.</p>
+      <p class="text-sm text-gray-400 italic">{m.admin_order_notices_empty()}</p>
     {:else}
       <div class="flex flex-col gap-3">
         {#each data.notices as n (n.id)}
           {#if n.role === 'system'}
             <div class="flex items-start gap-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 mt-0.5 shrink-0">
-                System
+                {m.admin_order_notices_system_badge()}
               </span>
               <div class="flex-1 min-w-0">
                 <p class="text-gray-700 whitespace-pre-wrap break-words">{n.body}</p>
@@ -418,14 +418,14 @@
           {:else if n.role === 'admin'}
             <div class="flex items-start gap-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 mt-0.5 shrink-0">
-                Admin → Customer
+                {m.admin_order_notices_admin_badge()}
               </span>
               <div class="flex-1 min-w-0">
                 <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
                 <p class="text-xs text-gray-400 mt-1">
                   {fmtNoticeTime(n.created_at)}
                   {#if !n.read_at}
-                    <span class="ml-2 text-amber-600">• unread by customer</span>
+                    <span class="ml-2 text-amber-600">{m.admin_order_notices_unread_marker()}</span>
                   {/if}
                 </p>
               </div>
@@ -433,7 +433,7 @@
           {:else}
             <div class="flex items-start gap-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-green-50 text-green-700 mt-0.5 shrink-0">
-                Customer
+                {m.admin_order_notices_customer_badge()}
               </span>
               <div class="flex-1 min-w-0">
                 <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
@@ -457,16 +457,16 @@
               };
             }}
             class="flex flex-col gap-2">
-        <label for="internal-note" class="text-xs font-medium text-gray-600">Internal note (admin-only)</label>
+        <label for="internal-note" class="text-xs font-medium text-gray-600">{m.admin_order_internal_note_label()}</label>
         <textarea id="internal-note" name="body" rows="3" bind:value={internalNoteBody}
-                  placeholder="Visible to admins only"
+                  placeholder={m.admin_order_internal_note_placeholder()}
                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
         <SaveButton loading={addingNote}
                 class="self-start inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium
                        text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors
                        disabled:opacity-50">
-          Add note
+          {m.admin_order_add_note()}
         </SaveButton>
       </form>
 
@@ -481,16 +481,16 @@
               };
             }}
             class="flex flex-col gap-2">
-        <label for="admin-message" class="text-xs font-medium text-gray-600">Reply to customer</label>
+        <label for="admin-message" class="text-xs font-medium text-gray-600">{m.admin_order_reply_label()}</label>
         <textarea id="admin-message" name="body" rows="3" bind:value={adminMessageBody}
-                  placeholder="Customer will receive this by email"
+                  placeholder={m.admin_order_reply_placeholder()}
                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
         <SaveButton loading={sendingMessage}
                 class="self-start inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-900 text-white
                        text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors
                        disabled:opacity-50">
-          Send
+          {m.admin_order_reply_send()}
         </SaveButton>
       </form>
     </div>
@@ -500,26 +500,26 @@
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     <div class="hidden md:block"></div>
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Payment</h3>
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.admin_order_payment_heading()}</h3>
       <div class="space-y-1.5 text-sm">
         <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Method</span>
+          <span class="text-gray-400">{m.admin_order_payment_method()}</span>
           <span class="font-medium text-gray-900 capitalize">
             {formatPaymentMethod(data.order)}
           </span>
         </div>
         <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Status</span>
+          <span class="text-gray-400">{m.admin_order_payment_status()}</span>
           <span class="font-medium text-gray-900 capitalize">
-            {data.order.payment_status?.replace(/_/g, ' ') ?? '—'}
+            {data.order.payment_status?.replace(/_/g, ' ') ?? m.admin_products_dash()}
           </span>
         </div>
         <div class="flex justify-between gap-2">
-          <span class="text-gray-400">Paid at</span>
+          <span class="text-gray-400">{m.admin_order_payment_paid_at()}</span>
           <span class="font-medium text-gray-900 text-right">
             {data.order.paid_at
               ? new Date(data.order.paid_at).toLocaleString('en-HK')
-              : '—'}
+              : m.admin_products_dash()}
           </span>
         </div>
       </div>
@@ -538,10 +538,10 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div class="hidden md:block"></div>
         <div class="bg-white rounded-2xl border border-gray-100 p-5">
-          <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Order Management</h3>
+          <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">{m.admin_order_management_heading()}</h3>
           <div class="flex flex-col gap-4">
             <div class="flex flex-col gap-1.5">
-              <label for="status-select" class="text-xs font-medium text-gray-600">Status</label>
+              <label for="status-select" class="text-xs font-medium text-gray-600">{m.admin_order_status_label()}</label>
               <select id="status-select" name="status"
                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
                              focus:ring-2 focus:ring-gray-900">
@@ -551,8 +551,8 @@
               </select>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label for="status-note" class="text-xs font-medium text-gray-600">Note</label>
-              <input id="status-note" name="note" type="text" placeholder="Optional"
+              <label for="status-note" class="text-xs font-medium text-gray-600">{m.admin_order_note_label()}</label>
+              <input id="status-note" name="note" type="text" placeholder={m.admin_order_note_placeholder()}
                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
                             focus:ring-2 focus:ring-gray-900" />
             </div>
@@ -569,7 +569,7 @@
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
                        text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
                        disabled:opacity-50 whitespace-nowrap">
-          Update
+          {m.admin_order_update()}
         </SaveButton>
       </div>
     </form>

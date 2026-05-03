@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as m from '$lib/paraglide/messages';
+
   interface Props {
     value: string;
     placeholder?: string;
@@ -6,7 +8,8 @@
     onChange: (q: string) => void;
   }
 
-  let { value, placeholder = 'Search…', delay = 250, onChange }: Props = $props();
+  let { value, placeholder, delay = 250, onChange }: Props = $props();
+  const resolvedPlaceholder = $derived(placeholder ?? m.admin_search_placeholder_default());
 
   // Local mirror so typing stays responsive while the debounce decides
   // whether to fire onChange. Re-syncs whenever the parent's value changes
@@ -46,7 +49,7 @@
   <input
     type="search"
     value={local}
-    {placeholder}
+    placeholder={resolvedPlaceholder}
     oninput={onInput}
     autocomplete="off"
     spellcheck="false"
@@ -57,7 +60,7 @@
     <button
       type="button"
       onclick={clear}
-      aria-label="Clear search"
+      aria-label={m.admin_search_clear_aria()}
       class="absolute inset-y-0 right-2 flex items-center justify-center w-6 h-full text-gray-400 hover:text-gray-700">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />

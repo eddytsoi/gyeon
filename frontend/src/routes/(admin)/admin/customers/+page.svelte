@@ -4,6 +4,7 @@
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -15,16 +16,22 @@
   }
 </script>
 
-<svelte:head><title>Customers — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_customers_title()}</title></svelte:head>
 
 <div class="max-w-5xl">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">Customers</h1>
-    <span class="text-sm text-gray-400">{data.customers.length} {data.q ? 'match' + (data.customers.length === 1 ? '' : 'es') : 'total'}</span>
+    <h1 class="text-2xl font-bold text-gray-900">{m.admin_customers_heading()}</h1>
+    <span class="text-sm text-gray-400">
+      {#if data.q}
+        {data.customers.length === 1 ? m.admin_customers_count_match_one({ count: data.customers.length }) : m.admin_customers_count_match_many({ count: data.customers.length })}
+      {:else}
+        {m.admin_customers_count_total({ count: data.customers.length })}
+      {/if}
+    </span>
   </div>
 
   <div class="mb-4">
-    <SearchInput value={data.q} placeholder="Search by name, email or phone…" onChange={onSearch} />
+    <SearchInput value={data.q} placeholder={m.admin_customers_search_placeholder()} onChange={onSearch} />
   </div>
 
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
@@ -38,21 +45,21 @@
           </svg>
         </div>
         {#if data.q}
-          <p class="font-medium text-gray-900 mb-1">No matches for "{data.q}"</p>
-          <p class="text-sm text-gray-400">Try a different name, email or phone fragment.</p>
+          <p class="font-medium text-gray-900 mb-1">{m.admin_customers_empty_no_match_pre()}{data.q}{m.admin_customers_empty_no_match_post()}</p>
+          <p class="text-sm text-gray-400">{m.admin_customers_empty_no_match_hint()}</p>
         {:else}
-          <p class="font-medium text-gray-900 mb-1">No customers yet</p>
-          <p class="text-sm text-gray-400">Customers will appear here after they register.</p>
+          <p class="font-medium text-gray-900 mb-1">{m.admin_customers_empty()}</p>
+          <p class="text-sm text-gray-400">{m.admin_customers_empty_hint()}</p>
         {/if}
       </div>
     {:else}
       <table class="w-full text-sm">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Customer</th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Email</th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Joined</th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_customers_col_customer()}</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">{m.admin_customers_col_email()}</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">{m.admin_customers_col_joined()}</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_customers_col_status()}</th>
             <th class="px-5 py-3"></th>
           </tr>
         </thead>
@@ -70,13 +77,13 @@
               <td class="px-5 py-3">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                              {customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
-                  {customer.is_active ? 'Active' : 'Inactive'}
+                  {customer.is_active ? m.admin_customers_status_active() : m.admin_customers_status_inactive()}
                 </span>
               </td>
               <td class="px-5 py-3 text-right">
                 <a href="/admin/customers/{customer.id}"
                    class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                  View
+                  {m.admin_customers_view()}
                 </a>
               </td>
             </tr>

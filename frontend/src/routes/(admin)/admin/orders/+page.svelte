@@ -5,6 +5,7 @@
   import type { Order } from '$lib/types';
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -28,13 +29,13 @@
     deleting = true;
     try {
       await adminDeleteOrder(data.token, target.id);
-      notify.success(`Order ${shortId} deleted`);
+      notify.success(m.admin_orders_deleted_success({ id: shortId }));
       deleteTarget = null;
       await invalidateAll();
     } catch (e) {
       notify.error(
-        `Failed to delete order #${shortId}`,
-        e instanceof Error ? e.message : 'Please try again.'
+        m.admin_orders_delete_failure({ id: shortId }),
+        e instanceof Error ? e.message : m.admin_orders_delete_failure_default()
       );
     } finally {
       deleting = false;
@@ -42,19 +43,19 @@
   }
 </script>
 
-<svelte:head><title>Orders — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_orders_title()}</title></svelte:head>
 
-<h1 class="text-2xl font-bold text-gray-900 mb-8">Orders</h1>
+<h1 class="text-2xl font-bold text-gray-900 mb-8">{m.admin_orders_heading()}</h1>
 
 <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
      use:spotlight={{ selector: '.js-row' }}>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
-        <th class="text-left px-5 py-3 font-medium text-gray-500">Order ID</th>
-        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">Date</th>
-        <th class="text-left px-5 py-3 font-medium text-gray-500">Status</th>
-        <th class="text-right px-5 py-3 font-medium text-gray-500">Total</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_orders_col_date()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_total()}</th>
         <th class="px-5 py-3"></th>
       </tr>
     </thead>
@@ -65,7 +66,7 @@
             <span class="inline-flex items-center gap-2">
               {order.order_number || `ORD-${order.number}`}
               {#if (data.unreadCounts?.[order.id] ?? 0) > 0}
-                <span title="Unread customer messages"
+                <span title={m.admin_orders_unread_aria()}
                       class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5
                              rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
                   {data.unreadCounts[order.id]}
@@ -88,8 +89,8 @@
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-1">
               <a href="/admin/orders/{order.id}"
-                 title="Details"
-                 aria-label="Order details"
+                 title={m.admin_orders_action_details()}
+                 aria-label={m.admin_orders_aria_details()}
                  class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round"
@@ -98,8 +99,8 @@
                 </svg>
               </a>
               <button onclick={() => deleteTarget = order}
-                      title="Delete"
-                      aria-label="Delete order"
+                      title={m.admin_orders_action_delete()}
+                      aria-label={m.admin_orders_aria_delete()}
                       class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round"
@@ -111,7 +112,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-gray-400">No orders yet.</td>
+          <td colspan="5" class="px-5 py-10 text-center text-gray-400">{m.admin_orders_empty()}</td>
         </tr>
       {/each}
     </tbody>
@@ -123,24 +124,22 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => { if (!deleting) deleteTarget = null; }}
-         role="button" tabindex="-1" aria-label="Close"></div>
+         role="button" tabindex="-1" aria-label={m.admin_orders_aria_close()}></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="text-base font-bold text-gray-900 mb-1">Delete order?</h3>
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_orders_delete_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        Are you sure you want to delete order
-        <span class="font-mono font-medium text-gray-700">{deleteTarget.order_number || `ORD-${deleteTarget.number}`}</span>?
-        This action cannot be undone.
+        {m.admin_orders_delete_body_pre()}<span class="font-mono font-medium text-gray-700">{deleteTarget.order_number || `ORD-${deleteTarget.number}`}</span>{m.admin_orders_delete_body_post()}
       </p>
       <div class="flex gap-3">
         <button onclick={() => deleteTarget = null} disabled={deleting}
                 class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                        text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
-          Cancel
+          {m.common_cancel()}
         </button>
         <button onclick={confirmDelete} disabled={deleting}
                 class="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
                        hover:bg-red-600 transition-colors disabled:opacity-50">
-          {deleting ? 'Deleting…' : 'Delete Order'}
+          {deleting ? m.admin_orders_deleting() : m.admin_orders_delete_button()}
         </button>
       </div>
     </div>

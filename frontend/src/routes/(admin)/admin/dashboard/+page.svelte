@@ -1,16 +1,17 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
   let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head><title>Dashboard — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.dashboard_title()}</title></svelte:head>
 
 <div class="max-w-5xl space-y-8">
 
   <!-- Greeting -->
   <div>
-    <h2 class="text-2xl font-bold text-gray-900">Good day 👋</h2>
-    <p class="text-sm text-gray-500 mt-1">Here's what's happening in your store.</p>
+    <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
+    <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
   </div>
 
   {#if data.stats}
@@ -25,7 +26,7 @@
           </svg>
         </div>
         <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.total_products}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">Total Products</p>
+        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_products()}</p>
       </div>
 
       <!-- Total Orders -->
@@ -36,7 +37,7 @@
           </svg>
         </div>
         <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.total_orders}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">Total Orders</p>
+        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_orders()}</p>
       </div>
 
       <!-- Pending Orders -->
@@ -47,7 +48,7 @@
           </svg>
         </div>
         <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.pending_orders}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">Pending Orders</p>
+        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_pending_orders()}</p>
       </div>
 
       <!-- Total Revenue -->
@@ -60,14 +61,14 @@
         <p class="mt-4 text-2xl font-bold text-gray-900 tabular-nums">
           HK${data.stats.total_revenue.toLocaleString('en-HK', { minimumFractionDigits: 0 })}
         </p>
-        <p class="text-xs text-gray-400 font-medium mt-1">Total Revenue</p>
+        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_revenue()}</p>
       </div>
 
     </div>
 
     <!-- Quick actions -->
     <div>
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Quick Actions</p>
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">{m.dashboard_quick_actions()}</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
         <a href="/admin/products"
@@ -81,8 +82,8 @@
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="font-semibold text-gray-900 text-sm">Manage Products</p>
-            <p class="text-xs text-gray-400 mt-0.5">Add, edit or remove products</p>
+            <p class="font-semibold text-gray-900 text-sm">{m.dashboard_qa_manage_products()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.dashboard_qa_manage_products_desc()}</p>
           </div>
           <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-600 group-hover:translate-x-0.5
                       transition-all flex-shrink-0"
@@ -102,8 +103,8 @@
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="font-semibold text-gray-900 text-sm">View Orders</p>
-            <p class="text-xs text-gray-400 mt-0.5">Process and track orders</p>
+            <p class="font-semibold text-gray-900 text-sm">{m.dashboard_qa_view_orders()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.dashboard_qa_view_orders_desc()}</p>
           </div>
           <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-600 group-hover:translate-x-0.5
                       transition-all flex-shrink-0"
@@ -117,7 +118,7 @@
 
   {:else}
     <div class="h-40 flex items-center justify-center text-gray-400 text-sm">
-      Could not load stats.
+      {m.dashboard_stats_unavailable()}
     </div>
   {/if}
 
