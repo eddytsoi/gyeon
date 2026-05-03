@@ -1,4 +1,4 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, RequestEvent } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { paraglideMiddleware } from '$lib/paraglide/server.js';
@@ -8,16 +8,18 @@ const MAINTENANCE_PATH = '/maintenance';
 
 const SUPPORTED_LOCALES = new Set(['en', 'zh-Hant']);
 const PARAGLIDE_COOKIE = 'PARAGLIDE_LOCALE';
-const SETTINGS_CACHE_TTL_MS = 60_000;
 
-type CachedSettings = { value: { maintenance: boolean; siteLocale: string }; expiresAt: number };
-let settingsCache: CachedSettings | null = null;
+type PublicSettings = { maintenance: boolean; siteLocale: string };
 
-async function fetchPublicSettings(): Promise<{ maintenance: boolean; siteLocale: string }> {
-  if (settingsCache && settingsCache.expiresAt > Date.now()) {
-    return settingsCache.value;
-  }
-  let value = { maintenance: false, siteLocale: 'en' };
+// Per-request memo so handleParaglide and handleMaintenance share one fetch
+// without holding stale data across requests. Stored on event.locals.
+type LocalsWithSettings = App.Locals & { _publicSettings?: PublicSettings };
+
+async function fetchPublicSettings(event: RequestEvent): Promise<PublicSettings> {
+  const locals = event.locals as LocalsWithSettings;
+  if (locals._publicSettings) return locals._publicSettings;
+
+  let value: PublicSettings = { maintenance: false, siteLocale: 'en' };
   try {
     const res = await fetch(`${API_BASE}/settings`, { signal: AbortSignal.timeout(2000) });
     if (res.ok) {
@@ -30,7 +32,7 @@ async function fetchPublicSettings(): Promise<{ maintenance: boolean; siteLocale
   } catch {
     /* keep defaults */
   }
-  settingsCache = { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS };
+  locals._publicSettings = value;
   return value;
 }
 
@@ -41,7 +43,7 @@ const handleParaglide: Handle = async ({ event, resolve }) => {
   // effective default — overriding the browser's Accept-Language — until the
   // user explicitly chooses a language via the language switcher.
   if (!event.cookies.get(PARAGLIDE_COOKIE)) {
-    const { siteLocale } = await fetchPublicSettings();
+    const { siteLocale } = await fetchPublicSettings(event);
     if (siteLocale && SUPPORTED_LOCALES.has(siteLocale)) {
       const headers = new Headers(event.request.headers);
       const existing = headers.get('cookie') ?? '';
@@ -87,7 +89,7 @@ const handleMaintenance: Handle = async ({ event, resolve }) => {
   // Logged-in admins bypass maintenance mode on all pages
   if (adminToken) return resolve(event);
 
-  const { maintenance } = await fetchPublicSettings();
+  const { maintenance } = await fetchPublicSettings(event);
   if (maintenance) {
     throw redirect(302, MAINTENANCE_PATH);
   }
