@@ -60,6 +60,7 @@ export interface ProductImage {
   media_file_id?: string;
   url: string;
   mime_type?: string;
+  thumbnail_url?: string;
   alt_text?: string;
   sort_order: number;
   is_primary: boolean;

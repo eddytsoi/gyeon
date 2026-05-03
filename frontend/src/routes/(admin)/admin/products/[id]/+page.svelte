@@ -377,7 +377,7 @@
               showResult(result,
                 data.isNew ? m.admin_product_edit_save_create_success({ name: productName }) : m.admin_product_edit_save_save_success({ name: productName }),
                 data.isNew ? m.admin_product_edit_save_create_failure({ name: productName }) : m.admin_product_edit_save_save_failure({ name: productName }));
-              await update();
+              await update({ reset: false });
               saving = false;
               kindChangeConfirmed = false;
             };

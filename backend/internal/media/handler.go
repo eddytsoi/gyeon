@@ -31,16 +31,18 @@ type MediaRef struct {
 }
 
 type MediaFile struct {
-	ID            string     `json:"id"`
-	Filename      string     `json:"filename"`
-	OriginalName  string     `json:"original_name"`
-	MimeType      string     `json:"mime_type"`
-	SizeBytes     int64      `json:"size_bytes"`
-	URL           string     `json:"url"`
-	CreatedAt     string     `json:"created_at"`
-	Refs          []MediaRef `json:"refs"`
-	WebpURL       *string    `json:"webp_url"`
-	WebpSizeBytes *int64     `json:"webp_size_bytes"`
+	ID                 string     `json:"id"`
+	Filename           string     `json:"filename"`
+	OriginalName       string     `json:"original_name"`
+	MimeType           string     `json:"mime_type"`
+	SizeBytes          int64      `json:"size_bytes"`
+	URL                string     `json:"url"`
+	CreatedAt          string     `json:"created_at"`
+	Refs               []MediaRef `json:"refs"`
+	WebpURL            *string    `json:"webp_url"`
+	WebpSizeBytes      *int64     `json:"webp_size_bytes"`
+	ThumbnailURL       *string    `json:"thumbnail_url,omitempty"`
+	ThumbnailSizeBytes *int64     `json:"thumbnail_size_bytes,omitempty"`
 }
 
 type Handler struct {
@@ -93,6 +95,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		SELECT mf.id, mf.filename, mf.original_name, mf.mime_type,
 		       mf.size_bytes, mf.url, mf.created_at,
 		       mf.webp_url, mf.webp_size_bytes,
+		       mf.thumbnail_url, mf.thumbnail_size_bytes,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object(
 		           'type', refs.entity_type,
 		           'id',   refs.entity_id,
@@ -119,7 +122,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		    WHERE cp.cover_media_file_id IS NULL AND cp.cover_image_url IS NOT NULL
 		) refs ON refs.mf_id = mf.id
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
-		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes
+		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes,
+		         mf.thumbnail_url, mf.thumbnail_size_bytes
 		ORDER BY mf.created_at DESC
 		LIMIT 200`)
 	if err != nil {
@@ -132,10 +136,11 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f MediaFile
 		var refsJSON []byte
-		var webpURL sql.NullString
-		var webpSizeBytes sql.NullInt64
+		var webpURL, thumbURL sql.NullString
+		var webpSizeBytes, thumbSizeBytes sql.NullInt64
 		if err := rows.Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
-			&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes, &refsJSON); err != nil {
+			&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes,
+			&thumbURL, &thumbSizeBytes, &refsJSON); err != nil {
 			respond.InternalError(w)
 			return
 		}
@@ -144,6 +149,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		if webpSizeBytes.Valid {
 			f.WebpSizeBytes = &webpSizeBytes.Int64
+		}
+		if thumbURL.Valid {
+			f.ThumbnailURL = &thumbURL.String
+		}
+		if thumbSizeBytes.Valid {
+			f.ThumbnailSizeBytes = &thumbSizeBytes.Int64
 		}
 		if err := json.Unmarshal(refsJSON, &f.Refs); err != nil {
 			f.Refs = []MediaRef{}
@@ -156,12 +167,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 	var f MediaFile
 	var refsJSON []byte
-	var webpURL sql.NullString
-	var webpSizeBytes sql.NullInt64
+	var webpURL, thumbURL sql.NullString
+	var webpSizeBytes, thumbSizeBytes sql.NullInt64
 	err := h.db.QueryRowContext(r.Context(), `
 		SELECT mf.id, mf.filename, mf.original_name, mf.mime_type,
 		       mf.size_bytes, mf.url, mf.created_at,
 		       mf.webp_url, mf.webp_size_bytes,
+		       mf.thumbnail_url, mf.thumbnail_size_bytes,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object(
 		           'type', refs.entity_type,
 		           'id',   refs.entity_id,
@@ -189,9 +201,11 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 		) refs ON refs.mf_id = mf.id
 		WHERE mf.id = $1
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
-		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes`,
+		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes,
+		         mf.thumbnail_url, mf.thumbnail_size_bytes`,
 		id).Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
-		&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes, &refsJSON)
+		&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes,
+		&thumbURL, &thumbSizeBytes, &refsJSON)
 	if err == sql.ErrNoRows {
 		respond.NotFound(w)
 		return
@@ -205,6 +219,12 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	if webpSizeBytes.Valid {
 		f.WebpSizeBytes = &webpSizeBytes.Int64
+	}
+	if thumbURL.Valid {
+		f.ThumbnailURL = &thumbURL.String
+	}
+	if thumbSizeBytes.Valid {
+		f.ThumbnailSizeBytes = &thumbSizeBytes.Int64
 	}
 	if err := json.Unmarshal(refsJSON, &f.Refs); err != nil {
 		f.Refs = []MediaRef{}
@@ -362,24 +382,43 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		// WebP failure is non-fatal: original upload succeeds regardless
 	}
 
+	var thumbFilenameDB, thumbURLDB sql.NullString
+	var thumbSizeBytesDB sql.NullInt64
+	if strings.HasPrefix(mimeType, "video/") {
+		tfn, turl, tsize, terr := generateVideoThumbnail(destPath, filename, h.baseURL)
+		if terr == nil {
+			thumbFilenameDB = sql.NullString{String: tfn, Valid: true}
+			thumbURLDB = sql.NullString{String: turl, Valid: true}
+			thumbSizeBytesDB = sql.NullInt64{Int64: tsize, Valid: true}
+		} else {
+			log.Printf("media upload: thumbnail generation failed for %q: %v", filename, terr)
+		}
+		// Thumbnail failure is non-fatal: original upload succeeds regardless
+	}
+
 	var f MediaFile
-	var webpURL sql.NullString
-	var webpSizeBytes sql.NullInt64
+	var webpURL, thumbURL sql.NullString
+	var webpSizeBytes, thumbSizeBytes sql.NullInt64
 	err = h.db.QueryRowContext(r.Context(),
 		`INSERT INTO media_files
 		     (filename, original_name, mime_type, size_bytes, url,
-		      webp_filename, webp_url, webp_size_bytes)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		      webp_filename, webp_url, webp_size_bytes,
+		      thumbnail_filename, thumbnail_url, thumbnail_size_bytes)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		 RETURNING id, filename, original_name, mime_type, size_bytes, url, created_at,
-		           webp_url, webp_size_bytes`,
+		           webp_url, webp_size_bytes, thumbnail_url, thumbnail_size_bytes`,
 		filename, header.Filename, mimeType, size, fileURL,
-		webpFilenameDB, webpURLDB, webpSizeBytesDB).
+		webpFilenameDB, webpURLDB, webpSizeBytesDB,
+		thumbFilenameDB, thumbURLDB, thumbSizeBytesDB).
 		Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.URL, &f.CreatedAt,
-			&webpURL, &webpSizeBytes)
+			&webpURL, &webpSizeBytes, &thumbURL, &thumbSizeBytes)
 	if err != nil {
 		os.Remove(destPath)
 		if webpFilenameDB.Valid {
 			os.Remove(filepath.Join(uploadsDir, webpFilenameDB.String))
+		}
+		if thumbFilenameDB.Valid {
+			os.Remove(filepath.Join(uploadsDir, thumbFilenameDB.String))
 		}
 		respond.InternalError(w)
 		return
@@ -389,6 +428,12 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	if webpSizeBytes.Valid {
 		f.WebpSizeBytes = &webpSizeBytes.Int64
+	}
+	if thumbURL.Valid {
+		f.ThumbnailURL = &thumbURL.String
+	}
+	if thumbSizeBytes.Valid {
+		f.ThumbnailSizeBytes = &thumbSizeBytes.Int64
 	}
 	f.Refs = []MediaRef{}
 	respond.JSON(w, http.StatusCreated, f)
@@ -427,10 +472,10 @@ func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var filename string
-	var webpFilename sql.NullString
+	var webpFilename, thumbFilename sql.NullString
 	err := h.db.QueryRowContext(r.Context(),
-		`DELETE FROM media_files WHERE id=$1 RETURNING filename, webp_filename`, id).
-		Scan(&filename, &webpFilename)
+		`DELETE FROM media_files WHERE id=$1 RETURNING filename, webp_filename, thumbnail_filename`, id).
+		Scan(&filename, &webpFilename, &thumbFilename)
 	if err == sql.ErrNoRows {
 		respond.NotFound(w)
 		return
@@ -450,6 +495,13 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 			log.Printf("media delete: remove webp %q: %v", webpPath, err)
 		}
 		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+webpFilename.String)
+	}
+	if thumbFilename.Valid && thumbFilename.String != "" {
+		thumbPath := filepath.Join(uploadsDir, thumbFilename.String)
+		if err := os.Remove(thumbPath); err != nil {
+			log.Printf("media delete: remove thumbnail %q: %v", thumbPath, err)
+		}
+		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+thumbFilename.String)
 	}
 	h.purgeCloudflare(r.Context(), purgeURLs)
 	w.WriteHeader(http.StatusNoContent)
@@ -491,6 +543,78 @@ func (h *Handler) purgeCloudflare(ctx context.Context, urls []string) {
 // GIF, SVG, PDF, and videos are excluded.
 func isConvertibleToWebP(mimeType string) bool {
 	return mimeType == "image/jpeg" || mimeType == "image/png"
+}
+
+// generateVideoThumbnail extracts a representative first frame from srcPath
+// using the system ffmpeg binary, written as a JPEG sibling file. Returns the
+// thumbnail filename, public URL, and byte size.
+// Requires ffmpeg to be installed (apt-get install ffmpeg / brew install ffmpeg).
+func generateVideoThumbnail(srcPath, srcFilename, baseURL string) (thumbFilename, thumbURL string, thumbSize int64, err error) {
+	thumbFilename = strings.TrimSuffix(srcFilename, filepath.Ext(srcFilename)) + "_thumb.jpg"
+	thumbPath := filepath.Join(uploadsDir, thumbFilename)
+
+	if err = exec.Command("ffmpeg", "-y", "-i", srcPath,
+		"-vf", "thumbnail,scale=640:-1", "-frames:v", "1", "-q:v", "4",
+		thumbPath).Run(); err != nil {
+		return
+	}
+
+	info, statErr := os.Stat(thumbPath)
+	if statErr != nil {
+		os.Remove(thumbPath)
+		err = statErr
+		return
+	}
+
+	thumbSize = info.Size()
+	thumbURL = strings.TrimRight(baseURL, "/") + "/uploads/" + thumbFilename
+	return
+}
+
+// EnsureVideoThumbnail generates and persists a thumbnail for a video media
+// row that doesn't have one yet. Idempotent and best-effort: no-op for
+// non-videos, rows already having thumbnail_url, or rows whose backing file
+// is missing. Failures are logged but never returned, so this can be called
+// from background goroutines without affecting the originating request.
+func (h *Handler) EnsureVideoThumbnail(ctx context.Context, mediaFileID string) {
+	var filename, mimeType string
+	var thumbURL sql.NullString
+	err := h.db.QueryRowContext(ctx,
+		`SELECT filename, mime_type, thumbnail_url FROM media_files WHERE id = $1`,
+		mediaFileID).Scan(&filename, &mimeType, &thumbURL)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("ensure thumbnail: lookup %q: %v", mediaFileID, err)
+		}
+		return
+	}
+	if !strings.HasPrefix(mimeType, "video/") {
+		return
+	}
+	if thumbURL.Valid && thumbURL.String != "" {
+		return
+	}
+
+	srcPath := filepath.Join(uploadsDir, filename)
+	if _, statErr := os.Stat(srcPath); statErr != nil {
+		log.Printf("ensure thumbnail: source missing %q: %v", srcPath, statErr)
+		return
+	}
+
+	tfn, turl, tsize, terr := generateVideoThumbnail(srcPath, filename, h.baseURL)
+	if terr != nil {
+		log.Printf("ensure thumbnail: ffmpeg failed for %q: %v", filename, terr)
+		return
+	}
+
+	if _, err := h.db.ExecContext(ctx,
+		`UPDATE media_files
+		    SET thumbnail_filename = $2, thumbnail_url = $3, thumbnail_size_bytes = $4
+		  WHERE id = $1 AND (thumbnail_url IS NULL OR thumbnail_url = '')`,
+		mediaFileID, tfn, turl, tsize); err != nil {
+		log.Printf("ensure thumbnail: persist %q: %v", mediaFileID, err)
+		os.Remove(filepath.Join(uploadsDir, tfn))
+	}
 }
 
 // generateWebP calls the system cwebp binary to produce a WebP copy of srcPath.
