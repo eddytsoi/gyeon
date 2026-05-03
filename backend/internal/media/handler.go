@@ -553,8 +553,10 @@ func generateVideoThumbnail(srcPath, srcFilename, baseURL string) (thumbFilename
 	thumbFilename = strings.TrimSuffix(srcFilename, filepath.Ext(srcFilename)) + "_thumb.jpg"
 	thumbPath := filepath.Join(uploadsDir, thumbFilename)
 
-	if err = exec.Command("ffmpeg", "-y", "-i", srcPath,
-		"-vf", "thumbnail,scale=640:-1", "-frames:v", "1", "-q:v", "4",
+	// -ss 0 before -i seeks to the very first frame (00:00:00) — without it,
+	// the default "thumbnail" filter would skip ahead to a representative frame.
+	if err = exec.Command("ffmpeg", "-y", "-ss", "0", "-i", srcPath,
+		"-frames:v", "1", "-vf", "scale=640:-1", "-q:v", "4",
 		thumbPath).Run(); err != nil {
 		return
 	}
