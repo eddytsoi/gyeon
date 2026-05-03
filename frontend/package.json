@@ -1,6 +1,6 @@
 {
   "name": "gyeon-frontend",
-  "version": "0.5.9",
+  "version": "0.6.0-a",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
   },
   "devDependencies": {
+    "@inlang/paraglide-js": "^2.18.0",
     "@sveltejs/adapter-node": "^5.0.0",
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",

@@ -3,6 +3,7 @@
   import type { ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { page } from '$app/state';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -71,7 +72,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.product.name} — Gyeon</title>
+  <title>{m.product_detail_title({ name: data.product.name })}</title>
 </svelte:head>
 
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
@@ -80,9 +81,9 @@
 
     <!-- Breadcrumb -->
     <nav class="flex gap-2 items-center text-[11px] uppercase tracking-[0.15em] text-gray-400 mb-10">
-      <a href="/" class="hover:text-gray-700 transition-colors">Home</a>
+      <a href="/" class="hover:text-gray-700 transition-colors">{m.common_home()}</a>
       <span>/</span>
-      <a href="/products" class="hover:text-gray-700 transition-colors">Products</a>
+      <a href="/products" class="hover:text-gray-700 transition-colors">{m.common_products()}</a>
       {#if data.category}
         <span>/</span>
         <a href="/products/category/{data.category.slug}"
@@ -186,7 +187,7 @@
         {#if data.variants.length > 0}
           <div>
             <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-3">
-              {data.variants.length > 1 ? 'OPTIONS' : 'Available'}
+              {data.variants.length > 1 ? m.product_detail_options_label_multi() : m.product_detail_options_label_single()}
             </p>
             <div class="flex flex-wrap gap-2">
               {#each data.variants as v}
@@ -234,27 +235,27 @@
               : 'background: #9ca3af'}
           >
             {#if !inStock}
-              Out of Stock
+              {m.product_detail_out_of_stock()}
             {:else if adding}
-              Adding…
+              {m.product_detail_adding()}
             {:else if added}
-              ✓ Added to Cart
+              {m.product_detail_added()}
             {:else}
-              Add to Cart
+              {m.product_detail_add_to_cart()}
             {/if}
           </button>
         </div>
 
         {#if inStock && selectedVariant}
-          <p class="text-xs text-gray-400">{selectedVariant.stock_qty} units in stock</p>
+          <p class="text-xs text-gray-400">{m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}</p>
         {/if}
 
         <!-- Trust strip -->
         <div class="flex flex-wrap gap-5 pt-1 border-t border-gray-100">
           {#each [
-            { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: 'Genuine GYEON product' },
-            { icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: 'Free shipping HK$500+' },
-            { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', label: '30-day returns' }
+            { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: m.product_detail_trust_genuine() },
+            { icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: m.product_detail_trust_shipping() },
+            { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', label: m.product_detail_trust_returns() }
           ] as t}
             <div class="flex items-center gap-2 text-xs text-gray-500">
               <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -276,8 +277,8 @@
   <div class="bg-gray-50 border-t border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <p class="text-[11px] font-bold uppercase tracking-[0.25em] mb-2"
-         style="color: rgb(113,135,183)">Everything You Need</p>
-      <h2 class="text-2xl font-black text-gray-900 mb-8">What's Included</h2>
+         style="color: rgb(113,135,183)">{m.product_detail_bundle_kicker()}</p>
+      <h2 class="text-2xl font-black text-gray-900 mb-8">{m.product_detail_bundle_heading()}</h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {#each data.bundleItems as item}
           <div class="flex items-center gap-4 bg-white rounded-2xl border border-gray-100 px-5 py-4">
@@ -292,7 +293,7 @@
                 {item.display_name_override || item.component_product_name || item.component_sku}
               </p>
               {#if item.quantity > 1}
-                <p class="text-xs text-gray-400">× {item.quantity}</p>
+                <p class="text-xs text-gray-400">{m.product_detail_bundle_qty({ quantity: item.quantity })}</p>
               {/if}
             </div>
           </div>
@@ -307,10 +308,10 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
       {#each [
-        { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', label: 'Variants', value: data.variants.length > 0 ? `${data.variants.length} size${data.variants.length > 1 ? 's' : ''}` : '—' },
-        { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', label: 'Availability', value: inStock ? 'In Stock' : 'Out of Stock' },
-        { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', label: 'Coverage', value: '—' },
-        { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: 'Durability', value: '—' }
+        { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', label: m.product_detail_specs_variants(), value: data.variants.length > 0 ? (data.variants.length > 1 ? m.product_detail_specs_sizes_many({ count: data.variants.length }) : m.product_detail_specs_sizes_one({ count: data.variants.length })) : m.product_detail_specs_dash() },
+        { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', label: m.product_detail_specs_availability(), value: inStock ? m.product_detail_specs_in_stock() : m.product_detail_specs_out_of_stock() },
+        { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', label: m.product_detail_specs_coverage(), value: m.product_detail_specs_dash() },
+        { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: m.product_detail_specs_durability(), value: m.product_detail_specs_dash() }
       ] as spec}
         <div class="flex flex-col items-center gap-2 py-8 px-6 text-center">
           <svg class="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,9 +331,9 @@
 
     <div class="flex gap-0 border-b border-gray-200 mb-10">
       {#each [
-        { id: 'description', label: 'Description' },
-        { id: 'howto',       label: 'How to Use' },
-        { id: 'surfaces',    label: 'Compatible Surfaces' }
+        { id: 'description', label: m.product_detail_tab_description() },
+        { id: 'howto',       label: m.product_detail_tab_howto() },
+        { id: 'surfaces',    label: m.product_detail_tab_surfaces() }
       ] as tab}
         <button
           onclick={() => (activeTab = tab.id as typeof activeTab)}
@@ -351,16 +352,16 @@
         {#if data.product.description}
           <p class="text-gray-600 leading-relaxed text-lg">{data.product.description}</p>
         {:else}
-          <p class="text-gray-400">No description available.</p>
+          <p class="text-gray-400">{m.product_detail_no_description()}</p>
         {/if}
       </div>
 
     {:else if activeTab === 'howto'}
       <div class="max-w-2xl flex flex-col gap-10">
         {#each [
-          { step: '01', title: 'Prepare the Surface', desc: 'Ensure the surface is clean, dry, and free from contaminants. Wash and decontaminate thoroughly before application.' },
-          { step: '02', title: 'Apply the Product', desc: 'Apply a small amount to the supplied applicator pad. Work in small sections using light, overlapping strokes.' },
-          { step: '03', title: 'Level & Cure', desc: 'Buff off any excess with a clean microfibre towel. Allow sufficient cure time before exposing to water or elements.' }
+          { step: '01', title: m.product_detail_howto_step1_title(), desc: m.product_detail_howto_step1_desc() },
+          { step: '02', title: m.product_detail_howto_step2_title(), desc: m.product_detail_howto_step2_desc() },
+          { step: '03', title: m.product_detail_howto_step3_title(), desc: m.product_detail_howto_step3_desc() }
         ] as s}
           <div class="flex gap-6 items-start">
             <span class="text-5xl font-black leading-none flex-shrink-0 w-14"
@@ -376,12 +377,12 @@
     {:else if activeTab === 'surfaces'}
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
         {#each [
-          { name: 'Paint',   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
-          { name: 'Glass',   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
-          { name: 'Wheels',  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { name: 'Leather', icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
-          { name: 'Trim',    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-          { name: 'Fabric',  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+          { name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+          { name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
+          { name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+          { name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
+          { name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
         ] as surface}
           <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
             <div class="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -405,11 +406,11 @@
       <div class="flex items-center justify-between mb-10">
         <div>
           <p class="text-[11px] font-bold uppercase tracking-[0.25em] mb-2"
-             style="color: rgb(113,135,183)">Complete the System</p>
-          <h2 class="text-2xl font-black text-gray-900">You might also need</h2>
+             style="color: rgb(113,135,183)">{m.product_detail_related_kicker()}</p>
+          <h2 class="text-2xl font-black text-gray-900">{m.product_detail_related_heading()}</h2>
         </div>
         <a href="/products" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          View all →
+          {m.common_view_all_arrow()}
         </a>
       </div>
 

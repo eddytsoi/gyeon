@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { NavItem } from '$lib/types';
+  import * as m from '$lib/paraglide/messages';
 
   let { navItems = [] }: { navItems?: NavItem[] } = $props();
 </script>
@@ -8,21 +9,21 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
       <div class="col-span-2 md:col-span-1">
-        <span class="text-white font-bold text-lg">Gyeon</span>
+        <span class="text-white font-bold text-lg">{m.footer_logo()}</span>
         <p class="mt-2 text-sm leading-relaxed">
-          Quality products, delivered to your door.
+          {m.footer_tagline()}
         </p>
       </div>
       <div>
-        <h3 class="text-white text-sm font-semibold mb-3">Shop</h3>
+        <h3 class="text-white text-sm font-semibold mb-3">{m.footer_section_shop()}</h3>
         <ul class="space-y-2 text-sm">
-          <li><a href="/products" class="hover:text-white transition-colors">All Products</a></li>
+          <li><a href="/products" class="hover:text-white transition-colors">{m.footer_link_all_products()}</a></li>
         </ul>
       </div>
       <div>
-        <h3 class="text-white text-sm font-semibold mb-3">Support</h3>
+        <h3 class="text-white text-sm font-semibold mb-3">{m.footer_section_support()}</h3>
         <ul class="space-y-2 text-sm">
-          <li><a href="/cart" class="hover:text-white transition-colors">My Cart</a></li>
+          <li><a href="/cart" class="hover:text-white transition-colors">{m.footer_link_my_cart()}</a></li>
         </ul>
       </div>
     </div>
@@ -44,7 +45,7 @@
     {/if}
 
     <div class="{navItems.length > 0 ? 'mt-6' : 'mt-10 border-t border-gray-800 pt-6'} text-xs text-center">
-      © {new Date().getFullYear()} Gyeon. All rights reserved.
+      {m.footer_copyright({ year: new Date().getFullYear() })}
     </div>
   </div>
 </footer>

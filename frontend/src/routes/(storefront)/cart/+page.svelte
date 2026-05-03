@@ -1,24 +1,25 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
+  import * as m from '$lib/paraglide/messages';
 </script>
 
 <svelte:head>
-  <title>Cart — Gyeon</title>
+  <title>{m.cart_title()}</title>
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-  <h1 class="text-3xl font-bold text-gray-900 mb-8">Your Cart</h1>
+  <h1 class="text-3xl font-bold text-gray-900 mb-8">{m.cart_heading()}</h1>
 
   {#if cartStore.loading && !cartStore.cart}
-    <div class="text-center py-20 text-gray-400">Loading…</div>
+    <div class="text-center py-20 text-gray-400">{m.common_loading()}</div>
 
   {:else if !cartStore.cart || cartStore.cart.items.length === 0}
     <div class="text-center py-20">
-      <p class="text-xl text-gray-400">Your cart is empty.</p>
+      <p class="text-xl text-gray-400">{m.cart_empty()}</p>
       <a href="/products"
          class="mt-4 inline-block bg-gray-900 text-white font-medium px-8 py-3
                 rounded-full hover:bg-gray-700 transition-colors">
-        Continue Shopping
+        {m.cart_continue_shopping()}
       </a>
     </div>
 
@@ -39,9 +40,9 @@
             <div class="flex-1 min-w-0">
               <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
                  class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
-                {item.product_name} ({item.sku})
+                {m.cart_item_label({ name: item.product_name, sku: item.sku })}
               </a>
-              <p class="text-xs text-gray-400 mt-0.5">SKU: {item.sku}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
             </div>
 
             <!-- Qty controls -->
@@ -58,7 +59,7 @@
             <button
               onclick={() => cartStore.remove(item.id)}
               class="p-2 text-gray-300 hover:text-red-400 transition-colors"
-              aria-label="Remove">
+              aria-label={m.cart_aria_remove()}>
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -71,18 +72,18 @@
       <!-- Summary -->
       <div class="lg:w-72 flex-shrink-0">
         <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 sticky top-24">
-          <h2 class="font-semibold text-gray-900">Order Summary</h2>
+          <h2 class="font-semibold text-gray-900">{m.cart_summary_heading()}</h2>
 
           <div class="flex justify-between text-sm text-gray-600">
-            <span>Items ({cartStore.itemCount})</span>
+            <span>{m.cart_summary_items({ count: cartStore.itemCount })}</span>
             <span>—</span>
           </div>
           <div class="flex justify-between text-sm text-gray-600">
-            <span>Shipping</span>
-            <span class="text-green-600">Free</span>
+            <span>{m.cart_summary_shipping()}</span>
+            <span class="text-green-600">{m.common_free()}</span>
           </div>
           <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
-            <span>Total</span>
+            <span>{m.cart_summary_total()}</span>
             <span>—</span>
           </div>
 
@@ -90,11 +91,11 @@
             href="/checkout"
             class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                    hover:bg-gray-700 transition-colors text-center block">
-            Checkout
+            {m.cart_checkout()}
           </a>
 
           <a href="/products" class="text-center text-sm text-gray-400 hover:text-gray-700 transition-colors">
-            ← Continue Shopping
+            {m.cart_continue_shopping_back()}
           </a>
         </div>
       </div>

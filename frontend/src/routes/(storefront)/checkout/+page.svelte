@@ -9,6 +9,7 @@
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import PickupPointPicker from '$lib/components/PickupPointPicker.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -171,7 +172,7 @@
       rateOptions = rates;
       quoteFetched = true;
     } catch (e) {
-      quoteError = e instanceof Error ? e.message : '無法取得運費報價';
+      quoteError = e instanceof Error ? e.message : m.checkout_quote_failed();
       rateOptions = [];
     } finally {
       quoteLoading = false;
@@ -213,9 +214,9 @@
       const res = await validateCoupon(couponCode.trim(), subtotal);
       couponResult = res.valid
         ? { valid: true, discount_amount: res.discount_amount }
-        : { valid: false, message: res.message ?? 'Invalid coupon.' };
+        : { valid: false, message: res.message ?? m.checkout_invalid_coupon() };
     } catch {
-      couponResult = { valid: false, message: 'Failed to validate coupon.' };
+      couponResult = { valid: false, message: m.checkout_coupon_validate_failed() };
     } finally {
       validatingCoupon = false;
     }
@@ -228,7 +229,7 @@
   // Step 1: create the order + PaymentIntent, mount Payment Element
   async function continueToPayment() {
     if (!activeCart || !stripe) {
-      error = stripe ? 'Cart is empty.' : 'Payment is not configured. Please contact the site owner.';
+      error = stripe ? m.checkout_cart_empty_error() : m.checkout_no_payment_setup();
       return;
     }
     if (!formValid) return;
@@ -298,7 +299,7 @@
         document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Could not start payment. Please try again.';
+      error = e instanceof Error ? e.message : m.checkout_payment_start_failed();
     } finally {
       paymentMounting = false;
     }
@@ -318,10 +319,10 @@
       });
       // confirmPayment redirects on success; reaching here means an error.
       if (stripeError) {
-        error = stripeError.message ?? 'Payment failed.';
+        error = stripeError.message ?? m.checkout_payment_failed();
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Payment failed.';
+      error = e instanceof Error ? e.message : m.checkout_payment_failed();
     } finally {
       placing = false;
     }
@@ -329,21 +330,21 @@
 </script>
 
 <svelte:head>
-  <title>結帳 — Gyeon</title>
+  <title>{m.checkout_title()}</title>
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-  <h1 class="text-3xl font-bold text-gray-900 mb-8">結帳</h1>
+  <h1 class="text-3xl font-bold text-gray-900 mb-8">{m.checkout_heading()}</h1>
 
   {#if cartStore.loading && !activeCart}
-    <div class="text-center py-20 text-gray-400">載入中…</div>
+    <div class="text-center py-20 text-gray-400">{m.common_loading()}</div>
 
   {:else if !activeCart || activeCart.items.length === 0}
     <div class="text-center py-20">
-      <p class="text-xl text-gray-400">您的購物車是空的。</p>
+      <p class="text-xl text-gray-400">{m.checkout_cart_empty()}</p>
       <a href="/products"
          class="mt-4 inline-block bg-gray-900 text-white font-medium px-8 py-3 rounded-full hover:bg-gray-700 transition-colors">
-        繼續購物
+        {m.checkout_continue_shopping()}
       </a>
     </div>
 
@@ -356,34 +357,34 @@
         <section class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
             <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">1</span>
-            <h2 class="font-semibold text-gray-900">聯絡資料</h2>
+            <h2 class="font-semibold text-gray-900">{m.checkout_section_customer()}</h2>
           </div>
           {#if data.customer}
             <p class="text-xs text-gray-400 mb-4">
-              已登入：{data.customer.email}（如有需要可調整以下資料）
+              {m.checkout_logged_in_hint({ email: data.customer.email })}
             </p>
           {/if}
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="first-name" class="block text-xs font-medium text-gray-500 mb-1">姓氏 <span class="text-red-400">*</span></label>
+              <label for="first-name" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_label_first_name()} <span class="text-red-400">*</span></label>
               <input id="first-name" type="text" bind:value={firstName} required
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div>
-              <label for="last-name" class="block text-xs font-medium text-gray-500 mb-1">名字</label>
+              <label for="last-name" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_label_last_name()}</label>
               <input id="last-name" type="text" bind:value={lastName}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div>
-              <label for="phone" class="block text-xs font-medium text-gray-500 mb-1">電話 <span class="text-red-400">*</span></label>
+              <label for="phone" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_label_phone()} <span class="text-red-400">*</span></label>
               <input id="phone" type="tel" bind:value={phone} required
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div>
-              <label for="email" class="block text-xs font-medium text-gray-500 mb-1">電郵 <span class="text-red-400">*</span></label>
+              <label for="email" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_label_email()} <span class="text-red-400">*</span></label>
               <input id="email" type="email" bind:value={email} required
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
@@ -391,8 +392,7 @@
           </div>
           {#if !data.customer}
             <p class="text-xs text-gray-400 mt-3">
-              <a href="/account/login" class="text-gray-900 hover:underline font-medium">登入</a>
-              即可使用已儲存地址與訂單記錄。
+              <a href="/account/login" class="text-gray-900 hover:underline font-medium">{m.checkout_login_hint_pre()}</a>{m.checkout_login_hint_text()}
             </p>
           {/if}
         </section>
@@ -401,7 +401,7 @@
         <section class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
             <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">2</span>
-            <h2 class="font-semibold text-gray-900">送貨地址</h2>
+            <h2 class="font-semibold text-gray-900">{m.checkout_section_shipping()}</h2>
           </div>
 
           {#if hasSavedAddresses}
@@ -410,13 +410,13 @@
                       onclick={() => (addressMode = 'saved')}
                       class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
                              {addressMode === 'saved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                已儲存地址
+                {m.checkout_address_saved_tab()}
               </button>
               <button type="button"
                       onclick={() => (addressMode = 'new')}
                       class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
                              {addressMode === 'new' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                使用新地址
+                {m.checkout_address_new_tab()}
               </button>
             </div>
           {/if}
@@ -432,7 +432,7 @@
                   <div class="text-sm leading-relaxed flex-1">
                     <span class="font-medium text-gray-900">{addr.first_name} {addr.last_name}</span>
                     {#if addr.is_default}
-                      <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">預設</span>
+                      <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">{m.common_default()}</span>
                     {/if}
                     <p class="text-gray-600 mt-0.5">
                       {addr.line1}{#if addr.line2}, {addr.line2}{/if}<br />
@@ -445,16 +445,16 @@
           {:else}
             <div class="flex flex-col gap-3">
               <div>
-                <label for="line1" class="block text-xs font-medium text-gray-500 mb-1">詳細地址 <span class="text-red-400">*</span></label>
-                <input id="line1" type="text" bind:value={line1} required placeholder="街道、門牌、樓層、單位"
+                <label for="line1" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_line1()} <span class="text-red-400">*</span></label>
+                <input id="line1" type="text" bind:value={line1} required placeholder={m.checkout_address_line1_placeholder()}
                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="city" class="block text-xs font-medium text-gray-500 mb-1">區域</label>
+                  <label for="city" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_city()}</label>
                   <input id="city" type="text" bind:value={city} list={cityOptions.length > 0 ? cityListId : undefined}
-                         placeholder={country === 'HK' ? '例：九龍城區' : ''} autocomplete="off"
+                         placeholder={country === 'HK' ? m.checkout_address_city_placeholder_hk() : ''} autocomplete="off"
                          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
                   {#if cityOptions.length > 0}
@@ -466,19 +466,19 @@
                   {/if}
                 </div>
                 <div>
-                  <label for="state" class="block text-xs font-medium text-gray-500 mb-1">州 / 省（可選）</label>
+                  <label for="state" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_state()} <span class="text-gray-400 font-normal">{m.common_optional()}</span></label>
                   <input id="state" type="text" bind:value={addressState}
                          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label for="postal" class="block text-xs font-medium text-gray-500 mb-1">郵政編碼</label>
+                  <label for="postal" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_postal()}</label>
                   <input id="postal" type="text" bind:value={postalCode}
                          class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                                 focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
-                  <label for="country" class="block text-xs font-medium text-gray-500 mb-1">國家 / 地區 <span class="text-red-400">*</span></label>
+                  <label for="country" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_country()} <span class="text-red-400">*</span></label>
                   {#if data.shippingCountries.length === 1}
                     <input id="country" type="text" value="{COUNTRY_BY_CODE[data.shippingCountries[0]] ?? data.shippingCountries[0]} ({data.shippingCountries[0]})" readonly
                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-500" />
@@ -496,7 +496,7 @@
               {#if data.customer}
                 <label class="flex items-center gap-2 mt-2 cursor-pointer">
                   <input type="checkbox" bind:checked={saveAddress} class="accent-gray-900" />
-                  <span class="text-sm text-gray-600">儲存到我的地址</span>
+                  <span class="text-sm text-gray-600">{m.checkout_address_save_to_profile()}</span>
                 </label>
               {/if}
             </div>
@@ -508,11 +508,11 @@
           <section class="bg-white rounded-2xl border border-gray-100 p-6">
             <div class="flex items-center gap-3 mb-4">
               <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">3</span>
-              <h2 class="font-semibold text-gray-900">送貨方式</h2>
+              <h2 class="font-semibold text-gray-900">{m.checkout_section_delivery()}</h2>
             </div>
 
             {#if !shippingValid}
-              <p class="text-sm text-gray-400">請先填寫送貨地址。</p>
+              <p class="text-sm text-gray-400">{m.checkout_delivery_need_address()}</p>
             {:else if quoteLoading && rateOptions.length === 0}
               <div class="flex flex-col gap-2">
                 {#each [0, 1, 2] as _}
@@ -521,10 +521,10 @@
               </div>
             {:else if quoteError}
               <p class="text-sm text-amber-600">
-                ⚠ {quoteError} — 將以免運費繼續結帳，請聯絡店主確認送貨。
+                {m.checkout_delivery_quote_warning({ error: quoteError })}
               </p>
             {:else if quoteFetched && rateOptions.length === 0}
-              <p class="text-sm text-gray-500">此地址暫無可用送貨方式，將以免運費繼續結帳。</p>
+              <p class="text-sm text-gray-500">{m.checkout_delivery_no_options()}</p>
             {:else}
               <div class="flex flex-col gap-2">
                 {#each rateOptions as rate}
@@ -543,7 +543,7 @@
                         <span class="font-semibold text-gray-900 whitespace-nowrap">HK${rate.fee_hkd.toFixed(2)}</span>
                       </div>
                       <p class="text-xs text-gray-500 mt-0.5">
-                        {rate.service_name}{#if rate.eta_days} · {rate.eta_days} 天{/if}
+                        {rate.service_name}{#if rate.eta_days} · {m.checkout_delivery_eta_days({ days: rate.eta_days })}{/if}
                       </p>
                       {#if selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service && rate.requires_pickup_point}
                         <div class="mt-2 flex items-center gap-3">
@@ -554,11 +554,11 @@
                             </div>
                             <button type="button"
                                     onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
-                                    class="text-xs text-gray-700 underline hover:text-gray-900">更改</button>
+                                    class="text-xs text-gray-700 underline hover:text-gray-900">{m.checkout_delivery_change_pickup()}</button>
                           {:else}
                             <button type="button"
                                     onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
-                                    class="text-xs text-gray-700 underline hover:text-gray-900">選擇取貨點 →</button>
+                                    class="text-xs text-gray-700 underline hover:text-gray-900">{m.checkout_delivery_pick_pickup()}</button>
                           {/if}
                         </div>
                       {/if}
@@ -574,10 +574,10 @@
         <section class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
             <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">{data.shipanyEnabled ? '4' : '3'}</span>
-            <h2 class="font-semibold text-gray-900">備註 <span class="font-normal text-gray-400 text-sm">（可選）</span></h2>
+            <h2 class="font-semibold text-gray-900">{m.checkout_section_remark()} <span class="font-normal text-gray-400 text-sm">{m.common_optional()}</span></h2>
           </div>
           <textarea bind:value={notes}
-                    placeholder="送貨指示、禮品包裝等"
+                    placeholder={m.checkout_remark_placeholder()}
                     rows="3"
                     class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-300
                            focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"></textarea>
@@ -589,8 +589,8 @@
             <input type="checkbox" bind:checked={tcAccepted}
                    class="mt-0.5 accent-gray-900 flex-shrink-0" />
             <span class="text-sm text-gray-700 leading-relaxed">
-              我已閱讀並同意網站的<a href="/pages/terms-and-conditions" target="_blank"
-                 class="text-gray-900 underline font-medium">〈條款與條件〉</a>
+              {m.checkout_tc_text_pre()}<a href="/pages/terms-and-conditions" target="_blank"
+                 class="text-gray-900 underline font-medium">{m.checkout_tc_link_label()}</a>
             </span>
           </label>
         </section>
@@ -599,7 +599,7 @@
         <section id="payment-section" class="bg-white rounded-2xl border border-gray-100 p-6">
           <div class="flex items-center gap-3 mb-4">
             <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">{data.shipanyEnabled ? '5' : '4'}</span>
-            <h2 class="font-semibold text-gray-900">付款方式</h2>
+            <h2 class="font-semibold text-gray-900">{m.checkout_section_payment()}</h2>
           </div>
 
           {#if !paymentReady}
@@ -610,13 +610,13 @@
                         onclick={() => (cardMode = 'saved')}
                         class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
                                {cardMode === 'saved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                  已儲存付款方式
+                  {m.checkout_card_saved_tab()}
                 </button>
                 <button type="button"
                         onclick={() => (cardMode = 'new')}
                         class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
                                {cardMode === 'new' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                  使用新卡
+                  {m.checkout_card_new_tab()}
                 </button>
               </div>
             {/if}
@@ -634,9 +634,9 @@
                       <span class="font-medium text-gray-900 capitalize">{card.brand}</span>
                       <span class="text-gray-500 ml-1">•••• {card.last4}</span>
                       {#if card.is_default}
-                        <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">預設</span>
+                        <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">{m.common_default()}</span>
                       {/if}
-                      <p class="text-gray-400 text-xs mt-0.5">到期：{card.exp_month}/{card.exp_year}</p>
+                      <p class="text-gray-400 text-xs mt-0.5">{m.checkout_card_expires({ month: card.exp_month, year: card.exp_year })}</p>
                     </div>
                   </label>
                 {/each}
@@ -647,24 +647,24 @@
             {#if data.saveCardsEnabled && data.customer && cardMode === 'new'}
               <label class="flex items-center gap-2 mb-4 cursor-pointer">
                 <input type="checkbox" bind:checked={saveCard} class="accent-gray-900" />
-                <span class="text-sm text-gray-600">儲存此卡以供日後使用</span>
+                <span class="text-sm text-gray-600">{m.checkout_card_save_for_later()}</span>
               </label>
             {/if}
 
             <p class="text-xs text-gray-400 mb-4">
               {cardMode === 'saved' && data.saveCardsEnabled && data.customer && hasSavedCards
-                ? '確認後將以已儲存付款方式完成付款。'
-                : '填妥以上資料後，按「繼續付款」即會顯示付款表單。'}
+                ? m.checkout_payment_hint_saved()
+                : m.checkout_payment_hint_new()}
             </p>
             <button type="button"
                     onclick={continueToPayment}
                     disabled={!formValid || paymentMounting || !stripe}
                     class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                            hover:bg-gray-700 transition-colors disabled:opacity-50">
-              {paymentMounting ? '正在準備付款…' : '繼續付款'}
+              {paymentMounting ? m.checkout_preparing_payment() : m.checkout_continue_to_payment()}
             </button>
             {#if !stripe && data.paymentConfig?.publishable_key === ''}
-              <p class="mt-3 text-xs text-red-500">付款功能未設定，請聯絡店主。</p>
+              <p class="mt-3 text-xs text-red-500">{m.checkout_no_payment_setup()}</p>
             {/if}
           {/if}
 
@@ -678,7 +678,7 @@
               <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
                 <span class="capitalize font-medium">{card.brand}</span>
                 <span>•••• {card.last4}</span>
-                <span class="text-gray-400 ml-auto">到期：{card.exp_month}/{card.exp_year}</span>
+                <span class="text-gray-400 ml-auto">{m.checkout_card_expires({ month: card.exp_month, year: card.exp_year })}</span>
               </div>
             {/if}
           {/if}
@@ -697,7 +697,7 @@
                       disabled={placing || !tcAccepted}
                       class="{error ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                              hover:bg-gray-700 transition-colors disabled:opacity-50">
-                {placing ? '處理中…' : `付款 HK$${total.toFixed(2)}`}
+                {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: total.toFixed(2) })}
               </button>
             {/if}
           </section>
@@ -707,18 +707,18 @@
       <!-- Right: Order summary -->
       <div class="lg:w-2/5 flex-shrink-0">
         <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 sticky top-24">
-          <h2 class="font-semibold text-gray-900">訂單摘要</h2>
+          <h2 class="font-semibold text-gray-900">{m.checkout_summary_heading()}</h2>
 
           <div class="flex flex-col gap-3">
             {#if loadingVariants}
-              <p class="text-sm text-gray-400">載入中…</p>
+              <p class="text-sm text-gray-400">{m.common_loading()}</p>
             {:else if activeCart}
               {#each activeCart.items as item}
                 {@const variant = variantMap[item.variant_id]}
                 <div class="flex items-start justify-between gap-3 text-sm">
                   <div class="min-w-0">
                     <p class="font-medium text-gray-900 truncate">{variant?.product_name ?? variant?.sku ?? item.variant_id.slice(0, 8) + '…'}</p>
-                    <p class="text-xs text-gray-400">數量：{item.quantity}</p>
+                    <p class="text-xs text-gray-400">{m.checkout_summary_qty({ quantity: item.quantity })}</p>
                   </div>
                   <span class="text-gray-900 font-medium flex-shrink-0">
                     {variant ? `HK$${(variant.price * item.quantity).toFixed(2)}` : '—'}
@@ -736,18 +736,18 @@
                   <p class="text-xs font-medium text-green-800">{couponCode.trim()}</p>
                   <p class="text-[11px] text-green-600">−HK${(couponResult.discount_amount ?? 0).toFixed(2)}</p>
                 </div>
-                <button type="button" onclick={removeCoupon} class="text-xs text-green-600 hover:text-green-900">移除</button>
+                <button type="button" onclick={removeCoupon} class="text-xs text-green-600 hover:text-green-900">{m.checkout_coupon_remove()}</button>
               </div>
             {:else}
               <div class="flex gap-2">
-                <input type="text" bind:value={couponCode} placeholder="優惠券代碼"
+                <input type="text" bind:value={couponCode} placeholder={m.checkout_coupon_placeholder()}
                        class="w-full flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900"
                        onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), applyCoupon())} />
                 <button type="button" onclick={applyCoupon}
                         disabled={validatingCoupon || !couponCode.trim()}
                         class="px-3 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-700 disabled:opacity-40">
-                  {validatingCoupon ? '…' : '套用'}
+                  {validatingCoupon ? m.checkout_coupon_applying() : m.checkout_coupon_apply()}
                 </button>
               </div>
               {#if couponResult && !couponResult.valid}
@@ -759,33 +759,33 @@
           <!-- Totals -->
           <div class="border-t border-gray-100 pt-3 flex flex-col gap-2">
             <div class="flex justify-between text-sm text-gray-600">
-              <span>小計</span>
+              <span>{m.checkout_summary_subtotal()}</span>
               <span>{loadingVariants ? '—' : `HK$${subtotal.toFixed(2)}`}</span>
             </div>
             {#if discount > 0}
               <div class="flex justify-between text-sm text-green-600">
-                <span>折扣</span>
+                <span>{m.checkout_summary_discount()}</span>
                 <span>−HK${discount.toFixed(2)}</span>
               </div>
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
-              <span>運費</span>
+              <span>{m.checkout_summary_shipping()}</span>
               {#if selectedRate}
                 <span class="text-gray-900 font-medium">HK${selectedRate.fee_hkd.toFixed(2)}</span>
               {:else if data.shipanyEnabled && shippingValid}
-                <span class="text-gray-400">請選擇送貨方式</span>
+                <span class="text-gray-400">{m.checkout_summary_select_delivery()}</span>
               {:else}
-                <span class="text-green-600">免運費</span>
+                <span class="text-green-600">{m.checkout_summary_free_shipping()}</span>
               {/if}
             </div>
             <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
-              <span>總額</span>
+              <span>{m.checkout_summary_total()}</span>
               <span>{loadingVariants ? '—' : `HK$${total.toFixed(2)}`}</span>
             </div>
           </div>
 
           <a href="/cart" class="text-center text-sm text-gray-400 hover:text-gray-700 transition-colors">
-            ← 返回購物車
+            {m.checkout_back_to_cart()}
           </a>
         </div>
       </div>

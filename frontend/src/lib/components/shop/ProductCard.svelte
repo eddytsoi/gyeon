@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Product, ProductImage, Variant } from '$lib/types';
+  import * as m from '$lib/paraglide/messages';
 
   let { product, image, variant }: {
     product: Product;
@@ -58,14 +59,14 @@
           <span class="text-sm text-gray-400 line-through">
             HK${variant.compare_at_price!.toFixed(2)}
           </span>
-          <span class="text-xs font-medium text-red-500">-{discountPct}%</span>
+          <span class="text-xs font-medium text-red-500">{m.product_card_discount_pct({ pct: discountPct })}</span>
         {/if}
       </div>
       {#if variant.stock_qty === 0}
-        <span class="text-xs text-gray-400">Out of stock</span>
+        <span class="text-xs text-gray-400">{m.product_card_out_of_stock()}</span>
       {/if}
     {:else}
-      <span class="mt-auto text-sm text-gray-400 pt-2">No variants</span>
+      <span class="mt-auto text-sm text-gray-400 pt-2">{m.product_card_no_variants()}</span>
     {/if}
   </div>
 </a>

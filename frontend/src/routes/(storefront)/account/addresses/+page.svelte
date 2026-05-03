@@ -1,33 +1,34 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-  <title>My Addresses — Gyeon</title>
+  <title>{m.account_addresses_title()}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-bold text-gray-900">Addresses</h1>
+    <h1 class="text-xl font-bold text-gray-900">{m.account_addresses_heading()}</h1>
     <a
       href="/account/addresses/new"
       class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors"
     >
-      + Add address
+      {m.account_addresses_add()}
     </a>
   </div>
 
   {#if data.addresses.length === 0}
     <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-      <p class="text-gray-400 text-sm">No saved addresses yet.</p>
+      <p class="text-gray-400 text-sm">{m.account_addresses_empty()}</p>
       <a
         href="/account/addresses/new"
         class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline"
       >
-        Add your first address →
+        {m.account_addresses_add_first()}
       </a>
     </div>
   {:else}
@@ -38,14 +39,14 @@
             <div>
               <p class="font-medium text-gray-900">{addr.first_name} {addr.last_name}</p>
               {#if addr.is_default}
-                <span class="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">Default</span>
+                <span class="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{m.common_default()}</span>
               {/if}
             </div>
             <div class="flex items-center gap-2">
               <a
                 href="/account/addresses/{addr.id}/edit"
-                aria-label="Edit address"
-                title="Edit"
+                aria-label={m.account_addresses_aria_edit()}
+                title={m.common_edit()}
                 class="text-gray-400 hover:text-gray-700 transition-colors p-1 -m-1"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -65,9 +66,9 @@
                 <input type="hidden" name="id" value={addr.id} />
                 <button
                   type="submit"
-                  aria-label="Delete address"
-                  title="Delete"
-                  onclick={(e) => { if (!confirm('Delete this address?')) e.preventDefault(); }}
+                  aria-label={m.account_addresses_aria_delete()}
+                  title={m.common_delete()}
+                  onclick={(e) => { if (!confirm(m.account_addresses_delete_confirm())) e.preventDefault(); }}
                   class="text-gray-400 hover:text-red-600 transition-colors p-1 -m-1"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"

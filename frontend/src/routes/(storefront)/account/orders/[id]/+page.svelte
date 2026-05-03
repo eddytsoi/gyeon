@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -30,7 +31,7 @@
 </script>
 
 <svelte:head>
-  <title>Order {order.order_number || `ORD-${order.number}`} — Gyeon</title>
+  <title>{m.account_order_title({ orderNumber: order.order_number || `ORD-${order.number}` })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-6">
@@ -38,12 +39,12 @@
   <div class="bg-white rounded-2xl border border-gray-100 p-6">
     <div class="flex items-start justify-between flex-wrap gap-4">
       <div>
-        <a href="/account/orders" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">← Orders</a>
+        <a href="/account/orders" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">{m.account_order_back()}</a>
         <h1 class="text-xl font-bold text-gray-900 mt-1 font-mono">
           {order.order_number || `ORD-${order.number}`}
         </h1>
         <p class="text-sm text-gray-500 mt-0.5">
-          Placed {new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' })}
+          {m.account_order_placed_on({ date: new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' }) })}
         </p>
       </div>
       <span class="px-3 py-1.5 rounded-full text-sm font-medium capitalize border {statusColors[order.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}">
@@ -78,13 +79,13 @@
 
   <!-- Items -->
   <div class="bg-white rounded-2xl border border-gray-100 p-6">
-    <h2 class="font-semibold text-gray-900 mb-4">Items</h2>
+    <h2 class="font-semibold text-gray-900 mb-4">{m.account_order_items()}</h2>
     <div class="flex flex-col divide-y divide-gray-50">
       {#each order.items ?? [] as item}
         <div class="flex items-center justify-between py-3">
           <div class="flex-1">
             <p class="text-sm font-medium text-gray-900">{item.product_name}</p>
-            <p class="text-xs text-gray-400 mt-0.5">SKU: {item.variant_sku} &middot; Qty: {item.quantity}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ sku: item.variant_sku, quantity: item.quantity })}</p>
           </div>
           <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
         </div>
@@ -94,24 +95,24 @@
 
   <!-- Summary -->
   <div class="bg-white rounded-2xl border border-gray-100 p-6">
-    <h2 class="font-semibold text-gray-900 mb-4">Summary</h2>
+    <h2 class="font-semibold text-gray-900 mb-4">{m.account_order_summary()}</h2>
     <div class="flex flex-col gap-2 text-sm">
       <div class="flex justify-between text-gray-600">
-        <span>Subtotal</span>
+        <span>{m.account_order_subtotal()}</span>
         <span>HK${order.subtotal.toFixed(2)}</span>
       </div>
       {#if order.discount_amount > 0}
         <div class="flex justify-between text-green-600">
-          <span>Discount</span>
+          <span>{m.account_order_discount()}</span>
           <span>−HK${order.discount_amount.toFixed(2)}</span>
         </div>
       {/if}
       <div class="flex justify-between text-gray-600">
-        <span>Shipping</span>
-        <span>{order.shipping_fee > 0 ? `HK$${order.shipping_fee.toFixed(2)}` : 'Free'}</span>
+        <span>{m.account_order_shipping()}</span>
+        <span>{order.shipping_fee > 0 ? `HK$${order.shipping_fee.toFixed(2)}` : m.common_free()}</span>
       </div>
       <div class="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100 text-base">
-        <span>Total</span>
+        <span>{m.account_order_total()}</span>
         <span>HK${order.total.toFixed(2)}</span>
       </div>
     </div>
@@ -119,24 +120,24 @@
 
   {#if order.notes}
     <div class="bg-white rounded-2xl border border-gray-100 p-6">
-      <h2 class="font-semibold text-gray-900 mb-2">Notes</h2>
+      <h2 class="font-semibold text-gray-900 mb-2">{m.account_order_notes_heading()}</h2>
       <p class="text-sm text-gray-600">{order.notes}</p>
     </div>
   {/if}
 
   <!-- Messages between customer and admin -->
   <div class="bg-white rounded-2xl border border-gray-100 p-6">
-    <h2 class="font-semibold text-gray-900 mb-4">Messages</h2>
+    <h2 class="font-semibold text-gray-900 mb-4">{m.account_order_messages_heading()}</h2>
 
     {#if notices.length === 0}
-      <p class="text-sm text-gray-400 italic">No messages yet. Send one below if you have a question about this order.</p>
+      <p class="text-sm text-gray-400 italic">{m.account_order_no_messages()}</p>
     {:else}
       <div class="flex flex-col gap-3">
         {#each notices as n (n.id)}
           {#if n.role === 'admin'}
             <div class="flex items-start gap-3">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 mt-0.5 shrink-0">
-                Store
+                {m.account_order_msg_store_badge()}
               </span>
               <div class="flex-1 min-w-0 bg-blue-50/40 rounded-lg px-3 py-2">
                 <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
@@ -146,7 +147,7 @@
           {:else if n.role === 'customer'}
             <div class="flex items-start gap-3 flex-row-reverse">
               <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-green-50 text-green-700 mt-0.5 shrink-0">
-                You
+                {m.account_order_msg_you_badge()}
               </span>
               <div class="flex-1 min-w-0 bg-green-50/40 rounded-lg px-3 py-2">
                 <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
@@ -169,9 +170,9 @@
             };
           }}
           class="mt-6 pt-5 border-t border-gray-100 flex flex-col gap-2">
-      <label for="customer-message" class="text-xs font-medium text-gray-600">Send a message to the store</label>
+      <label for="customer-message" class="text-xs font-medium text-gray-600">{m.account_order_msg_send_label()}</label>
       <textarea id="customer-message" name="body" rows="3" bind:value={messageBody}
-                placeholder="Ask a question or share an update about this order"
+                placeholder={m.account_order_msg_placeholder()}
                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
                        focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
       {#if form?.error}
@@ -181,7 +182,7 @@
               class="self-end inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-900 text-white
                      text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
                      disabled:opacity-50">
-        {sending ? 'Sending...' : 'Send'}
+        {sending ? m.account_order_msg_sending() : m.account_order_msg_send()}
       </button>
     </form>
   </div>

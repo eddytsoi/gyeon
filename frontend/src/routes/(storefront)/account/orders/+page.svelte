@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -43,17 +44,17 @@
 </script>
 
 <svelte:head>
-  <title>Order History — Gyeon</title>
+  <title>{m.account_orders_title()}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">
-  <h1 class="text-xl font-bold text-gray-900">Order History</h1>
+  <h1 class="text-xl font-bold text-gray-900">{m.account_orders_heading()}</h1>
 
   {#if data.orders.length === 0}
     <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-      <p class="text-gray-400 text-sm">No orders yet.</p>
+      <p class="text-gray-400 text-sm">{m.account_orders_empty()}</p>
       <a href="/products" class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline">
-        Start shopping →
+        {m.account_orders_start_shopping()}
       </a>
     </div>
   {:else}
@@ -78,7 +79,7 @@
             <p class="text-sm font-semibold text-gray-900 font-mono inline-flex items-center gap-2">
               {order.order_number || `ORD-${order.number}`}
               {#if (data.unreadCounts?.[order.id] ?? 0) > 0}
-                <span title="New message from store"
+                <span title={m.account_orders_unread_aria()}
                       class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5
                              rounded-full bg-blue-500 text-white text-[10px] font-bold leading-none">
                   {data.unreadCounts[order.id]}
@@ -88,7 +89,7 @@
             <p class="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
           </div>
           <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-600">{order.items_count ?? 0} item{(order.items_count ?? 0) !== 1 ? 's' : ''}</span>
+            <span class="text-sm text-gray-600">{(order.items_count ?? 0) === 1 ? m.account_orders_items_one({ count: order.items_count ?? 0 }) : m.account_orders_items_many({ count: order.items_count ?? 0 })}</span>
             <span class="text-sm font-semibold text-gray-900">HK${order.total.toFixed(2)}</span>
             <span class="px-2.5 py-1 rounded-full text-xs font-medium capitalize {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
               {order.status}
@@ -106,13 +107,13 @@
       <div class="flex justify-between">
         {#if data.offset > 0}
           <a href="?offset={Math.max(0, data.offset - 20)}"
-            class="text-sm text-gray-600 hover:text-gray-900 transition-colors">← Previous</a>
+            class="text-sm text-gray-600 hover:text-gray-900 transition-colors">{m.common_previous_arrow()}</a>
         {:else}
           <span></span>
         {/if}
         {#if data.orders.length === 20}
           <a href="?offset={data.offset + 20}"
-            class="text-sm text-gray-600 hover:text-gray-900 transition-colors">Next →</a>
+            class="text-sm text-gray-600 hover:text-gray-900 transition-colors">{m.common_next_arrow()}</a>
         {/if}
       </div>
     {/if}

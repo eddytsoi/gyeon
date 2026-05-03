@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { listShipanyPickupPoints, type ShipanyPickupPoint } from '$lib/api';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
+  import * as m from '$lib/paraglide/messages';
 
   type Props = {
     carrier: string;
@@ -24,7 +25,7 @@
     try {
       points = await listShipanyPickupPoints(carrier);
     } catch (e) {
-      error = e instanceof Error ? e.message : '無法載入取貨點';
+      error = e instanceof Error ? e.message : m.pickup_load_failed();
       points = [];
     } finally {
       loading = false;
@@ -46,38 +47,38 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
        onclick={onClose}
-       role="button" tabindex="-1" aria-label="關閉"></div>
+       role="button" tabindex="-1" aria-label={m.pickup_aria_close()}></div>
   <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[80vh] flex flex-col">
     <div class="flex items-start justify-between gap-4 mb-3">
       <div>
-        <h3 class="font-semibold text-gray-900">選擇取貨點</h3>
+        <h3 class="font-semibold text-gray-900">{m.pickup_heading()}</h3>
         <p class="text-xs text-gray-400 mt-0.5">{carrierName}</p>
       </div>
       <button type="button" onclick={onClose}
-              class="text-gray-400 hover:text-gray-700 transition-colors text-sm">關閉 ✕</button>
+              class="text-gray-400 hover:text-gray-700 transition-colors text-sm">{m.pickup_close_button()}</button>
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-3">
       <select bind:value={district}
               class="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white
                      focus:outline-none focus:ring-2 focus:ring-gray-900">
-        <option value="">所有區域</option>
+        <option value="">{m.pickup_district_all()}</option>
         {#each HK_DISTRICTS as d}
           <option value={d}>{d}</option>
         {/each}
       </select>
-      <input type="search" bind:value={search} placeholder="搜尋名稱或地址"
+      <input type="search" bind:value={search} placeholder={m.pickup_search_placeholder()}
              class="border border-gray-200 rounded-xl px-3 py-2 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900" />
     </div>
 
     <div class="flex-1 overflow-y-auto -mx-2 px-2">
       {#if loading}
-        <div class="text-center py-12 text-sm text-gray-400">載入中…</div>
+        <div class="text-center py-12 text-sm text-gray-400">{m.pickup_loading()}</div>
       {:else if error}
         <div class="text-center py-12 text-sm text-red-500">{error}</div>
       {:else if filtered.length === 0}
-        <div class="text-center py-12 text-sm text-gray-400">沒有符合的取貨點</div>
+        <div class="text-center py-12 text-sm text-gray-400">{m.pickup_no_results()}</div>
       {:else}
         <ul class="flex flex-col divide-y divide-gray-100">
           {#each filtered as p}

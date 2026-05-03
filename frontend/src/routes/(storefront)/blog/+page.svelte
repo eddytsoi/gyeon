@@ -1,24 +1,25 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-  <title>Blog — Gyeon</title>
-  <meta name="description" content="Latest articles from Gyeon" />
+  <title>{m.blog_title()}</title>
+  <meta name="description" content={m.blog_meta_description()} />
 </svelte:head>
 
 <div class="max-w-4xl mx-auto px-4 py-12 sm:py-16">
   <!-- Header -->
   <div class="mb-10 sm:mb-14">
-    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">Blog</h1>
-    <p class="mt-2 text-gray-500">Stories, updates and ideas from the Gyeon team.</p>
+    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">{m.blog_heading()}</h1>
+    <p class="mt-2 text-gray-500">{m.blog_subheading()}</p>
   </div>
 
   {#if data.posts.length === 0}
     <div class="flex flex-col items-center justify-center py-24 text-center">
-      <p class="text-gray-400 text-lg">No posts yet — check back soon.</p>
+      <p class="text-gray-400 text-lg">{m.blog_empty()}</p>
     </div>
   {:else}
     <div class="space-y-10">
@@ -59,7 +60,7 @@
             <!-- Read more -->
             <div class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-900
                         group-hover:gap-3 transition-all duration-200">
-              Read more
+              {m.blog_read_more()}
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
               </svg>

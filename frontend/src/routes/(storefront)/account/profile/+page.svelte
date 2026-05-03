@@ -3,6 +3,7 @@
   import type { ActionData, PageData } from './$types';
   import type { LayoutData } from '../$types';
   import { page } from '$app/stores';
+  import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -12,11 +13,11 @@
 </script>
 
 <svelte:head>
-  <title>Edit Profile — Gyeon</title>
+  <title>{m.account_profile_title()}</title>
 </svelte:head>
 
 <div class="bg-white rounded-2xl border border-gray-100 p-6">
-  <h1 class="text-xl font-bold text-gray-900 mb-6">Edit Profile</h1>
+  <h1 class="text-xl font-bold text-gray-900 mb-6">{m.account_profile_heading()}</h1>
 
   {#if form?.error}
     <div class="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
@@ -25,7 +26,7 @@
   {/if}
   {#if form?.success}
     <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700">
-      Profile updated.
+      {m.account_profile_updated()}
     </div>
   {/if}
 
@@ -39,7 +40,7 @@
   >
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">First name</label>
+        <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">{m.account_profile_first_name()}</label>
         <input
           id="first_name" name="first_name" type="text" required
           value={customer?.first_name ?? ''}
@@ -47,7 +48,7 @@
         />
       </div>
       <div>
-        <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+        <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">{m.account_profile_last_name()}</label>
         <input
           id="last_name" name="last_name" type="text" required
           value={customer?.last_name ?? ''}
@@ -56,7 +57,7 @@
       </div>
     </div>
     <div>
-      <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+      <label for="email" class="block text-sm font-medium text-gray-700 mb-1">{m.account_profile_email()}</label>
       <input
         id="email" type="email" disabled
         value={customer?.email ?? ''}
@@ -65,7 +66,7 @@
     </div>
     <div>
       <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
-        Phone <span class="text-gray-400 font-normal">(optional)</span>
+        {m.account_profile_phone()} <span class="text-gray-400 font-normal">{m.common_optional()}</span>
       </label>
       <input
         id="phone" name="phone" type="tel"
@@ -79,7 +80,7 @@
         disabled={loading}
         class="px-6 py-2.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50"
       >
-        {loading ? 'Saving…' : 'Save changes'}
+        {loading ? m.common_saving() : m.common_save_changes()}
       </button>
     </div>
   </form>

@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
   import type { ActionData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { form }: { form: ActionData } = $props();
   let loading = $state(false);
@@ -26,26 +27,26 @@
 </script>
 
 <svelte:head>
-  <title>Sign In — Gyeon</title>
+  <title>{m.account_login_title()}</title>
 </svelte:head>
 
 <div class="min-h-[60vh] flex items-center justify-center px-4 py-12">
   <div class="w-full max-w-sm">
-    <h1 class="text-2xl font-bold text-gray-900 mb-2 text-center">Sign in</h1>
+    <h1 class="text-2xl font-bold text-gray-900 mb-2 text-center">{m.account_login_heading()}</h1>
     <p class="text-sm text-gray-500 text-center mb-8">
-      Don't have an account?
-      <a href="/account/register" class="text-gray-900 font-medium hover:underline">Register</a>
+      {m.account_login_no_account()}
+      <a href="/account/register" class="text-gray-900 font-medium hover:underline">{m.account_login_register_link()}</a>
     </p>
 
     {#if resetSuccess}
       <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700">
-        密碼已重設，請以新密碼登入。
+        {m.account_login_reset_success()}
       </div>
     {/if}
 
     {#if forgotResult?.sent}
       <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700">
-        若該電郵已註冊，重設密碼連結已寄出至 {forgotResult.email}。請查看您的信箱。
+        {m.account_login_forgot_sent({ email: forgotResult.email })}
       </div>
     {/if}
 
@@ -65,7 +66,7 @@
       class="flex flex-col gap-4"
     >
       <div>
-        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">{m.account_login_email_label()}</label>
         <input
           id="email" name="email" type="email" required autocomplete="email"
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -73,13 +74,13 @@
       </div>
       <div>
         <div class="flex items-center justify-between mb-1">
-          <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+          <label for="password" class="block text-sm font-medium text-gray-700">{m.account_login_password_label()}</label>
           <button
             type="button"
             onclick={openForgot}
             class="text-xs font-medium text-gray-600 hover:text-gray-900 hover:underline"
           >
-            Forgot password?
+            {m.account_login_forgot_link()}
           </button>
         </div>
         <input
@@ -92,7 +93,7 @@
         disabled={loading}
         class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50"
       >
-        {loading ? 'Signing in…' : 'Sign in'}
+        {loading ? m.account_login_submitting() : m.account_login_submit()}
       </button>
     </form>
   </div>
@@ -113,9 +114,9 @@
       aria-labelledby="forgot-pw-title"
       tabindex="-1"
     >
-      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">忘記密碼</h3>
+      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{m.account_forgot_heading()}</h3>
       <p class="text-sm text-gray-600 mb-4">
-        請輸入您的註冊電郵，我們會寄出重設密碼連結。
+        {m.account_forgot_body()}
       </p>
 
       {#if forgotResult?.error}
@@ -136,7 +137,7 @@
           };
         }}
       >
-        <label for="forgot-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <label for="forgot-email" class="block text-sm font-medium text-gray-700 mb-1">{m.account_login_email_label()}</label>
         <input
           id="forgot-email"
           name="email"
@@ -153,14 +154,14 @@
             disabled={forgotSending}
             class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
           >
-            Cancel
+            {m.account_forgot_cancel()}
           </button>
           <button
             type="submit"
             disabled={forgotSending}
             class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
           >
-            {forgotSending ? '寄送中…' : 'Reset Password'}
+            {forgotSending ? m.account_forgot_submitting() : m.account_forgot_submit()}
           </button>
         </div>
       </form>

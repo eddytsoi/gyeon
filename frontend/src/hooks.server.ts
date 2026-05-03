@@ -1,5 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import { paraglideMiddleware } from '$lib/paraglide/server.js';
 
 const API_BASE = process.env.API_BASE ?? 'http://localhost:8080/api/v1';
 const MAINTENANCE_PATH = '/maintenance';
@@ -15,7 +17,15 @@ async function isMaintenanceMode(): Promise<boolean> {
   }
 }
 
-export const handle: Handle = async ({ event, resolve }) => {
+const handleParaglide: Handle = ({ event, resolve }) =>
+  paraglideMiddleware(event.request, ({ request, locale }) => {
+    event.request = request;
+    return resolve(event, {
+      transformPageChunk: ({ html }) => html.replace('%paraglide.lang%', locale)
+    });
+  });
+
+const handleMaintenance: Handle = async ({ event, resolve }) => {
   const { pathname } = event.url;
 
   // Always allow:
@@ -47,3 +57,5 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   return resolve(event);
 };
+
+export const handle: Handle = sequence(handleParaglide, handleMaintenance);

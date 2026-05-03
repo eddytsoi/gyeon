@@ -2,6 +2,7 @@
   import { invalidateAll } from '$app/navigation';
   import { deleteMySavedCard, setDefaultCard } from '$lib/api';
   import type { PageData } from './$types';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -17,7 +18,7 @@
       if (!res.ok) throw new Error('Failed');
       await invalidateAll();
     } catch {
-      errorMsg = 'Could not remove card. Please try again.';
+      errorMsg = m.account_cards_delete_failed();
     } finally {
       working = null;
     }
@@ -32,7 +33,7 @@
       if (!res.ok) throw new Error('Failed');
       await invalidateAll();
     } catch {
-      errorMsg = 'Could not update default card. Please try again.';
+      errorMsg = m.account_cards_default_failed();
     } finally {
       working = null;
     }
@@ -40,11 +41,11 @@
 </script>
 
 <svelte:head>
-  <title>Saved Cards — Gyeon</title>
+  <title>{m.account_cards_title()}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">
-  <h1 class="text-xl font-bold text-gray-900">Saved Cards</h1>
+  <h1 class="text-xl font-bold text-gray-900">{m.account_cards_heading()}</h1>
 
   {#if errorMsg}
     <p class="text-sm text-red-500">{errorMsg}</p>
@@ -52,8 +53,8 @@
 
   {#if data.cards.length === 0}
     <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-      <p class="text-gray-400 text-sm">No saved cards yet.</p>
-      <p class="text-gray-400 text-xs mt-1">Cards are saved when you tick "儲存此卡以供日後使用" at checkout.</p>
+      <p class="text-gray-400 text-sm">{m.account_cards_empty()}</p>
+      <p class="text-gray-400 text-xs mt-1">{m.account_cards_empty_hint()}</p>
     </div>
   {:else}
     <div class="flex flex-col gap-3">
@@ -66,12 +67,12 @@
 
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-900 capitalize">
-              {card.brand} •••• {card.last4}
+              {m.account_cards_brand_last4({ brand: card.brand, last4: card.last4 })}
               {#if card.is_default}
-                <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full font-normal">Default</span>
+                <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full font-normal">{m.common_default()}</span>
               {/if}
             </p>
-            <p class="text-xs text-gray-400 mt-0.5">Expires {card.exp_month}/{card.exp_year}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.account_cards_expires({ month: card.exp_month, year: card.exp_year })}</p>
           </div>
 
           <div class="flex items-center gap-2 flex-shrink-0">
@@ -82,7 +83,7 @@
                 disabled={working === card.id}
                 class="text-xs text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
               >
-                Set default
+                {m.account_cards_set_default()}
               </button>
             {/if}
             <button
@@ -91,7 +92,7 @@
               disabled={working === card.id}
               class="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
             >
-              {working === card.id ? '…' : 'Remove'}
+              {working === card.id ? '…' : m.common_remove()}
             </button>
           </div>
         </div>
