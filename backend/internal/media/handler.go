@@ -161,6 +161,14 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		files = append(files, f)
 	}
+	// Lazy-backfill thumbnails for any video missing one (legacy uploads,
+	// or rows whose thumbnail was cleared after a regeneration trigger).
+	for _, f := range files {
+		if strings.HasPrefix(f.MimeType, "video/") && (f.ThumbnailURL == nil || *f.ThumbnailURL == "") {
+			id := f.ID
+			go h.EnsureVideoThumbnail(context.Background(), id)
+		}
+	}
 	respond.JSON(w, http.StatusOK, files)
 }
 
