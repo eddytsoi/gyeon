@@ -56,6 +56,19 @@ const handleParaglide: Handle = async ({ event, resolve }) => {
       : `${PARAGLIDE_COOKIE}=${siteLocale}`;
     headers.set('cookie', injected);
     event.request = new Request(event.request, { headers });
+
+    // Persist the locale on the response so the browser stores the cookie and
+    // the client-side paraglide runtime resolves the same locale on hydration.
+    // Without this, paraglide's cookie strategy sees the request cookie we
+    // injected and skips writing Set-Cookie — the browser never gets it, and
+    // the client falls through to preferredLanguage/baseLocale and re-renders
+    // in a different locale (the "Chinese flashes then flips to English" bug).
+    event.cookies.set(PARAGLIDE_COOKIE, siteLocale, {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365,
+      httpOnly: false
+    });
   }
 
   return paraglideMiddleware(event.request, ({ request, locale }) => {
