@@ -37,22 +37,25 @@ async function fetchPublicSettings(event: RequestEvent): Promise<PublicSettings>
 }
 
 const handleParaglide: Handle = async ({ event, resolve }) => {
-  // If the visitor has not yet picked a locale (no PARAGLIDE_LOCALE cookie),
-  // inject the admin-configured site_locale into the request cookie header
-  // before paraglide's `cookie` strategy reads it. This makes site_locale the
-  // effective default — overriding the browser's Accept-Language — until the
-  // user explicitly chooses a language via the language switcher.
-  if (!event.cookies.get(PARAGLIDE_COOKIE)) {
-    const { siteLocale } = await fetchPublicSettings(event);
-    if (siteLocale && SUPPORTED_LOCALES.has(siteLocale)) {
-      const headers = new Headers(event.request.headers);
-      const existing = headers.get('cookie') ?? '';
-      const injected = existing
-        ? `${existing}; ${PARAGLIDE_COOKIE}=${siteLocale}`
-        : `${PARAGLIDE_COOKIE}=${siteLocale}`;
-      headers.set('cookie', injected);
-      event.request = new Request(event.request, { headers });
-    }
+  // Inject the admin-configured site_locale into the request cookie header
+  // before paraglide's `cookie` strategy reads it. We always override any
+  // existing PARAGLIDE_LOCALE cookie because that cookie is auto-written by
+  // paraglide on first visit (from Accept-Language) — it does not represent
+  // an explicit user choice. There is no language switcher in the storefront,
+  // so the admin setting is the sole source of truth.
+  const { siteLocale } = await fetchPublicSettings(event);
+  if (siteLocale && SUPPORTED_LOCALES.has(siteLocale)) {
+    const headers = new Headers(event.request.headers);
+    const existing = headers.get('cookie') ?? '';
+    const stripped = existing
+      .split(/;\s*/)
+      .filter((c) => c && !c.startsWith(`${PARAGLIDE_COOKIE}=`))
+      .join('; ');
+    const injected = stripped
+      ? `${stripped}; ${PARAGLIDE_COOKIE}=${siteLocale}`
+      : `${PARAGLIDE_COOKIE}=${siteLocale}`;
+    headers.set('cookie', injected);
+    event.request = new Request(event.request, { headers });
   }
 
   return paraglideMiddleware(event.request, ({ request, locale }) => {
