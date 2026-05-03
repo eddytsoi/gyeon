@@ -1140,6 +1140,85 @@ func (s *ProductService) GetBundleItems(ctx context.Context, productID string) (
 	return items, rows.Err()
 }
 
+// AddBundleItem upserts a single bundle item. If a row already exists for
+// (bundle_product_id, component_variant_id), its quantity / sort_order /
+// display_name_override are overwritten; otherwise a new row is inserted.
+// Rejects nested bundles (component variants whose product is itself a bundle).
+// Returns the resulting row enriched with component metadata, like GetBundleItems.
+func (s *ProductService) AddBundleItem(ctx context.Context, productID string, input BundleItemInput) (*BundleItem, error) {
+	var compKind string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT p.kind FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $1`,
+		input.ComponentVariantID).Scan(&compKind)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("component variant %s not found", input.ComponentVariantID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if compKind == "bundle" {
+		return nil, fmt.Errorf("nested bundles are not allowed: component variant %s belongs to a bundle product", input.ComponentVariantID)
+	}
+
+	qty := input.Quantity
+	if qty <= 0 {
+		qty = 1
+	}
+
+	var id string
+	err = s.db.QueryRowContext(ctx,
+		`INSERT INTO bundle_items (bundle_product_id, component_variant_id, quantity, sort_order, display_name_override)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (bundle_product_id, component_variant_id) DO UPDATE
+		   SET quantity              = EXCLUDED.quantity,
+		       sort_order            = EXCLUDED.sort_order,
+		       display_name_override = EXCLUDED.display_name_override
+		 RETURNING id`,
+		productID, input.ComponentVariantID, qty, input.SortOrder, input.DisplayNameOverride).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+
+	var bi BundleItem
+	err = s.db.QueryRowContext(ctx,
+		`SELECT bi.id, bi.bundle_product_id, bi.component_variant_id, bi.quantity,
+		        bi.sort_order, bi.display_name_override,
+		        p.name, pv.name, pv.sku, pv.stock_qty, pv.price, bi.created_at
+		 FROM bundle_items bi
+		 JOIN product_variants pv ON pv.id = bi.component_variant_id
+		 JOIN products p ON p.id = pv.product_id
+		 WHERE bi.id = $1`, id).Scan(
+		&bi.ID, &bi.BundleProductID, &bi.ComponentVariantID, &bi.Quantity,
+		&bi.SortOrder, &bi.DisplayNameOverride,
+		&bi.ComponentProductName, &bi.ComponentVariantName, &bi.ComponentSKU,
+		&bi.ComponentStockQty, &bi.ComponentPrice, &bi.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	s.cache.DeleteByPrefix(productPrefix)
+	return &bi, nil
+}
+
+// RemoveBundleItem deletes a single bundle item by (bundle_product_id,
+// component_variant_id). Returns errProductNotFound if no such row existed.
+func (s *ProductService) RemoveBundleItem(ctx context.Context, productID, componentVariantID string) error {
+	res, err := s.db.ExecContext(ctx,
+		`DELETE FROM bundle_items
+		 WHERE bundle_product_id = $1 AND component_variant_id = $2`,
+		productID, componentVariantID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errProductNotFound
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
+}
+
 // SetBundleItems atomically replaces all bundle_items for a product.
 // Validates that no component variant belongs to another bundle product (no nesting).
 func (s *ProductService) SetBundleItems(ctx context.Context, productID string, inputs []BundleItemInput) ([]BundleItem, error) {

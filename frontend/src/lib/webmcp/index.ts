@@ -109,7 +109,12 @@ const tools: ToolDefinition[] = [
   {
     name: 'add_to_cart',
     title: 'Add item to cart',
-    description: 'Add a product variant to the current shopping cart.',
+    description:
+      'Add a product variant to the current shopping cart. ' +
+      'For bundle products (kind="bundle") use the product\'s default_variant_id ' +
+      '(the auto-generated BUNDLE-* variant returned by browse_products / ' +
+      'get_product_detail) — quantity is the number of bundle sets, not the ' +
+      'sum of inner components.',
     inputSchema: {
       type: 'object',
       properties: {

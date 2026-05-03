@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -124,21 +125,40 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("set_bundle_items",
-		mcplib.WithDescription("Replace all bundle items for a bundle product. Pass an empty items array to clear the bundle contents."),
+		mcplib.WithDescription("Replace ALL bundle items for a bundle product (full overwrite — pass an empty `items` array to clear). For incremental edits use add_bundle_item / remove_bundle_item instead. Each input item: {component_variant_id (uuid, required), quantity (int ≥ 1, required), sort_order (int, optional), display_name_override (string, optional)}."),
 		mcplib.WithString("product_id", mcplib.Description("Bundle product UUID"), mcplib.Required()),
-		mcplib.WithString("items_json", mcplib.Description(`JSON array of bundle items. Each item: {"component_variant_id":"<uuid>","quantity":<int>,"sort_order":<int>,"display_name_override":"<optional string>"}`), mcplib.Required()),
+		mcplib.WithArray("items",
+			mcplib.Description("Bundle component rows. Empty array clears all components."),
+			mcplib.Items(map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"component_variant_id":  map[string]any{"type": "string", "description": "UUID of the component variant (must belong to a simple product, not a bundle)"},
+					"quantity":              map[string]any{"type": "integer", "minimum": 1, "description": "Number of this component per bundle (default 1)"},
+					"sort_order":            map[string]any{"type": "integer", "description": "Display ordering, lower first (default 0)"},
+					"display_name_override": map[string]any{"type": "string", "description": "Optional override of the component's display name in this bundle"},
+				},
+				"required": []string{"component_variant_id"},
+			}),
+		),
+		mcplib.WithString("items_json", mcplib.Description("DEPRECATED — JSON-string fallback for `items`. Prefer the typed `items` array. If both are set, `items` wins.")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 		productID, err := req.RequireString("product_id")
 		if err != nil {
 			return mcplib.NewToolResultError(err.Error()), nil
 		}
-		itemsJSON, err := req.RequireString("items_json")
-		if err != nil {
-			return mcplib.NewToolResultError(err.Error()), nil
-		}
 		var inputs []shop.BundleItemInput
-		if err := json.Unmarshal([]byte(itemsJSON), &inputs); err != nil {
-			return mcplib.NewToolResultError("invalid items_json: " + err.Error()), nil
+		args := req.GetArguments()
+		if raw, ok := args["items"]; ok && raw != nil {
+			b, _ := json.Marshal(raw)
+			if err := json.Unmarshal(b, &inputs); err != nil {
+				return mcplib.NewToolResultError("invalid items: " + err.Error()), nil
+			}
+		} else if itemsJSON := req.GetString("items_json", ""); itemsJSON != "" {
+			if err := json.Unmarshal([]byte(itemsJSON), &inputs); err != nil {
+				return mcplib.NewToolResultError("invalid items_json: " + err.Error()), nil
+			}
+		} else {
+			return mcplib.NewToolResultError("provide `items` (typed array) or `items_json` (legacy string)"), nil
 		}
 		items, err := prodSvc.SetBundleItems(ctx, productID, inputs)
 		if err != nil {
@@ -146,6 +166,60 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 		}
 		data, _ := json.Marshal(items)
 		return mcplib.NewToolResultText(string(data)), nil
+	})
+
+	s.AddTool(mcplib.NewTool("add_bundle_item",
+		mcplib.WithDescription("Add (or update) a single component on a bundle product. Idempotent: if a row already exists for the same (bundle_product_id, component_variant_id), its quantity / sort_order / display_name_override are overwritten — otherwise a new row is inserted. The component variant must belong to a simple product (no nested bundles)."),
+		mcplib.WithString("bundle_product_id", mcplib.Description("Bundle product UUID"), mcplib.Required()),
+		mcplib.WithString("component_variant_id", mcplib.Description("UUID of the component variant to add"), mcplib.Required()),
+		mcplib.WithNumber("quantity", mcplib.Description("Number of this component per bundle (default 1)"), mcplib.DefaultNumber(1)),
+		mcplib.WithNumber("sort_order", mcplib.Description("Display ordering, lower first (default 0)"), mcplib.DefaultNumber(0)),
+		mcplib.WithString("display_name_override", mcplib.Description("Optional override of the component's display name in this bundle")),
+	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+		productID, err := req.RequireString("bundle_product_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		componentVariantID, err := req.RequireString("component_variant_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		input := shop.BundleItemInput{
+			ComponentVariantID: componentVariantID,
+			Quantity:           req.GetInt("quantity", 1),
+			SortOrder:          req.GetInt("sort_order", 0),
+		}
+		if override := req.GetString("display_name_override", ""); override != "" {
+			input.DisplayNameOverride = &override
+		}
+		item, err := prodSvc.AddBundleItem(ctx, productID, input)
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		data, _ := json.Marshal(item)
+		return mcplib.NewToolResultText(string(data)), nil
+	})
+
+	s.AddTool(mcplib.NewTool("remove_bundle_item",
+		mcplib.WithDescription("Remove a single component from a bundle product, identified by (bundle_product_id, component_variant_id). Returns 'not found' if no such row exists."),
+		mcplib.WithString("bundle_product_id", mcplib.Description("Bundle product UUID"), mcplib.Required()),
+		mcplib.WithString("component_variant_id", mcplib.Description("UUID of the component variant to remove"), mcplib.Required()),
+	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+		productID, err := req.RequireString("bundle_product_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		componentVariantID, err := req.RequireString("component_variant_id")
+		if err != nil {
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		if err := prodSvc.RemoveBundleItem(ctx, productID, componentVariantID); err != nil {
+			if err == sql.ErrNoRows {
+				return mcplib.NewToolResultError("bundle item not found"), nil
+			}
+			return mcplib.NewToolResultError(err.Error()), nil
+		}
+		return mcplib.NewToolResultText("bundle item removed"), nil
 	})
 
 	s.AddTool(mcplib.NewTool("get_variant",
