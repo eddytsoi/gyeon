@@ -1,10 +1,11 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import type { PageData, ActionData } from './$types';
+  import type { PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import { showResult } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
-  let { data, form }: { data: PageData; form: ActionData } = $props();
+  let { data }: { data: PageData } = $props();
 
   const file = $derived(data.file);
   const isLink = $derived(file.mime_type === 'link');
@@ -75,7 +76,13 @@
           use:enhance={() => {
             if (deleting) return;
             deleting = true;
-            return async ({ update }) => {
+            const targetName = file.original_name;
+            return async ({ result, update }) => {
+              showResult(
+                result,
+                m.admin_media_deleted_success({ name: targetName }),
+                m.admin_media_deleted_failure()
+              );
               await update();
               deleting = false;
             };
@@ -166,25 +173,18 @@
     <!-- Right: form -->
     <div class="space-y-5">
 
-      {#if form?.error}
-        <div class="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
-          <p class="text-sm text-red-600">{form.error}</p>
-        </div>
-      {/if}
-
-      {#if form?.success}
-        <div class="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
-          <p class="text-sm text-green-700">{m.admin_media_edit_changes_saved()}</p>
-        </div>
-      {/if}
-
       <form
         method="POST"
         action="?/save"
         use:enhance={() => {
           if (saving) return;
           saving = true;
-          return async ({ update }) => {
+          return async ({ result, update }) => {
+            showResult(
+              result,
+              m.admin_media_edit_save_success(),
+              m.admin_media_edit_save_failure()
+            );
             await update({ reset: false });
             saving = false;
           };

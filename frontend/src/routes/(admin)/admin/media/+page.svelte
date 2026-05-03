@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import type { MediaFile } from '$lib/api/admin';
   import { adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
+  import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -12,7 +13,6 @@
   let dragCounter = $state(0);
   let uploading = $state<Map<string, number>>(new Map());
   let deleteTarget = $state<MediaFile | null>(null);
-  let uploadErrors = $state<string[]>([]);
   let failedImages = $state<Set<string>>(new Set());
   let copiedId = $state<string | null>(null);
 
@@ -50,6 +50,7 @@
       const added = await adminAddMediaLink(data.token, url, linkName.trim());
       media = [added, ...media];
       linkModalOpen = false;
+      notify.success(m.admin_media_added_link_success());
     } catch {
       linkError = m.admin_media_link_modal_save_failed();
     } finally {
@@ -124,7 +125,6 @@
   }
 
   async function uploadFiles(files: File[]) {
-    uploadErrors = [];
     for (const file of files) {
       const placeholderId = crypto.randomUUID();
       uploading = new Map(uploading.set(placeholderId, 0));
@@ -140,10 +140,11 @@
         uploading = new Map(uploading.set(placeholderId, 100));
         await new Promise((r) => setTimeout(r, 250));
         media = [uploaded, ...media];
+        notify.success(m.admin_media_uploaded_success({ name: file.name }));
       } catch (err) {
         clearInterval(tick);
-        const msg = err instanceof Error ? err.message : m.admin_media_upload_failed();
-        uploadErrors = [...uploadErrors, `${file.name}: ${msg}`];
+        const msg = err instanceof Error ? err.message : '';
+        notify.error(m.admin_media_upload_failed(), `${file.name}${msg ? `: ${msg}` : ''}`);
       } finally {
         uploading.delete(placeholderId);
         uploading = new Map(uploading);
@@ -157,8 +158,9 @@
     try {
       await adminDeleteMedia(data.token, file.id);
       media = media.filter((f) => f.id !== file.id);
+      notify.success(m.admin_media_deleted_success({ name: file.original_name }));
     } catch {
-      // silently ignore
+      notify.error(m.admin_media_deleted_failure());
     }
   }
 </script>
@@ -292,15 +294,6 @@
       </button>
     </div>
   </div>
-
-  <!-- Upload errors -->
-  {#if uploadErrors.length > 0}
-    <div class="rounded-xl bg-red-50 border border-red-100 p-3 space-y-1">
-      {#each uploadErrors as err}
-        <p class="text-xs text-red-600">{err}</p>
-      {/each}
-    </div>
-  {/if}
 
   <!-- Grid -->
   {#if filtered.length === 0 && uploading.size === 0}
