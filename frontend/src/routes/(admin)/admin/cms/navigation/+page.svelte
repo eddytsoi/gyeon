@@ -5,6 +5,7 @@
   import type { NavItem } from '$lib/api/admin';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -61,8 +62,8 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
-      <h2 class="text-xl font-bold text-gray-900">Navigation</h2>
-      <p class="text-sm text-gray-500 mt-0.5">Manage header and footer menus</p>
+      <h2 class="text-xl font-bold text-gray-900">{m.admin_cms_navigation_heading()}</h2>
+      <p class="text-sm text-gray-500 mt-0.5">{m.admin_cms_navigation_subtitle()}</p>
     </div>
     {#if data.selected}
       <button onclick={openAddItem}
@@ -71,7 +72,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
         </svg>
-        Add Link
+        {m.admin_cms_navigation_add_link()}
       </button>
     {/if}
   </div>
@@ -81,7 +82,7 @@
     <div class="lg:col-span-1">
       <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-50">
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Menus</p>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_cms_navigation_section_menus()}</p>
         </div>
         <ul class="py-2">
           {#each data.menus as menu}
@@ -114,7 +115,7 @@
       <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         {#if !data.selected}
           <div class="flex items-center justify-center py-20 text-gray-400 text-sm">
-            Select a menu
+            {m.admin_cms_navigation_select_menu()}
           </div>
         {:else if flatItems.length === 0}
           <div class="flex flex-col items-center justify-center py-20 text-center">
@@ -123,9 +124,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/>
               </svg>
             </div>
-            <p class="text-sm font-medium text-gray-400">No links yet</p>
+            <p class="text-sm font-medium text-gray-400">{m.admin_cms_navigation_no_links()}</p>
             <button onclick={openAddItem} class="mt-3 text-sm text-gray-900 underline underline-offset-2">
-              Add your first link
+              {m.admin_cms_navigation_add_first_link()}
             </button>
           </div>
         {:else}
@@ -153,7 +154,7 @@
                     <p class="text-xs text-gray-400 font-mono truncate">{item.url}</p>
                     {#if item.target === '_blank'}
                       <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 flex-shrink-0">
-                        new tab
+                        {m.admin_cms_navigation_target_new_tab()}
                       </span>
                     {/if}
                   </div>
@@ -195,7 +196,7 @@
          onclick={() => showItemForm = false} role="button" tabindex="-1"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
       <h3 class="text-base font-bold text-gray-900 mb-5">
-        {editingItem ? 'Edit Link' : 'Add Link'}
+        {editingItem ? m.admin_cms_navigation_modal_edit_title() : m.admin_cms_navigation_modal_add_title()}
       </h3>
 
       <form method="POST" action={editingItem ? '?/updateItem' : '?/addItem'}
@@ -206,8 +207,8 @@
               const linkLabel = fLabel;
               return async ({ result, update }) => {
                 showResult(result,
-                  wasEditing ? `Link '${linkLabel}' saved` : `Link '${linkLabel}' added`,
-                  wasEditing ? `Failed to save link '${linkLabel}'` : `Failed to add link '${linkLabel}'`);
+                  wasEditing ? m.admin_cms_navigation_save_success({ label: linkLabel }) : m.admin_cms_navigation_add_success({ label: linkLabel }),
+                  wasEditing ? m.admin_cms_navigation_save_failure({ label: linkLabel }) : m.admin_cms_navigation_add_failure({ label: linkLabel }));
                 await update({ invalidateAll: true });
                 saving = false;
                 if (result.type === 'success') showItemForm = false;
@@ -220,16 +221,16 @@
         {/if}
 
         <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Label</label>
-          <input type="text" name="label" bind:value={fLabel} required placeholder="e.g. About Us"
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_label()}</label>
+          <input type="text" name="label" bind:value={fLabel} required placeholder={m.admin_cms_navigation_label_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                         focus:ring-gray-900 focus:border-transparent transition" />
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">URL</label>
-          <input type="text" name="url" bind:value={fUrl} required placeholder="/about or https://..."
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_url()}</label>
+          <input type="text" name="url" bind:value={fUrl} required placeholder={m.admin_cms_navigation_url_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
@@ -237,17 +238,17 @@
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Open in</label>
+            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_open()}</label>
             <select name="target" bind:value={fTarget}
                     class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                            text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
                            focus:border-transparent transition bg-white">
-              <option value="_self">Same tab</option>
-              <option value="_blank">New tab</option>
+              <option value="_self">{m.admin_cms_navigation_open_same()}</option>
+              <option value="_blank">{m.admin_cms_navigation_open_new()}</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Order</label>
+            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_order()}</label>
             <input type="number" name="sort_order" bind:value={fOrder} min="0"
                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                           text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
@@ -259,13 +260,13 @@
           <button type="button" onclick={() => showItemForm = false}
                   class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                          text-gray-700 hover:bg-gray-50 transition-colors">
-            Cancel
+            {m.admin_cms_navigation_cancel()}
           </button>
           <SaveButton loading={saving}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
                          bg-gray-900 text-white text-sm font-medium
                          hover:bg-gray-700 transition-colors disabled:opacity-50">
-            {editingItem ? 'Save Changes' : 'Add Link'}
+            {editingItem ? m.admin_cms_navigation_save() : m.admin_cms_navigation_add_link_submit()}
           </SaveButton>
         </div>
       </form>
@@ -279,18 +280,18 @@
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => deleteTarget = null} role="button" tabindex="-1"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="text-base font-bold text-gray-900 mb-1">Remove link?</h3>
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_cms_navigation_remove_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        "<span class="font-medium text-gray-700">{deleteTarget.label}</span>" will be removed from this menu.
+        {m.admin_cms_navigation_remove_body_pre()}<span class="font-medium text-gray-700">{deleteTarget.label}</span>{m.admin_cms_navigation_remove_body_post()}
         {#if deleteTarget.children?.length}
-          <span class="text-red-500">Its sub-links will also be removed.</span>
+          <span class="text-red-500">{m.admin_cms_navigation_remove_warns_children()}</span>
         {/if}
       </p>
       <div class="flex gap-3">
         <button onclick={() => deleteTarget = null}
                 class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                        text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.admin_cms_navigation_cancel()}
         </button>
         <form method="POST" action="?/deleteItem" class="flex-1"
               use:enhance={() => {
@@ -298,7 +299,7 @@
                 removing = true;
                 const linkLabel = deleteTarget?.label ?? '';
                 return async ({ result }) => {
-                  showResult(result, `Link '${linkLabel}' removed`, `Failed to remove link '${linkLabel}'`);
+                  showResult(result, m.admin_cms_navigation_remove_success({ label: linkLabel }), m.admin_cms_navigation_remove_failure({ label: linkLabel }));
                   if (result.type === 'success') await invalidateAll();
                   removing = false;
                   deleteTarget = null;
@@ -309,7 +310,7 @@
           <SaveButton loading={removing}
                   class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
                          hover:bg-red-600 transition-colors disabled:opacity-50">
-            Remove
+            {m.admin_cms_navigation_remove_button()}
           </SaveButton>
         </form>
       </div>

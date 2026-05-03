@@ -6,38 +6,33 @@
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
   let saving = $state(false);
 
   // ── Tabs ────────────────────────────────────────────────────────
-  // Heroicons (stroke 1.5) — matches the rest of the admin UI.
   const TAB_ICONS: Record<string, string> = {
-    // cog-6-tooth
     general:
       'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
-    // shopping-bag
     commerce:
       'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
-    // truck
     logistics:
       'M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12',
-    // envelope
     email:
       'M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75',
-    // server-stack
     infrastructure:
       'M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z'
   };
 
-  const TABS = [
-    { id: 'general',        label: 'General' },
-    { id: 'commerce',       label: 'Commerce' },
-    { id: 'logistics',      label: 'Logistics' },
-    { id: 'email',          label: 'Email' },
-    { id: 'infrastructure', label: 'Infrastructure' }
-  ] as const;
-  type TabId = (typeof TABS)[number]['id'];
+  const TABS = $derived([
+    { id: 'general',        label: m.admin_settings_tab_general() },
+    { id: 'commerce',       label: m.admin_settings_tab_commerce() },
+    { id: 'logistics',      label: m.admin_settings_tab_logistics() },
+    { id: 'email',          label: m.admin_settings_tab_email() },
+    { id: 'infrastructure', label: m.admin_settings_tab_infrastructure() }
+  ] as const);
+  type TabId = 'general' | 'commerce' | 'logistics' | 'email' | 'infrastructure';
 
   let activeTab = $state<TabId>('general');
 
@@ -92,18 +87,18 @@
         body: JSON.stringify({ to: testEmailAddress })
       });
       if (res.ok) {
-        notify.success('Test email sent successfully', `Sent to ${testEmailAddress}`);
+        notify.success(m.admin_settings_test_email_success_title(), m.admin_settings_test_email_success_body({ email: testEmailAddress }));
         showTestEmailModal = false;
       } else {
-        let serverMsg = 'Check your SMTP settings and save them first.';
+        let serverMsg = m.admin_settings_test_email_failure_default();
         try {
           const body = await res.json();
           if (typeof body?.error === 'string' && body.error) serverMsg = body.error;
         } catch { /* non-JSON body */ }
-        notify.error('Failed to send test email', serverMsg);
+        notify.error(m.admin_settings_test_email_failure_title(), serverMsg);
       }
     } catch (e) {
-      notify.error('Failed to send test email', e instanceof Error ? e.message : 'Network error');
+      notify.error(m.admin_settings_test_email_failure_title(), e instanceof Error ? e.message : m.admin_settings_test_email_network_error());
     } finally {
       testEmailSending = false;
     }
@@ -126,104 +121,63 @@
     'stripe_webhook_secret'
   ]);
 
-  // Stripe-supported countries (ISO 3166-1 alpha-2). Source: stripe.com/global.
   const STRIPE_COUNTRY_OPTIONS = [
-    { value: 'AU', label: 'Australia' },
-    { value: 'AT', label: 'Austria' },
-    { value: 'BE', label: 'Belgium' },
-    { value: 'BR', label: 'Brazil' },
-    { value: 'BG', label: 'Bulgaria' },
-    { value: 'CA', label: 'Canada' },
-    { value: 'HR', label: 'Croatia' },
-    { value: 'CY', label: 'Cyprus' },
-    { value: 'CZ', label: 'Czech Republic' },
-    { value: 'DK', label: 'Denmark' },
-    { value: 'EE', label: 'Estonia' },
-    { value: 'FI', label: 'Finland' },
-    { value: 'FR', label: 'France' },
-    { value: 'DE', label: 'Germany' },
-    { value: 'GI', label: 'Gibraltar' },
-    { value: 'GR', label: 'Greece' },
-    { value: 'HK', label: 'Hong Kong' },
-    { value: 'HU', label: 'Hungary' },
-    { value: 'IN', label: 'India' },
-    { value: 'ID', label: 'Indonesia' },
-    { value: 'IE', label: 'Ireland' },
-    { value: 'IT', label: 'Italy' },
-    { value: 'JP', label: 'Japan' },
-    { value: 'LV', label: 'Latvia' },
-    { value: 'LI', label: 'Liechtenstein' },
-    { value: 'LT', label: 'Lithuania' },
-    { value: 'LU', label: 'Luxembourg' },
-    { value: 'MY', label: 'Malaysia' },
-    { value: 'MT', label: 'Malta' },
-    { value: 'MX', label: 'Mexico' },
-    { value: 'NL', label: 'Netherlands' },
-    { value: 'NZ', label: 'New Zealand' },
-    { value: 'NO', label: 'Norway' },
-    { value: 'PL', label: 'Poland' },
-    { value: 'PT', label: 'Portugal' },
-    { value: 'RO', label: 'Romania' },
-    { value: 'SG', label: 'Singapore' },
-    { value: 'SK', label: 'Slovakia' },
-    { value: 'SI', label: 'Slovenia' },
-    { value: 'ES', label: 'Spain' },
-    { value: 'SE', label: 'Sweden' },
-    { value: 'CH', label: 'Switzerland' },
-    { value: 'TH', label: 'Thailand' },
-    { value: 'AE', label: 'United Arab Emirates' },
-    { value: 'GB', label: 'United Kingdom' },
-    { value: 'US', label: 'United States' }
+    { value: 'AU', label: 'Australia' }, { value: 'AT', label: 'Austria' },
+    { value: 'BE', label: 'Belgium' }, { value: 'BR', label: 'Brazil' },
+    { value: 'BG', label: 'Bulgaria' }, { value: 'CA', label: 'Canada' },
+    { value: 'HR', label: 'Croatia' }, { value: 'CY', label: 'Cyprus' },
+    { value: 'CZ', label: 'Czech Republic' }, { value: 'DK', label: 'Denmark' },
+    { value: 'EE', label: 'Estonia' }, { value: 'FI', label: 'Finland' },
+    { value: 'FR', label: 'France' }, { value: 'DE', label: 'Germany' },
+    { value: 'GI', label: 'Gibraltar' }, { value: 'GR', label: 'Greece' },
+    { value: 'HK', label: 'Hong Kong' }, { value: 'HU', label: 'Hungary' },
+    { value: 'IN', label: 'India' }, { value: 'ID', label: 'Indonesia' },
+    { value: 'IE', label: 'Ireland' }, { value: 'IT', label: 'Italy' },
+    { value: 'JP', label: 'Japan' }, { value: 'LV', label: 'Latvia' },
+    { value: 'LI', label: 'Liechtenstein' }, { value: 'LT', label: 'Lithuania' },
+    { value: 'LU', label: 'Luxembourg' }, { value: 'MY', label: 'Malaysia' },
+    { value: 'MT', label: 'Malta' }, { value: 'MX', label: 'Mexico' },
+    { value: 'NL', label: 'Netherlands' }, { value: 'NZ', label: 'New Zealand' },
+    { value: 'NO', label: 'Norway' }, { value: 'PL', label: 'Poland' },
+    { value: 'PT', label: 'Portugal' }, { value: 'RO', label: 'Romania' },
+    { value: 'SG', label: 'Singapore' }, { value: 'SK', label: 'Slovakia' },
+    { value: 'SI', label: 'Slovenia' }, { value: 'ES', label: 'Spain' },
+    { value: 'SE', label: 'Sweden' }, { value: 'CH', label: 'Switzerland' },
+    { value: 'TH', label: 'Thailand' }, { value: 'AE', label: 'United Arab Emirates' },
+    { value: 'GB', label: 'United Kingdom' }, { value: 'US', label: 'United States' }
   ];
   const SHIPANY_KEYS = new Set([
-    'shipany_enabled',
-    'shipany_user_id',
-    'shipany_api_key',
-    'shipany_webhook_secret',
-    'shipany_region',
-    'shipany_origin_name',
-    'shipany_origin_phone',
-    'shipany_origin_line1',
-    'shipany_origin_line2',
-    'shipany_origin_district',
-    'shipany_origin_city',
-    'shipany_origin_postal',
-    'shipany_default_weight_grams',
-    'shipany_default_courier',
-    'shipany_default_service',
-    'shipany_default_storage_type',
-    'shipany_paid_by_receiver',
-    'shipany_self_drop_off',
-    'shipany_order_ref_suffix',
-    'shipany_show_courier_tracking_number'
+    'shipany_enabled', 'shipany_user_id', 'shipany_api_key',
+    'shipany_webhook_secret', 'shipany_region', 'shipany_origin_name',
+    'shipany_origin_phone', 'shipany_origin_line1', 'shipany_origin_line2',
+    'shipany_origin_district', 'shipany_origin_city', 'shipany_origin_postal',
+    'shipany_default_weight_grams', 'shipany_default_courier',
+    'shipany_default_service', 'shipany_default_storage_type',
+    'shipany_paid_by_receiver', 'shipany_self_drop_off',
+    'shipany_order_ref_suffix', 'shipany_show_courier_tracking_number'
   ]);
   const SMTP_KEYS = new Set([
-    'smtp_host',
-    'smtp_port',
-    'smtp_username',
-    'smtp_password',
-    'smtp_from_email',
-    'smtp_from_name',
-    'public_base_url'
+    'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+    'smtp_from_email', 'smtp_from_name', 'public_base_url'
   ]);
 
-  const CACHE_TTL_LABELS: Record<string, string> = {
-    cache_ttl_shop: 'Shop Cache TTL',
-    cache_ttl_cms: 'CMS Cache TTL',
-    cache_ttl_nav: 'Navigation Cache TTL'
-  };
-  const CLOUDFLARE_LABELS: Record<string, string> = {
-    cloudflare_zone_id: 'Cloudflare Zone ID',
-    cloudflare_api_token: 'Cloudflare API Token'
-  };
+  const CACHE_TTL_LABELS = $derived<Record<string, string>>({
+    cache_ttl_shop: m.admin_settings_cache_label_shop(),
+    cache_ttl_cms: m.admin_settings_cache_label_cms(),
+    cache_ttl_nav: m.admin_settings_cache_label_nav()
+  });
+  const CLOUDFLARE_LABELS = $derived<Record<string, string>>({
+    cloudflare_zone_id: m.admin_settings_cloudflare_zone_id(),
+    cloudflare_api_token: m.admin_settings_cloudflare_api_token()
+  });
   const CLOUDFLARE_PLACEHOLDERS: Record<string, string> = {
     cloudflare_zone_id: 'e.g. 5a0f426da5de...',
     cloudflare_api_token: 'cfut_...'
   };
-  const MEDIA_LIMIT_LABELS: Record<string, string> = {
-    upload_max_image_mb: 'Image Upload Limit (MB)',
-    upload_max_video_mb: 'Video Upload Limit (MB)'
-  };
+  const MEDIA_LIMIT_LABELS = $derived<Record<string, string>>({
+    upload_max_image_mb: m.admin_settings_media_image_limit(),
+    upload_max_video_mb: m.admin_settings_media_video_limit()
+  });
 
   const textSettings = $derived(
     data.settings.filter(
@@ -317,8 +271,6 @@
       });
       if (res.ok) {
         const body = await res.json();
-        // New envelope: { couriers: [...], error?: string }. Tolerate the
-        // older bare-array shape too in case of stale frontend caching.
         if (Array.isArray(body)) {
           shipanyCouriers = body;
         } else {
@@ -327,11 +279,11 @@
         }
       } else {
         shipanyCouriers = [];
-        shipanyCouriersError = `Server returned ${res.status}`;
+        shipanyCouriersError = m.admin_settings_shipany_server_returned({ status: res.status });
       }
     } catch (e) {
       shipanyCouriers = [];
-      shipanyCouriersError = e instanceof Error ? e.message : 'Network error';
+      shipanyCouriersError = e instanceof Error ? e.message : m.admin_settings_shipany_network_error();
     } finally {
       shipanyCouriersLoading = false;
       shipanyCouriersLoaded = true;
@@ -346,8 +298,6 @@
 
   function onCourierChange(uid: string) {
     shipanyCourierUID = uid;
-    // Reset service plan when courier changes — the previous plan is unlikely
-    // to belong to the new courier.
     const plans = shipanyCouriers.find((c) => c.uid === uid)?.cour_svc_plans ?? [];
     if (!plans.some((p) => p.cour_svc_pl === shipanyServicePl)) {
       shipanyServicePl = '';
@@ -366,50 +316,49 @@
         const body = await res.json();
         shipanyTestResult = { ok: !!body.ok, message: body.message ?? '' };
         if (body.ok) {
-          notify.success('ShipAny connected', body.message || '');
+          notify.success(m.admin_settings_shipany_test_success_title(), body.message || '');
         } else {
-          notify.error('ShipAny connection failed', body.message || '');
+          notify.error(m.admin_settings_shipany_test_failure_title(), body.message || '');
         }
       } else {
-        const msg = `Server returned ${res.status}`;
+        const msg = m.admin_settings_shipany_server_returned({ status: res.status });
         shipanyTestResult = { ok: false, message: msg };
-        notify.error('ShipAny connection failed', msg);
+        notify.error(m.admin_settings_shipany_test_failure_title(), msg);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Network error';
+      const msg = e instanceof Error ? e.message : m.admin_settings_shipany_network_error();
       shipanyTestResult = { ok: false, message: msg };
-      notify.error('ShipAny connection failed', msg);
+      notify.error(m.admin_settings_shipany_test_failure_title(), msg);
     } finally {
       shipanyTestingConnection = false;
     }
   }
 
   // ── SMTP ────────────────────────────────────────────────────────
-  const SMTP_FIELDS: Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }> = [
-    { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.gmail.com' },
-    { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
-    { key: 'smtp_username', label: 'SMTP Username', placeholder: 'you@gmail.com' },
-    { key: 'smtp_password', label: 'SMTP Password', placeholder: 'Gmail App Password (16 chars)', password: true,
-      hint: 'Use a Google App Password — not your account password.' },
-    { key: 'smtp_from_email', label: 'From Email', placeholder: 'noreply@yourdomain.com' },
-    { key: 'smtp_from_name', label: 'From Name', placeholder: 'Gyeon' },
-    { key: 'public_base_url', label: 'Public Base URL', placeholder: 'https://your-storefront.com',
-      hint: 'Used to build links inside transactional emails.' }
-  ];
+  const SMTP_FIELDS = $derived<Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }>>([
+    { key: 'smtp_host',       label: m.admin_settings_email_smtp_host(),       placeholder: 'smtp.gmail.com' },
+    { key: 'smtp_port',       label: m.admin_settings_email_smtp_port(),       placeholder: '587' },
+    { key: 'smtp_username',   label: m.admin_settings_email_smtp_username(),   placeholder: 'you@gmail.com' },
+    { key: 'smtp_password',   label: m.admin_settings_email_smtp_password(),   placeholder: 'Gmail App Password (16 chars)', password: true,
+      hint: m.admin_settings_email_smtp_password_hint() },
+    { key: 'smtp_from_email', label: m.admin_settings_email_from_email(),      placeholder: 'noreply@yourdomain.com' },
+    { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'Gyeon' },
+    { key: 'public_base_url', label: m.admin_settings_email_public_base_url(), placeholder: 'https://your-storefront.com',
+      hint: m.admin_settings_email_public_base_url_hint() }
+  ]);
 </script>
 
-<svelte:head><title>Settings — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_settings_title()}</title></svelte:head>
 
 <div class="max-w-3xl">
   <div class="flex items-center justify-between mb-8">
-    <h1 class="text-2xl font-bold text-gray-900">Site Settings</h1>
+    <h1 class="text-2xl font-bold text-gray-900">{m.admin_settings_heading()}</h1>
   </div>
 
   <div bind:this={tabsEl}
        onmousemove={onTabsMouseMove}
        onmouseleave={onTabsMouseLeave}
        class="relative flex gap-1 mb-6 border-b border-gray-100 overflow-x-auto overflow-y-hidden">
-    <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered tab -->
     <div aria-hidden="true"
          class="pointer-events-none absolute z-0 rounded-lg bg-gray-100
                 transition-[transform,width,opacity] duration-[80ms] ease-out
@@ -418,7 +367,7 @@
     </div>
     {#each TABS as t}
       <button type="button"
-              onclick={() => setTab(t.id)}
+              onclick={() => setTab(t.id as TabId)}
               class="relative z-10 inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium
                      border-b-2 -mb-px whitespace-nowrap transition-colors
                      {activeTab === t.id
@@ -441,11 +390,11 @@
             await update({ reset: false });
             saving = false;
             if (result.type === 'success') {
-              notify.success('Settings saved');
+              notify.success(m.admin_settings_save_success());
             } else if (result.type === 'failure') {
-              notify.error('Save failed', (result.data?.error as string) ?? 'Please try again.');
+              notify.error(m.admin_settings_save_failure_title(), (result.data?.error as string) ?? m.admin_settings_save_failure_default());
             } else if (result.type === 'error') {
-              notify.error('Save failed', result.error?.message ?? 'Please try again.');
+              notify.error(m.admin_settings_save_failure_title(), result.error?.message ?? m.admin_settings_save_failure_default());
             }
           };
         }}>
@@ -457,7 +406,7 @@
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-sm font-semibold text-gray-900">Maintenance Mode</p>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_maintenance_heading()}</p>
             {#if maintenanceSetting.description}
               <p class="text-xs text-gray-400 mt-0.5">{maintenanceSetting.description}</p>
             {/if}
@@ -476,7 +425,7 @@
         </div>
         {#if maintenanceOn}
           <p class="mt-3 text-xs text-red-600 font-medium">
-            ⚠ Site is in maintenance mode — non-admin visitors are redirected to the maintenance page.
+            {m.admin_settings_maintenance_warning()}
           </p>
         {/if}
       </div>
@@ -487,7 +436,7 @@
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-sm font-semibold text-gray-900">WebMCP</p>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_webmcp_heading()}</p>
             {#if mcpSetting.description}
               <p class="text-xs text-gray-400 mt-0.5">{mcpSetting.description}</p>
             {/if}
@@ -507,46 +456,43 @@
       </div>
     {/if}
 
-    </div><!-- /General tab -->
+    </div>
 
     <!-- Commerce tab -->
     <div class="tab-panel" class:active={activeTab === 'commerce'}>
-    <!-- Shipping Countries -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <h2 class="text-sm font-semibold text-gray-900 mb-1">Shipping Countries</h2>
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_shipping_heading()}</h2>
       <p class="text-xs text-gray-400 mb-4">
-        {shippingCountriesSetting?.description ?? 'Countries available at checkout (ISO 3166-1 alpha-2 codes).'}
+        {shippingCountriesSetting?.description ?? m.admin_settings_shipping_subtitle()}
       </p>
       <MultiSelect
         options={countryOptions}
         selected={shippingCountries}
-        placeholder="Select countries…"
+        placeholder={m.admin_settings_shipping_placeholder()}
         onChange={(values) => (shippingCountries = values)}
       />
       <input type="hidden" name="shipping_countries" value={JSON.stringify(shippingCountries)} />
     </div>
 
-    <!-- Payment (Stripe) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">Payment (Stripe)</h2>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_heading()}</h2>
           <p class="text-xs text-gray-400 mt-0.5">
-            Configure Stripe credentials and the runtime mode used for new orders.
+            {m.admin_settings_payment_subtitle()}
           </p>
         </div>
       </div>
 
-      <!-- Mode toggle -->
       <div class="flex items-center justify-between gap-4 pb-5 border-b border-gray-100">
         <div>
-          <p class="text-sm font-semibold text-gray-900">Mode</p>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_mode_heading()}</p>
           <p class="text-xs text-gray-400 mt-0.5">
-            {stripeLiveMode ? 'Live — real charges will be made.' : 'Test — no real money moves.'}
+            {stripeLiveMode ? m.admin_settings_payment_mode_live_hint() : m.admin_settings_payment_mode_test_hint()}
           </p>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-xs font-medium {stripeLiveMode ? 'text-gray-300' : 'text-gray-700'}">Test</span>
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-gray-300' : 'text-gray-700'}">{m.admin_settings_payment_mode_test_label()}</span>
           <button type="button"
                   onclick={() => (stripeLiveMode = !stripeLiveMode)}
                   class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
@@ -557,20 +503,18 @@
             <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
                          transition duration-200 {stripeLiveMode ? 'translate-x-5' : 'translate-x-0'}"></span>
           </button>
-          <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">Live</span>
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">{m.admin_settings_payment_mode_live_label()}</span>
         </div>
         <input type="hidden" name="stripe_mode" value={stripeLiveMode ? 'live' : 'test'} />
       </div>
 
-      <!-- Country / Region -->
       <div class="pt-5 border-t border-gray-100 mt-5">
         <div class="flex flex-col gap-1.5">
           <label for="stripe_country" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Country / Region
+            {m.admin_settings_payment_country_heading()}
           </label>
           <p class="text-xs text-gray-400 -mt-0.5">
-            Country your Stripe account is registered in. Drives the default
-            country shown in the payment address fields.
+            {m.admin_settings_payment_country_hint()}
           </p>
           <select id="stripe_country" name="stripe_country"
                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
@@ -585,14 +529,13 @@
         </div>
       </div>
 
-      <!-- Test keys -->
       <div class="pt-5 {stripeLiveMode ? 'opacity-50' : ''}">
         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Test Keys {#if stripeLiveMode}<span class="font-normal normal-case text-gray-400">— currently inactive</span>{/if}
+          {m.admin_settings_payment_test_keys()} {#if stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
         </p>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">Publishable key</label>
+            <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
             <input id="stripe_test_publishable_key" name="stripe_test_publishable_key"
                    type="password" value={settingValue('stripe_test_publishable_key')}
                    placeholder="pk_test_..."
@@ -600,7 +543,7 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">Secret key</label>
+            <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
             <input id="stripe_test_secret_key" name="stripe_test_secret_key"
                    type="password" value={settingValue('stripe_test_secret_key')}
                    placeholder="sk_test_..."
@@ -610,14 +553,13 @@
         </div>
       </div>
 
-      <!-- Live keys -->
       <div class="pt-5 mt-5 border-t border-gray-100 {stripeLiveMode ? '' : 'opacity-50'}">
         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Live Keys {#if !stripeLiveMode}<span class="font-normal normal-case text-gray-400">— currently inactive</span>{/if}
+          {m.admin_settings_payment_live_keys()} {#if !stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
         </p>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">Publishable key</label>
+            <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
             <input id="stripe_live_publishable_key" name="stripe_live_publishable_key"
                    type="password" value={settingValue('stripe_live_publishable_key')}
                    placeholder="pk_live_..."
@@ -625,7 +567,7 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">Secret key</label>
+            <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
             <input id="stripe_live_secret_key" name="stripe_live_secret_key"
                    type="password" value={settingValue('stripe_live_secret_key')}
                    placeholder="sk_live_..."
@@ -635,14 +577,13 @@
         </div>
       </div>
 
-      <!-- Webhook secret -->
       <div class="pt-5 mt-5 border-t border-gray-100">
         <div class="flex flex-col gap-1.5">
           <label for="stripe_webhook_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Webhook signing secret
+            {m.admin_settings_payment_webhook_heading()}
           </label>
           <p class="text-xs text-gray-400 -mt-0.5">
-            Register endpoint <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code> in Stripe Dashboard, then paste the <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code> here.
+            {m.admin_settings_payment_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code>{m.admin_settings_payment_webhook_hint_mid()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code>{m.admin_settings_payment_webhook_hint_post()}
           </p>
           <input id="stripe_webhook_secret" name="stripe_webhook_secret"
                  type="password" value={settingValue('stripe_webhook_secret')}
@@ -652,12 +593,11 @@
         </div>
       </div>
 
-      <!-- Save cards -->
       <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between gap-4">
         <div>
-          <p class="text-sm font-semibold text-gray-900">Save Cards</p>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_save_cards_heading()}</p>
           <p class="text-xs text-gray-400 mt-0.5">
-            Allow logged-in customers to save cards for future purchases.
+            {m.admin_settings_payment_save_cards_hint()}
           </p>
         </div>
         <button type="button"
@@ -674,19 +614,16 @@
       </div>
     </div>
 
-    </div><!-- /Commerce tab -->
+    </div>
 
     <!-- Logistics tab -->
     <div class="tab-panel" class:active={activeTab === 'logistics'}>
-    <!-- Logistics (ShipAny) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">ShipAny</h2>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_shipany_heading()}</h2>
           <p class="text-xs text-gray-400 mt-0.5">
-            Live shipping rates at checkout, label printing, pickup booking and tracking via
-            <a href="https://www.shipany.io" target="_blank" rel="noopener" class="underline hover:text-gray-700">ShipAny</a>.
-            Hong Kong only.
+            {m.admin_settings_shipany_subtitle_pre()}<a href="https://www.shipany.io" target="_blank" rel="noopener" class="underline hover:text-gray-700">{m.admin_settings_shipany_subtitle_link()}</a>{m.admin_settings_shipany_subtitle_post()}
           </p>
         </div>
         <button type="button"
@@ -703,34 +640,33 @@
       </div>
 
       <div class="{shipanyOn ? '' : 'opacity-50 pointer-events-none'}">
-        <!-- Credentials -->
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Credentials</p>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.admin_settings_shipany_section_credentials()}</p>
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <label for="shipany_user_id" class="text-xs font-medium text-gray-600">
-              User ID <span class="text-gray-400 font-normal">(informational)</span>
+              {m.admin_settings_shipany_label_user_id()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_label_user_id_hint()}</span>
             </label>
             <input id="shipany_user_id" name="shipany_user_id" type="text"
                    value={settingValue('shipany_user_id')}
-                   placeholder="fac0f9cf-…"
+                   placeholder={m.admin_settings_shipany_user_id_placeholder()}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="shipany_api_key" class="text-xs font-medium text-gray-600">
-              API Key
+              {m.admin_settings_shipany_label_api_key()}
             </label>
             <p class="text-xs text-gray-400 -mt-0.5">
-              From portal.shipany.io → Settings. Env-prefixed keys (SHIPANYDEV / SHIPANYSBX1 / SHIPANYDEMO) are auto-routed to the right subdomain.
+              {m.admin_settings_shipany_api_key_hint()}
             </p>
             <input id="shipany_api_key" name="shipany_api_key" type="password"
                    value={settingValue('shipany_api_key')}
-                   placeholder="paste API token"
+                   placeholder={m.admin_settings_shipany_api_key_placeholder()}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label for="shipany_region" class="text-xs font-medium text-gray-600">Region</label>
+            <label for="shipany_region" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_label_region()}</label>
             <select id="shipany_region" name="shipany_region"
                     value={settingValue('shipany_region')}
                     class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
@@ -742,12 +678,10 @@
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="shipany_webhook_secret" class="text-xs font-medium text-gray-600">
-              Webhook Signing Secret <span class="text-gray-400 font-normal">(optional, untested)</span>
+              {m.admin_settings_shipany_label_webhook_secret()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_webhook_optional()}</span>
             </label>
             <p class="text-xs text-gray-400 -mt-0.5">
-              ShipAny mostly delivers tracking via polling. If your account supports push callbacks,
-              register <code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/shipany/webhook</code>
-              and paste the HMAC secret here.
+              {m.admin_settings_shipany_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/shipany/webhook</code>{m.admin_settings_shipany_webhook_hint_post()}
             </p>
             <input id="shipany_webhook_secret" name="shipany_webhook_secret" type="password"
                    value={settingValue('shipany_webhook_secret')}
@@ -756,45 +690,44 @@
           </div>
         </div>
 
-        <!-- Pickup origin (warehouse address) -->
         <div class="pt-5 mt-5 border-t border-gray-100">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pickup Origin</p>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.admin_settings_shipany_section_pickup()}</p>
           <p class="text-xs text-gray-400 mb-4">
-            Sender address used for rate quoting and waybill generation. Falls back to merchant info from the portal when blank.
+            {m.admin_settings_shipany_pickup_subtitle()}
           </p>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-1.5">
-              <label for="shipany_origin_name" class="text-xs font-medium text-gray-600">Contact name</label>
+              <label for="shipany_origin_name" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_contact_name()}</label>
               <input id="shipany_origin_name" name="shipany_origin_name" type="text"
                      value={settingValue('shipany_origin_name')}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label for="shipany_origin_phone" class="text-xs font-medium text-gray-600">Contact phone</label>
+              <label for="shipany_origin_phone" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_contact_phone()}</label>
               <input id="shipany_origin_phone" name="shipany_origin_phone" type="tel"
                      value={settingValue('shipany_origin_phone')}
-                     placeholder="98765432"
+                     placeholder={m.admin_settings_shipany_pickup_contact_phone_placeholder()}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div class="flex flex-col gap-1.5 col-span-2">
-              <label for="shipany_origin_line1" class="text-xs font-medium text-gray-600">Address line 1</label>
+              <label for="shipany_origin_line1" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_line1()}</label>
               <input id="shipany_origin_line1" name="shipany_origin_line1" type="text"
                      value={settingValue('shipany_origin_line1')}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div class="flex flex-col gap-1.5 col-span-2">
-              <label for="shipany_origin_line2" class="text-xs font-medium text-gray-600">Address line 2</label>
+              <label for="shipany_origin_line2" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_line2()}</label>
               <input id="shipany_origin_line2" name="shipany_origin_line2" type="text"
                      value={settingValue('shipany_origin_line2')}
-                     placeholder="Building / floor / unit"
+                     placeholder={m.admin_settings_shipany_pickup_line2_placeholder()}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label for="shipany_origin_district" class="text-xs font-medium text-gray-600">District</label>
+              <label for="shipany_origin_district" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_district()}</label>
               <input id="shipany_origin_district" name="shipany_origin_district" type="text" list="hk-districts-origin"
                      value={settingValue('shipany_origin_district')}
                      placeholder="觀塘區"
@@ -807,7 +740,7 @@
               </datalist>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label for="shipany_origin_city" class="text-xs font-medium text-gray-600">City</label>
+              <label for="shipany_origin_city" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_city()}</label>
               <input id="shipany_origin_city" name="shipany_origin_city" type="text"
                      value={settingValue('shipany_origin_city')}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
@@ -815,7 +748,7 @@
             </div>
             <div class="flex flex-col gap-1.5">
               <label for="shipany_origin_postal" class="text-xs font-medium text-gray-600">
-                Postal code <span class="text-gray-400 font-normal">(HK has none)</span>
+                {m.admin_settings_shipany_pickup_postal()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_pickup_postal_hint()}</span>
               </label>
               <input id="shipany_origin_postal" name="shipany_origin_postal" type="text"
                      value={settingValue('shipany_origin_postal')}
@@ -825,13 +758,12 @@
           </div>
         </div>
 
-        <!-- Defaults -->
         <div class="pt-5 mt-5 border-t border-gray-100">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Defaults</p>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.admin_settings_shipany_section_defaults()}</p>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-1.5">
               <label for="shipany_default_weight_grams" class="text-xs font-medium text-gray-600">
-                Fallback weight (grams)
+                {m.admin_settings_shipany_default_weight()}
               </label>
               <input id="shipany_default_weight_grams" name="shipany_default_weight_grams"
                      type="number" min="50" step="50"
@@ -841,7 +773,7 @@
             </div>
             <div class="flex flex-col gap-1.5">
               <label for="shipany_default_storage_type" class="text-xs font-medium text-gray-600">
-                Default storage temperature
+                {m.admin_settings_shipany_default_storage()}
               </label>
               <select id="shipany_default_storage_type" name="shipany_default_storage_type"
                       value={settingValue('shipany_default_storage_type')}
@@ -855,12 +787,12 @@
             <div class="flex flex-col gap-1.5">
               <div class="flex items-center justify-between gap-2">
                 <label for="shipany_default_courier" class="text-xs font-medium text-gray-600">
-                  Default courier <span class="text-gray-400 font-normal">(cour_uid)</span>
+                  {m.admin_settings_shipany_default_courier()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_default_courier_hint()}</span>
                 </label>
                 <button type="button" onclick={loadShipanyCouriers}
                         disabled={shipanyCouriersLoading}
                         class="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50">
-                  {shipanyCouriersLoading ? 'Loading…' : 'Refresh'}
+                  {shipanyCouriersLoading ? m.admin_settings_shipany_courier_loading() : m.admin_settings_shipany_courier_refresh()}
                 </button>
               </div>
               <select id="shipany_default_courier" name="shipany_default_courier"
@@ -871,9 +803,9 @@
                              focus:outline-none focus:ring-2 focus:ring-gray-900
                              disabled:opacity-50 disabled:cursor-not-allowed">
                 {#if shipanyCouriersLoading}
-                  <option value="">Loading…</option>
+                  <option value="">{m.admin_settings_shipany_courier_loading()}</option>
                 {:else}
-                  <option value="">— None —</option>
+                  <option value="">{m.admin_settings_shipany_courier_none()}</option>
                   {#each shipanyCouriers as c}
                     <option value={c.uid} selected={shipanyCourierUID === c.uid}>{c.name}</option>
                   {/each}
@@ -882,23 +814,23 @@
               {#if shipanyCouriersLoaded && !shipanyCouriersLoading && (shipanyCouriersError || shipanyCouriers.length === 0)}
                 <p class="text-xs text-gray-400">
                   {#if shipanyCouriersError}
-                    Couldn't load courier list: {shipanyCouriersError}
+                    {m.admin_settings_shipany_courier_load_failed_pre()}{shipanyCouriersError}
                   {:else}
-                    Couldn't load courier list — check credentials and Refresh.
+                    {m.admin_settings_shipany_courier_load_failed_default()}
                   {/if}
                 </p>
               {/if}
             </div>
             <div class="flex flex-col gap-1.5">
               <label for="shipany_default_service" class="text-xs font-medium text-gray-600">
-                Default service plan <span class="text-gray-400 font-normal">(cour_svc_pl)</span>
+                {m.admin_settings_shipany_default_service()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_default_service_hint()}</span>
               </label>
               {#if selectedCourierSvcPlans.length > 0}
                 <select id="shipany_default_service" name="shipany_default_service"
                         bind:value={shipanyServicePl}
                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                                focus:outline-none focus:ring-2 focus:ring-gray-900">
-                  <option value="">— Auto —</option>
+                  <option value="">{m.admin_settings_shipany_service_auto()}</option>
                   {#each selectedCourierSvcPlans as p}
                     <option value={p.cour_svc_pl} selected={shipanyServicePl === p.cour_svc_pl}>{p.cour_svc_pl}</option>
                   {/each}
@@ -906,7 +838,7 @@
               {:else}
                 <input id="shipany_default_service" name="shipany_default_service" type="text"
                        bind:value={shipanyServicePl}
-                       placeholder={shipanyCourierUID ? 'optional' : 'pick a courier first'}
+                       placeholder={shipanyCourierUID ? m.admin_settings_shipany_service_optional() : m.admin_settings_shipany_service_pick_courier()}
                        disabled={shipanyCouriers.length > 0 && !shipanyCourierUID}
                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50" />
@@ -914,23 +846,22 @@
             </div>
             <div class="flex flex-col gap-1.5 col-span-2">
               <label for="shipany_order_ref_suffix" class="text-xs font-medium text-gray-600">
-                Order ref suffix <span class="text-gray-400 font-normal">(appended to ext_order_ref)</span>
+                {m.admin_settings_shipany_order_ref_suffix()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_order_ref_hint()}</span>
               </label>
               <input id="shipany_order_ref_suffix" name="shipany_order_ref_suffix" type="text"
                      value={settingValue('shipany_order_ref_suffix')}
-                     placeholder="-GYE"
+                     placeholder={m.admin_settings_shipany_order_ref_placeholder()}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
             </div>
           </div>
         </div>
 
-        <!-- Behaviour toggles -->
         <div class="pt-5 mt-5 border-t border-gray-100 flex flex-col gap-4">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <p class="text-sm font-semibold text-gray-900">Paid by receiver</p>
-              <p class="text-xs text-gray-400 mt-0.5">Bill the recipient instead of the merchant.</p>
+              <p class="text-sm font-semibold text-gray-900">{m.admin_settings_shipany_paid_by_receiver()}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_shipany_paid_by_receiver_hint()}</p>
             </div>
             <button type="button"
                     onclick={() => (shipanyPaidByReceiver = !shipanyPaidByReceiver)}
@@ -946,8 +877,8 @@
           </div>
           <div class="flex items-center justify-between gap-4">
             <div>
-              <p class="text-sm font-semibold text-gray-900">Self drop-off</p>
-              <p class="text-xs text-gray-400 mt-0.5">Drop parcels at the courier counter instead of door pickup.</p>
+              <p class="text-sm font-semibold text-gray-900">{m.admin_settings_shipany_self_drop_off()}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_shipany_self_drop_off_hint()}</p>
             </div>
             <button type="button"
                     onclick={() => (shipanySelfDropOff = !shipanySelfDropOff)}
@@ -963,8 +894,8 @@
           </div>
           <div class="flex items-center justify-between gap-4">
             <div>
-              <p class="text-sm font-semibold text-gray-900">Show courier tracking number</p>
-              <p class="text-xs text-gray-400 mt-0.5">Surface the courier-side tracking number to customers.</p>
+              <p class="text-sm font-semibold text-gray-900">{m.admin_settings_shipany_show_courier_tracking()}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_shipany_show_courier_tracking_hint()}</p>
             </div>
             <button type="button"
                     onclick={() => (shipanyShowCourierTracking = !shipanyShowCourierTracking)}
@@ -980,33 +911,31 @@
           </div>
         </div>
 
-        <!-- Test connection -->
         <div class="pt-5 mt-5 border-t border-gray-100 flex items-center gap-3">
           <button type="button"
                   onclick={testShipanyConnection}
                   disabled={shipanyTestingConnection}
                   class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
                          hover:bg-gray-50 transition-colors disabled:opacity-50">
-            {shipanyTestingConnection ? 'Testing…' : 'Test connection'}
+            {shipanyTestingConnection ? m.admin_settings_shipany_testing() : m.admin_settings_shipany_test_button()}
           </button>
           {#if shipanyTestResult}
             <span class="text-xs {shipanyTestResult.ok ? 'text-green-600' : 'text-red-500'}">
-              {shipanyTestResult.ok ? '✓' : '✗'} {shipanyTestResult.message || (shipanyTestResult.ok ? 'Connected.' : 'Failed.')}
+              {shipanyTestResult.ok ? '✓' : '✗'} {shipanyTestResult.message || (shipanyTestResult.ok ? m.admin_settings_shipany_test_connected() : m.admin_settings_shipany_test_failed())}
             </span>
           {/if}
         </div>
       </div>
     </div>
 
-    </div><!-- /Logistics tab -->
+    </div>
 
     <!-- Email tab -->
     <div class="tab-panel" class:active={activeTab === 'email'}>
-    <!-- SMTP / Email -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <h2 class="text-sm font-semibold text-gray-900 mb-1">Email (SMTP)</h2>
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_email_heading()}</h2>
       <p class="text-xs text-gray-400 mb-5">
-        Used to send order confirmation emails. Gmail: enable 2FA → create an App Password at myaccount.google.com/apppasswords.
+        {m.admin_settings_email_subtitle()}
       </p>
       <div class="flex flex-col gap-5">
         {#each SMTP_FIELDS as field}
@@ -1031,19 +960,18 @@
                 onclick={() => { showTestEmailModal = true; testEmailAddress = ''; }}
                 class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
                        hover:bg-gray-50 transition-colors">
-          Test Email
+          {m.admin_settings_email_test_button()}
         </button>
       </div>
     </div>
 
-    </div><!-- /Email tab -->
+    </div>
 
     <!-- Infrastructure tab -->
     <div class="tab-panel" class:active={activeTab === 'infrastructure'}>
-    <!-- Cache TTL Settings -->
     {#if cacheTTLSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-        <h2 class="text-sm font-semibold text-gray-900 mb-5">Cache TTL</h2>
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_cache_ttl()}</h2>
         <div class="flex flex-col gap-5">
           {#each cacheTTLSettings as setting}
             <div class="flex flex-col gap-1.5">
@@ -1059,7 +987,7 @@
                        value={setting.value}
                        class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                <span class="text-xs text-gray-400">seconds</span>
+                <span class="text-xs text-gray-400">{m.admin_settings_cache_ttl_seconds()}</span>
               </div>
             </div>
           {/each}
@@ -1067,10 +995,9 @@
       </div>
     {/if}
 
-    <!-- Cloudflare -->
     {#if cloudflareSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-        <h2 class="text-sm font-semibold text-gray-900 mb-5">Cloudflare</h2>
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_cloudflare()}</h2>
         <div class="flex flex-col gap-5">
           {#each cloudflareSettings as setting}
             <div class="flex flex-col gap-1.5">
@@ -1093,10 +1020,9 @@
       </div>
     {/if}
 
-    <!-- Media Upload Limits -->
     {#if mediaLimitSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-        <h2 class="text-sm font-semibold text-gray-900 mb-5">Media</h2>
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_media()}</h2>
         <div class="flex flex-col gap-5">
           {#each mediaLimitSettings as setting}
             <div class="flex flex-col gap-1.5">
@@ -1112,7 +1038,7 @@
                        value={setting.value}
                        class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                <span class="text-xs text-gray-400">MB</span>
+                <span class="text-xs text-gray-400">{m.admin_settings_media_unit_mb()}</span>
               </div>
             </div>
           {/each}
@@ -1120,13 +1046,12 @@
       </div>
     {/if}
 
-    </div><!-- /Infrastructure tab -->
+    </div>
 
-    <!-- General tab (continued — catch-all text settings) -->
     {#if textSettings.length > 0}
       <div class="tab-panel" class:active={activeTab === 'general'}>
         <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-          <h2 class="text-sm font-semibold text-gray-900 mb-5">Other</h2>
+          <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_other()}</h2>
           <div class="flex flex-col gap-5">
             {#each textSettings as setting}
               <div class="flex flex-col gap-1.5">
@@ -1147,12 +1072,11 @@
       </div>
     {/if}
 
-    <!-- Save bar (always visible across tabs) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-4 mt-2 flex justify-end">
       <SaveButton loading={saving}
               class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 bg-gray-900 text-white
                      text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
-        Save Settings
+        {m.admin_settings_save()}
       </SaveButton>
     </div>
   </form>
@@ -1162,16 +1086,16 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => showTestEmailModal = false}
-         role="button" tabindex="-1" aria-label="Close"></div>
+         role="button" tabindex="-1" aria-label={m.admin_modal_close()}></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="font-semibold text-gray-900 mb-1">Send Test Email</h3>
-      <p class="text-xs text-gray-400 mb-4">Sends a test email using your current saved SMTP settings.</p>
+      <h3 class="font-semibold text-gray-900 mb-1">{m.admin_settings_test_email_modal_title()}</h3>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_test_email_modal_subtitle()}</p>
 
       <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide" for="test-email-to">
-        Recipient Email
+        {m.admin_settings_test_email_label()}
       </label>
       <input id="test-email-to" type="email" bind:value={testEmailAddress}
-             placeholder="you@example.com"
+             placeholder={m.admin_settings_test_email_placeholder()}
              class="mt-1.5 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900" />
 
@@ -1180,12 +1104,12 @@
                 onclick={sendTestEmail}
                 class="flex-1 bg-gray-900 text-white text-sm font-medium rounded-xl py-2.5
                        disabled:opacity-50 hover:bg-gray-700 transition-colors">
-          {testEmailSending ? 'Sending…' : 'Test Email'}
+          {testEmailSending ? m.admin_settings_test_email_sending() : m.admin_settings_test_email_send()}
         </button>
         <button type="button" onclick={() => showTestEmailModal = false}
                 class="flex-1 border border-gray-200 text-sm font-medium rounded-xl py-2.5
                        hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.admin_settings_test_email_cancel()}
         </button>
       </div>
     </div>
@@ -1193,9 +1117,6 @@
 {/if}
 
 <style>
-  /* Tab panel transitions — Linear/Radix-style snappy fade + slide.
-     Keeps panels mounted (form fields persist across tab switches), but
-     hides inactive ones via display:none and animates the active panel in. */
   .tab-panel { display: none; }
   .tab-panel.active {
     display: block;

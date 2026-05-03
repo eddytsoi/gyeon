@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -59,7 +60,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
       </svg>
     </a>
-    <h2 class="text-xl font-bold text-gray-900">{isNew ? 'New Post' : 'Edit Post'}</h2>
+    <h2 class="text-xl font-bold text-gray-900">{isNew ? m.admin_cms_post_edit_new_heading() : m.admin_cms_post_edit_edit_heading()}</h2>
 
     <!-- Preview toggle -->
     <button type="button" onclick={() => preview = !preview}
@@ -70,7 +71,7 @@
           d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.641 0-8.573-3.007-9.964-7.178Z"/>
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
       </svg>
-      {preview ? 'Edit' : 'Preview'}
+      {preview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
     </button>
   </div>
 
@@ -81,8 +82,8 @@
           const postTitle = title;
           return async ({ result, update }) => {
             showResult(result,
-              isNew ? `Post '${postTitle}' created` : `Post '${postTitle}' saved`,
-              isNew ? `Failed to create post '${postTitle}'` : `Failed to save post '${postTitle}'`);
+              isNew ? m.admin_cms_post_edit_create_success({ title: postTitle }) : m.admin_cms_post_edit_save_success({ title: postTitle }),
+              isNew ? m.admin_cms_post_edit_create_failure({ title: postTitle }) : m.admin_cms_post_edit_save_failure({ title: postTitle }));
             await update();
             saving = false;
           };
@@ -96,9 +97,9 @@
           <div class="px-6 py-5 space-y-5">
             <!-- Title -->
             <div>
-              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Title</label>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_post_edit_label_title()}</label>
               <input type="text" name="title" bind:value={title} oninput={onTitleInput}
-                     required placeholder="Post title"
+                     required placeholder={m.admin_cms_post_edit_title_placeholder()}
                      class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                             text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                             focus:ring-gray-900 focus:border-transparent transition" />
@@ -106,12 +107,12 @@
 
             <!-- Slug -->
             <div>
-              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Slug</label>
+              <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_post_edit_label_slug()}</label>
               <div class="flex items-center">
                 <span class="px-3.5 py-2.5 bg-gray-50 border border-r-0 border-gray-200 rounded-l-xl
                              text-sm text-gray-400 select-none">/blog/</span>
                 <input type="text" name="slug" bind:value={slug}
-                       required placeholder="post-url-slug"
+                       required placeholder={m.admin_cms_post_edit_slug_placeholder()}
                        class="w-full flex-1 px-3.5 py-2.5 border border-gray-200 rounded-r-xl text-sm
                               text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                               focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
@@ -121,10 +122,10 @@
             <!-- Excerpt -->
             <div>
               <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Excerpt <span class="normal-case font-normal text-gray-400">(shown in post list)</span>
+                {m.admin_cms_post_edit_label_excerpt()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_post_edit_excerpt_hint()}</span>
               </label>
               <textarea name="excerpt" bind:value={excerpt} rows="2"
-                        placeholder="Short summary of this post..."
+                        placeholder={m.admin_cms_post_edit_excerpt_placeholder()}
                         class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                                text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                                focus:ring-gray-900 focus:border-transparent transition resize-none"></textarea>
@@ -133,10 +134,10 @@
             <!-- Content -->
             <div>
               <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Content <span class="normal-case font-normal text-gray-400">(Markdown)</span>
+                {m.admin_cms_post_edit_label_content()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_post_edit_content_markdown_hint()}</span>
               </label>
               <textarea name="content" bind:value={content} rows="20"
-                        placeholder="Write your post in Markdown..."
+                        placeholder={m.admin_cms_post_edit_content_placeholder()}
                         class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                                text-gray-900 placeholder-gray-400 font-mono leading-relaxed
                                focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
@@ -149,14 +150,14 @@
         {#if data.categories.length > 0}
           <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-50">
-              <h3 class="text-sm font-semibold text-gray-700">Category</h3>
+              <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_post_edit_section_category()}</h3>
             </div>
             <div class="px-6 py-5">
               <select name="category_id" bind:value={categoryID}
                       class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                              text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
                              focus:border-transparent transition bg-white">
-                <option value="">— No category —</option>
+                <option value="">{m.admin_cms_post_edit_no_category()}</option>
                 {#each data.categories.toSorted((a, b) => a.sort_order - b.sort_order) as cat}
                   <option value={cat.id}>{cat.name}</option>
                 {/each}
@@ -168,17 +169,17 @@
         <!-- Cover image -->
         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-50">
-            <h3 class="text-sm font-semibold text-gray-700">Cover Image</h3>
+            <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_post_edit_section_cover()}</h3>
           </div>
           <div class="px-6 py-5">
             <input type="url" name="cover_image_url" bind:value={coverImageUrl}
-                   placeholder="https://example.com/image.jpg"
+                   placeholder={m.admin_cms_post_edit_cover_placeholder()}
                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                           text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                           focus:ring-gray-900 focus:border-transparent transition" />
             {#if coverImageUrl}
               <div class="mt-3 rounded-xl overflow-hidden bg-gray-50 aspect-video">
-                <img src={coverImageUrl} alt="Cover preview" class="w-full h-full object-cover" />
+                <img src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt_preview()} class="w-full h-full object-cover" />
               </div>
             {/if}
           </div>
@@ -189,22 +190,22 @@
       {#if preview}
         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-50">
-            <h3 class="text-sm font-semibold text-gray-700">Preview</h3>
+            <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_post_edit_section_preview()}</h3>
           </div>
           <div class="px-6 py-5 prose prose-sm max-w-none overflow-y-auto" style="max-height: 80vh">
             {#if coverImageUrl}
               <div class="rounded-xl overflow-hidden mb-6 aspect-video bg-gray-50">
-                <img src={coverImageUrl} alt="Cover" class="w-full h-full object-cover" />
+                <img src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt()} class="w-full h-full object-cover" />
               </div>
             {/if}
-            <h1 class="text-2xl font-bold text-gray-900 mb-2">{title || 'Post Title'}</h1>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">{title || m.admin_cms_post_edit_preview_default_title()}</h1>
             {#if excerpt}
               <p class="text-gray-500 text-sm mb-4 italic">{excerpt}</p>
             {/if}
             <hr class="my-4 border-gray-100" />
             <!-- svelte-ignore html-non-void-elements-not-closed -->
             <div class="text-sm text-gray-700 leading-relaxed">
-              {@html `<p class="mb-3">${markdownToHtml(content || '_No content yet_')}</p>`}
+              {@html `<p class="mb-3">${markdownToHtml(content || m.admin_cms_post_edit_preview_no_content())}</p>`}
             </div>
           </div>
         </div>
@@ -223,19 +224,19 @@
                       transition-transform peer-checked:translate-x-4"></div>
         </div>
         <span class="text-sm font-medium text-gray-700">
-          {isPublished ? 'Published' : 'Draft'}
+          {isPublished ? m.admin_cms_posts_status_published() : m.admin_cms_posts_status_draft()}
         </span>
       </label>
       <div class="sm:ml-auto flex gap-3">
         <a href="/admin/cms/posts"
            class="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                   text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.admin_cms_post_edit_cancel()}
         </a>
         <SaveButton loading={saving}
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
                        text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-          {isNew ? 'Create Post' : 'Save Changes'}
+          {isNew ? m.admin_cms_post_edit_create() : m.admin_cms_post_edit_save()}
         </SaveButton>
       </div>
     </div>

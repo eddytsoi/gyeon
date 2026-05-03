@@ -8,6 +8,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -25,13 +26,13 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
-      <h2 class="text-xl font-bold text-gray-900">Pages</h2>
-      <p class="text-sm text-gray-500 mt-0.5">{data.pages.length} page{data.pages.length !== 1 ? 's' : ''}</p>
+      <h2 class="text-xl font-bold text-gray-900">{m.admin_cms_pages_heading()}</h2>
+      <p class="text-sm text-gray-500 mt-0.5">{data.pages.length === 1 ? m.admin_cms_pages_count_one({ count: data.pages.length }) : m.admin_cms_pages_count_many({ count: data.pages.length })}</p>
     </div>
-    <NewButton label="New Page" href="/admin/cms/pages/new" />
+    <NewButton label={m.admin_cms_pages_new()} href="/admin/cms/pages/new" />
   </div>
 
-  <SearchInput value={data.q} placeholder="Search by title, slug or PG-…" onChange={onSearch} />
+  <SearchInput value={data.q} placeholder={m.admin_cms_pages_search_placeholder()} onChange={onSearch} />
 
   <!-- Table -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
@@ -45,11 +46,11 @@
           </svg>
         </div>
         {#if data.q}
-          <p class="text-sm font-medium text-gray-400">No pages matching "{data.q}"</p>
+          <p class="text-sm font-medium text-gray-400">{m.admin_cms_pages_no_match({ query: data.q })}</p>
         {:else}
-          <p class="text-sm font-medium text-gray-400">No pages yet</p>
+          <p class="text-sm font-medium text-gray-400">{m.admin_cms_pages_empty()}</p>
           <a href="/admin/cms/pages/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
-            Create your first page
+            {m.admin_cms_pages_create_first()}
           </a>
         {/if}
       </div>
@@ -65,7 +66,7 @@
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                            {page.is_published ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
-                {page.is_published ? 'Published' : 'Draft'}
+                {page.is_published ? m.admin_cms_pages_status_published() : m.admin_cms_pages_status_draft()}
               </span>
               <a href="/admin/cms/pages/{page.id}"
                  class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
@@ -76,7 +77,7 @@
               </a>
               <a href="/{page.slug}" target="_blank"
                  class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                 title="Preview">
+                 title={m.admin_cms_pages_tip_preview()}>
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round"
                     d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
@@ -92,10 +93,10 @@
       <table class="hidden sm:table w-full text-sm">
         <thead>
           <tr class="border-b border-gray-50">
-            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Title</th>
-            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Slug</th>
-            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
-            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Updated</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_cms_pages_col_title()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_cms_pages_col_slug()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_cms_pages_col_status()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_cms_pages_col_updated()}</th>
             <th class="px-6 py-3.5"></th>
           </tr>
         </thead>
@@ -110,7 +111,7 @@
               <td class="px-6 py-4">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                              {page.is_published ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
-                  {page.is_published ? 'Published' : 'Draft'}
+                  {page.is_published ? m.admin_cms_pages_status_published() : m.admin_cms_pages_status_draft()}
                 </span>
               </td>
               <td class="px-6 py-4 text-gray-400 text-xs">
@@ -127,7 +128,7 @@
                   </a>
                   <a href="/{page.slug}" target="_blank"
                      class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                     title="Preview">
+                     title={m.admin_cms_pages_tip_preview()}>
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                       <path stroke-linecap="round" stroke-linejoin="round"
                         d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
@@ -157,21 +158,21 @@
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => deleteTarget = null} role="button" tabindex="-1"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="text-base font-bold text-gray-900 mb-1">Delete page?</h3>
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_cms_pages_delete_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        "<span class="font-medium text-gray-700">{deleteTarget.title}</span>" will be permanently deleted.
+        {m.admin_cms_pages_delete_body_pre()}<span class="font-medium text-gray-700">{deleteTarget.title}</span>{m.admin_cms_pages_delete_body_post()}
       </p>
       <div class="flex gap-3">
         <button onclick={() => deleteTarget = null}
                 class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                        text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.common_cancel()}
         </button>
         <form method="POST" action="?/delete" class="flex-1"
               use:enhance={() => {
                 const pageTitle = deleteTarget?.title ?? '';
                 return async ({ result, update }) => {
-                  showResult(result, `Page '${pageTitle}' deleted`, `Failed to delete page '${pageTitle}'`);
+                  showResult(result, m.admin_cms_pages_deleted_success({ title: pageTitle }), m.admin_cms_pages_deleted_failure({ title: pageTitle }));
                   await update();
                   deleteTarget = null;
                 };
@@ -180,7 +181,7 @@
           <button type="submit"
                   class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
                          hover:bg-red-600 transition-colors">
-            Delete
+            {m.common_delete()}
           </button>
         </form>
       </div>

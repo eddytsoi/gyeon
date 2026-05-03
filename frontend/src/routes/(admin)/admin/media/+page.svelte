@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import type { MediaFile } from '$lib/api/admin';
   import { adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -42,7 +43,7 @@
 
   async function saveLink() {
     const url = linkUrl.trim();
-    if (!url) { linkError = 'URL is required'; return; }
+    if (!url) { linkError = m.admin_media_link_modal_url_required(); return; }
     linkSaving = true;
     linkError = '';
     try {
@@ -50,7 +51,7 @@
       media = [added, ...media];
       linkModalOpen = false;
     } catch {
-      linkError = 'Failed to save link. Please check the URL and try again.';
+      linkError = m.admin_media_link_modal_save_failed();
     } finally {
       linkSaving = false;
     }
@@ -141,7 +142,7 @@
         media = [uploaded, ...media];
       } catch (err) {
         clearInterval(tick);
-        const msg = err instanceof Error ? err.message : 'Upload failed';
+        const msg = err instanceof Error ? err.message : m.admin_media_upload_failed();
         uploadErrors = [...uploadErrors, `${file.name}: ${msg}`];
       } finally {
         uploading.delete(placeholderId);
@@ -162,7 +163,7 @@
   }
 </script>
 
-<svelte:head><title>Media — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_media_title()}</title></svelte:head>
 
 <svelte:window
   ondragenter={onDragEnter}
@@ -178,8 +179,8 @@
       <svg class="w-10 h-10 text-white mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
       </svg>
-      <p class="text-white font-semibold text-lg">Drop to upload</p>
-      <p class="text-white/60 text-sm mt-1">Images ≤ 1 MB · Videos (mp4, webm) ≤ 10 MB</p>
+      <p class="text-white font-semibold text-lg">{m.admin_media_drop_to_upload()}</p>
+      <p class="text-white/60 text-sm mt-1">{m.admin_media_drop_limits()}</p>
     </div>
   </div>
 {/if}
@@ -192,28 +193,28 @@
     onclick={(e) => { if (e.target === e.currentTarget) closeLinkModal(); }}
   >
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
-      <h3 class="text-base font-semibold text-gray-900 mb-4">Add Link</h3>
+      <h3 class="text-base font-semibold text-gray-900 mb-4">{m.admin_media_link_modal_title()}</h3>
 
       <div class="space-y-3">
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1" for="link-url">URL</label>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="link-url">{m.admin_media_link_modal_label_url()}</label>
           <input
             id="link-url"
             type="url"
             bind:value={linkUrl}
-            placeholder="https://example.com/image.jpg"
+            placeholder={m.admin_media_link_modal_url_placeholder()}
             onkeydown={(e) => e.key === 'Enter' && saveLink()}
             class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900
                    placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1" for="link-name">Label <span class="text-gray-400 font-normal">(optional)</span></label>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="link-name">{m.admin_media_link_modal_label_label()} <span class="text-gray-400 font-normal">{m.admin_media_link_modal_label_optional()}</span></label>
           <input
             id="link-name"
             type="text"
             bind:value={linkName}
-            placeholder="My image"
+            placeholder={m.admin_media_link_modal_label_placeholder()}
             class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900
                    placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
@@ -229,14 +230,14 @@
           disabled={linkSaving}
           class="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
         >
-          Cancel
+          {m.admin_media_link_modal_cancel()}
         </button>
         <button
           onclick={saveLink}
           disabled={linkSaving}
           class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
         >
-          {linkSaving ? 'Saving…' : 'Save'}
+          {linkSaving ? m.admin_media_link_modal_saving() : m.admin_media_link_modal_save()}
         </button>
       </div>
     </div>
@@ -248,7 +249,7 @@
   <!-- Toolbar -->
   <div class="flex flex-wrap items-center gap-3">
     <div class="flex items-baseline gap-2">
-      <h2 class="text-xl font-bold text-gray-900">Media Library</h2>
+      <h2 class="text-xl font-bold text-gray-900">{m.admin_media_heading()}</h2>
       <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
         {media.length}
       </span>
@@ -263,7 +264,7 @@
             ? 'bg-white text-gray-900 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'}"
         >
-          {tab === 'all' ? 'All' : tab === 'image' ? 'Images' : tab === 'video' ? 'Videos' : 'Links'}
+          {tab === 'all' ? m.admin_media_filter_all() : tab === 'image' ? m.admin_media_filter_image() : tab === 'video' ? m.admin_media_filter_video() : m.admin_media_filter_link()}
         </button>
       {/each}
     </div>
@@ -277,7 +278,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
         </svg>
-        Add Link
+        {m.admin_media_button_add_link()}
       </button>
       <!-- Upload -->
       <button
@@ -287,7 +288,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
         </svg>
-        Upload
+        {m.admin_media_button_upload()}
       </button>
     </div>
   </div>
@@ -309,8 +310,8 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
         </svg>
       </div>
-      <p class="text-sm font-medium text-gray-400">No media files yet.</p>
-      <p class="text-xs text-gray-300 mt-1">Drop files anywhere, click Upload, or Add Link to get started.</p>
+      <p class="text-sm font-medium text-gray-400">{m.admin_media_empty_heading()}</p>
+      <p class="text-xs text-gray-300 mt-1">{m.admin_media_empty_hint()}</p>
     </div>
   {:else}
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -342,7 +343,6 @@
           <div class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100">
 
             {#if isVideo(file)}
-              <!-- Video: use native element to render first-frame thumbnail -->
               <video
                 src={file.url}
                 preload="metadata"
@@ -350,7 +350,6 @@
                 playsinline
                 class="w-full h-full object-cover"
               ></video>
-              <!-- Play icon overlay (always visible, fades on hover) -->
               <div class="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
                 <div class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm">
                   <svg class="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
@@ -360,7 +359,6 @@
               </div>
 
             {:else if isLink(file)}
-              <!-- Link: always try to render as image; fallback placeholder on load error -->
               {#if failedImages.has(file.id)}
                 <div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gray-50">
                   <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -377,18 +375,16 @@
                   onerror={() => { failedImages = new Set([...failedImages, file.id]); }}
                 />
               {/if}
-              <!-- "Link" badge -->
               <div class="absolute top-1.5 left-1.5 pointer-events-none">
                 <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-900/70 text-white text-xs font-medium backdrop-blur-sm">
                   <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
                   </svg>
-                  Link
+                  {m.admin_media_badge_link()}
                 </span>
               </div>
 
             {:else}
-              <!-- Image -->
               <img src={file.url} alt={file.original_name} class="w-full h-full object-cover" loading="lazy" />
             {/if}
 
@@ -403,12 +399,12 @@
                 <div class="relative">
                   {#if copiedId === file.id}
                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-lg bg-white text-gray-900 text-xs font-medium whitespace-nowrap pointer-events-none">
-                      Image URL copied
+                      {m.admin_media_url_copied()}
                       <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-white"></div>
                     </div>
                   {/if}
                   <button
-                    title="Copy URL"
+                    title={m.admin_media_tip_copy()}
                     onclick={() => copyUrl(file)}
                     class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
                   >
@@ -420,7 +416,7 @@
                 <!-- Edit -->
                 <a
                   href="/admin/media/{file.id}"
-                  title="Edit"
+                  title={m.admin_media_tip_edit()}
                   class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -429,7 +425,7 @@
                 </a>
                 <!-- Delete -->
                 <button
-                  title="Delete"
+                  title={m.admin_media_tip_delete()}
                   onclick={() => (deleteTarget = file)}
                   class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 transition-colors text-white"
                 >
@@ -451,7 +447,7 @@
                     : 'bg-purple-50 text-purple-700'}"
                   title={ref.name}
                 >
-                  {ref.type === 'product' ? 'Product' : 'Post'}
+                  {ref.type === 'product' ? m.admin_media_ref_product() : m.admin_media_ref_post()}
                 </span>
               {/each}
             </div>
@@ -470,22 +466,22 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick={() => (deleteTarget = null)}></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="text-base font-bold text-gray-900 mb-1">Delete media?</h3>
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_media_delete_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        "<span class="font-medium text-gray-700">{deleteTarget.original_name}</span>" will be permanently deleted.
+        {m.admin_media_delete_body_pre()}<span class="font-medium text-gray-700">{deleteTarget.original_name}</span>{m.admin_media_delete_body_post()}
       </p>
       <div class="flex gap-3">
         <button
           onclick={() => (deleteTarget = null)}
           class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          Cancel
+          {m.admin_media_delete_cancel()}
         </button>
         <button
           onclick={() => { if (deleteTarget) doDelete(deleteTarget); }}
           class="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
         >
-          Delete
+          {m.admin_media_delete_confirm()}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -36,9 +37,9 @@
   }
 
   function typeLabel(mimeType: string) {
-    if (mimeType === 'link') return 'Link';
-    if (mimeType.startsWith('image/')) return 'Image';
-    if (mimeType.startsWith('video/')) return 'Video';
+    if (mimeType === 'link') return m.admin_media_edit_type_link();
+    if (mimeType.startsWith('image/')) return m.admin_media_edit_type_image();
+    if (mimeType.startsWith('video/')) return m.admin_media_edit_type_video();
     return mimeType;
   }
 </script>
@@ -53,11 +54,11 @@
     onclick={(e) => { if (e.target === e.currentTarget && !deleting) showDeleteModal = false; }}
   >
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-      <h3 class="text-base font-semibold text-gray-900 mb-2">Delete media?</h3>
+      <h3 class="text-base font-semibold text-gray-900 mb-2">{m.admin_media_edit_delete_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        <span class="font-medium text-gray-800">{file.original_name}</span> will be permanently deleted.
+        <span class="font-medium text-gray-800">{file.original_name}</span>{m.admin_media_edit_delete_body_post()}
         {#if file.refs && file.refs.length > 0}
-          <span class="text-red-600"> It is used by {file.refs.length} item{file.refs.length > 1 ? 's' : ''}.</span>
+          <span class="text-red-600">{file.refs.length === 1 ? m.admin_media_edit_delete_used_one({ count: file.refs.length }) : m.admin_media_edit_delete_used_many({ count: file.refs.length })}</span>
         {/if}
       </p>
       <div class="flex justify-end gap-2">
@@ -66,7 +67,7 @@
           disabled={deleting}
           class="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
         >
-          Cancel
+          {m.admin_media_edit_cancel()}
         </button>
         <form
           method="POST"
@@ -84,7 +85,7 @@
             loading={deleting}
             class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
           >
-            Delete
+            {m.admin_media_edit_delete()}
           </SaveButton>
         </form>
       </div>
@@ -99,7 +100,7 @@
     <a
       href="/admin/media"
       class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-      title="Back to Media"
+      title={m.admin_media_edit_back()}
     >
       <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -127,7 +128,6 @@
         />
       {:else if isLink}
         {#if !linkImageFailed}
-          <!-- Try loading the URL as an image; onerror triggers URL fallback -->
           <img
             src={file.url}
             alt={file.original_name}
@@ -135,7 +135,6 @@
             onerror={() => { linkImageFailed = true; }}
           />
         {:else}
-          <!-- URL doesn't resolve to an image — show as clickable link -->
           <div class="flex flex-col items-center gap-3 text-center px-6">
             <div class="w-16 h-16 rounded-2xl bg-gray-200 flex items-center justify-center">
               <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -175,7 +174,7 @@
 
       {#if form?.success}
         <div class="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
-          <p class="text-sm text-green-700">Changes saved.</p>
+          <p class="text-sm text-green-700">{m.admin_media_edit_changes_saved()}</p>
         </div>
       {/if}
 
@@ -194,7 +193,7 @@
       >
         <!-- Name -->
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1" for="original_name">Name</label>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="original_name">{m.admin_media_edit_label_name()}</label>
           <input
             id="original_name"
             name="original_name"
@@ -209,7 +208,7 @@
         <!-- URL -->
         <div>
           <label class="block text-xs font-medium text-gray-700 mb-1" for="url">
-            {isLink ? 'URL' : 'File path'}
+            {isLink ? m.admin_media_edit_label_url() : m.admin_media_edit_label_file_path()}
           </label>
           {#if isLink}
             <input
@@ -235,26 +234,26 @@
         <!-- Read-only meta row -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <p class="text-xs font-medium text-gray-500 mb-1">Type</p>
+            <p class="text-xs font-medium text-gray-500 mb-1">{m.admin_media_edit_label_type()}</p>
             <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium
               {isLink ? 'bg-purple-50 text-purple-700' : isVideo ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'}">
               {typeLabel(file.mime_type)}
             </span>
           </div>
           <div>
-            <p class="text-xs font-medium text-gray-500 mb-1">File size</p>
+            <p class="text-xs font-medium text-gray-500 mb-1">{m.admin_media_edit_label_size()}</p>
             <p class="text-sm text-gray-700">{formatBytes(file.size_bytes)}</p>
           </div>
         </div>
 
         <div>
-          <p class="text-xs font-medium text-gray-500 mb-1">Uploaded at</p>
+          <p class="text-xs font-medium text-gray-500 mb-1">{m.admin_media_edit_label_uploaded_at()}</p>
           <p class="text-sm text-gray-700">{formatDate(file.created_at)}</p>
         </div>
 
         {#if file.refs && file.refs.length > 0}
           <div>
-            <p class="text-xs font-medium text-gray-500 mb-1.5">Used by</p>
+            <p class="text-xs font-medium text-gray-500 mb-1.5">{m.admin_media_edit_label_used_by()}</p>
             <div class="flex flex-wrap gap-1.5">
               {#each file.refs as ref}
                 <span
@@ -262,7 +261,7 @@
                     {ref.type === 'product' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}"
                   title={ref.name}
                 >
-                  {ref.type === 'product' ? 'Product' : 'Post'}: {ref.name}
+                  {m.admin_media_edit_used_by_format({ type: ref.type === 'product' ? m.admin_media_ref_product() : m.admin_media_ref_post(), name: ref.name })}
                 </span>
               {/each}
             </div>
@@ -275,20 +274,20 @@
             loading={saving}
             class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
           >
-            Save
+            {m.admin_media_edit_save()}
           </SaveButton>
           <a
             href="/admin/media"
             class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            Cancel
+            {m.admin_media_edit_cancel()}
           </a>
           <button
             type="button"
             onclick={() => (showDeleteModal = true)}
             class="ml-auto px-4 py-2 rounded-xl border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
           >
-            Delete
+            {m.admin_media_edit_delete()}
           </button>
         </div>
       </form>

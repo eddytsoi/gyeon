@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -39,7 +40,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
       </svg>
     </a>
-    <h2 class="text-xl font-bold text-gray-900">{isNew ? 'New Page' : 'Edit Page'}</h2>
+    <h2 class="text-xl font-bold text-gray-900">{isNew ? m.admin_cms_page_edit_new_heading() : m.admin_cms_page_edit_edit_heading()}</h2>
   </div>
 
   <form method="POST" action="?/save" class="space-y-6"
@@ -49,8 +50,8 @@
           const pageTitle = title;
           return async ({ result, update }) => {
             showResult(result,
-              isNew ? `Page '${pageTitle}' created` : `Page '${pageTitle}' saved`,
-              isNew ? `Failed to create page '${pageTitle}'` : `Failed to save page '${pageTitle}'`);
+              isNew ? m.admin_cms_page_edit_create_success({ title: pageTitle }) : m.admin_cms_page_edit_save_success({ title: pageTitle }),
+              isNew ? m.admin_cms_page_edit_create_failure({ title: pageTitle }) : m.admin_cms_page_edit_save_failure({ title: pageTitle }));
             await update();
             saving = false;
           };
@@ -61,10 +62,10 @@
         <!-- Title -->
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Title
+            {m.admin_cms_page_edit_label_title()}
           </label>
           <input type="text" name="title" bind:value={title} oninput={onTitleInput}
-                 required placeholder="Page title"
+                 required placeholder={m.admin_cms_page_edit_title_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                         focus:ring-gray-900 focus:border-transparent transition" />
@@ -73,13 +74,13 @@
         <!-- Slug -->
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Slug
+            {m.admin_cms_page_edit_label_slug()}
           </label>
           <div class="flex items-center">
             <span class="px-3.5 py-2.5 bg-gray-50 border border-r-0 border-gray-200 rounded-l-xl
                          text-sm text-gray-400 select-none">/</span>
             <input type="text" name="slug" bind:value={slug}
-                   required placeholder="page-url-slug"
+                   required placeholder={m.admin_cms_page_edit_slug_placeholder()}
                    class="w-full flex-1 px-3.5 py-2.5 border border-gray-200 rounded-r-xl text-sm
                           text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                           focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
@@ -89,10 +90,10 @@
         <!-- Content -->
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Content <span class="normal-case font-normal text-gray-400">(Markdown)</span>
+            {m.admin_cms_page_edit_label_content()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_page_edit_content_markdown_hint()}</span>
           </label>
           <textarea name="content" bind:value={content} rows="16"
-                    placeholder="Write your page content in Markdown..."
+                    placeholder={m.admin_cms_page_edit_content_placeholder()}
                     class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                            text-gray-900 placeholder-gray-400 font-mono leading-relaxed
                            focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
@@ -104,25 +105,25 @@
     <!-- SEO card -->
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-50">
-        <h3 class="text-sm font-semibold text-gray-700">SEO</h3>
+        <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_page_edit_section_seo()}</h3>
       </div>
       <div class="px-6 py-5 space-y-4">
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Meta Title
+            {m.admin_cms_page_edit_label_meta_title()}
           </label>
           <input type="text" name="meta_title" bind:value={metaTitle}
-                 placeholder="Overrides page title in search results"
+                 placeholder={m.admin_cms_page_edit_meta_title_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                         focus:ring-gray-900 focus:border-transparent transition" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Meta Description
+            {m.admin_cms_page_edit_label_meta_desc()}
           </label>
           <textarea name="meta_desc" bind:value={metaDesc} rows="2"
-                    placeholder="Short description shown in search results (max ~160 chars)"
+                    placeholder={m.admin_cms_page_edit_meta_desc_placeholder()}
                     class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                            text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                            focus:ring-gray-900 focus:border-transparent transition resize-none"></textarea>
@@ -143,19 +144,19 @@
                       transition-transform peer-checked:translate-x-4"></div>
         </div>
         <span class="text-sm font-medium text-gray-700">
-          {isPublished ? 'Published' : 'Draft'}
+          {isPublished ? m.admin_cms_pages_status_published() : m.admin_cms_pages_status_draft()}
         </span>
       </label>
       <div class="sm:ml-auto flex gap-3">
         <a href="/admin/cms/pages"
            class="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                   text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.admin_cms_page_edit_cancel()}
         </a>
         <SaveButton loading={saving}
                 class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
                        text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-          {isNew ? 'Create Page' : 'Save Changes'}
+          {isNew ? m.admin_cms_page_edit_create() : m.admin_cms_page_edit_save()}
         </SaveButton>
       </div>
     </div>

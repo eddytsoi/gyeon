@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
   import { notify } from '$lib/stores/notifications.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -22,22 +23,18 @@
   }
 
   // ── Tabs ─────────────────────────────────────────────────────────
-  // Heroicons (stroke 1.5) — same SVG-path approach as Site Settings
-  // so the two pages share visual language without pulling in lucide.
   const TAB_ICONS: Record<string, string> = {
-    // arrow-down-tray (download icon — represents "import data into Gyeon")
     products:
       'M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3',
-    // adjustments-horizontal (sliders — represents "configuration / settings")
     settings:
       'M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75'
   };
 
-  const TABS = [
-    { id: 'products', label: 'Import Products' },
-    { id: 'settings', label: 'Import Settings' }
-  ] as const;
-  type TabId = (typeof TABS)[number]['id'];
+  const TABS = $derived([
+    { id: 'products', label: m.admin_import_tab_products() },
+    { id: 'settings', label: m.admin_import_tab_settings() }
+  ] as const);
+  type TabId = 'products' | 'settings';
 
   let activeTab = $state<TabId>('products');
 
@@ -51,8 +48,6 @@
     history.replaceState(null, '', `#${id}`);
   }
 
-  // Tab magnetic spotlight (copied from settings page so the hover
-  // animation feels identical between the two admin pages).
   let tabsEl = $state<HTMLElement | undefined>();
   let tabSpotlight = $state({ visible: false, left: 0, width: 0, height: 0 });
 
@@ -114,12 +109,12 @@
         body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
       });
       if (!res.ok) {
-        notify.error('儲存失敗', (await res.text()) || '請稍後再試。');
+        notify.error(m.admin_import_save_failed_title(), (await res.text()) || m.admin_import_save_failed_default());
       } else {
-        notify.success('已儲存憑證');
+        notify.success(m.admin_import_save_creds_success());
       }
     } catch (e) {
-      notify.error('儲存失敗', e instanceof Error ? e.message : '請稍後再試。');
+      notify.error(m.admin_import_save_failed_title(), e instanceof Error ? e.message : m.admin_import_save_failed_default());
     } finally {
       savingCreds = false;
     }
@@ -127,7 +122,7 @@
 
   async function testConnection() {
     if (!credsConfigured) {
-      notify.error('Connection failed', '請先填寫 URL、Consumer Key 和 Consumer Secret。');
+      notify.error(m.admin_import_test_failed_title(), m.admin_import_test_failed_missing_creds());
       return;
     }
     testingConn = true;
@@ -138,32 +133,30 @@
         body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
       });
       if (!res.ok) {
-        const msg = (await res.text()) || '請檢查 URL 與 API 金鑰。';
-        notify.error('Connection failed', msg);
+        const msg = (await res.text()) || m.admin_import_test_failed_check_keys();
+        notify.error(m.admin_import_test_failed_title(), msg);
         return;
       }
       const j = await res.json();
       const total = typeof j.total_products === 'number' ? j.total_products : null;
       notify.success(
-        'Connection successful',
-        total !== null ? `WooCommerce 共有 ${total} 個商品。` : undefined
+        m.admin_import_test_success_title(),
+        total !== null ? m.admin_import_test_success_total({ total }) : undefined
       );
     } catch (e) {
-      notify.error('Connection failed', e instanceof Error ? e.message : '連線逾時或網路錯誤。');
+      notify.error(m.admin_import_test_failed_title(), e instanceof Error ? e.message : m.admin_import_test_failed_timeout());
     } finally {
       testingConn = false;
     }
   }
 
-  // Prefill saved credentials on mount; tracking-free $effect runs once
-  // because nothing reactive is read inside loadCredentials.
   $effect(() => {
     loadCredentials();
   });
 
   function openConfirm() {
     if (!credsConfigured) {
-      notify.error('未設定憑證', '請先到 Import Settings 設定 WooCommerce 憑證。');
+      notify.error(m.admin_import_no_creds_title(), m.admin_import_no_creds_body());
       setTab('settings');
       return;
     }
@@ -179,7 +172,6 @@
     errorMsg = '';
     progress = null;
 
-    // Step 1: test connection
     try {
       const testRes = await fetch('/api/v1/admin/import/woocommerce/test', {
         method: 'POST',
@@ -187,17 +179,16 @@
         body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
       });
       if (!testRes.ok) {
-        errorMsg = (await testRes.text()) || '無法連接至 WooCommerce，請確認網址及 API 金鑰。';
+        errorMsg = (await testRes.text()) || m.admin_import_run_failed_default();
         step = 'error';
         return;
       }
     } catch {
-      errorMsg = '連線逾時，請確認 WooCommerce 網址是否正確。';
+      errorMsg = m.admin_import_run_timeout();
       step = 'error';
       return;
     }
 
-    // Step 2: stream import
     step = 'importing';
     try {
       const res = await fetch('/api/v1/admin/import/woocommerce/stream', {
@@ -213,7 +204,7 @@
       });
 
       if (!res.ok || !res.body) {
-        errorMsg = (await res.text()) || '匯入失敗，請稍後再試。';
+        errorMsg = (await res.text()) || m.admin_import_stream_failed_default();
         step = 'error';
         return;
       }
@@ -239,14 +230,12 @@
         }
       }
 
-      // Stream ended without a final {done:true} message — treat as a dropped
-      // connection so the user sees a terminal state instead of an endless spinner.
       if (step === 'importing') {
-        errorMsg = '匯入過程中連線中斷，請查看伺服器記錄並重新匯入。';
+        errorMsg = m.admin_import_stream_dropped();
         step = 'error';
       }
     } catch {
-      errorMsg = '匯入過程中發生錯誤，請稍後再試。';
+      errorMsg = m.admin_import_run_error();
       step = 'error';
     }
   }
@@ -264,33 +253,35 @@
   );
 </script>
 
-<svelte:head><title>Import Products — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_import_title()}</title></svelte:head>
 
 <!-- Confirm modal (mounted at root so it overlays regardless of active tab) -->
 {#if step === 'confirming'}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
        role="dialog" aria-modal="true">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-      <h2 class="text-base font-semibold text-gray-900 mb-3">確認匯入</h2>
+      <h2 class="text-base font-semibold text-gray-900 mb-3">{m.admin_import_confirm_title()}</h2>
       <p class="text-sm text-gray-600 leading-relaxed mb-6">
         {#if mode === 'upsert'}
-          將以 WooCommerce 資料更新現有商品，並新增缺少的商品。{#if limit && limit > 0}本次只處理前 {limit} 個商品；WC 端已刪除的商品<strong>不會</strong>被清除。{:else}WC 端已刪除的商品會從 Gyeon 一併移除；{/if}
-          管理員手動建立的商品、翻譯、圖片不受影響。確定繼續？
+          {limit && limit > 0
+            ? m.admin_import_confirm_upsert_limited({ limit })
+            : m.admin_import_confirm_upsert_full()}
         {:else}
-          將先刪除所有先前由 WooCommerce 匯入的商品（含翻譯、變體、圖片），再從 WooCommerce 重新匯入{#if limit && limit > 0}前 {limit} 個商品{/if}。
-          管理員手動建立的商品仍然保留。此操作無法復原，確定繼續？
+          {limit && limit > 0
+            ? m.admin_import_confirm_replace_limited({ limit })
+            : m.admin_import_confirm_replace_full()}
         {/if}
       </p>
       <div class="flex gap-3 justify-end">
         <button onclick={cancelConfirm}
                 class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl
                        hover:bg-gray-50 transition-colors">
-          取消
+          {m.admin_import_confirm_cancel()}
         </button>
         <button onclick={runImport}
                 class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-xl
                        hover:bg-gray-700 transition-colors">
-          確定
+          {m.admin_import_confirm_proceed()}
         </button>
       </div>
     </div>
@@ -299,11 +290,11 @@
 
 <div class="max-w-3xl">
   <div class="mb-8">
-    <h1 class="text-2xl font-bold text-gray-900">Import Products</h1>
-    <p class="text-sm text-gray-500 mt-1">Import products from a WooCommerce store via REST API.</p>
+    <h1 class="text-2xl font-bold text-gray-900">{m.admin_import_heading()}</h1>
+    <p class="text-sm text-gray-500 mt-1">{m.admin_import_subtitle()}</p>
   </div>
 
-  <!-- Tab nav (mirrors Site Settings page styling) -->
+  <!-- Tab nav -->
   <div bind:this={tabsEl}
        onmousemove={onTabsMouseMove}
        onmouseleave={onTabsMouseLeave}
@@ -316,7 +307,7 @@
     </div>
     {#each TABS as t}
       <button type="button"
-              onclick={() => setTab(t.id)}
+              onclick={() => setTab(t.id as TabId)}
               class="relative z-10 inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium
                      border-b-2 -mb-px whitespace-nowrap transition-colors
                      {activeTab === t.id
@@ -333,14 +324,12 @@
 
   <!-- ──────────── Tab 1: Import Products ──────────── -->
   <div class="tab-panel" class:active={activeTab === 'products'}>
-    <!-- Error -->
     {#if step === 'error'}
       <div class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6">
         {errorMsg}
       </div>
     {/if}
 
-    <!-- Progress panel (visible during testing/importing/done) -->
     {#if step === 'testing' || step === 'importing' || step === 'done'}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
 
@@ -356,7 +345,7 @@
               </span>
             {/if}
             <span class="text-sm {step === 'testing' ? 'font-medium text-gray-900' : 'text-gray-400'}">
-              驗證 WooCommerce 連線
+              {m.admin_import_test_step_label()}
             </span>
           </div>
 
@@ -373,7 +362,7 @@
               <span class="w-4 h-4 rounded-full border border-gray-200 bg-gray-50 shrink-0"></span>
             {/if}
             <span class="text-sm {step === 'importing' ? 'font-medium text-gray-900' : step === 'done' ? 'text-gray-400' : 'text-gray-300'}">
-              匯入商品
+              {m.admin_import_import_step_label()}
             </span>
           </div>
         </div>
@@ -382,10 +371,12 @@
           <div class="mb-4">
             <div class="flex items-baseline justify-between mb-2">
               <span class="text-sm font-medium text-gray-900">
-                {progress.processed_products} / {progress.total_products > 0 ? progress.total_products : '…'} 個商品
+                {progress.total_products > 0
+                  ? m.admin_import_progress_count({ processed: progress.processed_products, total: progress.total_products })
+                  : m.admin_import_progress_count_loading({ processed: progress.processed_products })}
               </span>
               <span class="text-xs text-gray-400">
-                {progress.imported_variants} 個變體
+                {m.admin_import_progress_variants({ count: progress.imported_variants })}
               </span>
             </div>
 
@@ -399,13 +390,13 @@
 
             <div class="flex items-center justify-between mt-2">
               <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                <span class="text-green-600">+ {progress.imported_products} 新增</span>
-                <span class="text-blue-600">↻ {progress.updated_products} 更新</span>
+                <span class="text-green-600">{m.admin_import_progress_added({ count: progress.imported_products })}</span>
+                <span class="text-blue-600">{m.admin_import_progress_updated({ count: progress.updated_products })}</span>
                 {#if progress.stale_deleted > 0}
-                  <span class="text-gray-500">− {progress.stale_deleted} 刪除（WC 已移除）</span>
+                  <span class="text-gray-500">{m.admin_import_progress_deleted({ count: progress.stale_deleted })}</span>
                 {/if}
                 {#if progress.failed > 0}
-                  <span class="text-red-500">✕ {progress.failed} 失敗</span>
+                  <span class="text-red-500">{m.admin_import_progress_failed({ count: progress.failed })}</span>
                 {/if}
               </div>
               <span class="text-xs text-gray-400">{pct}%</span>
@@ -413,7 +404,7 @@
 
             {#if progress.current_product}
               <p class="text-xs text-gray-400 mt-2 truncate">
-                正在處理：{progress.current_product}
+                {m.admin_import_progress_current({ name: progress.current_product })}
               </p>
             {/if}
           </div>
@@ -421,11 +412,13 @@
 
         {#if step === 'done' && progress}
           <div class="pt-4 border-t border-gray-100">
-            <p class="text-sm font-medium text-gray-700 mb-1">匯入完成</p>
+            <p class="text-sm font-medium text-gray-700 mb-1">{m.admin_import_done_heading()}</p>
             {#if progress.errors?.length > 0}
               <details class="mt-2">
                 <summary class="text-xs font-semibold text-gray-500 cursor-pointer select-none">
-                  {progress.errors.length} 個錯誤
+                  {progress.errors.length === 1
+                    ? m.admin_import_done_errors_one({ count: progress.errors.length })
+                    : m.admin_import_done_errors_many({ count: progress.errors.length })}
                 </summary>
                 <ul class="mt-2 max-h-40 overflow-y-auto flex flex-col gap-1">
                   {#each progress.errors as err}
@@ -436,68 +429,63 @@
             {/if}
             <button onclick={reset}
                     class="mt-3 text-xs text-gray-400 underline hover:text-gray-600 transition-colors">
-              重新匯入
+              {m.admin_import_done_reimport()}
             </button>
           </div>
         {/if}
       </div>
     {/if}
 
-    <!-- Run-import form (idle / error states) -->
     {#if step === 'idle' || step === 'error'}
       <div class="bg-white rounded-2xl border border-gray-100 p-6">
-        <!-- Credential status pill -->
         {#if credsConfigured}
           <div class="flex items-center justify-between gap-3 mb-5 px-3 py-2 bg-gray-50 rounded-xl">
             <div class="text-xs text-gray-600 truncate">
-              <span class="text-gray-400">使用憑證：</span>
+              <span class="text-gray-400">{m.admin_import_creds_pill_label()}</span>
               <span class="font-medium text-gray-900">{wcUrl}</span>
             </div>
             <button type="button" onclick={() => setTab('settings')}
                     class="text-xs text-gray-500 hover:text-gray-900 underline whitespace-nowrap">
-              於 Settings 修改
+              {m.admin_import_creds_pill_edit()}
             </button>
           </div>
         {:else}
           <div class="flex items-center justify-between gap-3 mb-5 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
-            <p class="text-xs text-amber-800">⚠ 尚未設定 WooCommerce 憑證</p>
+            <p class="text-xs text-amber-800">{m.admin_import_no_creds_pill()}</p>
             <button type="button" onclick={() => setTab('settings')}
                     class="text-xs font-medium text-amber-900 hover:underline whitespace-nowrap">
-              前往 Import Settings →
+              {m.admin_import_no_creds_pill_link()}
             </button>
           </div>
         {/if}
 
         <div class="flex flex-col gap-5">
-          <!-- Limit input -->
           <div class="flex flex-col gap-1.5">
             <label for="wc_limit" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              數量上限
+              {m.admin_import_label_limit()}
             </label>
-            <p class="text-xs text-gray-400 -mt-0.5">留空 / 0 = 匯入全部；輸入 N = 只匯入前 N 個商品（含其變體）。常用於測試。</p>
-            <input id="wc_limit" type="number" min="0" step="1" placeholder="留空為全部"
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_limit_hint()}</p>
+            <input id="wc_limit" type="number" min="0" step="1" placeholder={m.admin_import_limit_placeholder()}
                    bind:value={limit}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
             {#if limit && limit > 0}
-              <p class="text-xs text-amber-600 mt-1">⚠ 限量模式下不會清除 WC 端已刪除的商品（避免誤刪未掃到的部分）。</p>
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_limit_warning()}</p>
             {/if}
           </div>
 
-          <!-- Mode selector -->
           <div class="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
-              匯入模式
+              {m.admin_import_section_mode()}
             </span>
             <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
                           {mode === 'upsert' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
               <input type="radio" name="mode" value="upsert" bind:group={mode}
                      class="mt-1 accent-gray-900" />
               <span class="flex-1">
-                <span class="block text-sm font-medium text-gray-900">更新現有 WC 商品（建議）</span>
+                <span class="block text-sm font-medium text-gray-900">{m.admin_import_mode_upsert_title()}</span>
                 <span class="block text-xs text-gray-500 mt-0.5">
-                  以 WooCommerce 為來源更新庫存、價格、重量等資料；保留管理員的翻譯、手動上傳圖片與手動建立的商品。
-                  WC 端已刪除的商品會一併從 Gyeon 移除。
+                  {m.admin_import_mode_upsert_desc()}
                 </span>
               </span>
             </label>
@@ -506,9 +494,9 @@
               <input type="radio" name="mode" value="replace" bind:group={mode}
                      class="mt-1 accent-gray-900" />
               <span class="flex-1">
-                <span class="block text-sm font-medium text-gray-900">重新匯入（清除舊 WC 商品後重灌）</span>
+                <span class="block text-sm font-medium text-gray-900">{m.admin_import_mode_replace_title()}</span>
                 <span class="block text-xs text-gray-500 mt-0.5">
-                  先刪除所有先前由 WC 匯入的商品（含其翻譯與圖片），再重新匯入一份。管理員手動建立的商品保留。
+                  {m.admin_import_mode_replace_desc()}
                 </span>
               </span>
             </label>
@@ -519,10 +507,10 @@
           <button type="button" onclick={openConfirm}
                   class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
                          hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            執行匯入
+            {m.admin_import_run_button()}
           </button>
           <p class="text-xs text-gray-400 mt-3">
-            系統會先驗證連線，確認成功後才開始匯入。
+            {m.admin_import_run_hint()}
           </p>
         </div>
       </div>
@@ -535,29 +523,29 @@
       <div class="flex flex-col gap-5">
         <div class="flex flex-col gap-1.5">
           <label for="wc_url" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            WooCommerce Store URL
+            {m.admin_import_settings_label_url()}
           </label>
-          <p class="text-xs text-gray-400 -mt-0.5">e.g. https://your-store.com</p>
-          <input id="wc_url" type="url" placeholder="https://your-store.com"
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_settings_url_hint()}</p>
+          <input id="wc_url" type="url" placeholder={m.admin_import_settings_url_placeholder()}
                  bind:value={wcUrl}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="wc_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Consumer Key
+            {m.admin_import_settings_label_key()}
           </label>
-          <p class="text-xs text-gray-400 -mt-0.5">WooCommerce → Settings → Advanced → REST API</p>
-          <input id="wc_key" type="text" placeholder="ck_..."
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_settings_key_hint()}</p>
+          <input id="wc_key" type="text" placeholder={m.admin_import_settings_key_placeholder()}
                  bind:value={wcKey}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="wc_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Consumer Secret
+            {m.admin_import_settings_label_secret()}
           </label>
-          <input id="wc_secret" type="password" placeholder="cs_..."
+          <input id="wc_secret" type="password" placeholder={m.admin_import_settings_secret_placeholder()}
                  bind:value={wcSecret}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
@@ -567,14 +555,14 @@
           <button type="button" onclick={saveCredentials} disabled={savingCreds || testingConn}
                   class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl
                          hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {savingCreds ? '儲存中…' : '儲存憑證'}
+            {savingCreds ? m.admin_import_settings_saving() : m.admin_import_settings_save_button()}
           </button>
           <button type="button" onclick={testConnection} disabled={savingCreds || testingConn}
                   class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl
                          hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {testingConn ? '測試中…' : '測試連線'}
+            {testingConn ? m.admin_import_settings_testing() : m.admin_import_settings_test_button()}
           </button>
-          <span class="text-xs text-gray-400">不會執行匯入。</span>
+          <span class="text-xs text-gray-400">{m.admin_import_settings_test_disclaimer()}</span>
         </div>
       </div>
     </div>
@@ -582,9 +570,6 @@
 </div>
 
 <style>
-  /* Same panel transition as Site Settings — keeps both panels mounted
-     so form fields persist across tab switches, hides inactive ones via
-     display:none, and animates the active panel in. */
   .tab-panel { display: none; }
   .tab-panel.active {
     display: block;

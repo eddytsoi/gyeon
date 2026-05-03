@@ -9,6 +9,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import { sortable } from '$lib/actions/sortable';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
@@ -62,10 +63,10 @@
     const token = page.data.token ?? '';
     try {
       await adminReorderPostCategories(token, orderedIds);
-      notify.success('Category order updated');
+      notify.success(m.admin_cms_post_categories_reorder_success());
       await invalidateAll();
     } catch {
-      notify.error('Failed to update category order');
+      notify.error(m.admin_cms_post_categories_reorder_failure());
       await invalidateAll();
     }
   }
@@ -75,8 +76,8 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
-      <h2 class="text-xl font-bold text-gray-900">Post Categories</h2>
-      <p class="text-sm text-gray-500 mt-0.5">{items.length} categor{items.length !== 1 ? 'ies' : 'y'} · drag to reorder</p>
+      <h2 class="text-xl font-bold text-gray-900">{m.admin_cms_post_categories_heading()}</h2>
+      <p class="text-sm text-gray-500 mt-0.5">{items.length === 1 ? m.admin_cms_post_categories_count_one({ count: items.length }) : m.admin_cms_post_categories_count_many({ count: items.length })}</p>
     </div>
     <button onclick={openNew}
             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
@@ -84,7 +85,7 @@
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
       </svg>
-      New Category
+      {m.admin_cms_post_categories_new()}
     </button>
   </div>
 
@@ -99,9 +100,9 @@
               d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z M6 6h.008v.008H6V6Z"/>
           </svg>
         </div>
-        <p class="text-sm font-medium text-gray-400">No categories yet</p>
+        <p class="text-sm font-medium text-gray-400">{m.admin_cms_post_categories_empty()}</p>
         <button onclick={openNew} class="mt-3 text-sm text-gray-900 underline underline-offset-2">
-          Create your first category
+          {m.admin_cms_post_categories_create_first()}
         </button>
       </div>
     {:else}
@@ -113,7 +114,7 @@
             <!-- Drag handle -->
             <button type="button"
                     data-drag-handle
-                    aria-label="Drag to reorder"
+                    aria-label={m.admin_cms_post_categories_aria_drag()}
                     class="cursor-grab active:cursor-grabbing p-1 -m-1 text-gray-500
                            hover:text-gray-800 transition-colors flex-shrink-0">
               <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -156,7 +157,7 @@
          onclick={() => showForm = false} role="button" tabindex="-1"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
       <h3 class="text-base font-bold text-gray-900 mb-5">
-        {editing ? 'Edit Category' : 'New Category'}
+        {editing ? m.admin_cms_post_categories_modal_edit_title() : m.admin_cms_post_categories_modal_new_title()}
       </h3>
 
       <form method="POST" action={editing ? '?/update' : '?/create'}
@@ -167,8 +168,8 @@
               const catName = fName;
               return async ({ result, update }) => {
                 showResult(result,
-                  wasEditing ? `Category '${catName}' saved` : `Category '${catName}' created`,
-                  wasEditing ? `Failed to save category '${catName}'` : `Failed to create category '${catName}'`);
+                  wasEditing ? m.admin_cms_post_categories_save_success({ name: catName }) : m.admin_cms_post_categories_create_success({ name: catName }),
+                  wasEditing ? m.admin_cms_post_categories_save_failure({ name: catName }) : m.admin_cms_post_categories_create_failure({ name: catName }));
                 await update();
                 saving = false;
                 if (result.type === 'success') showForm = false;
@@ -180,18 +181,18 @@
         {/if}
 
         <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Name</label>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_post_categories_label_name()}</label>
           <input type="text" name="name" bind:value={fName} oninput={onNameInput}
-                 required placeholder="e.g. Technology"
+                 required placeholder={m.admin_cms_post_categories_name_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
                         focus:ring-gray-900 focus:border-transparent transition" />
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Slug</label>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_post_categories_label_slug()}</label>
           <input type="text" name="slug" bind:value={fSlug}
-                 required placeholder="technology"
+                 required placeholder={m.admin_cms_post_categories_slug_placeholder()}
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
@@ -201,13 +202,13 @@
           <button type="button" onclick={() => showForm = false}
                   class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                          text-gray-700 hover:bg-gray-50 transition-colors">
-            Cancel
+            {m.admin_cms_post_categories_cancel()}
           </button>
           <SaveButton loading={saving}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
                          bg-gray-900 text-white text-sm font-medium
                          hover:bg-gray-700 transition-colors disabled:opacity-50">
-            {editing ? 'Save Changes' : 'Create'}
+            {editing ? m.admin_cms_post_categories_save() : m.admin_cms_post_categories_create()}
           </SaveButton>
         </div>
       </form>
@@ -221,16 +222,15 @@
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => deleteTarget = null} role="button" tabindex="-1"></div>
     <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-      <h3 class="text-base font-bold text-gray-900 mb-1">Delete category?</h3>
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_cms_post_categories_delete_title()}</h3>
       <p class="text-sm text-gray-500 mb-5">
-        "<span class="font-medium text-gray-700">{deleteTarget.name}</span>" will be removed.
-        Posts using this category will be unassigned.
+        {m.admin_cms_post_categories_delete_body({ name: deleteTarget.name })}
       </p>
       <div class="flex gap-3">
         <button onclick={() => deleteTarget = null}
                 class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
                        text-gray-700 hover:bg-gray-50 transition-colors">
-          Cancel
+          {m.admin_cms_post_categories_cancel()}
         </button>
         <form method="POST" action="?/delete" class="flex-1"
               use:enhance={() => {
@@ -238,7 +238,7 @@
                 deleting = true;
                 const catName = deleteTarget?.name ?? '';
                 return async ({ result, update }) => {
-                  showResult(result, `Category '${catName}' deleted`, `Failed to delete category '${catName}'`);
+                  showResult(result, m.admin_cms_post_categories_delete_success({ name: catName }), m.admin_cms_post_categories_delete_failure({ name: catName }));
                   await update();
                   deleting = false;
                   deleteTarget = null;
@@ -248,7 +248,7 @@
           <SaveButton loading={deleting}
                   class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
                          hover:bg-red-600 transition-colors disabled:opacity-50">
-            Delete
+            {m.admin_cms_post_categories_delete_button()}
           </SaveButton>
         </form>
       </div>
