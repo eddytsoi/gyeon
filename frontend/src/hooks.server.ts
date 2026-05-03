@@ -6,24 +6,60 @@ import { paraglideMiddleware } from '$lib/paraglide/server.js';
 const API_BASE = process.env.API_BASE ?? 'http://localhost:8080/api/v1';
 const MAINTENANCE_PATH = '/maintenance';
 
-async function isMaintenanceMode(): Promise<boolean> {
+const SUPPORTED_LOCALES = new Set(['en', 'zh-Hant']);
+const PARAGLIDE_COOKIE = 'PARAGLIDE_LOCALE';
+const SETTINGS_CACHE_TTL_MS = 60_000;
+
+type CachedSettings = { value: { maintenance: boolean; siteLocale: string }; expiresAt: number };
+let settingsCache: CachedSettings | null = null;
+
+async function fetchPublicSettings(): Promise<{ maintenance: boolean; siteLocale: string }> {
+  if (settingsCache && settingsCache.expiresAt > Date.now()) {
+    return settingsCache.value;
+  }
+  let value = { maintenance: false, siteLocale: 'en' };
   try {
     const res = await fetch(`${API_BASE}/settings`, { signal: AbortSignal.timeout(2000) });
-    if (!res.ok) return false;
-    const settings: { key: string; value: string }[] = await res.json();
-    return settings.find((s) => s.key === 'maintenance_mode')?.value === 'true';
+    if (res.ok) {
+      const settings: { key: string; value: string }[] = await res.json();
+      const maintenance = settings.find((s) => s.key === 'maintenance_mode')?.value === 'true';
+      const rawLocale = settings.find((s) => s.key === 'site_locale')?.value;
+      const siteLocale = rawLocale && SUPPORTED_LOCALES.has(rawLocale) ? rawLocale : 'en';
+      value = { maintenance, siteLocale };
+    }
   } catch {
-    return false;
+    /* keep defaults */
   }
+  settingsCache = { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS };
+  return value;
 }
 
-const handleParaglide: Handle = ({ event, resolve }) =>
-  paraglideMiddleware(event.request, ({ request, locale }) => {
+const handleParaglide: Handle = async ({ event, resolve }) => {
+  // If the visitor has not yet picked a locale (no PARAGLIDE_LOCALE cookie),
+  // inject the admin-configured site_locale into the request cookie header
+  // before paraglide's `cookie` strategy reads it. This makes site_locale the
+  // effective default — overriding the browser's Accept-Language — until the
+  // user explicitly chooses a language via the language switcher.
+  if (!event.cookies.get(PARAGLIDE_COOKIE)) {
+    const { siteLocale } = await fetchPublicSettings();
+    if (siteLocale && SUPPORTED_LOCALES.has(siteLocale)) {
+      const headers = new Headers(event.request.headers);
+      const existing = headers.get('cookie') ?? '';
+      const injected = existing
+        ? `${existing}; ${PARAGLIDE_COOKIE}=${siteLocale}`
+        : `${PARAGLIDE_COOKIE}=${siteLocale}`;
+      headers.set('cookie', injected);
+      event.request = new Request(event.request, { headers });
+    }
+  }
+
+  return paraglideMiddleware(event.request, ({ request, locale }) => {
     event.request = request;
     return resolve(event, {
       transformPageChunk: ({ html }) => html.replace('%paraglide.lang%', locale)
     });
   });
+};
 
 const handleMaintenance: Handle = async ({ event, resolve }) => {
   const { pathname } = event.url;
@@ -51,7 +87,8 @@ const handleMaintenance: Handle = async ({ event, resolve }) => {
   // Logged-in admins bypass maintenance mode on all pages
   if (adminToken) return resolve(event);
 
-  if (await isMaintenanceMode()) {
+  const { maintenance } = await fetchPublicSettings();
+  if (maintenance) {
     throw redirect(302, MAINTENANCE_PATH);
   }
 

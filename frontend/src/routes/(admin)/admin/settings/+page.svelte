@@ -202,6 +202,15 @@
   const mcpSetting = $derived(data.settings.find((s) => s.key === 'mcp_enabled'));
   let mcpOn = $state(mcpSetting?.value === 'true');
 
+  // ── Default Storefront Language ─────────────────────────────────
+  const STOREFRONT_LANG_OPTIONS = $derived([
+    { value: 'en',      label: m.admin_settings_storefront_lang_option_en() },
+    { value: 'zh-Hant', label: m.admin_settings_storefront_lang_option_zh_hant() }
+  ]);
+  let siteLocale = $state(
+    data.settings.find((s) => s.key === 'site_locale')?.value || 'en'
+  );
+
   // ── Shipping Countries ──────────────────────────────────────────
   const shippingCountriesSetting = $derived(
     data.settings.find((s) => s.key === 'shipping_countries')
@@ -455,6 +464,26 @@
         </div>
       </div>
     {/if}
+
+    <!-- Default Storefront Language -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="site_locale" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_storefront_lang_heading()}
+        </label>
+        <p class="text-xs text-gray-400">
+          {m.admin_settings_storefront_lang_subtitle()}
+        </p>
+        <select id="site_locale" name="site_locale"
+                bind:value={siteLocale}
+                class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          {#each STOREFRONT_LANG_OPTIONS as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
 
     </div>
 

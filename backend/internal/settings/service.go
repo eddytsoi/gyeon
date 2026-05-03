@@ -24,6 +24,7 @@ var publicSettingKeys = []string{
 	"maintenance_mode",
 	"mcp_enabled",
 	"shipping_countries",
+	"site_locale",
 	"stripe_save_cards",
 }
 
