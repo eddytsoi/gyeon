@@ -16,6 +16,7 @@ export interface Product {
   category_id?: string;
   slug: string;
   name: string;
+  excerpt?: string;
   description?: string;
   status: string;
   kind?: string; // 'simple' | 'bundle'

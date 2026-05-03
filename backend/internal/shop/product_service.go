@@ -35,6 +35,7 @@ type Product struct {
 	CategoryID  *string `json:"category_id,omitempty"`
 	Slug        string  `json:"slug"`
 	Name        string  `json:"name"`
+	Excerpt     *string `json:"excerpt,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Status      string  `json:"status"`
 	Kind        string  `json:"kind"` // "simple" | "bundle"
@@ -126,6 +127,7 @@ type CreateProductRequest struct {
 	CategoryID  *string `json:"category_id"`
 	Slug        string  `json:"slug"`
 	Name        string  `json:"name"`
+	Excerpt     *string `json:"excerpt"`
 	Description *string `json:"description"`
 	Status      string  `json:"status"`
 	Kind        string  `json:"kind"` // "simple" | "bundle"; defaults to "simple"
@@ -182,6 +184,7 @@ const productTranslationJoin = `
 const productSelect = `
 	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.name,        p.name)        AS name,
+	       p.excerpt,
 	       COALESCE(t.description, p.description) AS description,
 	       p.status, p.kind, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
@@ -189,7 +192,7 @@ const productSelect = `
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
 	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
-		&p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -263,6 +266,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
@@ -291,7 +295,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		var pm ProductWithMeta
 		if err := rows.Scan(
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
-			&pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 		); err != nil {
 			return nil, err
@@ -324,6 +328,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
@@ -352,7 +357,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		var pm ProductWithMeta
 		if err := rows.Scan(
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
-			&pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 		); err != nil {
 			return nil, err
@@ -468,11 +473,11 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, description, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		`INSERT INTO products (category_id, slug, name, excerpt, description, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, category_id, slug, name, excerpt, description, status, kind, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -543,11 +548,11 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`UPDATE products SET category_id=$2, slug=$3, name=$4, description=$5, status=$6, kind=$7
+		`UPDATE products SET category_id=$2, slug=$3, name=$4, excerpt=$5, description=$6, status=$7, kind=$8
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, description, status, kind, created_at, updated_at`,
-		id, req.CategoryID, req.Slug, req.Name, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		 RETURNING id, category_id, slug, name, excerpt, description, status, kind, created_at, updated_at`,
+		id, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 

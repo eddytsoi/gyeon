@@ -160,10 +160,10 @@
           {data.product.name}
         </h1>
 
-        <!-- Description -->
-        {#if data.product.description}
+        <!-- Excerpt -->
+        {#if data.product.excerpt}
           <p class="text-gray-500 leading-relaxed text-sm max-w-md">
-            {data.product.description}
+            {data.product.excerpt}
           </p>
         {/if}
 

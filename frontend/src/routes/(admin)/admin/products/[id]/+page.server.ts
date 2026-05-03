@@ -55,6 +55,7 @@ export const actions: Actions = {
       category_id: form.get('category_id')?.toString() || undefined,
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
+      excerpt: form.get('excerpt')?.toString() || undefined,
       description: form.get('description')?.toString() || undefined,
       status: form.get('status')?.toString() ?? 'active',
       kind

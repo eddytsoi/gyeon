@@ -421,6 +421,13 @@
           </select>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_excerpt()}</label>
+          <textarea id="excerpt" name="excerpt" rows="2"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                    >{data.product?.excerpt ?? ''}</textarea>
+        </div>
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_description()}</label>
           <textarea id="description" name="description" rows="4"
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm

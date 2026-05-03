@@ -647,6 +647,7 @@
   "admin_product_edit_label_type": "Type",
   "admin_product_edit_type_simple": "Simple",
   "admin_product_edit_type_bundle": "Bundle",
+  "admin_product_edit_label_excerpt": "Excerpt",
   "admin_product_edit_label_description": "Description",
   "admin_product_edit_required_marker": "*",
 

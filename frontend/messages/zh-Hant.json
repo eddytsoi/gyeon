@@ -647,6 +647,7 @@
   "admin_product_edit_label_type": "類型",
   "admin_product_edit_type_simple": "單品",
   "admin_product_edit_type_bundle": "套裝",
+  "admin_product_edit_label_excerpt": "摘要",
   "admin_product_edit_label_description": "描述",
   "admin_product_edit_required_marker": "*",
 
