@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import type { ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { isVideo } from '$lib/media';
   import { page } from '$app/state';
   import * as m from '$lib/paraglide/messages';
 
@@ -99,11 +100,22 @@
       <div class="flex flex-col gap-4">
         <div class="aspect-[4/3] lg:aspect-[5/4] rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100">
           {#if activeImage}
-            <img
-              src={activeImage.url}
-              alt={activeImage.alt_text ?? data.product.name}
-              class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-            />
+            {#if isVideo(activeImage)}
+              {#key activeImage.id}
+                <video
+                  src={activeImage.url}
+                  autoplay muted loop playsinline preload="metadata"
+                  aria-label={activeImage.alt_text ?? data.product.name}
+                  class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                ></video>
+              {/key}
+            {:else}
+              <img
+                src={activeImage.url}
+                alt={activeImage.alt_text ?? data.product.name}
+                class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+              />
+            {/if}
           {:else}
             <div class="w-full h-full flex flex-col items-center justify-center gap-3 text-gray-300">
               <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,7 +141,7 @@
             {#each data.images as img}
               <button
                 onclick={() => (activeImageID = img.id)}
-                class="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all
+                class="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all
                        {(activeImageID === img.id || (!activeImageID && img.is_primary))
                          ? 'opacity-100'
                          : 'border-transparent opacity-50 hover:opacity-80'}"
@@ -137,7 +149,16 @@
                   ? 'border-color: rgb(51,73,119)'
                   : ''}
               >
-                <img src={img.url} alt={img.alt_text ?? ''} class="w-full h-full object-cover" />
+                {#if isVideo(img)}
+                  <video src={img.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                  <span class="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+                    <span class="p-1 rounded-full bg-black/50 text-white">
+                      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                  </span>
+                {:else}
+                  <img src={img.url} alt={img.alt_text ?? ''} class="w-full h-full object-cover" />
+                {/if}
               </button>
             {/each}
           </div>

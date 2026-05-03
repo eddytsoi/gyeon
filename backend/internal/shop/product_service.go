@@ -117,6 +117,7 @@ type ProductImage struct {
 	VariantID   *string `json:"variant_id,omitempty"`
 	MediaFileID *string `json:"media_file_id,omitempty"`
 	URL         string  `json:"url"`
+	MimeType    *string `json:"mime_type,omitempty"`
 	AltText     *string `json:"alt_text,omitempty"`
 	SortOrder   int     `json:"sort_order"`
 	IsPrimary   bool    `json:"is_primary"`
@@ -953,6 +954,7 @@ func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req Up
 		 )
 		 SELECT upd.id, upd.product_id, upd.variant_id, upd.media_file_id,
 		        COALESCE(mf.url, upd.url, '') AS url,
+		        mf.mime_type,
 		        upd.alt_text, upd.sort_order, upd.is_primary, upd.created_at
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
 		imageID, req.AltText, req.SortOrder, req.IsPrimary))
@@ -992,7 +994,7 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 func scanProductImage(row interface{ Scan(...any) error }) (ProductImage, error) {
 	var img ProductImage
 	err := row.Scan(&img.ID, &img.ProductID, &img.VariantID, &img.MediaFileID,
-		&img.URL, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+		&img.URL, &img.MimeType, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
 	return img, err
 }
 
@@ -1000,6 +1002,7 @@ func (s *ProductService) ListImages(ctx context.Context, productID string) ([]Pr
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pi.id, pi.product_id, pi.variant_id, pi.media_file_id,
 		        COALESCE(mf.url, pi.url, '') AS url,
+		        mf.mime_type,
 		        pi.alt_text, pi.sort_order, pi.is_primary, pi.created_at
 		 FROM product_images pi
 		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
@@ -1030,6 +1033,7 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 		 )
 		 SELECT ins.id, ins.product_id, ins.variant_id, ins.media_file_id,
 		        COALESCE(mf.url, ins.url, '') AS url,
+		        mf.mime_type,
 		        ins.alt_text, ins.sort_order, ins.is_primary, ins.created_at
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
 		productID, req.VariantID, req.MediaFileID, req.URL, req.AltText, req.SortOrder, req.IsPrimary))

@@ -12,6 +12,8 @@ export default defineConfig({
     sveltekit()
   ],
   server: {
+    port: process.env.PORT ? Number(process.env.PORT) : undefined,
+    strictPort: !!process.env.PORT,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

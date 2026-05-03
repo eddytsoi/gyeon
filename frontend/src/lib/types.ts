@@ -59,6 +59,7 @@ export interface ProductImage {
   variant_id?: string;
   media_file_id?: string;
   url: string;
+  mime_type?: string;
   alt_text?: string;
   sort_order: number;
   is_primary: boolean;
