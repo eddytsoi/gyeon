@@ -105,6 +105,7 @@
   }
 
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
+  const LOCALE_KEYS = new Set(['site_locale']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
@@ -183,6 +184,7 @@
     data.settings.filter(
       (s) =>
         !TOGGLE_KEYS.has(s.key) &&
+        !LOCALE_KEYS.has(s.key) &&
         !CACHE_TTL_KEYS.has(s.key) &&
         !CLOUDFLARE_KEYS.has(s.key) &&
         !MEDIA_LIMIT_KEYS.has(s.key) &&
@@ -207,9 +209,6 @@
     { value: 'en',      label: m.admin_settings_storefront_lang_option_en() },
     { value: 'zh-Hant', label: m.admin_settings_storefront_lang_option_zh_hant() }
   ]);
-  let siteLocale = $state(
-    data.settings.find((s) => s.key === 'site_locale')?.value || 'en'
-  );
 
   // ── Shipping Countries ──────────────────────────────────────────
   const shippingCountriesSetting = $derived(
@@ -475,11 +474,13 @@
           {m.admin_settings_storefront_lang_subtitle()}
         </p>
         <select id="site_locale" name="site_locale"
-                bind:value={siteLocale}
                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                        focus:outline-none focus:ring-2 focus:ring-gray-900">
           {#each STOREFRONT_LANG_OPTIONS as opt}
-            <option value={opt.value}>{opt.label}</option>
+            <option value={opt.value}
+                    selected={(settingValue('site_locale') || 'en') === opt.value}>
+              {opt.label}
+            </option>
           {/each}
         </select>
       </div>
