@@ -487,17 +487,38 @@ export const adminAddMediaLink = (token: string, url: string, name: string) =>
     body: JSON.stringify({ url, name })
   });
 
-export const adminUploadMedia = async (token: string, file: File): Promise<MediaFile> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  const res = await fetch(`${base()}/admin/media/upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData
+export const adminUploadMedia = (
+  token: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<MediaFile> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${base()}/admin/media/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (!onProgress || !e.lengthComputable) return;
+      const pct = Math.min(95, Math.round((e.loaded / e.total) * 95));
+      onProgress(pct);
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as MediaFile);
+        } catch {
+          reject(new Error('Upload failed: invalid response'));
+        }
+      } else {
+        reject(new Error(xhr.responseText || `Upload failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed: network error'));
+    xhr.onabort = () => reject(new Error('Upload aborted'));
+
+    const formData = new FormData();
+    formData.append('file', file);
+    xhr.send(formData);
   });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => `${res.status}`);
-    throw new Error(msg || `Upload failed: ${res.status}`);
-  }
-  return res.json() as Promise<MediaFile>;
 };

@@ -129,20 +129,15 @@
       const placeholderId = crypto.randomUUID();
       uploading = new Map(uploading.set(placeholderId, 0));
 
-      const tick = setInterval(() => {
-        const cur = uploading.get(placeholderId) ?? 0;
-        if (cur < 85) uploading = new Map(uploading.set(placeholderId, cur + 12));
-      }, 180);
-
       try {
-        const uploaded = await adminUploadMedia(data.token, file);
-        clearInterval(tick);
+        const uploaded = await adminUploadMedia(data.token, file, (pct) => {
+          uploading = new Map(uploading.set(placeholderId, pct));
+        });
         uploading = new Map(uploading.set(placeholderId, 100));
         await new Promise((r) => setTimeout(r, 250));
         media = [uploaded, ...media];
         notify.success(m.admin_media_uploaded_success({ name: file.name }));
       } catch (err) {
-        clearInterval(tick);
         const msg = err instanceof Error ? err.message : '';
         notify.error(m.admin_media_upload_failed(), `${file.name}${msg ? `: ${msg}` : ''}`);
       } finally {
