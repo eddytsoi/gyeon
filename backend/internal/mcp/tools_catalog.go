@@ -54,6 +54,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 
 	s.AddTool(mcplib.NewTool("get_product",
 		mcplib.WithDescription("Get full product detail: returns {product, variants, images}. "+
+			"`product.description` is Markdown — render it to HTML when displaying.\n\n"+
 			"`product.kind` is one of: \"simple\" (regular product, may have multiple variants) or \"bundle\" (a fixed bundle of component variants).\n\n"+
 			"For bundle products the response additionally contains:\n"+
 			"  • bundle_items — component rows: {component_variant_id, quantity, component_product_name, component_sku, component_stock_qty, component_price, ...}\n"+
