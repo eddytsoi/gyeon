@@ -460,6 +460,8 @@ export interface MediaFile {
   refs: MediaRef[];
   webp_url?: string | null;
   webp_size_bytes?: number | null;
+  thumbnail_url?: string | null;
+  thumbnail_size_bytes?: number | null;
 }
 
 export const adminGetMedia = (token: string) =>

@@ -7,7 +7,13 @@
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
-  import { isVideo, checkMediaSize, type MediaSizeRejection } from '$lib/media';
+  import {
+    isVideo,
+    isStreamingVideo,
+    detectStreamingVideoFromURL,
+    checkMediaSize,
+    type MediaSizeRejection
+  } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -559,7 +565,11 @@
               <tr class="js-variant-row">
                 <td class="px-5 py-3">
                   {#if pv.image_preview_url}
-                    {#if isVideo({ url: pv.image_preview_url })}
+                    {#if detectStreamingVideoFromURL(pv.image_preview_url)}
+                      <div class="w-8 h-8 rounded bg-black flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                    {:else if isVideo({ url: pv.image_preview_url })}
                       <video src={pv.image_preview_url} muted playsinline preload="metadata"
                              class="w-8 h-8 rounded object-cover bg-black"></video>
                     {:else}
@@ -609,7 +619,11 @@
               <tr class="js-variant-row">
                 <td class="px-5 py-3">
                   {#if variant.image_url}
-                    {#if isVideo({ url: variant.image_url })}
+                    {#if detectStreamingVideoFromURL(variant.image_url)}
+                      <div class="w-8 h-8 rounded bg-black flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                    {:else if isVideo({ url: variant.image_url })}
                       <video src={variant.image_url} muted playsinline preload="metadata"
                              class="w-8 h-8 rounded object-cover bg-black"></video>
                     {:else}
@@ -991,8 +1005,13 @@
                       dragOverIdx === i ? 'ring-2 ring-gray-900/40' : ''}"
             >
               {#if isVideo(image)}
-                <video src={image.url} muted loop playsinline preload="metadata"
-                       class="w-full h-full object-cover pointer-events-none"></video>
+                {#if isStreamingVideo(image)}
+                  <img src={image.thumbnail_url ?? ''} alt={image.alt_text ?? ''}
+                       class="w-full h-full object-cover pointer-events-none bg-gray-100" />
+                {:else}
+                  <video src={image.url} muted loop playsinline preload="metadata"
+                         class="w-full h-full object-cover pointer-events-none"></video>
+                {/if}
                 <span class="absolute bottom-2 right-2 p-1 rounded-md bg-black/60 text-white"
                       aria-hidden="true">
                   <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
@@ -1194,7 +1213,11 @@
                         class="relative flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
                                {addVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
                   {#if isVideo(mf)}
-                    <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {#if isStreamingVideo(mf)}
+                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                    {:else}
+                      <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {/if}
                     <span class="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white" aria-hidden="true">
                       <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </span>
@@ -1361,7 +1384,11 @@
                         class="relative flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
                                {editVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
                   {#if isVideo(mf)}
-                    <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {#if isStreamingVideo(mf)}
+                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                    {:else}
+                      <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {/if}
                     <span class="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white" aria-hidden="true">
                       <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </span>
@@ -1585,7 +1612,11 @@
                         class="relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
                                {addImageSelectedId === mf.id ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}">
                   {#if isVideo(mf)}
-                    <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {#if isStreamingVideo(mf)}
+                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                    {:else}
+                      <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                    {/if}
                     <span class="absolute bottom-1 right-1 p-0.5 rounded bg-black/60 text-white" aria-hidden="true">
                       <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z"/>

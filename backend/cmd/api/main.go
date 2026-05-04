@@ -128,7 +128,7 @@ func main() {
 	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret)
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
-	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc)
+	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
 	productSvc.SetThumbnailEnsurer(mediaHandler)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc, settingsSvc))

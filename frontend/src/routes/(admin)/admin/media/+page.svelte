@@ -2,7 +2,16 @@
   import type { PageData } from './$types';
   import type { MediaFile } from '$lib/api/admin';
   import { adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
-  import { checkMediaSize, type MediaSizeRejection } from '$lib/media';
+  import {
+    checkMediaSize,
+    isVideo,
+    isImage,
+    isLink,
+    isStreamingVideo,
+    detectStreamingVideoFromURL,
+    type MediaSizeRejection,
+    type StreamingProvider
+  } from '$lib/media';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -60,18 +69,8 @@
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
-  const VIDEO_EXTS = /\.(mp4|webm)(\?|#|$)/i;
-  const IMAGE_EXTS = /\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)(\?|#|$)/i;
-
-  function isVideo(f: MediaFile) {
-    return f.mime_type.startsWith('video/') || (f.mime_type === 'link' && VIDEO_EXTS.test(f.url));
-  }
-  function isImage(f: MediaFile) {
-    return f.mime_type.startsWith('image/') || (f.mime_type === 'link' && IMAGE_EXTS.test(f.url));
-  }
-  function isLink(f: MediaFile) {
-    return f.mime_type === 'link';
-  }
+  const detectedStreaming = $derived(detectStreamingVideoFromURL(linkUrl));
+  const providerLabel: Record<StreamingProvider, string> = { youtube: 'YouTube', vimeo: 'Vimeo', wistia: 'Wistia' };
 
   const filtered = $derived(
     filter === 'all'
@@ -237,6 +236,14 @@
                    placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
           />
         </div>
+        {#if detectedStreaming}
+          <p class="text-xs text-emerald-700 flex items-center gap-1.5" data-testid="streaming-detected">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+            {providerLabel[detectedStreaming.provider]} {m.admin_media_link_modal_streaming_detected()}
+          </p>
+        {/if}
         {#if linkError}
           <p class="text-xs text-red-600">{linkError}</p>
         {/if}
@@ -351,7 +358,30 @@
         <div class="flex flex-col gap-1.5">
           <div class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100">
 
-            {#if isVideo(file)}
+            {#if isStreamingVideo(file)}
+              {#if file.thumbnail_url}
+                <img
+                  src={file.thumbnail_url}
+                  alt={file.original_name}
+                  class="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              {:else}
+                <div class="w-full h-full flex items-center justify-center bg-gray-50">
+                  <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75 5.25 3.75-5.25 3.75v-7.5Z" />
+                  </svg>
+                </div>
+              {/if}
+              <div class="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
+                <div class="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm">
+                  <svg class="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </div>
+
+            {:else if isVideo(file)}
               <video
                 src={file.url}
                 preload="metadata"

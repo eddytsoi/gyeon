@@ -996,6 +996,7 @@
   "admin_media_link_modal_cancel": "取消",
   "admin_media_link_modal_save": "儲存",
   "admin_media_link_modal_saving": "儲存中…",
+  "admin_media_link_modal_streaming_detected": "影片已偵測 — 系統將自動擷取縮圖",
   "admin_media_heading": "媒體庫",
   "admin_media_filter_all": "全部",
   "admin_media_filter_image": "圖片",

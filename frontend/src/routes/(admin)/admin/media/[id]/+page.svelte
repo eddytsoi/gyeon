@@ -3,12 +3,15 @@
   import type { PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import { showResult } from '$lib/stores/notifications.svelte';
+  import { isStreamingVideo, getEmbedURL } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
   const file = $derived(data.file);
   const isLink = $derived(file.mime_type === 'link');
+  const isStreaming = $derived(isStreamingVideo(file));
+  const embedURL = $derived(getEmbedURL(file));
   const isVideo = $derived(
     file.mime_type.startsWith('video/') ||
     (isLink && /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(file.url))
@@ -121,7 +124,16 @@
 
     <!-- Left: preview -->
     <div class="rounded-2xl overflow-hidden bg-gray-100 aspect-square flex items-center justify-center">
-      {#if isVideo}
+      {#if isStreaming && embedURL}
+        <iframe
+          src={embedURL}
+          title={file.original_name}
+          class="w-full h-full"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+          frameborder="0"
+        ></iframe>
+      {:else if isVideo}
         <video
           src={file.url}
           controls
@@ -208,7 +220,7 @@
         <!-- URL -->
         <div>
           <label class="block text-xs font-medium text-gray-700 mb-1" for="url">
-            {isLink ? m.admin_media_edit_label_url() : m.admin_media_edit_label_file_path()}
+            {isLink || isStreaming ? m.admin_media_edit_label_url() : m.admin_media_edit_label_file_path()}
           </label>
           {#if isLink}
             <input

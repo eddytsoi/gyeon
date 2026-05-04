@@ -996,6 +996,7 @@
   "admin_media_link_modal_cancel": "Cancel",
   "admin_media_link_modal_save": "Save",
   "admin_media_link_modal_saving": "Saving…",
+  "admin_media_link_modal_streaming_detected": "video detected — thumbnail will be extracted automatically",
   "admin_media_heading": "Media Library",
   "admin_media_filter_all": "All",
   "admin_media_filter_image": "Images",

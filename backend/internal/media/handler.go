@@ -49,11 +49,12 @@ type Handler struct {
 	db       *sql.DB
 	baseURL  string
 	settings *settings.Service
+	svc      *Service
 }
 
-func NewHandler(db *sql.DB, baseURL string, settingsSvc *settings.Service) *Handler {
+func NewHandler(db *sql.DB, baseURL string, settingsSvc *settings.Service, svc *Service) *Handler {
 	os.MkdirAll(uploadsDir, 0755)
-	return &Handler{db: db, baseURL: baseURL, settings: settingsSvc}
+	return &Handler{db: db, baseURL: baseURL, settings: settingsSvc, svc: svc}
 }
 
 // uploadLimits reads configurable size limits from site_settings with fallbacks.
@@ -454,20 +455,31 @@ type addLinkRequest struct {
 
 func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
 	var req addLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.URL) == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "url is required")
+		return
+	}
+	rawURL := strings.TrimSpace(req.URL)
+	if rawURL == "" {
 		respond.BadRequest(w, "url is required")
 		return
 	}
 	name := strings.TrimSpace(req.Name)
+
+	if provider, videoID, ok := DetectStreamingVideo(rawURL); ok {
+		h.addStreamingVideoLink(w, r, rawURL, name, provider, videoID)
+		return
+	}
+
 	if name == "" {
-		name = req.URL
+		name = rawURL
 	}
 	var f MediaFile
 	err := h.db.QueryRowContext(r.Context(),
 		`INSERT INTO media_files (filename, original_name, mime_type, size_bytes, url)
 		 VALUES ($1,$2,$3,$4,$5)
 		 RETURNING id, filename, original_name, mime_type, size_bytes, url, created_at`,
-		req.URL, name, "link", 0, req.URL).
+		rawURL, name, "link", 0, rawURL).
 		Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.URL, &f.CreatedAt)
 	if err != nil {
 		respond.InternalError(w)
@@ -477,13 +489,70 @@ func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, f)
 }
 
+// addStreamingVideoLink stores a YouTube/Vimeo/Wistia URL as a video media row,
+// best-effort fetching the platform's title and thumbnail via oEmbed. oEmbed
+// failures are non-fatal — the row is still inserted, and the lazy-backfill
+// goroutine in list() will retry the thumbnail on the next list call.
+func (h *Handler) addStreamingVideoLink(w http.ResponseWriter, r *http.Request, rawURL, name string, provider StreamProvider, videoID string) {
+	title, thumbSrcURL, err := FetchStreamingMetadata(r.Context(), provider, videoID, rawURL)
+	if err != nil {
+		log.Printf("addStreamingVideoLink: oembed %s failed for %q: %v", provider, rawURL, err)
+	}
+
+	var thumbFn, thumbURL sql.NullString
+	var thumbSize sql.NullInt64
+	if thumbSrcURL != "" && h.svc != nil {
+		fn, fileURL, sz, _, derr := h.svc.DownloadToUploads(r.Context(), thumbSrcURL)
+		if derr != nil {
+			log.Printf("addStreamingVideoLink: thumbnail download %q failed: %v", thumbSrcURL, derr)
+		} else {
+			thumbFn = sql.NullString{String: fn, Valid: true}
+			thumbURL = sql.NullString{String: fileURL, Valid: true}
+			thumbSize = sql.NullInt64{Int64: sz, Valid: true}
+		}
+	}
+
+	if name == "" {
+		name = title
+	}
+	if name == "" {
+		name = rawURL
+	}
+
+	var f MediaFile
+	err = h.db.QueryRowContext(r.Context(),
+		`INSERT INTO media_files
+		     (filename, original_name, mime_type, size_bytes, url,
+		      thumbnail_filename, thumbnail_url, thumbnail_size_bytes)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		 RETURNING id, filename, original_name, mime_type, size_bytes, url, created_at`,
+		rawURL, name, provider.MimeType(), 0, rawURL,
+		thumbFn, thumbURL, thumbSize).
+		Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.URL, &f.CreatedAt)
+	if err != nil {
+		if thumbFn.Valid {
+			os.Remove(filepath.Join(uploadsDir, thumbFn.String))
+		}
+		respond.InternalError(w)
+		return
+	}
+	if thumbURL.Valid {
+		f.ThumbnailURL = &thumbURL.String
+	}
+	if thumbSize.Valid {
+		f.ThumbnailSizeBytes = &thumbSize.Int64
+	}
+	f.Refs = []MediaRef{}
+	respond.JSON(w, http.StatusCreated, f)
+}
+
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var filename string
+	var filename, mimeType string
 	var webpFilename, thumbFilename sql.NullString
 	err := h.db.QueryRowContext(r.Context(),
-		`DELETE FROM media_files WHERE id=$1 RETURNING filename, webp_filename, thumbnail_filename`, id).
-		Scan(&filename, &webpFilename, &thumbFilename)
+		`DELETE FROM media_files WHERE id=$1 RETURNING filename, mime_type, webp_filename, thumbnail_filename`, id).
+		Scan(&filename, &mimeType, &webpFilename, &thumbFilename)
 	if err == sql.ErrNoRows {
 		respond.NotFound(w)
 		return
@@ -492,11 +561,17 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	origPath := filepath.Join(uploadsDir, filename)
-	if err := os.Remove(origPath); err != nil {
-		log.Printf("media delete: remove original %q: %v", origPath, err)
+	// Streaming-video rows store the external URL in `filename`; there's no
+	// local file to remove and no CDN-cached uploads URL to purge.
+	skipOriginal := IsStreamingMime(mimeType) || mimeType == "link"
+	purgeURLs := []string{}
+	if !skipOriginal {
+		origPath := filepath.Join(uploadsDir, filename)
+		if err := os.Remove(origPath); err != nil {
+			log.Printf("media delete: remove original %q: %v", origPath, err)
+		}
+		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+filename)
 	}
-	purgeURLs := []string{h.baseURL + "/uploads/" + filename}
 	if webpFilename.Valid && webpFilename.String != "" {
 		webpPath := filepath.Join(uploadsDir, webpFilename.String)
 		if err := os.Remove(webpPath); err != nil {
@@ -587,11 +662,11 @@ func generateVideoThumbnail(srcPath, srcFilename, baseURL string) (thumbFilename
 // is missing. Failures are logged but never returned, so this can be called
 // from background goroutines without affecting the originating request.
 func (h *Handler) EnsureVideoThumbnail(ctx context.Context, mediaFileID string) {
-	var filename, mimeType string
+	var filename, mimeType, urlStr string
 	var thumbURL sql.NullString
 	err := h.db.QueryRowContext(ctx,
-		`SELECT filename, mime_type, thumbnail_url FROM media_files WHERE id = $1`,
-		mediaFileID).Scan(&filename, &mimeType, &thumbURL)
+		`SELECT filename, mime_type, url, thumbnail_url FROM media_files WHERE id = $1`,
+		mediaFileID).Scan(&filename, &mimeType, &urlStr, &thumbURL)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			log.Printf("ensure thumbnail: lookup %q: %v", mediaFileID, err)
@@ -602,6 +677,14 @@ func (h *Handler) EnsureVideoThumbnail(ctx context.Context, mediaFileID string) 
 		return
 	}
 	if thumbURL.Valid && thumbURL.String != "" {
+		return
+	}
+
+	// Streaming videos: re-fetch via oEmbed instead of running ffmpeg against
+	// a non-existent local file. Best-effort; failure is logged and retried
+	// on the next list() call.
+	if IsStreamingMime(mimeType) {
+		h.ensureStreamingThumbnail(ctx, mediaFileID, mimeType, urlStr)
 		return
 	}
 
@@ -624,6 +707,41 @@ func (h *Handler) EnsureVideoThumbnail(ctx context.Context, mediaFileID string) 
 		mediaFileID, tfn, turl, tsize); err != nil {
 		log.Printf("ensure thumbnail: persist %q: %v", mediaFileID, err)
 		os.Remove(filepath.Join(uploadsDir, tfn))
+	}
+}
+
+// ensureStreamingThumbnail re-runs the oEmbed fetch + thumbnail download for a
+// streaming-video row that lost its thumbnail (initial fetch failed, or thumb
+// columns were manually cleared). No-op if the platform call still fails.
+func (h *Handler) ensureStreamingThumbnail(ctx context.Context, mediaFileID, mimeType, originalURL string) {
+	if h.svc == nil {
+		return
+	}
+	provider := StreamProvider(strings.TrimPrefix(mimeType, "video/"))
+	_, videoID, ok := DetectStreamingVideo(originalURL)
+	if !ok {
+		log.Printf("ensure thumbnail: streaming row %q url no longer matches provider", mediaFileID)
+		return
+	}
+	_, thumbSrcURL, err := FetchStreamingMetadata(ctx, provider, videoID, originalURL)
+	if err != nil || thumbSrcURL == "" {
+		if err != nil {
+			log.Printf("ensure thumbnail: oembed %s failed for %q: %v", provider, originalURL, err)
+		}
+		return
+	}
+	fn, fileURL, sz, _, derr := h.svc.DownloadToUploads(ctx, thumbSrcURL)
+	if derr != nil {
+		log.Printf("ensure thumbnail: download %q failed: %v", thumbSrcURL, derr)
+		return
+	}
+	if _, err := h.db.ExecContext(ctx,
+		`UPDATE media_files
+		    SET thumbnail_filename = $2, thumbnail_url = $3, thumbnail_size_bytes = $4
+		  WHERE id = $1 AND (thumbnail_url IS NULL OR thumbnail_url = '')`,
+		mediaFileID, fn, fileURL, sz); err != nil {
+		log.Printf("ensure thumbnail: persist streaming %q: %v", mediaFileID, err)
+		os.Remove(filepath.Join(uploadsDir, fn))
 	}
 }
 

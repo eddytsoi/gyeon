@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Product, ProductImage, Variant } from '$lib/types';
-  import { isVideo } from '$lib/media';
+  import { isVideo, isStreamingVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
   let { product, image, variant }: {
@@ -27,10 +27,16 @@
   <!-- Image -->
   <div class="aspect-square bg-gray-50 overflow-hidden">
     {#if image}
-      {#if isVideo(image) && !image.thumbnail_url}
+      {#if isVideo(image) && !isStreamingVideo(image) && !image.thumbnail_url}
         <video src={image.url} muted playsinline preload="metadata"
                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
         </video>
+      {:else if isStreamingVideo(image) && !image.thumbnail_url}
+        <div class="w-full h-full flex items-center justify-center bg-gray-100">
+          <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75 5.25 3.75-5.25 3.75v-7.5Z" />
+          </svg>
+        </div>
       {:else}
         <img src={image.thumbnail_url ?? image.url} alt={image.alt_text ?? product.name}
              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />

@@ -2,7 +2,7 @@
   import type { PageData } from './$types';
   import type { ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { isVideo } from '$lib/media';
+  import { isVideo, isStreamingVideo, getEmbedURL } from '$lib/media';
   import { page } from '$app/state';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
@@ -183,7 +183,16 @@
                 in:slide={{ dir: direction === 'next' ? 1 : -1 }}
                 out:slide={{ dir: direction === 'next' ? -1 : 1 }}
               >
-                {#if isVideo(activeImage)}
+                {#if isStreamingVideo(activeImage) && getEmbedURL(activeImage)}
+                  <iframe
+                    src={getEmbedURL(activeImage) ?? ''}
+                    title={activeImage.alt_text ?? data.product.name}
+                    class="w-full h-full"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowfullscreen
+                    frameborder="0"
+                  ></iframe>
+                {:else if isVideo(activeImage)}
                   <video
                     src={activeImage.url}
                     autoplay muted loop playsinline preload="metadata"
