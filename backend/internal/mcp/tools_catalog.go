@@ -226,7 +226,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 	})
 
 	s.AddTool(mcplib.NewTool("get_variant",
-		mcplib.WithDescription("Get variant pricing and stock information"),
+		mcplib.WithDescription("Get variant pricing, stock, weight, and physical dimensions (length_mm, width_mm, height_mm in mm)"),
 		mcplib.WithString("variant_id", mcplib.Description("Variant UUID"), mcplib.Required()),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 		variantID, err := req.RequireString("variant_id")

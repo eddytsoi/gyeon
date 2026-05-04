@@ -104,6 +104,9 @@ type Variant struct {
 	CompareAtPrice *float64 `json:"compare_at_price,omitempty"`
 	StockQty       int      `json:"stock_qty"`
 	WeightGrams    *int     `json:"weight_grams,omitempty"`
+	LengthMM       *int     `json:"length_mm,omitempty"`
+	WidthMM        *int     `json:"width_mm,omitempty"`
+	HeightMM       *int     `json:"height_mm,omitempty"`
 	IsActive       bool     `json:"is_active"`
 	CreatedAt      string   `json:"created_at"`
 	UpdatedAt      string   `json:"updated_at"`
@@ -146,6 +149,9 @@ type CreateVariantRequest struct {
 	CompareAtPrice *float64 `json:"compare_at_price"`
 	StockQty       int      `json:"stock_qty"`
 	WeightGrams    *int     `json:"weight_grams"`
+	LengthMM       *int     `json:"length_mm"`
+	WidthMM        *int     `json:"width_mm"`
+	HeightMM       *int     `json:"height_mm"`
 }
 
 type UpdateVariantRequest struct {
@@ -155,6 +161,9 @@ type UpdateVariantRequest struct {
 	CompareAtPrice *float64 `json:"compare_at_price"`
 	StockQty       int      `json:"stock_qty"`
 	WeightGrams    *int     `json:"weight_grams"`
+	LengthMM       *int     `json:"length_mm"`
+	WidthMM        *int     `json:"width_mm"`
+	HeightMM       *int     `json:"height_mm"`
 	IsActive       bool     `json:"is_active"`
 }
 
@@ -685,6 +694,9 @@ type UpsertWCVariantRequest struct {
 	CompareAtPrice *float64
 	StockQty       int
 	WeightGrams    *int
+	LengthMM       *int
+	WidthMM        *int
+	HeightMM       *int
 }
 
 // UpsertWCVariant inserts or updates a variant keyed by wc_variation_id
@@ -695,8 +707,8 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, wc_variation_id, sku, price, compare_at_price, stock_qty, weight_grams)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			     (product_id, wc_variation_id, sku, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			 ON CONFLICT (wc_variation_id) DO UPDATE
 			    SET product_id        = EXCLUDED.product_id,
 			        sku               = EXCLUDED.sku,
@@ -704,10 +716,13 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			        compare_at_price  = EXCLUDED.compare_at_price,
 			        stock_qty         = EXCLUDED.stock_qty,
 			        weight_grams      = EXCLUDED.weight_grams,
+			        length_mm         = EXCLUDED.length_mm,
+			        width_mm          = EXCLUDED.width_mm,
+			        height_mm         = EXCLUDED.height_mm,
 			        updated_at        = NOW()
 			 RETURNING id`,
 			productID, *req.WCVariationID, req.SKU, req.Price,
-			req.CompareAtPrice, req.StockQty, req.WeightGrams).Scan(&id)
+			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).Scan(&id)
 		return id, err
 	}
 
@@ -723,11 +738,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, sku, price, compare_at_price, stock_qty, weight_grams)
-			 VALUES ($1, $2, $3, $4, $5, $6)
+			     (product_id, sku, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			 RETURNING id`,
 			productID, req.SKU, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams).Scan(&id)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).Scan(&id)
 		return id, err
 	case err != nil:
 		return "", err
@@ -735,10 +750,10 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		_, uerr := s.db.ExecContext(ctx,
 			`UPDATE product_variants
 			    SET sku=$2, price=$3, compare_at_price=$4,
-			        stock_qty=$5, weight_grams=$6, updated_at=NOW()
+			        stock_qty=$5, weight_grams=$6, length_mm=$7, width_mm=$8, height_mm=$9, updated_at=NOW()
 			  WHERE id=$1`,
 			existing, req.SKU, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM)
 		return existing, uerr
 	}
 }
@@ -828,7 +843,8 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 	var productKind string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
-		        pv.stock_qty, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at,
+		        pv.stock_qty, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
+		        pv.is_active, pv.created_at, pv.updated_at,
 		        p.name AS product_name, p.kind AS product_kind,
 		        COALESCE(mf.url, pi.url) AS image_url
 		 FROM product_variants pv
@@ -839,7 +855,8 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 		 WHERE pv.id = $1
 		 LIMIT 1`, variantID).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
+			&v.IsActive, &v.CreatedAt, &v.UpdatedAt,
 			&v.ProductName, &productKind, &v.ImageURL)
 	if err != nil {
 		return nil, err
@@ -858,7 +875,8 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
-		        pv.stock_qty, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at,
+		        pv.stock_qty, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
+		        pv.is_active, pv.created_at, pv.updated_at,
 		        COALESCE(mf.url, pi.url) AS image_url
 		 FROM product_variants pv
 		 LEFT JOIN product_images pi ON pi.variant_id = pv.id
@@ -874,7 +892,8 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 	for rows.Next() {
 		var v Variant
 		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.ImageURL); err != nil {
+			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
+			&v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.ImageURL); err != nil {
 			return nil, err
 		}
 		variants = append(variants, v)
@@ -913,12 +932,12 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, is_active, created_at, updated_at`,
-		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams).
+		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -928,12 +947,12 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, req UpdateVariantRequest) (*Variant, error) {
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, weight_grams=$7, is_active=$8
+		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, weight_grams=$7, is_active=$8, length_mm=$9, width_mm=$10, height_mm=$11
 		 WHERE id=$1
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, is_active, created_at, updated_at`,
-		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams, req.IsActive).
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams, req.IsActive, req.LengthMM, req.WidthMM, req.HeightMM).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -950,10 +969,10 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE product_variants SET stock_qty = GREATEST(0, stock_qty + $2)
 		 WHERE id = $1
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, is_active, created_at, updated_at`,
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
 		variantID, req.Delta).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

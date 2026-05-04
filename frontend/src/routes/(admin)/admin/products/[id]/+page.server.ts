@@ -85,6 +85,9 @@ export const actions: Actions = {
       const priceStr   = form.get('bundle_price')?.toString() ?? '';
       const compareStr = form.get('bundle_compare_at_price')?.toString() ?? '';
       const weightStr  = form.get('bundle_weight_grams')?.toString() ?? '';
+      const lenStr     = form.get('bundle_length_mm')?.toString() ?? '';
+      const widStr     = form.get('bundle_width_mm')?.toString() ?? '';
+      const hgtStr     = form.get('bundle_height_mm')?.toString() ?? '';
       try {
         const variants = await adminGetVariants(token, id);
         const bv = variants[0];
@@ -96,6 +99,9 @@ export const actions: Actions = {
             compare_at_price: compareStr ? parseFloat(compareStr) : undefined,
             stock_qty: bv.stock_qty,
             weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
+            length_mm: lenStr ? parseInt(lenStr, 10) : undefined,
+            width_mm:  widStr ? parseInt(widStr,  10) : undefined,
+            height_mm: hgtStr ? parseInt(hgtStr,  10) : undefined,
             is_active: true
           });
         }
@@ -109,6 +115,9 @@ export const actions: Actions = {
         const priceStr = form.get('pending_bundle_price')?.toString() ?? '';
         const compareStr = form.get('pending_bundle_compare_at_price')?.toString() ?? '';
         const weightStr = form.get('pending_bundle_weight_grams')?.toString() ?? '';
+        const lenStr    = form.get('pending_bundle_length_mm')?.toString() ?? '';
+        const widStr    = form.get('pending_bundle_width_mm')?.toString() ?? '';
+        const hgtStr    = form.get('pending_bundle_height_mm')?.toString() ?? '';
         try {
           const variants = await adminGetVariants(token, newProductId);
           const bv = variants[0];
@@ -120,6 +129,9 @@ export const actions: Actions = {
               compare_at_price: compareStr ? parseFloat(compareStr) : undefined,
               stock_qty: bv.stock_qty,
               weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
+              length_mm: lenStr ? parseInt(lenStr, 10) : undefined,
+              width_mm:  widStr ? parseInt(widStr,  10) : undefined,
+              height_mm: hgtStr ? parseInt(hgtStr,  10) : undefined,
               is_active: true
             });
           }
@@ -196,7 +208,13 @@ export const actions: Actions = {
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
         weight_grams: form.get('weight_grams')?.toString()
           ? parseInt(form.get('weight_grams')!.toString(), 10)
-          : undefined
+          : undefined,
+        length_mm: form.get('length_mm')?.toString()
+          ? parseInt(form.get('length_mm')!.toString(), 10) : undefined,
+        width_mm: form.get('width_mm')?.toString()
+          ? parseInt(form.get('width_mm')!.toString(), 10) : undefined,
+        height_mm: form.get('height_mm')?.toString()
+          ? parseInt(form.get('height_mm')!.toString(), 10) : undefined
       });
       const imageMediaFileId = form.get('image_media_file_id')?.toString();
       if (imageMediaFileId) {
@@ -232,6 +250,12 @@ export const actions: Actions = {
         weight_grams: form.get('weight_grams')?.toString()
           ? parseInt(form.get('weight_grams')!.toString(), 10)
           : undefined,
+        length_mm: form.get('length_mm')?.toString()
+          ? parseInt(form.get('length_mm')!.toString(), 10) : undefined,
+        width_mm: form.get('width_mm')?.toString()
+          ? parseInt(form.get('width_mm')!.toString(), 10) : undefined,
+        height_mm: form.get('height_mm')?.toString()
+          ? parseInt(form.get('height_mm')!.toString(), 10) : undefined,
         is_active: form.get('is_active') === 'true'
       });
       const oldImageId = form.get('old_image_id')?.toString();

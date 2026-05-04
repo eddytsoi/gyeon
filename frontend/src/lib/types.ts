@@ -48,6 +48,9 @@ export interface Variant {
   compare_at_price?: number;
   stock_qty: number;
   weight_grams?: number;
+  length_mm?: number;
+  width_mm?: number;
+  height_mm?: number;
   is_active: boolean;
   product_name?: string;
   image_url?: string;

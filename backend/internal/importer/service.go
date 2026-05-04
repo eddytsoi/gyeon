@@ -401,6 +401,9 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
 		WeightGrams:    parseWeightKg(prod.Weight),
+		LengthMM:       parseDimensionCM(prod.Dimensions.Length),
+		WidthMM:        parseDimensionCM(prod.Dimensions.Width),
+		HeightMM:       parseDimensionCM(prod.Dimensions.Height),
 	})
 	return err
 }
@@ -421,6 +424,9 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
 		WeightGrams:    parseWeightKg(v.Weight),
+		LengthMM:       parseDimensionCM(v.Dimensions.Length),
+		WidthMM:        parseDimensionCM(v.Dimensions.Width),
+		HeightMM:       parseDimensionCM(v.Dimensions.Height),
 	})
 	return err
 }
@@ -454,6 +460,23 @@ func parseWeightKg(kg string) *int {
 		return nil
 	}
 	return &g
+}
+
+// parseDimensionCM converts a WooCommerce dimension string (cm, decimal) to
+// *int millimetres. Returns nil for empty / zero / invalid input.
+func parseDimensionCM(cm string) *int {
+	if cm == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(cm, 64)
+	if err != nil || f <= 0 {
+		return nil
+	}
+	mm := int(f*10 + 0.5)
+	if mm <= 0 {
+		return nil
+	}
+	return &mm
 }
 
 // mapStatus translates a WooCommerce product status to Gyeon's. WC uses

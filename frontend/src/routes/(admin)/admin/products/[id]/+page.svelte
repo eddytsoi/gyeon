@@ -73,6 +73,7 @@
     sku: string; name?: string;
     price: number; compare_at_price?: number; stock_qty: number;
     weight_grams?: number;
+    length_mm?: number; width_mm?: number; height_mm?: number;
     image_media_file_id?: string; image_preview_url?: string;
   };
   type PendingImage = {
@@ -104,6 +105,9 @@
   let pendingBundlePrice          = $state<number | ''>(initialBundleVariant?.price ?? '');
   let pendingBundleCompareAtPrice = $state<number | ''>(initialBundleVariant?.compare_at_price ?? '');
   let pendingBundleWeightGrams    = $state<number | ''>(initialBundleVariant?.weight_grams ?? '');
+  let pendingBundleLengthMM       = $state<number | ''>(initialBundleVariant?.length_mm ?? '');
+  let pendingBundleWidthMM        = $state<number | ''>(initialBundleVariant?.width_mm  ?? '');
+  let pendingBundleHeightMM       = $state<number | ''>(initialBundleVariant?.height_mm ?? '');
 
   const bundleItemsJson = $derived(
     JSON.stringify(bundleItems.map(({ _localId, ...rest }) => ({
@@ -287,6 +291,9 @@
       pendingBundlePrice          = bv?.price ?? '';
       pendingBundleCompareAtPrice = bv?.compare_at_price ?? '';
       pendingBundleWeightGrams    = bv?.weight_grams ?? '';
+      pendingBundleLengthMM       = bv?.length_mm ?? '';
+      pendingBundleWidthMM        = bv?.width_mm  ?? '';
+      pendingBundleHeightMM       = bv?.height_mm ?? '';
     }
   });
 
@@ -448,6 +455,9 @@
           <input type="hidden" name="pending_bundle_price"            value={pendingBundlePrice} />
           <input type="hidden" name="pending_bundle_compare_at_price" value={pendingBundleCompareAtPrice} />
           <input type="hidden" name="pending_bundle_weight_grams"     value={pendingBundleWeightGrams} />
+          <input type="hidden" name="pending_bundle_length_mm"        value={pendingBundleLengthMM} />
+          <input type="hidden" name="pending_bundle_width_mm"         value={pendingBundleWidthMM} />
+          <input type="hidden" name="pending_bundle_height_mm"        value={pendingBundleHeightMM} />
           <input type="hidden" name="pending_bundle_items"            value={bundleItemsJson} />
         {/if}
       {:else if kind === 'bundle'}
@@ -455,6 +465,9 @@
         <input type="hidden" name="bundle_price"                 value={pendingBundlePrice} />
         <input type="hidden" name="bundle_compare_at_price"      value={pendingBundleCompareAtPrice} />
         <input type="hidden" name="bundle_weight_grams"          value={pendingBundleWeightGrams} />
+        <input type="hidden" name="bundle_length_mm"             value={pendingBundleLengthMM} />
+        <input type="hidden" name="bundle_width_mm"              value={pendingBundleWidthMM} />
+        <input type="hidden" name="bundle_height_mm"             value={pendingBundleHeightMM} />
       {/if}
     </form>
   </section>
@@ -686,6 +699,23 @@
                  bind:value={pendingBundleWeightGrams}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="col-span-2 flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_dimensions()}</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" min="0" step="1" placeholder={m.admin_product_edit_add_variant_dim_l()} form="product-form"
+                   bind:value={pendingBundleLengthMM}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <input type="number" min="0" step="1" placeholder={m.admin_product_edit_add_variant_dim_w()} form="product-form"
+                   bind:value={pendingBundleWidthMM}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <input type="number" min="0" step="1" placeholder={m.admin_product_edit_add_variant_dim_h()} form="product-form"
+                   bind:value={pendingBundleHeightMM}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_bundle_label_derived_stock()}</label>
@@ -1030,6 +1060,9 @@
                 const imageMedia_ = imageMedia.find(m => m.id === imageId);
                 const nameVal = formData.get('name')?.toString().trim() ?? '';
                 const weightStr = formData.get('weight_grams')?.toString().trim() ?? '';
+                const lenStr = formData.get('length_mm')?.toString().trim() ?? '';
+                const widStr = formData.get('width_mm')?.toString().trim() ?? '';
+                const hgtStr = formData.get('height_mm')?.toString().trim() ?? '';
                 pendingVariants = [...pendingVariants, {
                   _localId: crypto.randomUUID(),
                   sku,
@@ -1040,6 +1073,9 @@
                     : undefined,
                   stock_qty: parseInt(formData.get('stock_qty')?.toString() ?? '0', 10),
                   weight_grams: weightStr ? parseInt(weightStr, 10) : undefined,
+                  length_mm: lenStr ? parseInt(lenStr, 10) : undefined,
+                  width_mm:  widStr ? parseInt(widStr,  10) : undefined,
+                  height_mm: hgtStr ? parseInt(hgtStr,  10) : undefined,
                   image_media_file_id: imageId,
                   image_preview_url: imageMedia_?.webp_url ?? imageMedia_?.url
                 }];
@@ -1091,6 +1127,23 @@
                    placeholder={m.admin_product_edit_add_variant_weight_placeholder()}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_dimensions()}</label>
+            <div class="grid grid-cols-3 gap-2">
+              <input name="length_mm" type="number" min="0" step="1"
+                     placeholder={m.admin_product_edit_add_variant_dim_l()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <input name="width_mm" type="number" min="0" step="1"
+                     placeholder={m.admin_product_edit_add_variant_dim_w()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <input name="height_mm" type="number" min="0" step="1"
+                     placeholder={m.admin_product_edit_add_variant_dim_h()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
           </div>
         </div>
         <!-- Image picker -->
@@ -1230,6 +1283,26 @@
                    placeholder={m.admin_product_edit_add_variant_weight_placeholder()}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_dimensions()}</label>
+            <div class="grid grid-cols-3 gap-2">
+              <input name="length_mm" type="number" min="0" step="1"
+                     value={editingVariant.length_mm ?? ''}
+                     placeholder={m.admin_product_edit_add_variant_dim_l()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <input name="width_mm" type="number" min="0" step="1"
+                     value={editingVariant.width_mm ?? ''}
+                     placeholder={m.admin_product_edit_add_variant_dim_w()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <input name="height_mm" type="number" min="0" step="1"
+                     value={editingVariant.height_mm ?? ''}
+                     placeholder={m.admin_product_edit_add_variant_dim_h()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_status()}</label>
