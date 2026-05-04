@@ -1093,6 +1093,7 @@
                   <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
                 {/if}
                 <input id={setting.key} name={setting.key} value={setting.value}
+                       type={setting.key.includes('secret') || setting.key.includes('password') ? 'password' : 'text'}
                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
               </div>
