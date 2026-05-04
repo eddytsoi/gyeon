@@ -254,6 +254,10 @@ func (s *Service) importProduct(
 	if prod.Description != "" {
 		desc = &prod.Description
 	}
+	var excerpt *string
+	if prod.ShortDescription != "" {
+		excerpt = &prod.ShortDescription
+	}
 
 	// Lookup first: lets us pick INSERT vs UPDATE explicitly so we don't
 	// burn a products.number sequence value on every re-imported row
@@ -267,6 +271,7 @@ func (s *Service) importProduct(
 		CategoryID:  categoryID,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
+		Excerpt:     excerpt,
 		Description: desc,
 		Status:      mapStatus(prod.Status),
 	}

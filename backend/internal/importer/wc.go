@@ -32,8 +32,9 @@ type wcProduct struct {
 	Slug          string              `json:"slug"`
 	Type          string              `json:"type"`
 	Status        string              `json:"status"`
-	Description   string              `json:"description"`
-	RegularPrice  string              `json:"regular_price"`
+	Description      string              `json:"description"`
+	ShortDescription string              `json:"short_description"`
+	RegularPrice     string              `json:"regular_price"`
 	SalePrice     string              `json:"sale_price"`
 	StockQuantity *int                `json:"stock_quantity"`
 	Weight        string              `json:"weight"`

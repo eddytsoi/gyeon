@@ -622,6 +622,7 @@ type UpsertWCProductRequest struct {
 	CategoryID  *string
 	Slug        string
 	Name        string
+	Excerpt     *string
 	Description *string
 	Status      string
 }
@@ -641,10 +642,10 @@ type UpsertWCProductRequest struct {
 func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProductRequest) (string, error) {
 	var id string
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO products (wc_product_id, category_id, slug, name, description, status)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO products (wc_product_id, category_id, slug, name, excerpt, description, status)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id`,
-		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Description, req.Status).Scan(&id)
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status).Scan(&id)
 	if err != nil {
 		return "", err
 	}
@@ -661,11 +662,12 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		    SET category_id = $2,
 		        slug        = $3,
 		        name        = $4,
-		        description = $5,
-		        status      = $6,
+		        excerpt     = $5,
+		        description = $6,
+		        status      = $7,
 		        updated_at  = NOW()
 		  WHERE id = $1`,
-		productID, req.CategoryID, req.Slug, req.Name, req.Description, req.Status)
+		productID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status)
 	if err != nil {
 		return err
 	}
