@@ -15,13 +15,17 @@ export const actions: Actions = {
   save: async ({ request, params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
     const data = await request.formData();
-    const body: { original_name?: string; url?: string } = {};
+    const body: { original_name?: string; url?: string; video_autoplay?: boolean } = {};
 
     const name = (data.get('original_name') as string)?.trim();
     if (name) body.original_name = name;
 
     const url = (data.get('url') as string)?.trim();
     if (url) body.url = url;
+
+    if (data.has('video_autoplay_present')) {
+      body.video_autoplay = data.get('video_autoplay') === 'true';
+    }
 
     try {
       await adminUpdateMedia(token, params.id, body);

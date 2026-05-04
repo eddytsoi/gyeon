@@ -36,12 +36,14 @@
   let linkModalOpen = $state(false);
   let linkUrl = $state('');
   let linkName = $state('');
+  let linkAutoplay = $state(false);
   let linkSaving = $state(false);
   let linkError = $state('');
 
   function openLinkModal() {
     linkUrl = '';
     linkName = '';
+    linkAutoplay = false;
     linkError = '';
     linkModalOpen = true;
   }
@@ -57,7 +59,9 @@
     linkSaving = true;
     linkError = '';
     try {
-      const added = await adminAddMediaLink(data.token, url, linkName.trim());
+      const added = await adminAddMediaLink(data.token, url, linkName.trim(), {
+        autoplay: detectedStreaming ? linkAutoplay : false
+      });
       media = [added, ...media];
       linkModalOpen = false;
       notify.success(m.admin_media_added_link_success());
@@ -243,6 +247,22 @@
             </svg>
             {providerLabel[detectedStreaming.provider]} {m.admin_media_link_modal_streaming_detected()}
           </p>
+          <label class="flex items-center justify-between gap-3 pt-1 cursor-pointer">
+            <span class="text-xs font-medium text-gray-700">
+              {m.admin_media_link_modal_autoplay_label()}
+              <span class="block text-gray-400 font-normal mt-0.5">{m.admin_media_link_modal_autoplay_hint()}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={linkAutoplay}
+              data-testid="streaming-autoplay-toggle"
+              onclick={() => (linkAutoplay = !linkAutoplay)}
+              class="relative inline-flex h-5 w-9 flex-none items-center rounded-full transition-colors {linkAutoplay ? 'bg-gray-900' : 'bg-gray-200'}"
+            >
+              <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {linkAutoplay ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+            </button>
+          </label>
         {/if}
         {#if linkError}
           <p class="text-xs text-red-600">{linkError}</p>

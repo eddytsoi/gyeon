@@ -115,17 +115,18 @@ type Variant struct {
 }
 
 type ProductImage struct {
-	ID           string  `json:"id"`
-	ProductID    string  `json:"product_id"`
-	VariantID    *string `json:"variant_id,omitempty"`
-	MediaFileID  *string `json:"media_file_id,omitempty"`
-	URL          string  `json:"url"`
-	MimeType     *string `json:"mime_type,omitempty"`
-	ThumbnailURL *string `json:"thumbnail_url,omitempty"`
-	AltText      *string `json:"alt_text,omitempty"`
-	SortOrder    int     `json:"sort_order"`
-	IsPrimary    bool    `json:"is_primary"`
-	CreatedAt    string  `json:"created_at"`
+	ID            string  `json:"id"`
+	ProductID     string  `json:"product_id"`
+	VariantID     *string `json:"variant_id,omitempty"`
+	MediaFileID   *string `json:"media_file_id,omitempty"`
+	URL           string  `json:"url"`
+	MimeType      *string `json:"mime_type,omitempty"`
+	ThumbnailURL  *string `json:"thumbnail_url,omitempty"`
+	VideoAutoplay bool    `json:"video_autoplay"`
+	AltText       *string `json:"alt_text,omitempty"`
+	SortOrder     int     `json:"sort_order"`
+	IsPrimary     bool    `json:"is_primary"`
+	CreatedAt     string  `json:"created_at"`
 }
 
 type CreateProductRequest struct {
@@ -996,6 +997,7 @@ func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req Up
 		        COALESCE(mf.url, upd.url, '') AS url,
 		        mf.mime_type,
 		        mf.thumbnail_url,
+		        mf.video_autoplay,
 		        upd.alt_text, upd.sort_order, upd.is_primary, upd.created_at
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
 		imageID, req.AltText, req.SortOrder, req.IsPrimary))
@@ -1034,8 +1036,12 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 
 func scanProductImage(row interface{ Scan(...any) error }) (ProductImage, error) {
 	var img ProductImage
+	var autoplay sql.NullBool
 	err := row.Scan(&img.ID, &img.ProductID, &img.VariantID, &img.MediaFileID,
-		&img.URL, &img.MimeType, &img.ThumbnailURL, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+		&img.URL, &img.MimeType, &img.ThumbnailURL, &autoplay, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+	if autoplay.Valid {
+		img.VideoAutoplay = autoplay.Bool
+	}
 	return img, err
 }
 
@@ -1045,6 +1051,7 @@ func (s *ProductService) ListImages(ctx context.Context, productID string) ([]Pr
 		        COALESCE(mf.url, pi.url, '') AS url,
 		        mf.mime_type,
 		        mf.thumbnail_url,
+		        mf.video_autoplay,
 		        pi.alt_text, pi.sort_order, pi.is_primary, pi.created_at
 		 FROM product_images pi
 		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
@@ -1108,6 +1115,7 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 		        COALESCE(mf.url, ins.url, '') AS url,
 		        mf.mime_type,
 		        mf.thumbnail_url,
+		        mf.video_autoplay,
 		        ins.alt_text, ins.sort_order, ins.is_primary, ins.created_at
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
 		productID, req.VariantID, req.MediaFileID, req.URL, req.AltText, req.SortOrder, req.IsPrimary))

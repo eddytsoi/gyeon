@@ -188,7 +188,7 @@
                     src={getEmbedURL(activeImage) ?? ''}
                     title={activeImage.alt_text ?? data.product.name}
                     class="w-full h-full"
-                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
                     allowfullscreen
                     frameborder="0"
                   ></iframe>

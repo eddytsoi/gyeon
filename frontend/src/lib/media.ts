@@ -114,21 +114,42 @@ export function detectStreamingVideoFromURL(
   return null;
 }
 
-/** Returns the iframe src for a streaming video media row, or null if not streaming. */
-export function getEmbedURL(input: { url?: string | null; mime_type?: string | null }): string | null {
+/**
+ * Returns the iframe src for a streaming video media row, or null if not
+ * streaming. When `autoplay` is true, appends provider-specific params for
+ * autoplay + muted + loop. The autoplay flag falls back to the row's
+ * `video_autoplay` when not passed explicitly.
+ */
+export function getEmbedURL(
+  input: { url?: string | null; mime_type?: string | null; video_autoplay?: boolean | null },
+  opts?: { autoplay?: boolean }
+): string | null {
   const provider = getStreamingProvider(input);
   if (!provider || !input.url) return null;
   const detected = detectStreamingVideoFromURL(input.url);
   if (!detected || detected.provider !== provider) return null;
+  const autoplay = opts?.autoplay ?? input.video_autoplay ?? false;
   switch (provider) {
-    case 'youtube':
-      return `https://www.youtube.com/embed/${detected.videoID}`;
+    case 'youtube': {
+      const base = `https://www.youtube.com/embed/${detected.videoID}`;
+      // Loop on YouTube requires playlist={ID} pointing at the same video.
+      return autoplay
+        ? `${base}?autoplay=1&mute=1&loop=1&playlist=${detected.videoID}&playsinline=1`
+        : base;
+    }
     case 'vimeo': {
       const [id, hash] = detected.videoID.split('/');
-      return hash ? `https://player.vimeo.com/video/${id}?h=${hash}` : `https://player.vimeo.com/video/${id}`;
+      const base = hash ? `https://player.vimeo.com/video/${id}?h=${hash}` : `https://player.vimeo.com/video/${id}`;
+      return autoplay
+        ? `${base}${base.includes('?') ? '&' : '?'}autoplay=1&muted=1&loop=1&playsinline=1`
+        : base;
     }
-    case 'wistia':
-      return `https://fast.wistia.net/embed/iframe/${detected.videoID}`;
+    case 'wistia': {
+      const base = `https://fast.wistia.net/embed/iframe/${detected.videoID}`;
+      return autoplay
+        ? `${base}?autoPlay=true&muted=true&endVideoBehavior=loop&playsinline=true`
+        : base;
+    }
   }
 }
 

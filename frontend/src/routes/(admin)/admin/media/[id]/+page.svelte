@@ -11,7 +11,8 @@
   const file = $derived(data.file);
   const isLink = $derived(file.mime_type === 'link');
   const isStreaming = $derived(isStreamingVideo(file));
-  const embedURL = $derived(getEmbedURL(file));
+  let autoplayState = $state(data.file.video_autoplay ?? false);
+  const embedURL = $derived(getEmbedURL(file, { autoplay: autoplayState }));
   const isVideo = $derived(
     file.mime_type.startsWith('video/') ||
     (isLink && /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(file.url))
@@ -277,6 +278,29 @@
                 </span>
               {/each}
             </div>
+          </div>
+        {/if}
+
+        {#if isStreaming}
+          <div>
+            <label class="flex items-center justify-between gap-3 cursor-pointer">
+              <span class="text-xs font-medium text-gray-700">
+                {m.admin_media_edit_autoplay_label()}
+                <span class="block text-gray-400 font-normal mt-0.5">{m.admin_media_edit_autoplay_hint()}</span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoplayState}
+                data-testid="streaming-autoplay-toggle"
+                onclick={() => (autoplayState = !autoplayState)}
+                class="relative inline-flex h-5 w-9 flex-none items-center rounded-full transition-colors {autoplayState ? 'bg-gray-900' : 'bg-gray-200'}"
+              >
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {autoplayState ? 'translate-x-4' : 'translate-x-0.5'}"></span>
+              </button>
+            </label>
+            <input type="hidden" name="video_autoplay_present" value="1" />
+            <input type="hidden" name="video_autoplay" value={autoplayState ? 'true' : 'false'} />
           </div>
         {/if}
 

@@ -43,6 +43,7 @@ type MediaFile struct {
 	WebpSizeBytes      *int64     `json:"webp_size_bytes"`
 	ThumbnailURL       *string    `json:"thumbnail_url,omitempty"`
 	ThumbnailSizeBytes *int64     `json:"thumbnail_size_bytes,omitempty"`
+	VideoAutoplay      bool       `json:"video_autoplay"`
 }
 
 type Handler struct {
@@ -97,6 +98,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		       mf.size_bytes, mf.url, mf.created_at,
 		       mf.webp_url, mf.webp_size_bytes,
 		       mf.thumbnail_url, mf.thumbnail_size_bytes,
+		       mf.video_autoplay,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object(
 		           'type', refs.entity_type,
 		           'id',   refs.entity_id,
@@ -124,7 +126,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		) refs ON refs.mf_id = mf.id
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
 		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes,
-		         mf.thumbnail_url, mf.thumbnail_size_bytes
+		         mf.thumbnail_url, mf.thumbnail_size_bytes, mf.video_autoplay
 		ORDER BY mf.created_at DESC
 		LIMIT 200`)
 	if err != nil {
@@ -141,7 +143,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		var webpSizeBytes, thumbSizeBytes sql.NullInt64
 		if err := rows.Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
 			&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes,
-			&thumbURL, &thumbSizeBytes, &refsJSON); err != nil {
+			&thumbURL, &thumbSizeBytes, &f.VideoAutoplay, &refsJSON); err != nil {
 			respond.InternalError(w)
 			return
 		}
@@ -183,6 +185,7 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 		       mf.size_bytes, mf.url, mf.created_at,
 		       mf.webp_url, mf.webp_size_bytes,
 		       mf.thumbnail_url, mf.thumbnail_size_bytes,
+		       mf.video_autoplay,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object(
 		           'type', refs.entity_type,
 		           'id',   refs.entity_id,
@@ -211,10 +214,10 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 		WHERE mf.id = $1
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
 		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes,
-		         mf.thumbnail_url, mf.thumbnail_size_bytes`,
+		         mf.thumbnail_url, mf.thumbnail_size_bytes, mf.video_autoplay`,
 		id).Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType,
 		&f.SizeBytes, &f.URL, &f.CreatedAt, &webpURL, &webpSizeBytes,
-		&thumbURL, &thumbSizeBytes, &refsJSON)
+		&thumbURL, &thumbSizeBytes, &f.VideoAutoplay, &refsJSON)
 	if err == sql.ErrNoRows {
 		respond.NotFound(w)
 		return
@@ -242,8 +245,9 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 type updateMediaRequest struct {
-	OriginalName *string `json:"original_name"`
-	URL          *string `json:"url"`
+	OriginalName  *string `json:"original_name"`
+	URL           *string `json:"url"`
+	VideoAutoplay *bool   `json:"video_autoplay"`
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +291,12 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		setClauses = append(setClauses, fmt.Sprintf("url=$%d", n), fmt.Sprintf("filename=$%d", n+1))
 		args = append(args, u, u)
 		n += 2
+	}
+
+	if req.VideoAutoplay != nil && IsStreamingMime(mimeType) {
+		setClauses = append(setClauses, fmt.Sprintf("video_autoplay=$%d", n))
+		args = append(args, *req.VideoAutoplay)
+		n++
 	}
 
 	if len(setClauses) == 0 {
@@ -449,8 +459,9 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 }
 
 type addLinkRequest struct {
-	URL  string `json:"url"`
-	Name string `json:"name"`
+	URL      string `json:"url"`
+	Name     string `json:"name"`
+	Autoplay bool   `json:"autoplay"`
 }
 
 func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
@@ -467,7 +478,7 @@ func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(req.Name)
 
 	if provider, videoID, ok := DetectStreamingVideo(rawURL); ok {
-		h.addStreamingVideoLink(w, r, rawURL, name, provider, videoID)
+		h.addStreamingVideoLink(w, r, rawURL, name, provider, videoID, req.Autoplay)
 		return
 	}
 
@@ -493,7 +504,7 @@ func (h *Handler) addLink(w http.ResponseWriter, r *http.Request) {
 // best-effort fetching the platform's title and thumbnail via oEmbed. oEmbed
 // failures are non-fatal — the row is still inserted, and the lazy-backfill
 // goroutine in list() will retry the thumbnail on the next list call.
-func (h *Handler) addStreamingVideoLink(w http.ResponseWriter, r *http.Request, rawURL, name string, provider StreamProvider, videoID string) {
+func (h *Handler) addStreamingVideoLink(w http.ResponseWriter, r *http.Request, rawURL, name string, provider StreamProvider, videoID string, autoplay bool) {
 	title, thumbSrcURL, err := FetchStreamingMetadata(r.Context(), provider, videoID, rawURL)
 	if err != nil {
 		log.Printf("addStreamingVideoLink: oembed %s failed for %q: %v", provider, rawURL, err)
@@ -523,12 +534,13 @@ func (h *Handler) addStreamingVideoLink(w http.ResponseWriter, r *http.Request, 
 	err = h.db.QueryRowContext(r.Context(),
 		`INSERT INTO media_files
 		     (filename, original_name, mime_type, size_bytes, url,
-		      thumbnail_filename, thumbnail_url, thumbnail_size_bytes)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-		 RETURNING id, filename, original_name, mime_type, size_bytes, url, created_at`,
+		      thumbnail_filename, thumbnail_url, thumbnail_size_bytes,
+		      video_autoplay)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		 RETURNING id, filename, original_name, mime_type, size_bytes, url, created_at, video_autoplay`,
 		rawURL, name, provider.MimeType(), 0, rawURL,
-		thumbFn, thumbURL, thumbSize).
-		Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.URL, &f.CreatedAt)
+		thumbFn, thumbURL, thumbSize, autoplay).
+		Scan(&f.ID, &f.Filename, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.URL, &f.CreatedAt, &f.VideoAutoplay)
 	if err != nil {
 		if thumbFn.Valid {
 			os.Remove(filepath.Join(uploadsDir, thumbFn.String))

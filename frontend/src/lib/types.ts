@@ -64,6 +64,7 @@ export interface ProductImage {
   url: string;
   mime_type?: string;
   thumbnail_url?: string;
+  video_autoplay?: boolean;
   alt_text?: string;
   sort_order: number;
   is_primary: boolean;
