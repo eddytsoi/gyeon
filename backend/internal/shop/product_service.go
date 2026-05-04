@@ -175,8 +175,8 @@ type AdjustStockRequest struct {
 
 type UpdateImageRequest struct {
 	AltText   *string `json:"alt_text"`
-	SortOrder int     `json:"sort_order"`
-	IsPrimary bool    `json:"is_primary"`
+	SortOrder *int    `json:"sort_order"`
+	IsPrimary *bool   `json:"is_primary"`
 }
 
 type AddImageRequest struct {
@@ -986,10 +986,13 @@ func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req Up
 		     UPDATE product_images SET is_primary = FALSE
 		     WHERE product_id = (SELECT product_id FROM product_images WHERE id = $1)
 		       AND id <> $1
-		       AND $4 = TRUE
+		       AND COALESCE($4, FALSE) = TRUE
 		 ),
 		 upd AS (
-		     UPDATE product_images SET alt_text=$2, sort_order=$3, is_primary=$4
+		     UPDATE product_images
+		     SET alt_text   = COALESCE($2, alt_text),
+		         sort_order = COALESCE($3, sort_order),
+		         is_primary = COALESCE($4, is_primary)
 		     WHERE id=$1
 		     RETURNING *
 		 )
