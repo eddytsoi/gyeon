@@ -252,11 +252,13 @@ func (s *Service) importProduct(
 
 	var desc *string
 	if prod.Description != "" {
-		desc = &prod.Description
+		s := htmlToMarkdown(prod.Description)
+		desc = &s
 	}
 	var excerpt *string
 	if prod.ShortDescription != "" {
-		excerpt = &prod.ShortDescription
+		s := htmlToMarkdown(prod.ShortDescription)
+		excerpt = &s
 	}
 
 	// Lookup first: lets us pick INSERT vs UPDATE explicitly so we don't
