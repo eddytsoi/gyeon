@@ -7,7 +7,7 @@
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
-  import { isVideo } from '$lib/media';
+  import { isVideo, checkMediaSize, type MediaSizeRejection } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -230,7 +230,27 @@
         m.admin_product_edit_add_media_rejected_body()
       );
     }
-    const newItems: UploadFile[] = valid.map((file) => ({
+    const sizeOk: File[] = [];
+    const sizeRejected: MediaSizeRejection[] = [];
+    for (const f of valid) {
+      const r = checkMediaSize(f, data.uploadLimits);
+      if (r) sizeRejected.push(r);
+      else sizeOk.push(f);
+    }
+    if (sizeRejected.length > 0) {
+      const title = sizeRejected.length === 1
+        ? m.admin_media_size_rejected_title_one({ count: sizeRejected.length })
+        : m.admin_media_size_rejected_title_many({ count: sizeRejected.length });
+      const hasImage = sizeRejected.some((r) => r.kind === 'image');
+      const hasVideo = sizeRejected.some((r) => r.kind === 'video');
+      const body = hasImage && hasVideo
+        ? m.admin_media_size_rejected_both({ imageMB: data.uploadLimits.imageMB, videoMB: data.uploadLimits.videoMB })
+        : hasVideo
+          ? m.admin_media_size_rejected_video({ limitMB: data.uploadLimits.videoMB })
+          : m.admin_media_size_rejected_image({ limitMB: data.uploadLimits.imageMB });
+      notify.warning(title, body);
+    }
+    const newItems: UploadFile[] = sizeOk.map((file) => ({
       id: crypto.randomUUID(),
       file,
       preview: URL.createObjectURL(file),
