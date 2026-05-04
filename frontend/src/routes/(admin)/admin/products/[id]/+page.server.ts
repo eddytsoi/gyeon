@@ -6,7 +6,9 @@ import {
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
   adminAddImage, adminUpdateImage, adminDeleteImage,
   adminGetBundleItems, adminSetBundleItems, adminGetProducts,
+  adminGetSettings,
 } from '$lib/api/admin';
+import { extractMediaUploadLimits } from '$lib/media';
 import { resolveAdminId } from '$lib/admin/resolveId';
 
 const resolve = (token: string, id: string) =>
@@ -19,10 +21,12 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const isNew = params.id === 'new';
   const id = await resolve(token, params.id);
 
-  const [product, categories] = await Promise.all([
+  const [product, categories, settings] = await Promise.all([
     isNew ? Promise.resolve(null) : adminGetProduct(token, id).catch(() => null),
-    adminGetCategories(token).catch(() => [])
+    adminGetCategories(token).catch(() => []),
+    adminGetSettings(token).catch(() => [])
   ]);
+  const uploadLimits = extractMediaUploadLimits(settings);
 
   const [variants, images, mediaFiles] = isNew
     ? [[], [], await adminGetMedia(token).catch(() => [])]
@@ -40,7 +44,7 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => []) : Promise.resolve([])
   ]);
 
-  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew };
+  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew, uploadLimits };
 };
 
 export const actions: Actions = {

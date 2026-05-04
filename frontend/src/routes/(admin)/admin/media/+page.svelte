@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import type { MediaFile } from '$lib/api/admin';
   import { adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
+  import { checkMediaSize, type MediaSizeRejection } from '$lib/media';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -125,7 +126,27 @@
   }
 
   async function uploadFiles(files: File[]) {
+    const accepted: File[] = [];
+    const rejected: MediaSizeRejection[] = [];
     for (const file of files) {
+      const r = checkMediaSize(file, data.uploadLimits);
+      if (r) rejected.push(r);
+      else accepted.push(file);
+    }
+    if (rejected.length > 0) {
+      const title = rejected.length === 1
+        ? m.admin_media_size_rejected_title_one({ count: rejected.length })
+        : m.admin_media_size_rejected_title_many({ count: rejected.length });
+      const hasImage = rejected.some((r) => r.kind === 'image');
+      const hasVideo = rejected.some((r) => r.kind === 'video');
+      const body = hasImage && hasVideo
+        ? m.admin_media_size_rejected_both({ imageMB: data.uploadLimits.imageMB, videoMB: data.uploadLimits.videoMB })
+        : hasVideo
+          ? m.admin_media_size_rejected_video({ limitMB: data.uploadLimits.videoMB })
+          : m.admin_media_size_rejected_image({ limitMB: data.uploadLimits.imageMB });
+      notify.error(title, body);
+    }
+    for (const file of accepted) {
       const placeholderId = crypto.randomUUID();
       uploading = new Map(uploading.set(placeholderId, 0));
 
@@ -177,7 +198,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
       </svg>
       <p class="text-white font-semibold text-lg">{m.admin_media_drop_to_upload()}</p>
-      <p class="text-white/60 text-sm mt-1">{m.admin_media_drop_limits()}</p>
+      <p class="text-white/60 text-sm mt-1">{m.admin_media_drop_limits({ imageMB: data.uploadLimits.imageMB, videoMB: data.uploadLimits.videoMB })}</p>
     </div>
   </div>
 {/if}
