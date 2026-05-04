@@ -80,7 +80,17 @@ func (h *Handler) quote(w http.ResponseWriter, r *http.Request) {
 		if item.WeightGrams != nil {
 			w = *item.WeightGrams
 		}
-		lines[i] = CartLine{WeightGrams: w, Quantity: item.Quantity}
+		l, wid, h := 0, 0, 0
+		if item.LengthMM != nil {
+			l = *item.LengthMM
+		}
+		if item.WidthMM != nil {
+			wid = *item.WidthMM
+		}
+		if item.HeightMM != nil {
+			h = *item.HeightMM
+		}
+		lines[i] = CartLine{WeightGrams: w, Quantity: item.Quantity, LengthMM: l, WidthMM: wid, HeightMM: h}
 		subtotal += item.Price * float64(item.Quantity)
 	}
 

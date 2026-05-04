@@ -26,6 +26,12 @@ type wcImage struct {
 	Position int    `json:"position"`
 }
 
+type wcDimensions struct {
+	Length string `json:"length"`
+	Width  string `json:"width"`
+	Height string `json:"height"`
+}
+
 type wcProduct struct {
 	ID            int                 `json:"id"`
 	Name          string              `json:"name"`
@@ -38,6 +44,7 @@ type wcProduct struct {
 	SalePrice     string              `json:"sale_price"`
 	StockQuantity *int                `json:"stock_quantity"`
 	Weight        string              `json:"weight"`
+	Dimensions    wcDimensions        `json:"dimensions"`
 	Categories    []wcProductCategory `json:"categories"`
 	Images        []wcImage           `json:"images"`
 	Variations    []int               `json:"variations"`
@@ -49,6 +56,7 @@ type wcVariation struct {
 	SalePrice     string        `json:"sale_price"`
 	StockQuantity *int          `json:"stock_quantity"`
 	Weight        string        `json:"weight"`
+	Dimensions    wcDimensions  `json:"dimensions"`
 	Attributes    []wcAttribute `json:"attributes"`
 }
 

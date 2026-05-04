@@ -45,6 +45,9 @@ func (s *Service) Configured(ctx context.Context) bool {
 type CartLine struct {
 	WeightGrams int
 	Quantity    int
+	LengthMM    int
+	WidthMM     int
+	HeightMM    int
 }
 
 // QuoteForCart builds a parcel from the cart's variant weights (or the
@@ -55,12 +58,22 @@ func (s *Service) QuoteForCart(ctx context.Context, dest Address, lines []CartLi
 		return nil, ErrNotConfigured
 	}
 	totalWeight := 0
+	maxL, maxW, maxH := 0, 0, 0
 	for _, ln := range lines {
 		w := ln.WeightGrams
 		if w <= 0 {
 			w = s.defaultWeight(ctx)
 		}
 		totalWeight += w * ln.Quantity
+		if ln.LengthMM > maxL {
+			maxL = ln.LengthMM
+		}
+		if ln.WidthMM > maxW {
+			maxW = ln.WidthMM
+		}
+		if ln.HeightMM > maxH {
+			maxH = ln.HeightMM
+		}
 	}
 	if totalWeight <= 0 {
 		totalWeight = s.defaultWeight(ctx)
@@ -73,7 +86,13 @@ func (s *Service) QuoteForCart(ctx context.Context, dest Address, lines []CartLi
 	return s.client.Quote(ctx, QuoteRequest{
 		Origin:      s.originAddress(ctx),
 		Destination: dest,
-		Parcel:      Parcel{WeightGrams: totalWeight, ValueHKD: declaredValueHKD},
+		Parcel: Parcel{
+			WeightGrams: totalWeight,
+			ValueHKD:    declaredValueHKD,
+			LengthCM:    float64(maxL) / 10,
+			WidthCM:     float64(maxW) / 10,
+			HeightCM:    float64(maxH) / 10,
+		},
 	})
 }
 
@@ -148,9 +167,13 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		return nil, ErrCarrierNotSelected
 	}
 
+	lenMM, widMM, hgtMM := s.orderDimensionsMM(ctx, orderID)
 	parcel := Parcel{
 		WeightGrams: s.orderWeightGrams(ctx, orderID),
 		ValueHKD:    order.Subtotal,
+		LengthCM:    float64(lenMM) / 10,
+		WidthCM:     float64(widMM) / 10,
+		HeightCM:    float64(hgtMM) / 10,
 	}
 
 	dest := Address{
@@ -370,6 +393,37 @@ func (s *Service) orderWeightGrams(ctx context.Context, orderID string) int {
 		return fallback
 	}
 	return total
+}
+
+// orderDimensionsMM returns the max per-axis dimensions (mm) across all order
+// items. Items with null dimensions contribute zero. Zero values are omitted
+// by the Parcel JSON omitempty tag so ShipAny falls back to weight-only quoting.
+func (s *Service) orderDimensionsMM(ctx context.Context, orderID string) (lenMM, widMM, hgtMM int) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT pv.length_mm, pv.width_mm, pv.height_mm
+		   FROM order_items oi
+		   LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+		  WHERE oi.order_id = $1`, orderID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l, w, h sql.NullInt64
+		if err := rows.Scan(&l, &w, &h); err != nil {
+			continue
+		}
+		if l.Valid && int(l.Int64) > lenMM {
+			lenMM = int(l.Int64)
+		}
+		if w.Valid && int(w.Int64) > widMM {
+			widMM = int(w.Int64)
+		}
+		if h.Valid && int(h.Int64) > hgtMM {
+			hgtMM = int(h.Int64)
+		}
+	}
+	return
 }
 
 func (s *Service) defaultWeight(ctx context.Context) int {

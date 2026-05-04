@@ -26,6 +26,9 @@ type CartItem struct {
 	SKU         string  `json:"sku"`
 	Price       float64 `json:"price"`
 	WeightGrams *int    `json:"weight_grams,omitempty"`
+	LengthMM   *int    `json:"length_mm,omitempty"`
+	WidthMM    *int    `json:"width_mm,omitempty"`
+	HeightMM   *int    `json:"height_mm,omitempty"`
 	ImageURL    *string `json:"image_url,omitempty"`
 }
 
@@ -101,6 +104,7 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
 		        p.name, p.slug, pv.sku, pv.price, pv.weight_grams,
+		        pv.length_mm, pv.width_mm, pv.height_mm,
 		        COALESCE(vmf.url, vi.url, pmf.url, pi.url) AS image_url
 		 FROM cart_items ci
 		 JOIN product_variants pv ON pv.id = ci.variant_id
@@ -121,7 +125,8 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	for rows.Next() {
 		var item CartItem
 		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,
-			&item.ProductName, &item.ProductSlug, &item.SKU, &item.Price, &item.WeightGrams, &item.ImageURL); err != nil {
+			&item.ProductName, &item.ProductSlug, &item.SKU, &item.Price, &item.WeightGrams,
+			&item.LengthMM, &item.WidthMM, &item.HeightMM, &item.ImageURL); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
