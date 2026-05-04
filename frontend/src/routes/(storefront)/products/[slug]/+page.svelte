@@ -64,6 +64,41 @@
     data.images[0]
   );
 
+  const imageCount = $derived(data.images.length);
+  const activeIndex = $derived(
+    Math.max(0, data.images.findIndex((i) => i.id === activeImage?.id))
+  );
+
+  function goTo(index: number) {
+    if (imageCount === 0) return;
+    const wrapped = ((index % imageCount) + imageCount) % imageCount;
+    activeImageID = data.images[wrapped].id;
+  }
+  const goPrev = () => goTo(activeIndex - 1);
+  const goNext = () => goTo(activeIndex + 1);
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchActive = false;
+  const SWIPE_THRESHOLD = 40;
+
+  function onTouchStart(e: TouchEvent) {
+    if (imageCount < 2) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchActive = true;
+  }
+  function onTouchEnd(e: TouchEvent) {
+    if (!touchActive) return;
+    touchActive = false;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+  }
+
   let qty = $state(1);
   let adding = $state(false);
   let added = $state(false);
@@ -118,7 +153,11 @@
 
       <!-- LEFT: Image Gallery -->
       <div class="flex flex-col gap-4">
-        <div class="aspect-[4/3] lg:aspect-[5/4] rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100">
+        <div
+          class="aspect-[4/3] lg:aspect-[5/4] rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100"
+          ontouchstart={onTouchStart}
+          ontouchend={onTouchEnd}
+        >
           {#if activeImage}
             {#if isVideo(activeImage)}
               {#key activeImage.id}
@@ -154,7 +193,52 @@
               −{discountPct}%
             </div>
           {/if}
+
+          {#if imageCount > 1}
+            <button
+              type="button"
+              onclick={goPrev}
+              aria-label="Previous image"
+              class="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center
+                     rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                     hover:bg-white hover:text-gray-900"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onclick={goNext}
+              aria-label="Next image"
+              class="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center
+                     rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                     hover:bg-white hover:text-gray-900"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          {/if}
         </div>
+
+        {#if imageCount > 1}
+          <div class="flex justify-center gap-1.5 pt-1">
+            {#each data.images as img, i}
+              <button
+                type="button"
+                onclick={() => (activeImageID = img.id)}
+                aria-label={`Go to image ${i + 1}`}
+                aria-current={activeIndex === i ? 'true' : undefined}
+                class="h-1.5 rounded-full transition-all
+                       {activeIndex === i ? 'w-6' : 'w-1.5 bg-gray-300 hover:bg-gray-400'}"
+                style={activeIndex === i ? 'background: rgb(51,73,119)' : ''}
+              ></button>
+            {/each}
+          </div>
+        {/if}
 
         {#if data.images.length > 1}
           <div class="flex gap-2 overflow-x-auto pb-1">
