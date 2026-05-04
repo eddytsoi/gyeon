@@ -906,11 +906,13 @@
               {#if isVideo({ url: pi.preview_url })}
                 <video src={pi.preview_url} muted loop playsinline preload="metadata"
                        class="w-full h-full object-cover"></video>
-                <span class="absolute bottom-2 right-2 p-1 rounded-md bg-black/60 text-white"
+                <span class="absolute inset-0 flex items-center justify-center pointer-events-none"
                       aria-hidden="true">
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
+                  <span class="flex items-center justify-center w-12 h-12 rounded-full bg-black/60 text-white shadow-lg">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </span>
                 </span>
               {:else}
                 <img src={pi.preview_url} alt={pi.alt_text ?? ''} class="w-full h-full object-cover" />
@@ -983,11 +985,13 @@
                   <video src={image.url} muted loop playsinline preload="metadata"
                          class="w-full h-full object-cover pointer-events-none"></video>
                 {/if}
-                <span class="absolute bottom-2 right-2 p-1 rounded-md bg-black/60 text-white"
+                <span class="absolute inset-0 flex items-center justify-center pointer-events-none"
                       aria-hidden="true">
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
+                  <span class="flex items-center justify-center w-12 h-12 rounded-full bg-black/60 text-white shadow-lg">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </span>
                 </span>
               {:else}
                 <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
