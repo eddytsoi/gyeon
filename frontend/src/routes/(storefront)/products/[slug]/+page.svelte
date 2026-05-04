@@ -4,6 +4,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { isVideo } from '$lib/media';
   import { page } from '$app/state';
+  import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -69,13 +70,30 @@
     Math.max(0, data.images.findIndex((i) => i.id === activeImage?.id))
   );
 
+  let direction: 'next' | 'prev' = 'next';
+
   function goTo(index: number) {
     if (imageCount === 0) return;
     const wrapped = ((index % imageCount) + imageCount) % imageCount;
+    if (wrapped === activeIndex) return;
+    direction = wrapped > activeIndex ? 'next' : 'prev';
     activeImageID = data.images[wrapped].id;
   }
-  const goPrev = () => goTo(activeIndex - 1);
-  const goNext = () => goTo(activeIndex + 1);
+  const goPrev = () => { direction = 'prev'; goStep(-1); };
+  const goNext = () => { direction = 'next'; goStep(1); };
+  function goStep(step: number) {
+    if (imageCount === 0) return;
+    const wrapped = ((activeIndex + step) % imageCount + imageCount) % imageCount;
+    activeImageID = data.images[wrapped].id;
+  }
+
+  function slide(_node: Element, { dir, duration = 280 }: { dir: number; duration?: number }) {
+    return {
+      duration,
+      easing: cubicOut,
+      css: (_t: number, u: number) => `transform: translateX(${u * dir * 100}%);`
+    };
+  }
 
   let touchStartX = 0;
   let touchStartY = 0;
@@ -159,22 +177,28 @@
           ontouchend={onTouchEnd}
         >
           {#if activeImage}
-            {#if isVideo(activeImage)}
-              {#key activeImage.id}
-                <video
-                  src={activeImage.url}
-                  autoplay muted loop playsinline preload="metadata"
-                  aria-label={activeImage.alt_text ?? data.product.name}
-                  class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-                ></video>
-              {/key}
-            {:else}
-              <img
-                src={activeImage.url}
-                alt={activeImage.alt_text ?? data.product.name}
-                class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-              />
-            {/if}
+            {#key activeImage.id}
+              <div
+                class="absolute inset-0"
+                in:slide={{ dir: direction === 'next' ? 1 : -1 }}
+                out:slide={{ dir: direction === 'next' ? -1 : 1 }}
+              >
+                {#if isVideo(activeImage)}
+                  <video
+                    src={activeImage.url}
+                    autoplay muted loop playsinline preload="metadata"
+                    aria-label={activeImage.alt_text ?? data.product.name}
+                    class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                  ></video>
+                {:else}
+                  <img
+                    src={activeImage.url}
+                    alt={activeImage.alt_text ?? data.product.name}
+                    class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                  />
+                {/if}
+              </div>
+            {/key}
           {:else}
             <div class="w-full h-full flex flex-col items-center justify-center gap-3 text-gray-300">
               <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,7 +212,7 @@
           {/if}
 
           {#if hasDiscount}
-            <div class="absolute top-4 left-4 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide text-white"
+            <div class="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide text-white"
                  style="background: rgb(51,73,119)">
               −{discountPct}%
             </div>
@@ -199,7 +223,7 @@
               type="button"
               onclick={goPrev}
               aria-label="Previous image"
-              class="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center
+              class="hidden md:flex absolute left-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
                      rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
                      opacity-0 group-hover:opacity-100 transition-opacity duration-200
                      hover:bg-white hover:text-gray-900"
@@ -212,7 +236,7 @@
               type="button"
               onclick={goNext}
               aria-label="Next image"
-              class="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 items-center justify-center
+              class="hidden md:flex absolute right-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
                      rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
                      opacity-0 group-hover:opacity-100 transition-opacity duration-200
                      hover:bg-white hover:text-gray-900"
@@ -254,7 +278,11 @@
                   : ''}
               >
                 {#if isVideo(img)}
-                  <video src={img.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
+                  {#if img.thumbnail_url}
+                    <img src={img.thumbnail_url} alt={img.alt_text ?? ''} class="w-full h-full object-cover bg-black" />
+                  {:else}
+                    <div class="w-full h-full bg-black"></div>
+                  {/if}
                   <span class="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
                     <span class="p-1 rounded-full bg-black/50 text-white">
                       <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
