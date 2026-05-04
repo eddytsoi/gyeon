@@ -15,7 +15,7 @@
     type MediaSizeRejection
   } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
-  import { flip } from 'svelte/animate';
+  import { sortable } from '$lib/actions/sortable';
 
   let { data }: { data: PageData } = $props();
 
@@ -314,22 +314,9 @@
     });
   }
   let images = $state(sortedImages(data.images));
-  let dragSrcIdx = $state<number | null>(null);
-  let dragOverIdx = $state<number | null>(null);
   let reorderSaving = $state(false);
   let reorderError = $state<string | null>(null);
   const anyUploading = $derived(uploadFiles.some(f => f.status === 'uploading'));
-
-  const displayedImages = $derived.by(() => {
-    if (dragSrcIdx === null || dragOverIdx === null || dragSrcIdx === dragOverIdx) {
-      return images;
-    }
-    const next = [...images];
-    const [moved] = next.splice(dragSrcIdx, 1);
-    const insertAt = Math.max(1, dragOverIdx);
-    next.splice(insertAt, 0, moved);
-    return next;
-  });
 
   $effect(() => { images = sortedImages(data.images); });
   $effect(() => { bundleItems = (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id })); });
@@ -345,39 +332,13 @@
     }
   });
 
-  function handleDragStart(e: DragEvent, idx: number) {
-    dragSrcIdx = idx;
-    dragOverIdx = idx;
-    e.dataTransfer!.effectAllowed = 'move';
-  }
-
-  function handleDragOver(e: DragEvent, idx: number) {
-    if (dragSrcIdx === null) return;
-    e.preventDefault();
-    e.dataTransfer!.dropEffect = 'move';
-    const target = Math.max(1, idx);
-    if (dragOverIdx !== target) dragOverIdx = target;
-  }
-
-  function handleDragLeave(_e: DragEvent) {
-    // Intentionally no-op: clearing dragOverIdx mid-drag causes flicker
-    // because leaving one tile immediately enters another in a tight grid.
-  }
-
-  function handleDrop(e: DragEvent, _idx: number) {
-    e.preventDefault();
-    const reordered = displayedImages;
-    const changed = reordered.some((img, i) => images[i]?.id !== img.id);
-    dragSrcIdx = null;
-    dragOverIdx = null;
-    if (!changed) return;
-    images = reordered;
-    persistReorder(reordered);
-  }
-
-  function handleDragEnd() {
-    dragSrcIdx = null;
-    dragOverIdx = null;
+  function onReorderImages(orderedIds: string[]) {
+    const byId = new Map(images.map(img => [img.id, img]));
+    const reordered = orderedIds
+      .map(id => byId.get(id))
+      .filter((img): img is typeof images[number] => !!img);
+    if (reordered.length !== images.length) return;
+    void persistReorder(reordered);
   }
 
   async function persistReorder(reordered: typeof images) {
@@ -1000,22 +961,19 @@
       {#if images.length === 0}
         <div class="px-6 py-8 text-center text-gray-400 text-sm">{m.admin_product_edit_media_empty()}</div>
       {:else}
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
-          {#each displayedImages as image, i (image.id)}
+        <div class="js-media-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-6"
+             use:sortable={{
+               onReorder: onReorderImages,
+               handle: false,
+               filter: '[data-primary="true"], button, form, input, a, [role="button"]',
+               onMove: (evt) => (evt.related as HTMLElement)?.dataset.primary !== 'true'
+             }}>
+          {#each images as image (image.id)}
             <div
-              animate:flip={{ duration: 180 }}
-              draggable={i !== 0}
-              ondragstart={i !== 0 ? (e) => handleDragStart(e, i) : undefined}
-              ondragover={(e) => handleDragOver(e, i)}
-              ondragleave={handleDragLeave}
-              ondrop={(e) => handleDrop(e, i)}
-              ondragend={handleDragEnd}
+              data-id={image.id}
+              data-primary={image.is_primary ? 'true' : undefined}
               class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100
-                     transition-[opacity,transform,outline-color] duration-150
-                     {i !== 0 ? 'cursor-grab' : ''}
-                     {dragSrcIdx !== null && dragOverIdx === i
-                       ? 'opacity-40 outline outline-2 outline-dashed outline-gray-900/50 outline-offset-[-2px]'
-                       : ''}"
+                     {image.is_primary ? '' : 'cursor-grab active:cursor-grabbing'}"
             >
               {#if isVideo(image)}
                 {#if isStreamingVideo(image)}
@@ -1770,3 +1728,27 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* SortableJS visual classes for the media tile grid. */
+  :global(.js-media-grid .gy-ghost) {
+    background: #f3f4f6;
+    outline: 2px dashed rgba(17, 24, 39, 0.4);
+    outline-offset: -2px;
+    border-radius: 0.75rem;
+    opacity: 1;
+  }
+  :global(.js-media-grid .gy-ghost) > * {
+    opacity: 0;
+  }
+  :global(.js-media-grid .gy-chosen) {
+    opacity: 0.6;
+  }
+  :global(.js-media-grid .gy-drag) {
+    opacity: 1 !important;
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 32px -8px rgba(17, 24, 39, 0.35),
+                0 4px 12px -2px rgba(17, 24, 39, 0.15);
+    cursor: grabbing !important;
+  }
+</style>
