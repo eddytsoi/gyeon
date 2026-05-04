@@ -15,6 +15,7 @@
     type MediaSizeRejection
   } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
+  import { flip } from 'svelte/animate';
 
   let { data }: { data: PageData } = $props();
 
@@ -319,6 +320,17 @@
   let reorderError = $state<string | null>(null);
   const anyUploading = $derived(uploadFiles.some(f => f.status === 'uploading'));
 
+  const displayedImages = $derived.by(() => {
+    if (dragSrcIdx === null || dragOverIdx === null || dragSrcIdx === dragOverIdx) {
+      return images;
+    }
+    const next = [...images];
+    const [moved] = next.splice(dragSrcIdx, 1);
+    const insertAt = Math.max(1, dragOverIdx);
+    next.splice(insertAt, 0, moved);
+    return next;
+  });
+
   $effect(() => { images = sortedImages(data.images); });
   $effect(() => { bundleItems = (data.bundleItems ?? []).map(bi => ({ ...bi, _localId: bi.id })); });
   $effect(() => {
@@ -335,38 +347,37 @@
 
   function handleDragStart(e: DragEvent, idx: number) {
     dragSrcIdx = idx;
+    dragOverIdx = idx;
     e.dataTransfer!.effectAllowed = 'move';
   }
 
   function handleDragOver(e: DragEvent, idx: number) {
-    if (idx === 0) return;
+    if (dragSrcIdx === null) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
-    dragOverIdx = idx;
+    const target = Math.max(1, idx);
+    if (dragOverIdx !== target) dragOverIdx = target;
   }
 
-  function handleDragLeave(e: DragEvent) {
-    if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-      dragOverIdx = null;
-    }
+  function handleDragLeave(_e: DragEvent) {
+    // Intentionally no-op: clearing dragOverIdx mid-drag causes flicker
+    // because leaving one tile immediately enters another in a tight grid.
   }
 
-  function handleDrop(e: DragEvent, idx: number) {
+  function handleDrop(e: DragEvent, _idx: number) {
     e.preventDefault();
-    if (dragSrcIdx === null || dragSrcIdx === idx || idx === 0) {
-      dragSrcIdx = null; dragOverIdx = null;
-      return;
-    }
-    const reordered = [...images];
-    const [moved] = reordered.splice(dragSrcIdx, 1);
-    reordered.splice(idx, 0, moved);
+    const reordered = displayedImages;
+    const changed = reordered.some((img, i) => images[i]?.id !== img.id);
+    dragSrcIdx = null;
+    dragOverIdx = null;
+    if (!changed) return;
     images = reordered;
-    dragSrcIdx = null; dragOverIdx = null;
     persistReorder(reordered);
   }
 
   function handleDragEnd() {
-    dragSrcIdx = null; dragOverIdx = null;
+    dragSrcIdx = null;
+    dragOverIdx = null;
   }
 
   async function persistReorder(reordered: typeof images) {
@@ -990,8 +1001,9 @@
         <div class="px-6 py-8 text-center text-gray-400 text-sm">{m.admin_product_edit_media_empty()}</div>
       {:else}
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 p-6">
-          {#each images as image, i}
+          {#each displayedImages as image, i (image.id)}
             <div
+              animate:flip={{ duration: 180 }}
               draggable={i !== 0}
               ondragstart={i !== 0 ? (e) => handleDragStart(e, i) : undefined}
               ondragover={(e) => handleDragOver(e, i)}
@@ -999,10 +1011,11 @@
               ondrop={(e) => handleDrop(e, i)}
               ondragend={handleDragEnd}
               class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100
-                     transition-all duration-150
+                     transition-[opacity,transform,outline-color] duration-150
                      {i !== 0 ? 'cursor-grab' : ''}
-                     {dragSrcIdx === i ? 'opacity-40 scale-95' :
-                      dragOverIdx === i ? 'ring-2 ring-gray-900/40' : ''}"
+                     {dragSrcIdx !== null && dragOverIdx === i
+                       ? 'opacity-40 outline outline-2 outline-dashed outline-gray-900/50 outline-offset-[-2px]'
+                       : ''}"
             >
               {#if isVideo(image)}
                 {#if isStreamingVideo(image)}
