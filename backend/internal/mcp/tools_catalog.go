@@ -75,6 +75,9 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 		if err != nil {
 			return mcplib.NewToolResultError("product not found"), nil
 		}
+		if product.Status != "active" {
+			return mcplib.NewToolResultError("product not found"), nil
+		}
 		variants, err := prodSvc.ListVariants(ctx, productID)
 		if err != nil {
 			return nil, err
