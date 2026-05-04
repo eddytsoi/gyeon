@@ -184,6 +184,7 @@
     file: File;
     preview: string;
     status: 'uploading' | 'success' | 'error';
+    progress: number;
     error?: string;
   };
   let uploadFiles = $state<UploadFile[]>([]);
@@ -254,13 +255,19 @@
       id: crypto.randomUUID(),
       file,
       preview: URL.createObjectURL(file),
-      status: 'uploading'
+      status: 'uploading',
+      progress: 0
     }));
     uploadFiles = [...uploadFiles, ...newItems];
     let attached = 0;
     for (const item of newItems) {
       try {
-        const media = await adminUploadMedia(token, item.file);
+        const media = await adminUploadMedia(token, item.file, (pct) => {
+          const entry = uploadFiles.find((u) => u.id === item.id);
+          if (entry) entry.progress = pct;
+        });
+        const done = uploadFiles.find((u) => u.id === item.id);
+        if (done) done.progress = 100;
         if (data.isNew) {
           pendingImages = [...pendingImages, {
             _localId: item.id,
@@ -278,12 +285,15 @@
           if (!res.ok) throw new Error(m.admin_product_edit_add_media_attach_failed({ status: res.status }));
           attached++;
         }
-        item.status = 'success';
+        const ok = uploadFiles.find((u) => u.id === item.id);
+        if (ok) ok.status = 'success';
       } catch (e) {
-        item.status = 'error';
-        item.error = e instanceof Error ? e.message : m.admin_product_edit_add_media_upload_failed();
+        const fail = uploadFiles.find((u) => u.id === item.id);
+        if (fail) {
+          fail.status = 'error';
+          fail.error = e instanceof Error ? e.message : m.admin_product_edit_add_media_upload_failed();
+        }
       }
-      uploadFiles = [...uploadFiles];
     }
     if (!data.isNew && attached > 0) await invalidateAll();
   }
@@ -1493,7 +1503,12 @@
                 {/if}
                 <div class="flex-1 min-w-0">
                   <p class="text-sm text-gray-900 truncate">{f.file.name}</p>
-                  {#if f.status === 'error' && f.error}
+                  {#if f.status === 'uploading'}
+                    <div class="mt-1.5 h-1 w-full rounded-full bg-gray-200 overflow-hidden">
+                      <div class="h-full bg-gray-900 transition-[width] duration-150"
+                           style="width: {f.progress}%"></div>
+                    </div>
+                  {:else if f.status === 'error' && f.error}
                     <p class="text-xs text-red-500 truncate">{f.error}</p>
                   {:else}
                     <p class="text-xs text-gray-400">
@@ -1501,20 +1516,16 @@
                     </p>
                   {/if}
                 </div>
-                <div class="flex-shrink-0">
+                <div class="flex-shrink-0 w-10 text-right">
                   {#if f.status === 'uploading'}
-                    <svg class="w-5 h-5 text-gray-400 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/>
-                      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3"
-                            stroke-linecap="round"/>
-                    </svg>
+                    <span class="text-xs font-medium text-gray-500 tabular-nums">{f.progress}%</span>
                   {:else if f.status === 'success'}
-                    <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24"
+                    <svg class="w-5 h-5 text-green-600 inline-block" fill="none" viewBox="0 0 24 24"
                          stroke="currentColor" stroke-width="2.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
                     </svg>
                   {:else}
-                    <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24"
+                    <svg class="w-5 h-5 text-red-500 inline-block" fill="none" viewBox="0 0 24 24"
                          stroke="currentColor" stroke-width="2.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                     </svg>

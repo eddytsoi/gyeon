@@ -1095,7 +1095,11 @@ func (s *ProductService) backfillVideoThumbnails(imgs []ProductImage) {
 
 func (s *ProductService) AddImage(ctx context.Context, productID string, req AddImageRequest) (*ProductImage, error) {
 	img, err := scanProductImage(s.db.QueryRowContext(ctx,
-		`WITH ins AS (
+		`WITH unset_others AS (
+		     UPDATE product_images SET is_primary = FALSE
+		     WHERE product_id = $1 AND $7 = TRUE
+		 ),
+		 ins AS (
 		     INSERT INTO product_images (product_id, variant_id, media_file_id, url, alt_text, sort_order, is_primary)
 		     VALUES ($1, $2, $3, $4, $5, $6, $7)
 		     RETURNING *
