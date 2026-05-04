@@ -117,8 +117,10 @@ export function detectStreamingVideoFromURL(
 /**
  * Returns the iframe src for a streaming video media row, or null if not
  * streaming. When `autoplay` is true, appends provider-specific params for
- * autoplay + muted + loop. The autoplay flag falls back to the row's
- * `video_autoplay` when not passed explicitly.
+ * autoplay + muted + loop AND hides every player chrome element (controls,
+ * branding, title, related videos, fullscreen button, keyboard shortcuts).
+ * The autoplay flag falls back to the row's `video_autoplay` when not passed
+ * explicitly.
  */
 export function getEmbedURL(
   input: { url?: string | null; mime_type?: string | null; video_autoplay?: boolean | null },
@@ -132,23 +134,37 @@ export function getEmbedURL(
   switch (provider) {
     case 'youtube': {
       const base = `https://www.youtube.com/embed/${detected.videoID}`;
+      if (!autoplay) return base;
       // Loop on YouTube requires playlist={ID} pointing at the same video.
-      return autoplay
-        ? `${base}?autoplay=1&mute=1&loop=1&playlist=${detected.videoID}&playsinline=1`
-        : base;
+      // controls=0 hides the player bar; modestbranding=1 + rel=0 + iv_load_policy=3
+      // strip the YouTube logo, related-videos overlay, and annotations;
+      // disablekb=1 + fs=0 disable keyboard shortcuts and the fullscreen button.
+      const params = [
+        'autoplay=1', 'mute=1', 'loop=1', `playlist=${detected.videoID}`,
+        'playsinline=1', 'controls=0', 'modestbranding=1', 'rel=0',
+        'iv_load_policy=3', 'disablekb=1', 'fs=0'
+      ].join('&');
+      return `${base}?${params}`;
     }
     case 'vimeo': {
       const [id, hash] = detected.videoID.split('/');
       const base = hash ? `https://player.vimeo.com/video/${id}?h=${hash}` : `https://player.vimeo.com/video/${id}`;
-      return autoplay
-        ? `${base}${base.includes('?') ? '&' : '?'}autoplay=1&muted=1&loop=1&playsinline=1`
-        : base;
+      if (!autoplay) return base;
+      // Vimeo's `background=1` is a single switch that bundles autoplay +
+      // muted + loop + no-controls + no-title + no-byline + no-portrait —
+      // exactly the chromeless preview we want.
+      return `${base}${base.includes('?') ? '&' : '?'}background=1`;
     }
     case 'wistia': {
       const base = `https://fast.wistia.net/embed/iframe/${detected.videoID}`;
-      return autoplay
-        ? `${base}?autoPlay=true&muted=true&endVideoBehavior=loop&playsinline=true`
-        : base;
+      if (!autoplay) return base;
+      const params = [
+        'autoPlay=true', 'muted=true', 'endVideoBehavior=loop', 'playsinline=true',
+        'controlsVisibleOnLoad=false', 'playbar=false', 'playButton=false',
+        'smallPlayButton=false', 'fullscreenButton=false', 'volumeControl=false',
+        'settingsControl=false', 'playbackRateControl=false', 'qualityControl=false'
+      ].join('&');
+      return `${base}?${params}`;
     }
   }
 }
