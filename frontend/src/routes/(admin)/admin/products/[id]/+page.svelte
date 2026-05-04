@@ -1553,20 +1553,14 @@
                   if (!addImageSelectedId) return;
                   const mf = imageMedia.find(m => m.id === addImageSelectedId);
                   if (!mf) return;
-                  const wantPrimary = formData.get('is_primary') === 'true';
                   const isFirst = pendingImages.length === 0;
-                  const newEntry: typeof pendingImages[0] = {
+                  pendingImages = [...pendingImages, {
                     _localId: crypto.randomUUID(),
                     media_file_id: addImageSelectedId,
                     preview_url: mf.webp_url ?? mf.url,
-                    is_primary: wantPrimary || isFirst,
+                    is_primary: isFirst,
                     alt_text: formData.get('alt_text')?.toString() || undefined
-                  };
-                  if (wantPrimary && !isFirst) {
-                    pendingImages = [...pendingImages.map(p => ({ ...p, is_primary: false })), newEntry];
-                  } else {
-                    pendingImages = [...pendingImages, newEntry];
-                  }
+                  }];
                   resetAddImageModal();
                   return;
                 }
@@ -1612,22 +1606,11 @@
             </div>
           {/if}
 
-          <div class="flex items-center gap-4 mb-5">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_media_label_primary()}</label>
-              <select name="is_primary"
-                      class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-gray-900">
-                <option value="false">{m.admin_product_edit_add_media_primary_no()}</option>
-                <option value="true">{m.admin_product_edit_add_media_primary_yes()}</option>
-              </select>
-            </div>
-            <div class="flex-1 flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_media_label_alt()}</label>
-              <input name="alt_text" placeholder={m.admin_product_edit_add_media_alt_placeholder()}
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            </div>
+          <div class="flex flex-col gap-1.5 mb-5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_media_label_alt()}</label>
+            <input name="alt_text" placeholder={m.admin_product_edit_add_media_alt_placeholder()}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
 
           <div class="flex gap-3">
