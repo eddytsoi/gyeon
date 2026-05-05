@@ -25,4 +25,34 @@
     width: calc(100% * 8 / 7) !important; /* = 100% / 0.875 ≈ 114.3% */
     margin-right: calc(-100% / 7) !important; /* collapse extra layout space ≈ -14.3% */
   }
+
+  /*
+   * P3 #31/#32 — Accessibility: visible focus ring on every interactive
+   * element when reached by keyboard. Mouse clicks (no :focus-visible) stay
+   * unaffected so the design isn't cluttered. We use outline (not ring)
+   * because outline is layered above and never clipped by overflow-hidden.
+   */
+  :focus-visible {
+    outline: 2px solid #111827; /* gray-900 */
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Suppress the inner Firefox dotted ring; we provide our own outline above */
+  ::-moz-focus-inner {
+    border: 0;
+  }
+
+  /*
+   * Respect prefers-reduced-motion. Storefront uses subtle hover transitions
+   * and a few animate-pulse / slide effects — neuter them to a single instant
+   * frame for users who request reduced motion.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

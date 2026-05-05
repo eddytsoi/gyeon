@@ -1,6 +1,12 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
+  import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
+  import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import * as m from '$lib/paraglide/messages';
+  import type { PageData } from './$types';
+
+  // publicSettings flows in from the (storefront) layout load.
+  let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
@@ -8,7 +14,11 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-  <h1 class="text-3xl font-bold text-gray-900 mb-8">{m.cart_heading()}</h1>
+  <h1 class="text-3xl font-bold text-gray-900 mb-6">{m.cart_heading()}</h1>
+
+  <div class="mb-6">
+    <FreeShippingBanner settings={data.publicSettings ?? []} showUnlocked />
+  </div>
 
   {#if cartStore.loading && !cartStore.cart}
     <div class="text-center py-20 text-gray-400">{m.common_loading()}</div>
@@ -102,3 +112,5 @@
     </div>
   {/if}
 </div>
+
+<RecentlyViewed />

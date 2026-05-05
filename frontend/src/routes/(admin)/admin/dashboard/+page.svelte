@@ -1,22 +1,68 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import LineChart from '$lib/components/admin/charts/LineChart.svelte';
+  import BarChart from '$lib/components/admin/charts/BarChart.svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   let { data }: { data: PageData } = $props();
+
+  function fmtHK(n: number): string {
+    return `HK$${n.toLocaleString('en-HK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
+
+  async function setRange(days: string) {
+    const u = new URL($page.url);
+    u.searchParams.set('range', days);
+    await goto(u.pathname + u.search, { keepFocus: true });
+  }
+
+  async function setSortBy(by: 'qty' | 'revenue') {
+    const u = new URL($page.url);
+    u.searchParams.set('by', by);
+    await goto(u.pathname + u.search, { keepFocus: true });
+  }
+
+  // Day labels: when looking at a long range, show MM-DD only; for short
+  // ranges include the day-of-week so the chart reads at a glance.
+  function dayLabel(iso: string): string {
+    return iso.slice(5); // MM-DD
+  }
+  const revenueSeries = $derived(
+    (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.revenue }))
+  );
+  const orderSeries = $derived(
+    (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.order_count }))
+  );
+  const statusBars = $derived(
+    (data.statusBreakdown ?? []).map((s) => ({ label: s.status, value: s.count }))
+  );
 </script>
 
 <svelte:head><title>{m.dashboard_title()}</title></svelte:head>
 
-<div class="max-w-5xl space-y-8">
+<div class="max-w-7xl space-y-8">
 
-  <!-- Greeting -->
-  <div>
-    <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
-    <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+  <!-- Greeting + range -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
+      <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+    </div>
+    <div class="inline-flex bg-white rounded-xl border border-gray-100 p-1 shadow-sm">
+      {#each ['7', '30', '90'] as r}
+        <button onclick={() => setRange(r)}
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                       {data.range === r ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}">
+          {m.dashboard_range_days({ n: r })}
+        </button>
+      {/each}
+    </div>
   </div>
 
   {#if data.stats}
     <!-- Stats grid — static class names so Tailwind includes them -->
-    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 xl:grid-cols-5 gap-4">
 
       <!-- Total Products -->
       <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -64,6 +110,108 @@
         <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_revenue()}</p>
       </div>
 
+      <!-- Total Refunds (P2 #16) -->
+      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div class="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shadow-sm">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
+          </svg>
+        </div>
+        <p class="mt-4 text-2xl font-bold text-gray-900 tabular-nums">{fmtHK(data.refundTotal ?? 0)}</p>
+        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_refunds()}</p>
+      </div>
+
+    </div>
+
+    <!-- Revenue trend (P2 #16) -->
+    <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_revenue_trend_heading()}</h3>
+        <p class="text-xs text-gray-400">{data.fromISO} → {data.toISO}</p>
+      </div>
+      <LineChart data={revenueSeries} formatY={fmtHK} />
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Top Products -->
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_top_products_heading()}</h3>
+          <div class="inline-flex bg-gray-100 rounded-lg p-0.5">
+            <button onclick={() => setSortBy('qty')}
+                    class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors
+                           {data.sortBy === 'qty' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}">
+              {m.dashboard_top_products_by_qty()}
+            </button>
+            <button onclick={() => setSortBy('revenue')}
+                    class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors
+                           {data.sortBy === 'revenue' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}">
+              {m.dashboard_top_products_by_revenue()}
+            </button>
+          </div>
+        </div>
+        {#if (data.topProducts ?? []).length === 0}
+          <p class="text-sm text-gray-400 py-6 text-center">{m.dashboard_no_data()}</p>
+        {:else}
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-50">
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_products_col_name()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_products_col_qty()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_products_col_revenue()}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {#each data.topProducts as p}
+                <tr>
+                  <td class="py-2.5">
+                    <p class="text-gray-900 truncate max-w-xs">{p.product_name}</p>
+                    <p class="text-xs text-gray-400 font-mono">{p.variant_sku}</p>
+                  </td>
+                  <td class="py-2.5 text-right text-gray-700 font-mono">{p.qty_sold}</td>
+                  <td class="py-2.5 text-right text-gray-700 font-mono">{fmtHK(p.revenue)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
+
+      <!-- Top Customers -->
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_top_customers_heading()}</h3>
+        {#if (data.topCustomers ?? []).length === 0}
+          <p class="text-sm text-gray-400 py-6 text-center">{m.dashboard_no_data()}</p>
+        {:else}
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-50">
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_customers_col_name()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_customers_col_orders()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_top_customers_col_spent()}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {#each data.topCustomers as c}
+                <tr>
+                  <td class="py-2.5">
+                    <p class="text-gray-900 truncate max-w-xs">{c.name || '—'}</p>
+                    <p class="text-xs text-gray-400 truncate max-w-xs">{c.email}</p>
+                  </td>
+                  <td class="py-2.5 text-right text-gray-700 font-mono">{c.order_count}</td>
+                  <td class="py-2.5 text-right text-gray-700 font-mono">{fmtHK(c.total_spent)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Order status breakdown -->
+    <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_status_breakdown_heading()}</h3>
+      <BarChart data={statusBars} formatValue={(n) => String(n)} />
     </div>
 
     <!-- Quick actions -->

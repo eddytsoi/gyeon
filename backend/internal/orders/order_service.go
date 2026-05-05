@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/payment"
@@ -177,6 +178,14 @@ type OrderService struct {
 	emailSvc    *email.Service
 	taxSvc      *tax.Service
 	onCreated   func(ctx context.Context, order *Order)
+	onPaid      func(ctx context.Context, order *Order)
+}
+
+// SetOnOrderPaid registers a callback fired after an order's payment_intent
+// has been confirmed and the order has flipped to status=paid. Used by
+// loyalty (P3 #24) to credit points without an import-cycle dependency.
+func (s *OrderService) SetOnOrderPaid(fn func(context.Context, *Order)) {
+	s.onPaid = fn
 }
 
 // SetOnOrderCreated registers a callback fired after a new order is committed
@@ -187,6 +196,50 @@ func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 
 // SetTaxService wires an optional tax calculator. When unset, orders skip the
 // tax line entirely.
+// recordInventoryHistory writes one inventory_history row. Failures are
+// logged and swallowed so an audit-write blip doesn't break an order. delta
+// of 0 is skipped.
+func (s *OrderService) recordInventoryHistory(ctx context.Context, variantID string, before, after int, reason string, orderID *string) {
+	if before == after {
+		return
+	}
+	delta := after - before
+	var orderIDArg any
+	if orderID != nil && *orderID != "" {
+		orderIDArg = *orderID
+	}
+	// Customer-driven checkouts have no admin actor; AdminIDFromContext returns
+	// false and we leave actor_user_id NULL.
+	var actorIDArg any
+	if id, ok := auth.AdminIDFromContext(ctx); ok {
+		actorIDArg = id
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		variantID, delta, before, after, reason, actorIDArg, orderIDArg,
+	); err != nil {
+		log.Printf("inventory_history: variant=%s reason=%s: %v", variantID, reason, err)
+	}
+}
+
+// freeShippingThresholdHKD reads the admin-configured threshold (P3 #29).
+// Returns 0 when disabled or unparseable, which the caller treats as "always
+// charge shipping_fee as quoted".
+func (s *OrderService) freeShippingThresholdHKD(ctx context.Context) float64 {
+	var raw string
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT value FROM site_settings WHERE key = 'free_shipping_threshold_hkd'`,
+	).Scan(&raw); err != nil {
+		return 0
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || v <= 0 {
+		return 0
+	}
+	return v
+}
+
 func (s *OrderService) SetTaxService(t *tax.Service) {
 	s.taxSvc = t
 }
@@ -433,7 +486,15 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		}
 	}
 
-	total := taxableAmount + req.ShippingFee
+	// P3 #29 — free shipping threshold. Server-side enforcement so a tampered
+	// client can't bypass it (and so the value stays correct even if the
+	// storefront fee preview is slightly stale).
+	shippingFee := req.ShippingFee
+	if threshold := s.freeShippingThresholdHKD(ctx); threshold > 0 && subtotal-discountAmount >= threshold {
+		shippingFee = 0
+	}
+
+	total := taxableAmount + shippingFee
 	if total < 0 {
 		total = 0
 	}
@@ -447,39 +508,44 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	// Decrement stock atomically.
 	// For bundle products: decrement each component's stock (not the bundle variant's own stock_qty).
 	// For simple products: decrement the variant stock directly.
-	// Track (variantID, qty) for post-commit low-stock alerts.
+	// Track (variantID, qty, before, after) for post-commit low-stock alerts +
+	// inventory_history rows.
 	type stockDec struct {
 		variantID string
 		quantity  int
+		before    int
+		after     int
 	}
 	var stockDecs []stockDec
+	deductOne := func(variantID string, qty int) error {
+		var before, after int
+		// RETURNING captures the post-update qty atomically; we derive before
+		// from after+qty since the WHERE clause guaranteed enough stock.
+		err := tx.QueryRowContext(ctx,
+			`UPDATE product_variants SET stock_qty = stock_qty - $2
+			 WHERE id = $1 AND stock_qty >= $2
+			 RETURNING stock_qty`, variantID, qty).Scan(&after)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("insufficient stock for variant %s", variantID)
+		}
+		if err != nil {
+			return err
+		}
+		before = after + qty
+		stockDecs = append(stockDecs, stockDec{variantID, qty, before, after})
+		return nil
+	}
 	for _, li := range lines {
 		if li.kind == "bundle" {
 			for _, bc := range li.components {
-				res, err := tx.ExecContext(ctx,
-					`UPDATE product_variants SET stock_qty = stock_qty - $2
-					 WHERE id = $1 AND stock_qty >= $2`,
-					bc.variantID, bc.quantity)
-				if err != nil {
+				if err := deductOne(bc.variantID, bc.quantity); err != nil {
 					return nil, err
 				}
-				if n, _ := res.RowsAffected(); n == 0 {
-					return nil, fmt.Errorf("insufficient stock for bundle component %s", bc.variantID)
-				}
-				stockDecs = append(stockDecs, stockDec{bc.variantID, bc.quantity})
 			}
 		} else {
-			res, err := tx.ExecContext(ctx,
-				`UPDATE product_variants SET stock_qty = stock_qty - $2
-				 WHERE id = $1 AND stock_qty >= $2`,
-				li.variantID, li.quantity)
-			if err != nil {
+			if err := deductOne(li.variantID, li.quantity); err != nil {
 				return nil, err
 			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				return nil, fmt.Errorf("insufficient stock for variant %s", li.variantID)
-			}
-			stockDecs = append(stockDecs, stockDec{li.variantID, li.quantity})
 		}
 	}
 
@@ -504,7 +570,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, taxAmount, total, req.Notes,
+		customerID, shippingAddressID, subtotal, shippingFee, discountAmount, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
 		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
@@ -591,6 +657,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			decs[i] = lowStockDec{VariantID: d.variantID, Quantity: d.quantity}
 		}
 		go s.checkLowStockCrossings(context.Background(), decs)
+
+		// Inventory history (P2 #23): one row per deducted variant, linked to
+		// the order. actor is NULL because checkout is customer-driven.
+		orderIDStr := order.ID
+		for _, d := range stockDecs {
+			s.recordInventoryHistory(ctx, d.variantID, d.before, d.after, "order.checkout", &orderIDStr)
+		}
 	}
 
 	if s.onCreated != nil {
@@ -862,6 +935,15 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 		}
 		// Send confirmation email (best-effort)
 		s.sendConfirmationEmail(ctx, order)
+
+		// Loyalty earn (P3 #24) — fire-and-forget so a slow points write
+		// can't delay webhook ack to Stripe. Detach the request context so
+		// downstream callees see a stable context.
+		if s.onPaid != nil {
+			paid := *order
+			paid.Status = StatusPaid
+			go s.onPaid(context.Background(), &paid)
+		}
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"gyeon/backend/internal/abandoned"
 	"gyeon/backend/internal/admin"
+	"gyeon/backend/internal/audit"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/cms"
@@ -19,11 +20,13 @@ import (
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/importer"
 	"gyeon/backend/internal/lookup"
+	"gyeon/backend/internal/loyalty"
 	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shipany"
 	"gyeon/backend/internal/shop"
@@ -36,6 +39,27 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// redirectsAuditAdapter bridges redirects.AuditRecorder → audit.Service so the
+// redirects package doesn't need to import the audit package.
+type redirectsAuditAdapter struct{ svc *audit.Service }
+
+func (a redirectsAuditAdapter) Record(ctx context.Context, e redirects.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// settingsAuditAdapter bridges settings.AuditRecorder → audit.Service.
+type settingsAuditAdapter struct{ svc *audit.Service }
+
+func (a settingsAuditAdapter) Record(ctx context.Context, e settings.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
 }
 
 func main() {
@@ -68,6 +92,9 @@ func main() {
 	customerSvc := customers.NewService(conn)
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
+	emailTemplateStore := email.NewStore(conn)
+	emailSvc.SetTemplateStore(emailTemplateStore)
+	emailTemplateHandler := email.NewTemplateHandler(emailTemplateStore, emailSvc)
 	taxSvc := tax.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
 	orderSvc.SetTaxService(taxSvc)
@@ -125,6 +152,7 @@ func main() {
 		customerJWTSecret,
 	)
 	statsHandler := admin.NewStatsHandler(conn)
+	analyticsHandler := admin.NewAnalyticsHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
@@ -138,7 +166,29 @@ func main() {
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
 	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc, settingsSvc))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
-	adminMW := auth.Middleware(jwtSecret)
+	redirectsSvc := redirects.NewService(conn)
+	redirectsHandler := redirects.NewHandler(redirectsSvc)
+	auditSvc := audit.NewService(conn)
+	auditHandler := audit.NewHandler(auditSvc)
+	loyaltySvc := loyalty.NewService(conn)
+	loyaltyHandler := loyalty.NewHandler(loyaltySvc)
+	orderSvc.SetOnOrderPaid(func(ctx context.Context, o *orders.Order) {
+		// Earn rate operates on order subtotal (post-discount, pre-tax/shipping).
+		base := o.Subtotal - o.DiscountAmount
+		if base < 0 {
+			base = 0
+		}
+		if o.CustomerID == nil || *o.CustomerID == "" {
+			return // guest checkout — no customer to credit
+		}
+		if err := loyaltySvc.EarnFromOrder(ctx, *o.CustomerID, o.ID, base); err != nil {
+			log.Printf("loyalty: earn order %s: %v", o.ID, err)
+		}
+	})
+	redirectsSvc.SetAudit(redirectsAuditAdapter{svc: auditSvc})
+	settingsSvc.SetAudit(settingsAuditAdapter{svc: auditSvc})
+	adminMW := auth.AdminMiddleware(jwtSecret)
+	auditInfoMW := audit.RequestInfoMiddleware()
 
 	// Admin SSE hub: broadcasts new-order events to all connected admin clients.
 	adminHub := admin.NewHub()
@@ -221,6 +271,9 @@ func main() {
 		// Public coupon validation
 		r.Mount("/pricing", pricingHandler.PublicRoutes())
 
+		// Public redirect lookup (called by SvelteKit hooks for storefront URL match)
+		r.Mount("/redirects", redirectsHandler.PublicRoutes())
+
 		// Payment config + Stripe webhook (public)
 		r.Mount("/payments", paymentHandler.Routes())
 
@@ -239,6 +292,7 @@ func main() {
 		r.Group(func(r chi.Router) {
 			r.Use(auth.CustomerMiddleware(customerJWTSecret))
 			r.Mount("/order-notices", noticeHandler.CustomerRoutes())
+			r.Mount("/loyalty", loyaltyHandler.CustomerRoutes())
 		})
 
 		// Admin auth (now uses admin_users table)
@@ -250,8 +304,12 @@ func main() {
 		// Admin protected
 		r.Group(func(r chi.Router) {
 			r.Use(adminMW)
+			r.Use(auditInfoMW)
 
 			r.Get("/admin/stats", statsHandler.Get)
+
+			// Analytics (P2 #16): time-series + top-N + breakdowns
+			r.Mount("/admin/analytics", analyticsHandler.Routes())
 
 			// Resolve prefix-id (PRD-8, ORD-1, ...) to UUID for admin URLs
 			r.Mount("/admin/lookup", lookup.NewHandler(productSvc, orderSvc, pageSvc, postSvc).Routes())
@@ -288,6 +346,19 @@ func main() {
 
 			// Pricing: campaigns and coupons
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
+
+			// Redirects (P2 #22): admin CRUD; public match endpoint is mounted above
+			r.Mount("/admin/redirects", redirectsHandler.AdminRoutes())
+
+			// Audit log (P2 #17): list-only — entries are inserted by services
+			r.Mount("/admin/audit-log", auditHandler.AdminRoutes())
+
+			// Email templates (P2 #20): admin-editable overrides for the
+			// hardcoded transactional emails
+			r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
+
+			// Loyalty (P3 #24): per-customer balance + ledger + manual adjust
+			r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())
 
 			// Abandoned cart recovery (list + manual run; external cron may also POST run)
 			abandonedSvc := abandoned.NewService(conn, emailSvc, settingsSvc)

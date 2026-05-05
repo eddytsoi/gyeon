@@ -44,7 +44,7 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => []) : Promise.resolve([])
   ]);
 
-  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew, uploadLimits };
+  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew, uploadLimits, token };
 };
 
 export const actions: Actions = {

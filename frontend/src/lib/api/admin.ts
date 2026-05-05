@@ -75,6 +75,23 @@ export const adminDeleteVariant = (token: string, productID: string, variantID: 
 export const adminAdjustStock = (token: string, productID: string, variantID: string, delta: number) =>
   request<Variant>(`/products/${productID}/variants/${variantID}/stock`, token, { method: 'POST', body: JSON.stringify({ delta }) });
 
+export interface VariantHistoryRow {
+  id: string;
+  variant_id: string;
+  delta: number;
+  before_qty: number;
+  after_qty: number;
+  reason: string;
+  actor_user_id?: string;
+  actor_email?: string;
+  order_id?: string;
+  note?: string;
+  created_at: string;
+}
+
+export const adminGetVariantStockHistory = (token: string, productID: string, variantID: string, limit = 50) =>
+  request<VariantHistoryRow[]>(`/products/${productID}/variants/${variantID}/history?limit=${limit}`, token);
+
 export const adminGetImages = (token: string, productID: string) =>
   request<ProductImage[]>(`/products/${productID}/images`, token);
 
@@ -640,3 +657,193 @@ export const adminUploadMedia = (
     xhr.send(formData);
   });
 };
+
+// ── Redirects (P2 #22) ────────────────────────────────────────────────────────
+
+export interface Redirect {
+  id: string;
+  from_path: string;
+  to_path: string;
+  code: 301 | 302;
+  is_active: boolean;
+  note?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RedirectInput {
+  from_path: string;
+  to_path: string;
+  code: 301 | 302;
+  is_active: boolean;
+  note?: string | null;
+}
+
+export const adminListRedirects = (token: string) =>
+  request<Redirect[]>('/admin/redirects/', token);
+
+export const adminGetRedirect = (token: string, id: string) =>
+  request<Redirect>(`/admin/redirects/${id}`, token);
+
+export const adminCreateRedirect = (token: string, body: RedirectInput) =>
+  request<Redirect>('/admin/redirects/', token, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+
+export const adminUpdateRedirect = (token: string, id: string, body: RedirectInput) =>
+  request<Redirect>(`/admin/redirects/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  });
+
+export const adminDeleteRedirect = (token: string, id: string) =>
+  request<void>(`/admin/redirects/${id}`, token, { method: 'DELETE' });
+
+// ── Audit log (P2 #17) ────────────────────────────────────────────────────────
+
+export interface AuditRow {
+  id: string;
+  admin_user_id?: string;
+  admin_email?: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  before?: string;
+  after?: string;
+  ip?: string;
+  user_agent?: string;
+  created_at: string;
+}
+
+export interface AuditList {
+  items: AuditRow[];
+  total: number;
+}
+
+export interface AuditFilters {
+  action?: string;
+  entity_type?: string;
+  admin_user_id?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const adminListAuditLog = (token: string, f: AuditFilters = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v == null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<AuditList>(`/admin/audit-log/${suffix}`, token);
+};
+
+// ── Email templates (P2 #20) ──────────────────────────────────────────────────
+
+export interface EmailTemplateListItem {
+  key: string;
+  display_name: string;
+  is_custom: boolean;
+  is_enabled: boolean;
+  updated_at?: string;
+}
+
+export interface EmailTemplateOverride {
+  key: string;
+  subject: string;
+  html: string;
+  text: string;
+  is_enabled: boolean;
+  updated_at: string;
+  updated_by?: string;
+}
+
+export interface EmailTemplateDetail {
+  key: string;
+  display_name: string;
+  override?: EmailTemplateOverride;
+  defaults: { subject: string; html: string; text: string };
+  variables: string[];
+}
+
+export const adminListEmailTemplates = (token: string) =>
+  request<EmailTemplateListItem[]>('/admin/email-templates/', token);
+
+export const adminGetEmailTemplate = (token: string, key: string) =>
+  request<EmailTemplateDetail>(`/admin/email-templates/${key}`, token);
+
+export const adminUpsertEmailTemplate = (
+  token: string,
+  key: string,
+  body: { subject: string; html: string; text: string; is_enabled: boolean }
+) =>
+  request<EmailTemplateOverride>(`/admin/email-templates/${key}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  });
+
+export const adminResetEmailTemplate = (token: string, key: string) =>
+  request<void>(`/admin/email-templates/${key}/reset`, token, { method: 'POST' });
+
+export const adminTestEmailTemplate = (token: string, key: string, to: string) =>
+  request<void>(`/admin/email-templates/${key}/test`, token, {
+    method: 'POST',
+    body: JSON.stringify({ to })
+  });
+
+export const adminPreviewEmailTemplate = (token: string, key: string) =>
+  request<{ subject: string; html: string; text: string }>(`/admin/email-templates/${key}/preview`, token);
+
+// ── Analytics (P2 #16) ────────────────────────────────────────────────────────
+
+export interface RevenuePoint {
+  date: string;
+  revenue: number;
+  order_count: number;
+}
+
+export interface TopProduct {
+  variant_id?: string;
+  product_name: string;
+  variant_sku: string;
+  qty_sold: number;
+  revenue: number;
+}
+
+export interface TopCustomer {
+  customer_id?: string;
+  email: string;
+  name: string;
+  order_count: number;
+  total_spent: number;
+}
+
+export interface StatusBreakdownPoint {
+  status: string;
+  count: number;
+}
+
+function rangeQs(from?: string, to?: string, extra: Record<string, string> = {}): string {
+  const qs = new URLSearchParams(extra);
+  if (from) qs.set('from', from);
+  if (to) qs.set('to', to);
+  return qs.toString() ? `?${qs.toString()}` : '';
+}
+
+export const adminGetRevenueTrend = (token: string, from?: string, to?: string) =>
+  request<RevenuePoint[]>(`/admin/analytics/revenue${rangeQs(from, to)}`, token);
+
+export const adminGetTopProducts = (token: string, from?: string, to?: string, by: 'qty' | 'revenue' = 'qty') =>
+  request<TopProduct[]>(`/admin/analytics/top-products${rangeQs(from, to, { by })}`, token);
+
+export const adminGetTopCustomers = (token: string, from?: string, to?: string) =>
+  request<TopCustomer[]>(`/admin/analytics/top-customers${rangeQs(from, to)}`, token);
+
+export const adminGetOrderStatusBreakdown = (token: string, from?: string, to?: string) =>
+  request<StatusBreakdownPoint[]>(`/admin/analytics/order-status-breakdown${rangeQs(from, to)}`, token);
+
+export const adminGetRefundTotal = (token: string, from?: string, to?: string) =>
+  request<{ refunds: number }>(`/admin/analytics/refund-total${rangeQs(from, to)}`, token);

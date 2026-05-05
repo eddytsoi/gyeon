@@ -113,4 +113,71 @@ const handleMaintenance: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-export const handle: Handle = sequence(handleParaglide, handleMaintenance);
+// In-process LRU-ish cache for redirect lookups. Short TTL keeps admin edits
+// visible within ~60s without needing cache invalidation. Map preserves
+// insertion order so we can evict oldest entries when over the cap.
+type RedirectHit = { to: string; code: 301 | 302 } | null;
+type RedirectCacheEntry = { value: RedirectHit; until: number };
+const REDIRECT_CACHE = new Map<string, RedirectCacheEntry>();
+const REDIRECT_CACHE_MAX = 500;
+const REDIRECT_CACHE_TTL_MS = 60_000;
+
+function cacheGet(path: string): RedirectHit | undefined {
+  const entry = REDIRECT_CACHE.get(path);
+  if (!entry) return undefined;
+  if (entry.until < Date.now()) {
+    REDIRECT_CACHE.delete(path);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function cacheSet(path: string, value: RedirectHit) {
+  if (REDIRECT_CACHE.size >= REDIRECT_CACHE_MAX) {
+    const oldest = REDIRECT_CACHE.keys().next().value;
+    if (oldest) REDIRECT_CACHE.delete(oldest);
+  }
+  REDIRECT_CACHE.set(path, { value, until: Date.now() + REDIRECT_CACHE_TTL_MS });
+}
+
+const handleRedirect: Handle = async ({ event, resolve }) => {
+  const { pathname } = event.url;
+
+  // Only intercept storefront GETs. Admin routes, API proxies, MCP, and
+  // SvelteKit internals must not go through redirect lookup.
+  if (event.request.method !== 'GET') return resolve(event);
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/mcp') ||
+    pathname.startsWith('/.well-known') ||
+    pathname.startsWith('/_app')
+  ) {
+    return resolve(event);
+  }
+
+  let hit = cacheGet(pathname);
+  if (hit === undefined) {
+    try {
+      const url = `${API_BASE}/redirects/match?path=${encodeURIComponent(pathname)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
+      if (res.ok) {
+        const body = (await res.json()) as { to: string; code: number };
+        const code = body.code === 302 ? 302 : 301;
+        hit = { to: body.to, code };
+      } else {
+        hit = null;
+      }
+    } catch {
+      hit = null; // fail-open: never block traffic on a redirect lookup
+    }
+    cacheSet(pathname, hit);
+  }
+
+  if (hit) {
+    throw redirect(hit.code, hit.to);
+  }
+  return resolve(event);
+};
+
+export const handle: Handle = sequence(handleParaglide, handleMaintenance, handleRedirect);

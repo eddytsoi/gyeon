@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { trackPurchase } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -9,7 +10,22 @@
   // Cart is now cleared by the Stripe webhook (payment_intent.succeeded).
   // Refresh the local cart store so the header badge / cart page reflect
   // the empty cart as soon as the customer reaches the success page.
-  onMount(() => { cartStore.init(); });
+  onMount(() => {
+    cartStore.init();
+    // P3 #26 — purchase event. The success page is the natural place to fire
+    // it: by the time the customer lands here Stripe has confirmed payment.
+    const o = data.order;
+    trackPurchase(
+      o.id,
+      o.total,
+      (o.items ?? []).map((i: { variant_id?: string; product_name: string; unit_price: number; quantity: number }) => ({
+        id: i.variant_id ?? i.product_name,
+        name: i.product_name,
+        price: i.unit_price,
+        quantity: i.quantity
+      }))
+    );
+  });
 </script>
 
 <svelte:head>
