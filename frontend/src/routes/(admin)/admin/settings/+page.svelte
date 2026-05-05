@@ -111,6 +111,9 @@
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
   const ORDER_NUMBER_KEYS = new Set(['order_number_prefix']);
+  const LOW_STOCK_KEYS = new Set(['low_stock_threshold_default', 'low_stock_alert_enabled']);
+  const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
+  const ABANDONED_KEYS = new Set(['abandoned_cart_enabled', 'abandoned_cart_threshold_hours']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
     'stripe_country',
@@ -159,7 +162,8 @@
   ]);
   const SMTP_KEYS = new Set([
     'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
-    'smtp_from_email', 'smtp_from_name', 'public_base_url'
+    'smtp_from_email', 'smtp_from_name', 'public_base_url',
+    'admin_alert_email'
   ]);
 
   const CACHE_TTL_LABELS = $derived<Record<string, string>>({
@@ -235,6 +239,31 @@
 
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
   let stripeSaveCards = $state(settingValue('stripe_save_cards') === 'true');
+  let lowStockAlertEnabled = $state(settingValue('low_stock_alert_enabled') !== 'false');
+  let taxEnabled = $state(settingValue('tax_enabled') === 'true');
+  let taxInclusive = $state(settingValue('tax_inclusive') === 'true');
+  let abandonedEnabled = $state(settingValue('abandoned_cart_enabled') === 'true');
+  let abandonedRunPending = $state(false);
+  let abandonedRunResult = $state<string | null>(null);
+
+  async function runAbandonedNow() {
+    abandonedRunPending = true;
+    abandonedRunResult = null;
+    try {
+      const res = await fetch('/api/v1/admin/abandoned-cart/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ force: true })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      abandonedRunResult = m.admin_settings_abandoned_run_result({ count: body.sent ?? 0 });
+    } catch (e) {
+      abandonedRunResult = e instanceof Error ? e.message : 'failed';
+    } finally {
+      abandonedRunPending = false;
+    }
+  }
 
   // ── ShipAny ─────────────────────────────────────────────────────
   let shipanyOn = $state(settingValue('shipany_enabled') === 'true');
@@ -352,7 +381,9 @@
     { key: 'smtp_from_email', label: m.admin_settings_email_from_email(),      placeholder: 'noreply@yourdomain.com' },
     { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'Gyeon' },
     { key: 'public_base_url', label: m.admin_settings_email_public_base_url(), placeholder: 'https://your-storefront.com',
-      hint: m.admin_settings_email_public_base_url_hint() }
+      hint: m.admin_settings_email_public_base_url_hint() },
+    { key: 'admin_alert_email', label: m.admin_settings_email_admin_alert(),    placeholder: 'alerts@yourdomain.com',
+      hint: m.admin_settings_email_admin_alert_hint() }
   ]);
 </script>
 
@@ -641,6 +672,146 @@
                        transition duration-200 {stripeSaveCards ? 'translate-x-5' : 'translate-x-0'}"></span>
         </button>
         <input type="hidden" name="stripe_save_cards" value={stripeSaveCards ? 'true' : 'false'} />
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_low_stock_heading()}</h2>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_low_stock_subtitle()}</p>
+
+      <div class="flex items-center justify-between gap-4 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_low_stock_alerts_heading()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_low_stock_alerts_hint()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (lowStockAlertEnabled = !lowStockAlertEnabled)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {lowStockAlertEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={lowStockAlertEnabled}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {lowStockAlertEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="low_stock_alert_enabled" value={lowStockAlertEnabled ? 'true' : 'false'} />
+      </div>
+
+      <div class="pt-5 flex flex-col gap-1.5">
+        <label for="low_stock_threshold_default" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_low_stock_default_heading()}
+        </label>
+        <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_low_stock_default_hint()}</p>
+        <input id="low_stock_threshold_default" name="low_stock_threshold_default"
+               type="number" min="0" step="1"
+               value={settingValue('low_stock_threshold_default') || '5'}
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_tax_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_tax_subtitle()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (taxEnabled = !taxEnabled)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {taxEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={taxEnabled}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {taxEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="tax_enabled" value={taxEnabled ? 'true' : 'false'} />
+      </div>
+
+      <div class="{taxEnabled ? '' : 'opacity-50 pointer-events-none'} space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="tax_rate" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_tax_rate()}</label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_tax_rate_hint()}</p>
+            <input id="tax_rate" name="tax_rate"
+                   type="number" min="0" max="1" step="0.0001"
+                   value={settingValue('tax_rate') || '0'}
+                   placeholder="0.05"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="tax_label" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_tax_label()}</label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_tax_label_hint()}</p>
+            <input id="tax_label" name="tax_label"
+                   type="text" value={settingValue('tax_label') || 'Sales Tax'}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+        <div class="flex items-center justify-between gap-4 pt-3 border-t border-gray-100">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_tax_inclusive_heading()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_tax_inclusive_hint()}</p>
+          </div>
+          <button type="button"
+                  onclick={() => (taxInclusive = !taxInclusive)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {taxInclusive ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={taxInclusive}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {taxInclusive ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="tax_inclusive" value={taxInclusive ? 'true' : 'false'} />
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_abandoned_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_abandoned_subtitle()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (abandonedEnabled = !abandonedEnabled)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {abandonedEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={abandonedEnabled}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {abandonedEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="abandoned_cart_enabled" value={abandonedEnabled ? 'true' : 'false'} />
+      </div>
+
+      <div class="{abandonedEnabled ? '' : 'opacity-50 pointer-events-none'} space-y-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="abandoned_cart_threshold_hours" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_abandoned_threshold_heading()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_abandoned_threshold_hint()}</p>
+          <input id="abandoned_cart_threshold_hours" name="abandoned_cart_threshold_hours"
+                 type="number" min="1" step="1"
+                 value={settingValue('abandoned_cart_threshold_hours') || '24'}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+
+      <div class="pt-4 mt-4 border-t border-gray-100 flex items-center gap-3">
+        <button type="button" onclick={runAbandonedNow} disabled={abandonedRunPending}
+                class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium
+                       text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60">
+          {abandonedRunPending ? m.admin_settings_abandoned_run_pending() : m.admin_settings_abandoned_run_button()}
+        </button>
+        {#if abandonedRunResult}
+          <span class="text-xs text-gray-500">{abandonedRunResult}</span>
+        {/if}
       </div>
     </div>
 

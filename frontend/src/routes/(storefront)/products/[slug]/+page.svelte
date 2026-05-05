@@ -6,6 +6,12 @@
   import { page } from '$app/state';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
+  import Seo from '$lib/components/Seo.svelte';
+  import { siteOrigin, snippet } from '$lib/seo';
+  import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
+  import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
+  import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
+  import { onMount } from 'svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -22,6 +28,11 @@
   let selectedVariantID = $state<string | undefined>(
     resolveVariantParam(page.url.searchParams.get('variant'))
   );
+
+  onMount(() => {
+    recentlyViewedStore.init();
+    recentlyViewedStore.push(data.product.id);
+  });
   let activeImageID = $state<string | undefined>(undefined);
   let activeTab = $state<'content' | 'howto' | 'surfaces'>('content');
 
@@ -48,6 +59,68 @@
   const selectedVariant = $derived(
     data.variants.find((v) => v.id === selectedVariantID) ?? data.variants[0]
   );
+
+  // SEO derivations (computed once per render)
+  const seoOrigin = $derived(siteOrigin(page.data.publicSettings));
+  const seoCanonical = $derived(`${seoOrigin}/products/${data.product.slug}`);
+  const seoHeroImage = $derived(data.images.find((i) => i.is_primary) ?? data.images[0]);
+  const seoOgImage = $derived(
+    seoHeroImage?.url
+      ? (seoHeroImage.url.startsWith('http') ? seoHeroImage.url : `${seoOrigin}${seoHeroImage.url}`)
+      : undefined
+  );
+  const seoDescription = $derived(
+    snippet(data.product.excerpt || data.product.description || data.product.name)
+  );
+  const seoCheapestVariant = $derived(data.variants.slice().sort((a, b) => a.price - b.price)[0]);
+  const seoJsonLd = $derived([
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: data.product.name,
+      description: seoDescription,
+      url: seoCanonical,
+      ...(seoOgImage ? { image: seoOgImage } : {}),
+      ...(seoCheapestVariant
+        ? {
+            offers: {
+              '@type': 'Offer',
+              price: seoCheapestVariant.price,
+              priceCurrency: 'HKD',
+              availability:
+                seoCheapestVariant.stock_qty > 0
+                  ? 'https://schema.org/InStock'
+                  : 'https://schema.org/OutOfStock',
+              url: seoCanonical
+            }
+          }
+        : {})
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: m.common_home(), item: seoOrigin },
+        { '@type': 'ListItem', position: 2, name: m.common_products(), item: `${seoOrigin}/products` },
+        ...(data.category
+          ? [
+              {
+                '@type': 'ListItem',
+                position: 3,
+                name: data.category.name,
+                item: `${seoOrigin}/products/category/${data.category.slug}`
+              }
+            ]
+          : []),
+        {
+          '@type': 'ListItem',
+          position: data.category ? 4 : 3,
+          name: data.product.name,
+          item: seoCanonical
+        }
+      ]
+    }
+  ]);
 
   function selectVariant(id: string, sku: string) {
     selectedVariantID = id;
@@ -145,9 +218,14 @@
   }
 </script>
 
-<svelte:head>
-  <title>{m.product_detail_title({ name: data.product.name })}</title>
-</svelte:head>
+<Seo
+  title={m.product_detail_title({ name: data.product.name })}
+  description={seoDescription}
+  canonical={seoCanonical}
+  image={seoOgImage}
+  type="product"
+  jsonLd={seoJsonLd}
+/>
 
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
 <div class="bg-white">
@@ -412,6 +490,8 @@
           <p class="text-xs text-gray-400">{m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}</p>
         {/if}
 
+        <WishlistButton productID={data.product.id} variant="full" class="w-full sm:w-auto" />
+
         <!-- Trust strip -->
         <div class="flex flex-wrap gap-5 pt-1 border-t border-gray-100">
           {#each [
@@ -612,3 +692,5 @@
     </div>
   </div>
 {/if}
+
+<RecentlyViewed excludeID={data.product.id} />

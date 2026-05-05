@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/tax"
 )
 
 type OrderStatus string
@@ -38,6 +40,7 @@ type Order struct {
 	Subtotal          float64          `json:"subtotal"`
 	ShippingFee       float64          `json:"shipping_fee"`
 	DiscountAmount    float64          `json:"discount_amount"`
+	TaxAmount         float64          `json:"tax_amount"`
 	Total             float64          `json:"total"`
 	Notes             *string          `json:"notes,omitempty"`
 	CustomerEmail     *string          `json:"customer_email,omitempty"`
@@ -49,6 +52,10 @@ type Order struct {
 	CardBrand         *string          `json:"card_brand,omitempty"`
 	CardLast4         *string          `json:"card_last4,omitempty"`
 	PaidAt            *string          `json:"paid_at,omitempty"`
+	RefundAmount      float64          `json:"refund_amount"`
+	RefundReason      *string          `json:"refund_reason,omitempty"`
+	RefundedAt        *string          `json:"refunded_at,omitempty"`
+	StripeRefundID    *string          `json:"stripe_refund_id,omitempty"`
 	SelectedCarrier   *string          `json:"selected_carrier,omitempty"`
 	SelectedService   *string          `json:"selected_service,omitempty"`
 	PickupPointID     *string          `json:"pickup_point_id,omitempty"`
@@ -168,6 +175,7 @@ type OrderService struct {
 	customerSvc *customers.Service
 	paymentSvc  *payment.Service
 	emailSvc    *email.Service
+	taxSvc      *tax.Service
 	onCreated   func(ctx context.Context, order *Order)
 }
 
@@ -175,6 +183,12 @@ type OrderService struct {
 // (best-effort, non-blocking). Used for SSE broadcasts to admin clients.
 func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 	s.onCreated = fn
+}
+
+// SetTaxService wires an optional tax calculator. When unset, orders skip the
+// tax line entirely.
+func (s *OrderService) SetTaxService(t *tax.Service) {
+	s.taxSvc = t
 }
 
 // orderNumberPrefix reads the configurable prefix from site_settings,
@@ -403,7 +417,23 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	}
 
 	discountAmount := discountResult.TotalDiscount
-	total := subtotal - discountAmount + req.ShippingFee
+	taxableAmount := subtotal - discountAmount
+	if taxableAmount < 0 {
+		taxableAmount = 0
+	}
+
+	var taxAmount float64
+	if s.taxSvc != nil {
+		taxRes := s.taxSvc.Calculate(ctx, taxableAmount)
+		taxAmount = taxRes.TaxAmount
+		// Inclusive pricing: tax is back-calculated from displayed price; total stays put.
+		// Exclusive pricing: tax adds on top of subtotal-discount before shipping.
+		if !taxRes.Inclusive {
+			taxableAmount += taxAmount
+		}
+	}
+
+	total := taxableAmount + req.ShippingFee
 	if total < 0 {
 		total = 0
 	}
@@ -417,6 +447,12 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	// Decrement stock atomically.
 	// For bundle products: decrement each component's stock (not the bundle variant's own stock_qty).
 	// For simple products: decrement the variant stock directly.
+	// Track (variantID, qty) for post-commit low-stock alerts.
+	type stockDec struct {
+		variantID string
+		quantity  int
+	}
+	var stockDecs []stockDec
 	for _, li := range lines {
 		if li.kind == "bundle" {
 			for _, bc := range li.components {
@@ -430,6 +466,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 				if n, _ := res.RowsAffected(); n == 0 {
 					return nil, fmt.Errorf("insufficient stock for bundle component %s", bc.variantID)
 				}
+				stockDecs = append(stockDecs, stockDec{bc.variantID, bc.quantity})
 			}
 		} else {
 			res, err := tx.ExecContext(ctx,
@@ -442,6 +479,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			if n, _ := res.RowsAffected(); n == 0 {
 				return nil, fmt.Errorf("insufficient stock for variant %s", li.variantID)
 			}
+			stockDecs = append(stockDecs, stockDec{li.variantID, li.quantity})
 		}
 	}
 
@@ -458,19 +496,19 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requires_payment_method', $11, $12, $13, $14, $15)
-		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, total, notes,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'requires_payment_method', $12, $13, $14, $15, $16)
+		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, total, req.Notes,
+		customerID, shippingAddressID, subtotal, req.ShippingFee, discountAmount, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
 		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
@@ -545,6 +583,14 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	if len(stockDecs) > 0 {
+		decs := make([]lowStockDec, len(stockDecs))
+		for i, d := range stockDecs {
+			decs[i] = lowStockDec{VariantID: d.variantID, Quantity: d.quantity}
+		}
+		go s.checkLowStockCrossings(context.Background(), decs)
 	}
 
 	if s.onCreated != nil {
@@ -867,6 +913,10 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 		name = *order.CustomerName
 	}
 
+	taxLabel := ""
+	if s.taxSvc != nil {
+		taxLabel = s.taxSvc.Calculate(ctx, 0).Label
+	}
 	err := s.emailSvc.SendOrderConfirmation(ctx, email.OrderEmailParams{
 		OrderID:         order.ID,
 		OrderNumber:     order.OrderNumber,
@@ -876,6 +926,8 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 		Subtotal:        order.Subtotal,
 		ShippingFee:     order.ShippingFee,
 		DiscountAmount:  order.DiscountAmount,
+		TaxAmount:       order.TaxAmount,
+		TaxLabel:        taxLabel,
 		Total:           order.Total,
 		Currency:        "HKD",
 		ShippingLine1:   line1,
@@ -887,6 +939,257 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 	})
 	if err != nil {
 		log.Printf("send order confirmation email for order %s: %v", order.ID, err)
+	}
+}
+
+type lowStockDec struct {
+	VariantID string
+	Quantity  int
+}
+
+// checkLowStockCrossings fires a low-stock alert email when a variant's stock
+// drops to or below its threshold for the first time after a checkout
+// decrement. We use the "just crossed" rule to avoid spamming on every order:
+// fire only when previous_stock > threshold && new_stock <= threshold.
+func (s *OrderService) checkLowStockCrossings(ctx context.Context, decs []lowStockDec) {
+	if s.emailSvc == nil || len(decs) == 0 {
+		return
+	}
+
+	var enabled string
+	s.db.QueryRowContext(ctx, `SELECT value FROM site_settings WHERE key = 'low_stock_alert_enabled'`).Scan(&enabled)
+	if enabled != "true" {
+		return
+	}
+
+	var defaultThresholdStr string
+	s.db.QueryRowContext(ctx, `SELECT value FROM site_settings WHERE key = 'low_stock_threshold_default'`).Scan(&defaultThresholdStr)
+	defaultThreshold, _ := strconv.Atoi(defaultThresholdStr)
+	if defaultThreshold <= 0 {
+		defaultThreshold = 5
+	}
+
+	base := s.emailSvc.PublicBaseURL(ctx)
+
+	for _, d := range decs {
+		var newStock int
+		var threshold sql.NullInt64
+		var productID string
+		var productName string
+		var variantName sql.NullString
+		var sku string
+		err := s.db.QueryRowContext(ctx,
+			`SELECT v.stock_qty, v.low_stock_threshold, v.product_id, p.name, v.name, v.sku
+			 FROM product_variants v JOIN products p ON p.id = v.product_id
+			 WHERE v.id = $1`, d.VariantID).
+			Scan(&newStock, &threshold, &productID, &productName, &variantName, &sku)
+		if err != nil {
+			continue
+		}
+
+		eff := defaultThreshold
+		if threshold.Valid {
+			eff = int(threshold.Int64)
+		}
+		prevStock := newStock + d.Quantity
+		// Only fire when we just crossed the threshold.
+		if prevStock <= eff || newStock > eff {
+			continue
+		}
+
+		vName := ""
+		if variantName.Valid {
+			vName = variantName.String
+		}
+		err = s.emailSvc.SendLowStockAlert(ctx, email.LowStockParams{
+			ProductName:     productName,
+			VariantName:     vName,
+			SKU:             sku,
+			StockQty:        newStock,
+			Threshold:       eff,
+			AdminProductURL: fmt.Sprintf("%s/admin/products/%s", base, productID),
+		})
+		if err != nil {
+			log.Printf("send low-stock alert for variant %s: %v", d.VariantID, err)
+		}
+	}
+}
+
+// RefundRequest is the admin payload for issuing a refund.
+type RefundRequest struct {
+	AmountCents int64  `json:"amount_cents"`
+	Reason      string `json:"reason"`
+}
+
+var ErrRefundExceedsTotal = errors.New("refund amount exceeds remaining refundable total")
+var ErrOrderNotRefundable = errors.New("order is not in a refundable state")
+
+// IssueRefund triggers a Stripe refund and updates the order. Supports partial
+// refunds: each call adds to the existing refund_amount; when the cumulative
+// refund equals the order total, the order moves to status `refunded`.
+func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req RefundRequest) (*Order, error) {
+	if s.paymentSvc == nil {
+		return nil, fmt.Errorf("payment service unavailable")
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
+		return nil, fmt.Errorf("order has no payment intent")
+	}
+	switch order.Status {
+	case StatusPaid, StatusProcessing, StatusShipped, StatusDelivered:
+		// refundable
+	default:
+		return nil, ErrOrderNotRefundable
+	}
+
+	totalCents := int64(order.Total*100 + 0.5)
+	alreadyRefunded := int64(order.RefundAmount*100 + 0.5)
+	remaining := totalCents - alreadyRefunded
+	if remaining <= 0 {
+		return nil, ErrRefundExceedsTotal
+	}
+
+	amount := req.AmountCents
+	if amount <= 0 || amount > remaining {
+		amount = remaining // default to full remaining refund
+	}
+	if amount > remaining {
+		return nil, ErrRefundExceedsTotal
+	}
+
+	refundID, err := s.paymentSvc.CreateRefund(ctx, *order.PaymentIntentID, amount, req.Reason)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	newRefundTotal := alreadyRefunded + amount
+	newStatus := order.Status
+	if newRefundTotal >= totalCents {
+		newStatus = StatusRefunded
+	}
+
+	var reasonPtr *string
+	if req.Reason != "" {
+		reasonPtr = &req.Reason
+	}
+
+	_, err = tx.ExecContext(ctx,
+		`UPDATE orders
+		 SET refund_amount    = $2,
+		     refund_reason    = COALESCE($3, refund_reason),
+		     refunded_at      = NOW(),
+		     stripe_refund_id = $4,
+		     status           = $5
+		 WHERE id = $1`,
+		orderID, float64(newRefundTotal)/100.0, reasonPtr, refundID, newStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	noteText := fmt.Sprintf("Refund issued: %.2f", float64(amount)/100.0)
+	if req.Reason != "" {
+		noteText += " — " + req.Reason
+	}
+	_, _ = tx.ExecContext(ctx,
+		`INSERT INTO order_status_history (order_id, status, note) VALUES ($1, $2, $3)`,
+		orderID, newStatus, noteText)
+	statusForNotice := newStatus
+	_ = CreateSystemNoticeTx(ctx, tx, orderID, &statusForNotice, noteText)
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	go s.sendRefundEmail(context.Background(), orderID, float64(amount)/100.0, req.Reason, newStatus == StatusRefunded)
+
+	return s.GetByID(ctx, orderID)
+}
+
+func (s *OrderService) sendRefundEmail(ctx context.Context, orderID string, refundAmount float64, reason string, isFull bool) {
+	if s.emailSvc == nil {
+		return
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		log.Printf("send refund email: load order %s: %v", orderID, err)
+		return
+	}
+	if order.CustomerEmail == nil || *order.CustomerEmail == "" {
+		return
+	}
+	name := ""
+	if order.CustomerName != nil {
+		name = *order.CustomerName
+	}
+	base := s.emailSvc.PublicBaseURL(ctx)
+
+	if err := s.emailSvc.SendOrderRefunded(ctx, email.RefundEmailParams{
+		OrderID:       order.ID,
+		OrderNumber:   order.OrderNumber,
+		CustomerName:  name,
+		CustomerEmail: *order.CustomerEmail,
+		Currency:      "HKD",
+		RefundAmount:  refundAmount,
+		OrderTotal:    order.Total,
+		Reason:        reason,
+		IsFullRefund:  isFull,
+		OrderURL:      fmt.Sprintf("%s/account/orders/%s", base, order.ID),
+	}); err != nil {
+		log.Printf("send refund email for order %s: %v", order.ID, err)
+	}
+}
+
+// sendShippedEmail looks up the latest shipment for the order (if any) and
+// sends the customer a "your order has shipped" notification. Best-effort —
+// callers don't fail on email errors.
+func (s *OrderService) sendShippedEmail(ctx context.Context, orderID string) {
+	if s.emailSvc == nil {
+		return
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		log.Printf("send shipped email: load order %s: %v", orderID, err)
+		return
+	}
+	if order.CustomerEmail == nil || *order.CustomerEmail == "" {
+		return
+	}
+
+	var carrier, service, trackingNumber, trackingURL string
+	s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(carrier,''), COALESCE(service,''), COALESCE(tracking_number,''), COALESCE(tracking_url,'')
+		 FROM shipments WHERE order_id = $1
+		 ORDER BY created_at DESC LIMIT 1`, orderID).
+		Scan(&carrier, &service, &trackingNumber, &trackingURL)
+
+	name := ""
+	if order.CustomerName != nil {
+		name = *order.CustomerName
+	}
+	base := s.emailSvc.PublicBaseURL(ctx)
+	orderURL := fmt.Sprintf("%s/account/orders/%s", base, order.ID)
+
+	if err := s.emailSvc.SendOrderShipped(ctx, email.ShippedEmailParams{
+		OrderID:        order.ID,
+		OrderNumber:    order.OrderNumber,
+		CustomerName:   name,
+		CustomerEmail:  *order.CustomerEmail,
+		Carrier:        carrier,
+		Service:        service,
+		TrackingNumber: trackingNumber,
+		TrackingURL:    trackingURL,
+		OrderURL:       orderURL,
+	}); err != nil {
+		log.Printf("send shipped email for order %s: %v", order.ID, err)
 	}
 }
 
@@ -906,18 +1209,20 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		        subtotal, shipping_fee, discount_amount, total, notes,
+		        subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        card_brand, card_last4,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
+		        refund_amount, refund_reason, refunded_at, stripe_refund_id,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.CardBrand, &order.CardLast4,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
+			&order.RefundAmount, &order.RefundReason, &order.RefundedAt, &order.StripeRefundID,
 			&order.CreatedAt, &order.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrOrderNotFound
@@ -968,7 +1273,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 
 func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, total,
+		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, tax_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
 		 FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
@@ -981,7 +1286,7 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 	for rows.Next() {
 		var o Order
 		rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status, &o.Subtotal,
-			&o.ShippingFee, &o.DiscountAmount, &o.Total,
+			&o.ShippingFee, &o.DiscountAmount, &o.TaxAmount, &o.Total,
 			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName,
 			&o.PaymentIntentID, &o.PaymentStatus,
 			&o.CreatedAt, &o.UpdatedAt)
@@ -1042,13 +1347,13 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	err = tx.QueryRowContext(ctx,
 		`UPDATE orders SET status = $2 WHERE id = $1
 		 RETURNING id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		           subtotal, shipping_fee, discount_amount, total, notes,
+		           subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		id, req.Status).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
@@ -1074,5 +1379,10 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+
+	if req.Status == StatusShipped {
+		go s.sendShippedEmail(context.Background(), id)
+	}
+
 	return &order, nil
 }

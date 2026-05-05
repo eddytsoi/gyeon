@@ -136,6 +136,12 @@ export const adminUpdateOrderStatus = (token: string, id: string, status: string
 export const adminDeleteOrder = (token: string, id: string) =>
   request(`/admin/orders/${id}`, token, { method: 'DELETE' });
 
+export const adminIssueRefund = (token: string, id: string, amountCents: number, reason: string) =>
+  request<Order>(`/admin/orders/${id}/refund`, token, {
+    method: 'POST',
+    body: JSON.stringify({ amount_cents: amountCents, reason })
+  });
+
 // Order notices (admin)
 export const adminListOrderNotices = (token: string, orderID: string) =>
   request<OrderNotice[]>(`/admin/order-notices/${orderID}`, token);
@@ -353,6 +359,110 @@ export const adminSendResetPasswordEmail = async (token: string, customerID: str
   }
   throw new Error(msg);
 };
+
+// ── Discounts (Campaigns + Coupons) ──────────────────────────────────────────
+
+export type DiscountType = 'percentage' | 'fixed';
+export type CampaignTargetType = 'all' | 'category' | 'product';
+
+export interface Campaign {
+  id: string;
+  name: string;
+  description?: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  target_type: CampaignTargetType;
+  target_id?: string;
+  min_order_amount?: number;
+  starts_at?: string;
+  ends_at?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  description?: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  min_order_amount?: number;
+  max_uses?: number;
+  used_count: number;
+  starts_at?: string;
+  ends_at?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignInput {
+  name: string;
+  description?: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  target_type: CampaignTargetType;
+  target_id?: string | null;
+  min_order_amount?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  is_active?: boolean;
+}
+
+export interface CouponInput {
+  code: string;
+  description?: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  min_order_amount?: number | null;
+  max_uses?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  is_active?: boolean;
+}
+
+export const adminListCampaigns = (token: string) =>
+  request<Campaign[]>('/admin/pricing/campaigns/', token);
+
+export const adminGetCampaign = (token: string, id: string) =>
+  request<Campaign>(`/admin/pricing/campaigns/${id}`, token);
+
+export const adminCreateCampaign = (token: string, body: CampaignInput) =>
+  request<Campaign>('/admin/pricing/campaigns/', token, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+
+export const adminUpdateCampaign = (token: string, id: string, body: CampaignInput) =>
+  request<Campaign>(`/admin/pricing/campaigns/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  });
+
+export const adminDeleteCampaign = (token: string, id: string) =>
+  request<void>(`/admin/pricing/campaigns/${id}`, token, { method: 'DELETE' });
+
+export const adminListCoupons = (token: string) =>
+  request<Coupon[]>('/admin/pricing/coupons/', token);
+
+export const adminGetCoupon = (token: string, id: string) =>
+  request<Coupon>(`/admin/pricing/coupons/${id}`, token);
+
+export const adminCreateCoupon = (token: string, body: CouponInput) =>
+  request<Coupon>('/admin/pricing/coupons/', token, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+
+export const adminUpdateCoupon = (token: string, id: string, body: CouponInput) =>
+  request<Coupon>(`/admin/pricing/coupons/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  });
+
+export const adminDeleteCoupon = (token: string, id: string) =>
+  request<void>(`/admin/pricing/coupons/${id}`, token, { method: 'DELETE' });
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 

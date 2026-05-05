@@ -17,20 +17,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const getCategories = () => request<Category[]>('/categories');
 export const getCategoryBySlug = (slug: string) => request<Category>(`/categories/by-slug/${slug}`);
 
-export const getProducts = (limit = 20, offset = 0, search = '') => {
-  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  if (search) qs.set('q', search);
-  return request<Product[]>(`/products?${qs.toString()}`);
-};
-export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') => {
+export interface ProductListFilters {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: 'new' | 'price_asc' | 'price_desc' | 'name';
+}
+
+const buildProductQuery = (filters: ProductListFilters): URLSearchParams => {
   const qs = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
-    category: categorySlug
+    limit: String(filters.limit ?? 20),
+    offset: String(filters.offset ?? 0)
   });
-  if (search) qs.set('q', search);
-  return request<Product[]>(`/products?${qs.toString()}`);
+  if (filters.search) qs.set('q', filters.search);
+  if (filters.category) qs.set('category', filters.category);
+  if (filters.minPrice != null) qs.set('min_price', String(filters.minPrice));
+  if (filters.maxPrice != null) qs.set('max_price', String(filters.maxPrice));
+  if (filters.sort) qs.set('sort', filters.sort);
+  return qs;
 };
+
+export const getProducts = (limit = 20, offset = 0, search = '') =>
+  request<Product[]>(`/products?${buildProductQuery({ limit, offset, search }).toString()}`);
+
+export const getProductsFiltered = (filters: ProductListFilters) =>
+  request<Product[]>(`/products?${buildProductQuery(filters).toString()}`);
+
+export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') =>
+  request<Product[]>(`/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`);
 export const getProductByID = (id: string) => request<Product>(`/products/${id}`);
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
 export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);

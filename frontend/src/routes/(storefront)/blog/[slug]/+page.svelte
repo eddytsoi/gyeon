@@ -1,9 +1,25 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { page } from '$app/state';
   import * as m from '$lib/paraglide/messages';
+  import Seo from '$lib/components/Seo.svelte';
+  import { siteOrigin, snippet } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
   const { post } = data;
+  const blogOrigin = $derived(siteOrigin(page.data.publicSettings));
+  const blogCanonical = $derived(`${blogOrigin}/blog/${post.slug}`);
+  const blogDescription = $derived(snippet(post.excerpt || post.content));
+  const blogJsonLd = $derived({
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: blogDescription,
+    datePublished: post.published_at ?? post.created_at,
+    dateModified: post.updated_at,
+    url: blogCanonical,
+    ...(post.cover_image_url ? { image: post.cover_image_url } : {})
+  });
 
   // Simple Markdown renderer (no external deps)
   function renderMarkdown(md: string): string {
@@ -35,11 +51,14 @@
   }
 </script>
 
-<svelte:head>
-  <title>{m.blog_post_title({ title: post.title })}</title>
-  {#if post.excerpt}<meta name="description" content={post.excerpt} />{/if}
-  {#if post.cover_image_url}<meta property="og:image" content={post.cover_image_url} />{/if}
-</svelte:head>
+<Seo
+  title={m.blog_post_title({ title: post.title })}
+  description={blogDescription}
+  canonical={blogCanonical}
+  image={post.cover_image_url}
+  type="article"
+  jsonLd={blogJsonLd}
+/>
 
 <article class="max-w-3xl mx-auto px-4 py-12 sm:py-16">
   <!-- Breadcrumbs -->

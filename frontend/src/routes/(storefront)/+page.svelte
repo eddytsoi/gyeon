@@ -1,14 +1,33 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { page } from '$app/state';
   import ProductCard from '$lib/components/shop/ProductCard.svelte';
   import * as m from '$lib/paraglide/messages';
+  import Seo from '$lib/components/Seo.svelte';
+  import { siteOrigin } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
+
+  const homeOrigin = $derived(siteOrigin(page.data.publicSettings));
+  const homeJsonLd = $derived({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Gyeon',
+    url: homeOrigin,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${homeOrigin}/products?q={search_term_string}`,
+      'query-input': 'required name=search_term_string'
+    }
+  });
 </script>
 
-<svelte:head>
-  <title>{m.home_title()}</title>
-</svelte:head>
+<Seo
+  title={m.home_title()}
+  description={m.home_meta_description()}
+  canonical={homeOrigin}
+  jsonLd={homeJsonLd}
+/>
 
 <!-- Hero -->
 <section class="bg-gray-900 text-white">

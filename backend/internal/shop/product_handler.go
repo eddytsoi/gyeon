@@ -62,23 +62,33 @@ func (h *ProductHandler) Routes() chi.Router {
 }
 
 func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 
-	lang := r.URL.Query().Get("lang")
-	search := r.URL.Query().Get("q")
-	category := r.URL.Query().Get("category")
-
-	var products []ProductWithMeta
-	var err error
-	if category != "" {
-		products, err = h.svc.ListEnrichedByCategorySlug(r.Context(), lang, category, search, limit, offset)
-	} else {
-		products, err = h.svc.ListEnriched(r.Context(), lang, search, limit, offset)
+	filters := ListFilters{
+		Locale:       q.Get("lang"),
+		Search:       q.Get("q"),
+		CategorySlug: q.Get("category"),
+		Sort:         q.Get("sort"),
+		Limit:        limit,
+		Offset:       offset,
 	}
+	if v := q.Get("min_price"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+			filters.MinPrice = &f
+		}
+	}
+	if v := q.Get("max_price"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+			filters.MaxPrice = &f
+		}
+	}
+
+	products, err := h.svc.ListEnrichedFiltered(r.Context(), filters)
 	if err != nil {
 		respond.InternalError(w)
 		return

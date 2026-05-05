@@ -47,6 +47,7 @@ export interface Variant {
   price: number;
   compare_at_price?: number;
   stock_qty: number;
+  low_stock_threshold?: number;
   weight_grams?: number;
   length_mm?: number;
   width_mm?: number;
@@ -126,6 +127,7 @@ export interface Order {
   subtotal: number;
   shipping_fee: number;
   discount_amount: number;
+  tax_amount?: number;
   total: number;
   notes?: string;
   customer_email?: string;
@@ -137,6 +139,10 @@ export interface Order {
   card_brand?: string;
   card_last4?: string;
   paid_at?: string;
+  refund_amount?: number;
+  refund_reason?: string;
+  refunded_at?: string;
+  stripe_refund_id?: string;
   selected_carrier?: string;
   selected_service?: string;
   pickup_point_id?: string;

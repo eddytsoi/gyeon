@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -56,6 +56,24 @@ export const actions: Actions = {
       await adminCreateShipment(token, id, override);
     } catch (e: unknown) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed to create shipment' });
+    }
+    return { success: true };
+  },
+
+  refund: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const amount = parseFloat(form.get('amount')?.toString() ?? '0');
+    const reason = form.get('reason')?.toString() ?? '';
+    const amountCents = Math.round(amount * 100);
+
+    try {
+      await adminIssueRefund(token, id, amountCents, reason);
+    } catch (e: unknown) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed to issue refund' });
     }
     return { success: true };
   },

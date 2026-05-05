@@ -2,6 +2,7 @@
   import type { Product, ProductImage, Variant } from '$lib/types';
   import { isVideo, isStreamingVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
+  import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
 
   let { product, image, variant }: {
     product: Product;
@@ -21,8 +22,13 @@
 </script>
 
 <a href="/products/{product.slug}"
-   class="group flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-100
+   class="group relative flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-100
           hover:shadow-md transition-shadow duration-200">
+
+  <!-- Wishlist heart (overlay) -->
+  <div class="absolute top-2 right-2 z-10">
+    <WishlistButton productID={product.id} variant="icon" />
+  </div>
 
   <!-- Image -->
   <div class="aspect-square bg-gray-50 overflow-hidden">

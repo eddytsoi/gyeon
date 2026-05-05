@@ -1149,6 +1149,13 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
           <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_low_stock_threshold()}</label>
+            <input name="low_stock_threshold" type="number" min="0" step="1"
+                   placeholder={m.admin_product_edit_add_variant_low_stock_threshold_placeholder()}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_weight()}</label>
             <input name="weight_grams" type="number" min="0" step="1"
                    placeholder={m.admin_product_edit_add_variant_weight_placeholder()}
@@ -1304,6 +1311,14 @@
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_stock()}</label>
             <input name="stock_qty" type="number" min="0" value={editingVariant.stock_qty}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_low_stock_threshold()}</label>
+            <input name="low_stock_threshold" type="number" min="0" step="1"
+                   value={editingVariant.low_stock_threshold ?? ''}
+                   placeholder={m.admin_product_edit_add_variant_low_stock_threshold_placeholder()}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>

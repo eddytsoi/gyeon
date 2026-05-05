@@ -82,6 +82,8 @@ type OrderEmailParams struct {
 	Subtotal        float64
 	ShippingFee     float64
 	DiscountAmount  float64
+	TaxAmount       float64
+	TaxLabel        string
 	Total           float64
 	Currency        string
 	ShippingLine1   string
@@ -116,6 +118,56 @@ type AdminMessageParams struct {
 	OrderNumber  string
 	OrderURL     string // links the customer back to /account/orders/{id}
 	Body         string
+}
+
+type ShippedEmailParams struct {
+	OrderID        string
+	OrderNumber    string
+	CustomerName   string
+	CustomerEmail  string
+	Carrier        string
+	Service        string
+	TrackingNumber string
+	TrackingURL    string
+	OrderURL       string
+}
+
+type RefundEmailParams struct {
+	OrderID       string
+	OrderNumber   string
+	CustomerName  string
+	CustomerEmail string
+	Currency      string
+	RefundAmount  float64
+	OrderTotal    float64
+	Reason        string
+	IsFullRefund  bool
+	OrderURL      string
+}
+
+type AbandonedCartItem struct {
+	Name      string
+	Quantity  int
+	UnitPrice float64
+}
+
+type AbandonedCartParams struct {
+	CustomerName  string
+	CustomerEmail string
+	Items         []AbandonedCartItem
+	Subtotal      float64
+	Currency      string
+	ResumeURL     string
+}
+
+type LowStockParams struct {
+	To              string
+	ProductName     string
+	VariantName     string
+	SKU             string
+	StockQty        int
+	Threshold       int
+	AdminProductURL string
 }
 
 // SendTest sends a plain test email to verify SMTP configuration.
@@ -209,6 +261,74 @@ func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams)
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
+// SendOrderShipped notifies the customer that their order has shipped, with
+// optional carrier / tracking info.
+func (s *Service) SendOrderShipped(ctx context.Context, p ShippedEmailParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	subject := fmt.Sprintf("您的訂單已寄出 — %s", orderRef(p.OrderNumber, p.OrderID))
+	html := renderShippedHTML(p)
+	text := renderShippedText(p)
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+// SendOrderRefunded notifies the customer that their order has been (partially
+// or fully) refunded.
+func (s *Service) SendOrderRefunded(ctx context.Context, p RefundEmailParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+	subject := fmt.Sprintf("退款通知 — %s", orderRef(p.OrderNumber, p.OrderID))
+	html := renderRefundHTML(p)
+	text := renderRefundText(p)
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+// SendAbandonedCart reminds a logged-in customer about a cart they left
+// without checking out. Best-effort — errors are logged by the caller.
+func (s *Service) SendAbandonedCart(ctx context.Context, p AbandonedCartParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+	subject := "您的購物車還在等您 — Gyeon"
+	html := renderAbandonedCartHTML(p)
+	text := renderAbandonedCartText(p)
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+// SendLowStockAlert notifies the configured admin alert email address that a
+// variant has crossed its low-stock threshold.
+func (s *Service) SendLowStockAlert(ctx context.Context, p LowStockParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	to := p.To
+	if to == "" {
+		to = s.read(ctx, "admin_alert_email")
+	}
+	if to == "" {
+		to = cfg.FromEmail
+	}
+	if to == "" {
+		return ErrNotConfigured
+	}
+	subject := fmt.Sprintf("低庫存警示 — %s", p.ProductName)
+	html := renderLowStockHTML(p)
+	text := renderLowStockText(p)
+	return s.send(cfg, to, subject, text, html)
+}
+
 func (s *Service) send(cfg Config, to, subject, text, html string) error {
 	from := mime.QEncoding.Encode("utf-8", cfg.FromName) + " <" + cfg.FromEmail + ">"
 	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
@@ -265,6 +385,13 @@ func renderOrderText(p OrderEmailParams) string {
 	fmt.Fprintf(&b, "小計：     %s %.2f\n", p.Currency, p.Subtotal)
 	if p.DiscountAmount > 0 {
 		fmt.Fprintf(&b, "折扣：    -%s %.2f\n", p.Currency, p.DiscountAmount)
+	}
+	if p.TaxAmount > 0 {
+		label := p.TaxLabel
+		if label == "" {
+			label = "稅金"
+		}
+		fmt.Fprintf(&b, "%s：     %s %.2f\n", label, p.Currency, p.TaxAmount)
 	}
 	fmt.Fprintf(&b, "運費：     %s %.2f\n", p.Currency, p.ShippingFee)
 	fmt.Fprintf(&b, "總額：     %s %.2f\n\n", p.Currency, p.Total)
@@ -328,6 +455,16 @@ func renderOrderHTML(p OrderEmailParams) string {
 			`<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-%s %.2f</td></tr>`,
 			p.Currency, p.DiscountAmount)
 	}
+	taxRow := ""
+	if p.TaxAmount > 0 {
+		label := p.TaxLabel
+		if label == "" {
+			label = "稅金"
+		}
+		taxRow = fmt.Sprintf(
+			`<tr><td style="padding:4px 0;color:#6b7280">%s</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>`,
+			htmlEscape(label), p.Currency, p.TaxAmount)
+	}
 
 	return fmt.Sprintf(`<!doctype html>
 <html lang="zh-HK"><head><meta charset="utf-8"><title>訂單確認</title></head>
@@ -343,6 +480,7 @@ func renderOrderHTML(p OrderEmailParams) string {
       <table style="width:100%%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>
         %s
+        %s
         <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>
         <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">%s %.2f</td></tr>
       </table>
@@ -357,6 +495,7 @@ func renderOrderHTML(p OrderEmailParams) string {
 		rows.String(),
 		p.Currency, p.Subtotal,
 		discountRow,
+		taxRow,
 		p.Currency, p.ShippingFee,
 		p.Currency, p.Total,
 		address.String(),
@@ -507,6 +646,294 @@ func renderAdminMessageHTML(p AdminMessageParams) string {
   </div>
 </body></html>`,
 		greeting, htmlEscape(orderRef(p.OrderNumber, "")), bodyHTML, cta)
+}
+
+func renderShippedText(p ShippedEmailParams) string {
+	var b strings.Builder
+	if p.CustomerName != "" {
+		fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	} else {
+		b.WriteString("您好，\n\n")
+	}
+	fmt.Fprintf(&b, "您的訂單 %s 已經寄出！\n\n", orderRef(p.OrderNumber, p.OrderID))
+	if p.Carrier != "" || p.TrackingNumber != "" {
+		b.WriteString("──────── 物流資訊 ────────\n")
+		if p.Carrier != "" {
+			fmt.Fprintf(&b, "物流公司：%s", p.Carrier)
+			if p.Service != "" {
+				fmt.Fprintf(&b, "（%s）", p.Service)
+			}
+			b.WriteString("\n")
+		}
+		if p.TrackingNumber != "" {
+			fmt.Fprintf(&b, "追蹤編號：%s\n", p.TrackingNumber)
+		}
+		if p.TrackingURL != "" {
+			fmt.Fprintf(&b, "追蹤連結：%s\n", p.TrackingURL)
+		}
+		b.WriteString("\n")
+	}
+	if p.OrderURL != "" {
+		fmt.Fprintf(&b, "查看訂單詳情：\n%s\n\n", p.OrderURL)
+	}
+	b.WriteString("如有任何疑問，歡迎回覆此電郵。\n\n— Gyeon")
+	return b.String()
+}
+
+func renderShippedHTML(p ShippedEmailParams) string {
+	greeting := "您好，"
+	if p.CustomerName != "" {
+		greeting = "您好 " + htmlEscape(p.CustomerName) + "，"
+	}
+
+	var tracking strings.Builder
+	if p.Carrier != "" || p.TrackingNumber != "" {
+		tracking.WriteString(`<h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">物流資訊</h3>`)
+		tracking.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:14px">`)
+		if p.Carrier != "" {
+			carrier := htmlEscape(p.Carrier)
+			if p.Service != "" {
+				carrier += `<span style="color:#9ca3af"> · ` + htmlEscape(p.Service) + `</span>`
+			}
+			fmt.Fprintf(&tracking, `<tr><td style="padding:4px 0;color:#6b7280">物流公司</td><td style="padding:4px 0;text-align:right">%s</td></tr>`, carrier)
+		}
+		if p.TrackingNumber != "" {
+			fmt.Fprintf(&tracking, `<tr><td style="padding:4px 0;color:#6b7280">追蹤編號</td><td style="padding:4px 0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">%s</td></tr>`, htmlEscape(p.TrackingNumber))
+		}
+		tracking.WriteString(`</table>`)
+	}
+
+	cta := ""
+	if p.TrackingURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">追蹤包裹</a>
+      </div>`, p.TrackingURL)
+	} else if p.OrderURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">查看訂單</a>
+      </div>`, p.OrderURL)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>已寄出</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">您的訂單已寄出</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">%s 您的訂單 <strong style="color:#111827">%s</strong> 已交付物流公司寄出。</p>
+      %s
+      %s
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`,
+		greeting, htmlEscape(orderRef(p.OrderNumber, p.OrderID)),
+		tracking.String(), cta)
+}
+
+func renderRefundText(p RefundEmailParams) string {
+	var b strings.Builder
+	if p.CustomerName != "" {
+		fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	} else {
+		b.WriteString("您好，\n\n")
+	}
+	if p.IsFullRefund {
+		fmt.Fprintf(&b, "您的訂單 %s 已全額退款。\n\n", orderRef(p.OrderNumber, p.OrderID))
+	} else {
+		fmt.Fprintf(&b, "您的訂單 %s 已部分退款。\n\n", orderRef(p.OrderNumber, p.OrderID))
+	}
+	b.WriteString("──────── 退款明細 ────────\n")
+	fmt.Fprintf(&b, "退款金額：%s %.2f\n", p.Currency, p.RefundAmount)
+	if !p.IsFullRefund {
+		fmt.Fprintf(&b, "訂單總額：%s %.2f\n", p.Currency, p.OrderTotal)
+	}
+	if p.Reason != "" {
+		fmt.Fprintf(&b, "原因：%s\n", p.Reason)
+	}
+	b.WriteString("\n款項將於 5–10 個工作天內退回您原本的付款方式。\n\n")
+	if p.OrderURL != "" {
+		fmt.Fprintf(&b, "查看訂單詳情：\n%s\n\n", p.OrderURL)
+	}
+	b.WriteString("如有任何疑問，歡迎回覆此電郵。\n\n— Gyeon")
+	return b.String()
+}
+
+func renderRefundHTML(p RefundEmailParams) string {
+	greeting := "您好，"
+	if p.CustomerName != "" {
+		greeting = "您好 " + htmlEscape(p.CustomerName) + "，"
+	}
+	heading := "退款已處理"
+	intro := "您的訂單 <strong style=\"color:#111827\">" + htmlEscape(orderRef(p.OrderNumber, p.OrderID)) + "</strong> 已部分退款。"
+	if p.IsFullRefund {
+		intro = "您的訂單 <strong style=\"color:#111827\">" + htmlEscape(orderRef(p.OrderNumber, p.OrderID)) + "</strong> 已全額退款。"
+	}
+
+	reasonRow := ""
+	if p.Reason != "" {
+		reasonRow = fmt.Sprintf(`<tr><td style="padding:4px 0;color:#6b7280">原因</td><td style="padding:4px 0;text-align:right">%s</td></tr>`, htmlEscape(p.Reason))
+	}
+
+	totalRow := ""
+	if !p.IsFullRefund {
+		totalRow = fmt.Sprintf(`<tr><td style="padding:4px 0;color:#6b7280">訂單總額</td><td style="padding:4px 0;text-align:right">%s %.2f</td></tr>`, p.Currency, p.OrderTotal)
+	}
+
+	cta := ""
+	if p.OrderURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">查看訂單</a>
+      </div>`, p.OrderURL)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>退款通知</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">%s</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">%s %s</p>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">退款明細</h3>
+      <table style="width:100%%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:4px 0;color:#6b7280">退款金額</td><td style="padding:4px 0;text-align:right;font-weight:600;color:#059669">%s %.2f</td></tr>
+        %s
+        %s
+      </table>
+
+      <p style="margin:24px 0 0;color:#6b7280;font-size:13px;line-height:1.6">款項將於 5–10 個工作天內退回您原本的付款方式。</p>
+
+      %s
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`,
+		heading, greeting, intro,
+		p.Currency, p.RefundAmount,
+		totalRow, reasonRow, cta)
+}
+
+func renderAbandonedCartText(p AbandonedCartParams) string {
+	var b strings.Builder
+	if p.CustomerName != "" {
+		fmt.Fprintf(&b, "您好 %s，\n\n", p.CustomerName)
+	} else {
+		b.WriteString("您好，\n\n")
+	}
+	b.WriteString("您之前選購的商品仍在購物車中。為您保留如下：\n\n")
+	for _, it := range p.Items {
+		fmt.Fprintf(&b, "%s × %d   %s %.2f\n", it.Name, it.Quantity, p.Currency, it.UnitPrice*float64(it.Quantity))
+	}
+	fmt.Fprintf(&b, "\n小計：%s %.2f\n\n", p.Currency, p.Subtotal)
+	if p.ResumeURL != "" {
+		fmt.Fprintf(&b, "點此繼續結帳：\n%s\n\n", p.ResumeURL)
+	}
+	b.WriteString("如已下單可忽略此電郵。\n\n— Gyeon")
+	return b.String()
+}
+
+func renderAbandonedCartHTML(p AbandonedCartParams) string {
+	greeting := "您好，"
+	if p.CustomerName != "" {
+		greeting = "您好 " + htmlEscape(p.CustomerName) + "，"
+	}
+	var rows strings.Builder
+	for _, it := range p.Items {
+		fmt.Fprintf(&rows,
+			`<tr><td style="padding:8px 0;">%s <span style="color:#9ca3af">× %d</span></td>`+
+				`<td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">%s %.2f</td></tr>`,
+			htmlEscape(it.Name), it.Quantity, p.Currency, it.UnitPrice*float64(it.Quantity))
+	}
+	cta := ""
+	if p.ResumeURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:14px 32px;background:#111827;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:600">繼續結帳</a>
+      </div>`, p.ResumeURL)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>購物車提醒</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">您的購物車還在等您</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">%s 我們為您保留了以下商品。</p>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">購物車內容</h3>
+      <table style="width:100%%;border-collapse:collapse;font-size:14px">%s</table>
+
+      <table style="width:100%%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <tr><td style="padding:8px 0 0;font-weight:600">小計</td><td style="padding:8px 0 0;text-align:right;font-weight:600">%s %.2f</td></tr>
+      </table>
+
+      %s
+
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px">如已下單可忽略此電郵。</p>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon</p>
+  </div>
+</body></html>`,
+		greeting, rows.String(), p.Currency, p.Subtotal, cta)
+}
+
+func renderLowStockText(p LowStockParams) string {
+	var b strings.Builder
+	b.WriteString("低庫存警示\n\n")
+	fmt.Fprintf(&b, "商品：%s", p.ProductName)
+	if p.VariantName != "" {
+		fmt.Fprintf(&b, "（%s）", p.VariantName)
+	}
+	b.WriteString("\n")
+	if p.SKU != "" {
+		fmt.Fprintf(&b, "SKU：%s\n", p.SKU)
+	}
+	fmt.Fprintf(&b, "目前庫存：%d\n", p.StockQty)
+	fmt.Fprintf(&b, "閾值：%d\n\n", p.Threshold)
+	if p.AdminProductURL != "" {
+		fmt.Fprintf(&b, "前往補貨：\n%s\n\n", p.AdminProductURL)
+	}
+	b.WriteString("— Gyeon")
+	return b.String()
+}
+
+func renderLowStockHTML(p LowStockParams) string {
+	productLine := htmlEscape(p.ProductName)
+	if p.VariantName != "" {
+		productLine += `<span style="color:#9ca3af"> · ` + htmlEscape(p.VariantName) + `</span>`
+	}
+	skuRow := ""
+	if p.SKU != "" {
+		skuRow = fmt.Sprintf(`<tr><td style="padding:4px 0;color:#6b7280">SKU</td><td style="padding:4px 0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">%s</td></tr>`, htmlEscape(p.SKU))
+	}
+	cta := ""
+	if p.AdminProductURL != "" {
+		cta = fmt.Sprintf(`<div style="text-align:center;margin:24px 0 8px">
+        <a href="%s" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600">前往補貨</a>
+      </div>`, p.AdminProductURL)
+	}
+
+	return fmt.Sprintf(`<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>低庫存警示</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">低庫存警示</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">以下商品的庫存已跌至閾值或以下。</p>
+
+      <table style="width:100%%;border-collapse:collapse;font-size:14px">
+        <tr><td style="padding:4px 0;color:#6b7280">商品</td><td style="padding:4px 0;text-align:right">%s</td></tr>
+        %s
+        <tr><td style="padding:4px 0;color:#6b7280">目前庫存</td><td style="padding:4px 0;text-align:right;font-weight:600;color:#dc2626">%d</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280">閾值</td><td style="padding:4px 0;text-align:right">%d</td></tr>
+      </table>
+
+      %s
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon Admin Alert</p>
+  </div>
+</body></html>`,
+		productLine, skuRow, p.StockQty, p.Threshold, cta)
 }
 
 func htmlEscape(s string) string {

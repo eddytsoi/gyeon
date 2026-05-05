@@ -113,6 +113,35 @@ func (s *Service) CreatePaymentIntent(ctx context.Context, p CreateIntentParams)
 	return &Intent{ID: pi.ID, ClientSecret: pi.ClientSecret}, nil
 }
 
+// CreateRefund issues a Stripe refund against an existing PaymentIntent.
+// Returns the Stripe refund ID for audit purposes. Pass amountCents=0 for a
+// full refund of the remaining captured amount.
+func (s *Service) CreateRefund(ctx context.Context, paymentIntentID string, amountCents int64, reason string) (string, error) {
+	sk := s.SecretKey(ctx)
+	if sk == "" {
+		return "", ErrNotConfigured
+	}
+	if paymentIntentID == "" {
+		return "", fmt.Errorf("payment_intent_id is required")
+	}
+	sc := stripe.NewClient(sk)
+
+	params := &stripe.RefundCreateParams{
+		PaymentIntent: stripe.String(paymentIntentID),
+	}
+	if amountCents > 0 {
+		params.Amount = stripe.Int64(amountCents)
+	}
+	if reason != "" {
+		params.Metadata = map[string]string{"reason": reason}
+	}
+	rf, err := sc.V1Refunds.Create(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("stripe create refund: %w", err)
+	}
+	return rf.ID, nil
+}
+
 // CreateSetupIntent creates a Stripe SetupIntent so the customer can save a card
 // without an immediate charge.
 func (s *Service) CreateSetupIntent(ctx context.Context, stripeCustomerID string) (*Intent, error) {

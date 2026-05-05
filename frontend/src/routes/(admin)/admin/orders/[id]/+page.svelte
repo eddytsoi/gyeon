@@ -31,6 +31,22 @@
   let requestingPickup = $state(false);
   let addingNote = $state(false);
   let sendingMessage = $state(false);
+  let refunding = $state(false);
+  let showRefundModal = $state(false);
+  let refundAmount = $state('');
+  let refundReason = $state('');
+  const refundedAmount = $derived(data.order.refund_amount ?? 0);
+  const refundableRemaining = $derived(Math.max(0, data.order.total - refundedAmount));
+  const canRefund = $derived(
+    refundableRemaining > 0 &&
+    ['paid', 'processing', 'shipped', 'delivered'].includes(data.order.status)
+  );
+
+  function openRefundModal() {
+    refundAmount = refundableRemaining.toFixed(2);
+    refundReason = '';
+    showRefundModal = true;
+  }
   let internalNoteBody = $state('');
   let adminMessageBody = $state('');
   const allowed = $derived(nextStatuses[data.order.status] ?? []);
@@ -221,6 +237,18 @@
           <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_subtotal()}</td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">HK${data.order.subtotal.toFixed(2)}</td>
         </tr>
+        {#if data.order.discount_amount > 0}
+          <tr>
+            <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-emerald-600">{m.admin_order_items_discount()}</td>
+            <td class="px-5 py-3 text-right font-medium text-emerald-600">-HK${data.order.discount_amount.toFixed(2)}</td>
+          </tr>
+        {/if}
+        {#if (data.order.tax_amount ?? 0) > 0}
+          <tr>
+            <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_tax()}</td>
+            <td class="px-5 py-3 text-right font-medium text-gray-900">HK${(data.order.tax_amount ?? 0).toFixed(2)}</td>
+          </tr>
+        {/if}
         <tr>
           <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_shipping()}</td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">HK${data.order.shipping_fee.toFixed(2)}</td>
@@ -574,4 +602,90 @@
       </div>
     </form>
   {/if}
+
+  <!-- Refund section -->
+  {#if refundedAmount > 0 || canRefund}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+      <div class="hidden md:block"></div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-5">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">{m.admin_order_refund_heading()}</h3>
+        {#if refundedAmount > 0}
+          <div class="flex items-center justify-between mb-3 text-sm">
+            <span class="text-gray-500">{m.admin_order_refund_label_refunded()}</span>
+            <span class="font-mono font-semibold text-red-600">HK${refundedAmount.toFixed(2)} / HK${data.order.total.toFixed(2)}</span>
+          </div>
+          {#if data.order.refund_reason}
+            <p class="text-xs text-gray-400 mb-3">{m.admin_order_refund_label_reason()}: {data.order.refund_reason}</p>
+          {/if}
+        {/if}
+        {#if canRefund}
+          <button type="button" onclick={openRefundModal}
+                  class="w-full px-4 py-2.5 rounded-xl border border-red-200 text-sm font-medium
+                         text-red-600 hover:bg-red-50 transition-colors">
+            {refundedAmount > 0 ? m.admin_order_refund_issue_more() : m.admin_order_refund_issue()}
+          </button>
+        {:else if refundedAmount > 0}
+          <p class="text-xs text-gray-400">{m.admin_order_refund_fully_refunded()}</p>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </div>
+
+{#if showRefundModal}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => (showRefundModal = false)} role="button" tabindex="-1"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_order_refund_modal_title()}</h3>
+      <p class="text-sm text-gray-500 mb-4">{m.admin_order_refund_modal_warning()}</p>
+
+      <form method="POST" action="?/refund" class="space-y-4"
+            use:enhance={() => {
+              if (refunding) return;
+              refunding = true;
+              return async ({ result, update }) => {
+                await update();
+                refunding = false;
+                if (result.type === 'success') showRefundModal = false;
+              };
+            }}>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            {m.admin_order_refund_modal_amount()}
+          </label>
+          <div class="flex items-center">
+            <span class="px-3 py-2.5 bg-gray-50 border border-r-0 border-gray-200 rounded-l-xl text-sm text-gray-400 select-none">HK$</span>
+            <input type="number" name="amount" bind:value={refundAmount}
+                   min="0.01" max={refundableRemaining} step="0.01" required
+                   class="w-full flex-1 px-3.5 py-2.5 border border-gray-200 rounded-r-xl text-sm font-mono
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <p class="text-xs text-gray-400 mt-1">
+            {m.admin_order_refund_modal_remaining({ amount: refundableRemaining.toFixed(2) })}
+          </p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            {m.admin_order_refund_modal_reason()}
+          </label>
+          <textarea name="reason" bind:value={refundReason} rows="3"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm resize-none
+                           focus:outline-none focus:ring-2 focus:ring-gray-900"></textarea>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick={() => (showRefundModal = false)}
+                  class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
+                         text-gray-700 hover:bg-gray-50 transition-colors">
+            {m.common_cancel()}
+          </button>
+          <SaveButton loading={refunding}
+                      class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
+                             bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+            {m.admin_order_refund_modal_submit()}
+          </SaveButton>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}

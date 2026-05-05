@@ -26,6 +26,11 @@ var publicSettingKeys = []string{
 	"shipping_countries",
 	"site_locale",
 	"stripe_save_cards",
+	"tax_enabled",
+	"tax_rate",
+	"tax_label",
+	"tax_inclusive",
+	"public_base_url",
 }
 
 type Service struct {

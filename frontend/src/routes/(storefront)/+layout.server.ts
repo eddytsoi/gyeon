@@ -13,5 +13,5 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
   const token = cookies.get('customer_token') ?? null;
   const customer = token ? await getMyProfile(token).catch(() => null) : null;
 
-  return { headerNav, footerNav, mcpEnabled, customer };
+  return { headerNav, footerNav, mcpEnabled, customer, publicSettings: settings };
 };

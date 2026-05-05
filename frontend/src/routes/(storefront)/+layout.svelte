@@ -3,6 +3,7 @@
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { registerStorefrontTools } from '$lib/webmcp';
   import { onMount } from 'svelte';
   import type { LayoutData } from './$types';
@@ -11,6 +12,7 @@
 
   onMount(async () => {
     await cartStore.init();
+    await wishlistStore.init(!!data.customer);
     await registerStorefrontTools(data.mcpEnabled);
   });
 </script>

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"gyeon/backend/internal/abandoned"
 	"gyeon/backend/internal/admin"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/cache"
@@ -26,6 +27,8 @@ import (
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shipany"
 	"gyeon/backend/internal/shop"
+	"gyeon/backend/internal/tax"
+	"gyeon/backend/internal/wishlist"
 )
 
 func getenv(key, fallback string) string {
@@ -65,7 +68,9 @@ func main() {
 	customerSvc := customers.NewService(conn)
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
+	taxSvc := tax.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
+	orderSvc.SetTaxService(taxSvc)
 	noticeSvc := orders.NewNoticeService(conn)
 	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailSvc, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
@@ -225,6 +230,11 @@ func main() {
 		// Customer routes (public + authenticated)
 		r.Mount("/customers", customerHandler.Routes())
 
+		// Wishlist (authenticated; guest uses client-side localStorage)
+		wishlistSvc := wishlist.NewService(conn)
+		wishlistHandler := wishlist.NewHandler(wishlistSvc, customerJWTSecret)
+		r.Mount("/wishlist", wishlistHandler.Routes())
+
 		// Customer-side order notices (auth via customer JWT)
 		r.Group(func(r chi.Router) {
 			r.Use(auth.CustomerMiddleware(customerJWTSecret))
@@ -278,6 +288,10 @@ func main() {
 
 			// Pricing: campaigns and coupons
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
+
+			// Abandoned cart recovery (list + manual run; external cron may also POST run)
+			abandonedSvc := abandoned.NewService(conn, emailSvc, settingsSvc)
+			r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
 
 			// WooCommerce import
 			r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)

@@ -96,22 +96,23 @@ type UpsertProductTranslationRequest struct {
 }
 
 type Variant struct {
-	ID             string   `json:"id"`
-	ProductID      string   `json:"product_id"`
-	SKU            string   `json:"sku"`
-	Name           *string  `json:"name,omitempty"`
-	Price          float64  `json:"price"`
-	CompareAtPrice *float64 `json:"compare_at_price,omitempty"`
-	StockQty       int      `json:"stock_qty"`
-	WeightGrams    *int     `json:"weight_grams,omitempty"`
-	LengthMM       *int     `json:"length_mm,omitempty"`
-	WidthMM        *int     `json:"width_mm,omitempty"`
-	HeightMM       *int     `json:"height_mm,omitempty"`
-	IsActive       bool     `json:"is_active"`
-	CreatedAt      string   `json:"created_at"`
-	UpdatedAt      string   `json:"updated_at"`
-	ProductName    *string  `json:"product_name,omitempty"`
-	ImageURL       *string  `json:"image_url,omitempty"`
+	ID                 string   `json:"id"`
+	ProductID          string   `json:"product_id"`
+	SKU                string   `json:"sku"`
+	Name               *string  `json:"name,omitempty"`
+	Price              float64  `json:"price"`
+	CompareAtPrice     *float64 `json:"compare_at_price,omitempty"`
+	StockQty           int      `json:"stock_qty"`
+	LowStockThreshold  *int     `json:"low_stock_threshold,omitempty"`
+	WeightGrams        *int     `json:"weight_grams,omitempty"`
+	LengthMM           *int     `json:"length_mm,omitempty"`
+	WidthMM            *int     `json:"width_mm,omitempty"`
+	HeightMM           *int     `json:"height_mm,omitempty"`
+	IsActive           bool     `json:"is_active"`
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
+	ProductName        *string  `json:"product_name,omitempty"`
+	ImageURL           *string  `json:"image_url,omitempty"`
 }
 
 type ProductImage struct {
@@ -144,28 +145,30 @@ type UpdateProductRequest struct {
 }
 
 type CreateVariantRequest struct {
-	SKU            string   `json:"sku"`
-	Name           *string  `json:"name"`
-	Price          float64  `json:"price"`
-	CompareAtPrice *float64 `json:"compare_at_price"`
-	StockQty       int      `json:"stock_qty"`
-	WeightGrams    *int     `json:"weight_grams"`
-	LengthMM       *int     `json:"length_mm"`
-	WidthMM        *int     `json:"width_mm"`
-	HeightMM       *int     `json:"height_mm"`
+	SKU               string   `json:"sku"`
+	Name              *string  `json:"name"`
+	Price             float64  `json:"price"`
+	CompareAtPrice    *float64 `json:"compare_at_price"`
+	StockQty          int      `json:"stock_qty"`
+	LowStockThreshold *int     `json:"low_stock_threshold"`
+	WeightGrams       *int     `json:"weight_grams"`
+	LengthMM          *int     `json:"length_mm"`
+	WidthMM           *int     `json:"width_mm"`
+	HeightMM          *int     `json:"height_mm"`
 }
 
 type UpdateVariantRequest struct {
-	SKU            string   `json:"sku"`
-	Name           *string  `json:"name"`
-	Price          float64  `json:"price"`
-	CompareAtPrice *float64 `json:"compare_at_price"`
-	StockQty       int      `json:"stock_qty"`
-	WeightGrams    *int     `json:"weight_grams"`
-	LengthMM       *int     `json:"length_mm"`
-	WidthMM        *int     `json:"width_mm"`
-	HeightMM       *int     `json:"height_mm"`
-	IsActive       bool     `json:"is_active"`
+	SKU               string   `json:"sku"`
+	Name              *string  `json:"name"`
+	Price             float64  `json:"price"`
+	CompareAtPrice    *float64 `json:"compare_at_price"`
+	StockQty          int      `json:"stock_qty"`
+	LowStockThreshold *int     `json:"low_stock_threshold"`
+	WeightGrams       *int     `json:"weight_grams"`
+	LengthMM          *int     `json:"length_mm"`
+	WidthMM           *int     `json:"width_mm"`
+	HeightMM          *int     `json:"height_mm"`
+	IsActive          bool     `json:"is_active"`
 }
 
 type AdjustStockRequest struct {
@@ -270,6 +273,111 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 	}
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
+}
+
+// ListFilters captures every parameter the public storefront product list
+// supports. Empty / zero values mean "no filter".
+type ListFilters struct {
+	Locale       string
+	Search       string
+	CategorySlug string
+	MinPrice     *float64
+	MaxPrice     *float64
+	Sort         string // "new" | "price_asc" | "price_desc" | "name"
+	Limit        int
+	Offset       int
+}
+
+// ListEnrichedFiltered is the unified storefront product listing with search +
+// category + price range + sort. Skips the cache (too many parameter
+// combinations to be worth caching for the small expected catalog).
+func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters) ([]ProductWithMeta, error) {
+	if f.Limit <= 0 || f.Limit > 100 {
+		f.Limit = 20
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+
+	args := []any{f.Locale, f.Limit, f.Offset}
+	where := "p.status = 'active'"
+	idx := 4
+
+	if f.CategorySlug != "" {
+		where += fmt.Sprintf(" AND p.category_id = (SELECT id FROM categories WHERE slug = $%d AND is_active = TRUE)", idx)
+		args = append(args, f.CategorySlug)
+		idx++
+	}
+	if clause, arg := util.BuildSearchClause(f.Search, productSearchFields, idx); clause != "" {
+		where += " AND " + clause
+		args = append(args, arg)
+		idx++
+	}
+
+	const minPriceSQ = "(SELECT MIN(pv.price) FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = TRUE)"
+	if f.MinPrice != nil {
+		where += fmt.Sprintf(" AND %s >= $%d", minPriceSQ, idx)
+		args = append(args, *f.MinPrice)
+		idx++
+	}
+	if f.MaxPrice != nil {
+		where += fmt.Sprintf(" AND %s <= $%d", minPriceSQ, idx)
+		args = append(args, *f.MaxPrice)
+		idx++
+	}
+
+	orderBy := "p.created_at DESC"
+	switch f.Sort {
+	case "price_asc":
+		orderBy = minPriceSQ + " ASC NULLS LAST, p.created_at DESC"
+	case "price_desc":
+		orderBy = minPriceSQ + " DESC NULLS LAST, p.created_at DESC"
+	case "name":
+		orderBy = "COALESCE(t.name, p.name) ASC"
+	}
+
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       p.excerpt,
+		       COALESCE(t.description, p.description) AS description,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       (SELECT pv.id FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		FROM products p` + productTranslationJoin + `
+		WHERE ` + where + `
+		ORDER BY ` + orderBy + ` LIMIT $2 OFFSET $3`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]ProductWithMeta, 0)
+	for rows.Next() {
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+		); err != nil {
+			return nil, err
+		}
+		products = append(products, pm)
+	}
+	return products, rows.Err()
 }
 
 // ListEnriched returns active products plus variant_count, primary_image_url
@@ -844,7 +952,7 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 	var productKind string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
-		        pv.stock_qty, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
+		        pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
 		        pv.is_active, pv.created_at, pv.updated_at,
 		        p.name AS product_name, p.kind AS product_kind,
 		        COALESCE(mf.url, pi.url) AS image_url
@@ -856,7 +964,7 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 		 WHERE pv.id = $1
 		 LIMIT 1`, variantID).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
 			&v.IsActive, &v.CreatedAt, &v.UpdatedAt,
 			&v.ProductName, &productKind, &v.ImageURL)
 	if err != nil {
@@ -876,7 +984,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
-		        pv.stock_qty, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
+		        pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
 		        pv.is_active, pv.created_at, pv.updated_at,
 		        COALESCE(mf.url, pi.url) AS image_url
 		 FROM product_variants pv
@@ -893,7 +1001,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 	for rows.Next() {
 		var v Variant
 		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
 			&v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.ImageURL); err != nil {
 			return nil, err
 		}
@@ -933,12 +1041,12 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
-		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).
+		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -948,12 +1056,12 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, req UpdateVariantRequest) (*Variant, error) {
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, weight_grams=$7, is_active=$8, length_mm=$9, width_mm=$10, height_mm=$11
+		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, low_stock_threshold=$7, weight_grams=$8, is_active=$9, length_mm=$10, width_mm=$11, height_mm=$12
 		 WHERE id=$1
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
-		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.WeightGrams, req.IsActive, req.LengthMM, req.WidthMM, req.HeightMM).
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.IsActive, req.LengthMM, req.WidthMM, req.HeightMM).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -970,10 +1078,10 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE product_variants SET stock_qty = GREATEST(0, stock_qty + $2)
 		 WHERE id = $1
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
 		variantID, req.Delta).
 		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -1017,8 +1125,11 @@ func (s *ProductService) DeleteImage(ctx context.Context, imageID string) error 
 
 func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, is_active, created_at, updated_at
-		 FROM product_variants WHERE stock_qty <= $1 AND is_active = TRUE ORDER BY stock_qty ASC`,
+		`SELECT id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, is_active, created_at, updated_at
+		 FROM product_variants
+		 WHERE is_active = TRUE
+		   AND stock_qty <= COALESCE(low_stock_threshold, $1)
+		 ORDER BY stock_qty ASC`,
 		threshold)
 	if err != nil {
 		return nil, err
@@ -1029,7 +1140,7 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 	for rows.Next() {
 		var v Variant
 		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt); err != nil {
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
 		variants = append(variants, v)

@@ -210,6 +210,9 @@ export const actions: Actions = {
           ? parseFloat(form.get('compare_at_price')!.toString())
           : undefined,
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
+        low_stock_threshold: form.get('low_stock_threshold')?.toString()
+          ? parseInt(form.get('low_stock_threshold')!.toString(), 10)
+          : undefined,
         weight_grams: form.get('weight_grams')?.toString()
           ? parseInt(form.get('weight_grams')!.toString(), 10)
           : undefined,
@@ -251,6 +254,9 @@ export const actions: Actions = {
           ? parseFloat(form.get('compare_at_price')!.toString())
           : undefined,
         stock_qty: parseInt(form.get('stock_qty')?.toString() ?? '0', 10),
+        low_stock_threshold: form.get('low_stock_threshold')?.toString()
+          ? parseInt(form.get('low_stock_threshold')!.toString(), 10)
+          : undefined,
         weight_grams: form.get('weight_grams')?.toString()
           ? parseInt(form.get('weight_grams')!.toString(), 10)
           : undefined,

@@ -34,7 +34,31 @@ func (h *OrderHandler) Routes() chi.Router {
 func (h *OrderHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Delete("/{id}", h.delete)
+	r.Post("/{id}/refund", h.refund)
 	return r
+}
+
+func (h *OrderHandler) refund(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req RefundRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	order, err := h.svc.IssueRefund(r.Context(), id, req)
+	if errors.Is(err, ErrOrderNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if errors.Is(err, ErrRefundExceedsTotal) || errors.Is(err, ErrOrderNotRefundable) {
+		respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, order)
 }
 
 func (h *OrderHandler) delete(w http.ResponseWriter, r *http.Request) {
