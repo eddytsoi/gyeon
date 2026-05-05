@@ -11,6 +11,7 @@
   let { data, children } = $props();
 
   const isLoginPage = $derived($page.url.pathname === '/admin/login');
+  const faviconUrl = $derived(data.faviconUrl ?? '');
   let drawerOpen = $state(false);
 
   onMount(() => {
@@ -234,6 +235,13 @@
     footerSpotlight.visible = false;
   }
 </script>
+
+<svelte:head>
+  {#if faviconUrl}
+    <link rel="icon" href={faviconUrl} />
+    <link rel="apple-touch-icon" href={faviconUrl} />
+  {/if}
+</svelte:head>
 
 <Notifications />
 

@@ -148,12 +148,16 @@ export function getEmbedURL(
     }
     case 'vimeo': {
       const [id, hash] = detected.videoID.split('/');
-      const base = hash ? `https://player.vimeo.com/video/${id}?h=${hash}` : `https://player.vimeo.com/video/${id}`;
-      if (!autoplay) return base;
+      // dnt=1 disables Vimeo's session/analytics tracking, eliminating the
+      // cross-origin fetches the player makes back to vimeo.com (which
+      // produce CORS console warnings). Playback is unaffected.
+      const params = ['dnt=1'];
+      if (hash) params.unshift(`h=${hash}`);
       // Vimeo's `background=1` is a single switch that bundles autoplay +
       // muted + loop + no-controls + no-title + no-byline + no-portrait —
       // exactly the chromeless preview we want.
-      return `${base}${base.includes('?') ? '&' : '?'}background=1`;
+      if (autoplay) params.push('background=1');
+      return `https://player.vimeo.com/video/${id}?${params.join('&')}`;
     }
     case 'wistia': {
       const base = `https://fast.wistia.net/embed/iframe/${detected.videoID}`;

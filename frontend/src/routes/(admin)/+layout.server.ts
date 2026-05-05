@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
+import { getPublicSettings } from '$lib/api';
 
 export const load: LayoutServerLoad = async ({ cookies, url }) => {
   const token = cookies.get('admin_token');
@@ -8,5 +9,8 @@ export const load: LayoutServerLoad = async ({ cookies, url }) => {
   if (!token && !isLoginPage) throw redirect(303, '/admin/login');
   if (token && isLoginPage) throw redirect(303, '/admin/dashboard');
 
-  return { token: token ?? null };
+  const publicSettings = await getPublicSettings().catch(() => []);
+  const faviconUrl = publicSettings.find((s) => s.key === 'favicon_url')?.value ?? '';
+
+  return { token: token ?? null, faviconUrl };
 };

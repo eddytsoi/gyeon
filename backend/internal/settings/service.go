@@ -34,6 +34,7 @@ var publicSettingKeys = []string{
 	"ga4_measurement_id",         // P3 #26 — read by storefront tracker
 	"meta_pixel_id",              // P3 #26
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
+	"favicon_url",                // injected into <svelte:head> on storefront + admin
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

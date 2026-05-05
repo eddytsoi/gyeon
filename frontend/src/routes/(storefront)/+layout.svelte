@@ -12,6 +12,10 @@
 
   let { children, data }: { children: any; data: LayoutData } = $props();
 
+  const faviconUrl = $derived(
+    data.publicSettings?.find((s) => s.key === 'favicon_url')?.value ?? ''
+  );
+
   onMount(async () => {
     initTracker(data.publicSettings ?? []);
     await cartStore.init();
@@ -19,6 +23,13 @@
     await registerStorefrontTools(data.mcpEnabled);
   });
 </script>
+
+<svelte:head>
+  {#if faviconUrl}
+    <link rel="icon" href={faviconUrl} />
+    <link rel="apple-touch-icon" href={faviconUrl} />
+  {/if}
+</svelte:head>
 
 <!--
   Skip-to-content (P3 #32). Hidden until keyboard focus, then anchors at the
