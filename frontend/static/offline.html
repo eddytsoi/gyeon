@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <title>離線 / Offline · Gyeon</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang TC',
+          'Noto Sans TC',
+          'Microsoft JhengHei',
+          sans-serif;
+        background: #f9fafb;
+        color: #111827;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        min-height: 100dvh;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        text-align: center;
+      }
+      .logo {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 24px;
+        border-radius: 16px;
+        background: #111827;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 16px;
+        color: #6b7280;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.55;
+        color: #4b5563;
+      }
+      .lang {
+        margin-top: 18px;
+        padding-top: 18px;
+        border-top: 1px solid #e5e7eb;
+      }
+      .lang h1 {
+        font-size: 18px;
+      }
+      .actions {
+        margin-top: 28px;
+      }
+      button {
+        appearance: none;
+        border: 0;
+        background: #111827;
+        color: #ffffff;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 12px 24px;
+        border-radius: 10px;
+        cursor: pointer;
+        min-width: 200px;
+        transition: background 120ms ease;
+      }
+      button:hover {
+        background: #1f2937;
+      }
+      button:active {
+        background: #374151;
+      }
+      button:focus-visible {
+        outline: 2px solid #111827;
+        outline-offset: 3px;
+      }
+      footer {
+        text-align: center;
+        padding: 16px;
+        font-size: 12px;
+        color: #9ca3af;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0b0f17;
+          color: #f3f4f6;
+        }
+        .logo {
+          background: #f3f4f6;
+          color: #111827;
+        }
+        .icon {
+          color: #9ca3af;
+        }
+        p {
+          color: #9ca3af;
+        }
+        .lang {
+          border-top-color: #1f2937;
+        }
+        button {
+          background: #f3f4f6;
+          color: #111827;
+        }
+        button:hover {
+          background: #ffffff;
+        }
+        button:active {
+          background: #d1d5db;
+        }
+        button:focus-visible {
+          outline-color: #f3f4f6;
+        }
+        footer {
+          color: #4b5563;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <div class="logo" aria-hidden="true">G</div>
+        <svg
+          class="icon"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M1 1l22 22" />
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+          <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+          <path d="M12 20h.01" />
+        </svg>
+
+        <div data-lang="primary">
+          <h1>您目前已離線</h1>
+          <p>請檢查網絡連線，重新連線後再試一次。</p>
+        </div>
+
+        <div class="lang" data-lang="secondary">
+          <h1>You're offline</h1>
+          <p>Please check your connection and try again.</p>
+        </div>
+
+        <div class="actions">
+          <button id="retry" type="button">重試 / Retry</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>Gyeon</footer>
+
+    <script>
+      (function () {
+        var preferEn = (navigator.language || 'zh-Hant').toLowerCase().indexOf('zh') !== 0;
+        if (preferEn) {
+          document.documentElement.lang = 'en';
+          var primary = document.querySelector('[data-lang="primary"]');
+          var secondary = document.querySelector('[data-lang="secondary"]');
+          if (primary && secondary) {
+            primary.parentNode.insertBefore(secondary, primary);
+            secondary.classList.remove('lang');
+            primary.classList.add('lang');
+          }
+          var btn = document.getElementById('retry');
+          if (btn) btn.textContent = 'Retry / 重試';
+        }
+
+        var retry = document.getElementById('retry');
+        if (retry) {
+          retry.addEventListener('click', function () {
+            window.location.reload();
+          });
+        }
+        window.addEventListener('online', function () {
+          window.location.reload();
+        });
+      })();
+    </script>
+  </body>
+</html>

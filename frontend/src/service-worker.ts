@@ -8,7 +8,7 @@
  *
  * SvelteKit injects the build manifest at compile time via $service-worker.
  * `build` = hashed app assets (immutable, safe to long-cache).
- * `files` = static/ contents.
+ * `files` = static/ contents (includes /offline.html).
  * `prerendered` = unused here (no prerendered routes).
  *
  * Strategy:
@@ -17,13 +17,18 @@
  *     (storefront pages, /api/*, /uploads/*) so the SW never serves stale
  *     dynamic content. This delivers an offline-capable PWA shell without
  *     risking the inventory / pricing / order flows.
+ *   - Navigation fallback: if a top-level page request fails (offline),
+ *     serve /offline.html so installed PWA users see a branded screen
+ *     instead of a black/error page.
  */
 
 import { build, files, version } from '$service-worker';
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 const ASSETS_CACHE = `gyeon-assets-${version}`;
+const OFFLINE_URL = '/offline.html';
 const PRECACHE: string[] = [...build, ...files];
+if (!PRECACHE.includes(OFFLINE_URL)) PRECACHE.push(OFFLINE_URL);
 
 sw.addEventListener('install', (event) => {
   event.waitUntil(
@@ -57,6 +62,28 @@ sw.addEventListener('fetch', (event) => {
 
   // Skip cross-origin (analytics scripts, Stripe, etc.)
   if (url.origin !== sw.location.origin) return;
+
+  // Top-level navigation: try the network, fall back to /offline.html
+  // when the device is offline so installed PWA users see a branded
+  // screen instead of a black/error page.
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          return await fetch(req);
+        } catch {
+          const cache = await caches.open(ASSETS_CACHE);
+          const offline = await cache.match(OFFLINE_URL);
+          if (offline) return offline;
+          return new Response('Offline', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        }
+      })()
+    );
+    return;
+  }
 
   // Skip dynamic + auth-sensitive paths so they always hit the network.
   if (
