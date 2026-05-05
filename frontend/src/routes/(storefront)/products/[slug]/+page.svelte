@@ -617,16 +617,16 @@
 {/if}
 
 <!-- ── SPECS STRIP ────────────────────────────────────────────────── -->
-<div style="background: rgb(25,37,63)">
+<div class="bg-[rgb(25,37,63)]">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/10">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10">
       {#each [
         { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', label: m.product_detail_specs_variants(), value: data.variants.length > 0 ? (data.variants.length > 1 ? m.product_detail_specs_sizes_many({ count: data.variants.length }) : m.product_detail_specs_sizes_one({ count: data.variants.length })) : m.product_detail_specs_dash() },
         { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', label: m.product_detail_specs_availability(), value: inStock ? m.product_detail_specs_in_stock() : m.product_detail_specs_out_of_stock() },
         { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', label: m.product_detail_specs_coverage(), value: m.product_detail_specs_dash() },
         { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: m.product_detail_specs_durability(), value: m.product_detail_specs_dash() }
       ] as spec}
-        <div class="flex flex-col items-center gap-2 py-8 px-6 text-center">
+        <div class="bg-[rgb(25,37,63)] flex flex-col items-center gap-2 py-6 px-4 sm:py-8 sm:px-6 text-center">
           <svg class="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={spec.icon} />
           </svg>
