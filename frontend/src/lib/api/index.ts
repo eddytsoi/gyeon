@@ -337,3 +337,22 @@ export const setDefaultCard = (token: string, id: string) =>
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` }
   });
+
+// --- Loyalty (P3 #24) ---
+
+export interface LoyaltyLedgerRow {
+  id: string;
+  delta: number;
+  balance_after: number;
+  reason: string;
+  order_id?: string;
+  actor_email?: string;
+  note?: string;
+  created_at: string;
+}
+
+export const getMyLoyaltyBalance = (token: string) =>
+  request<{ points: number }>('/loyalty/', authed(token));
+
+export const getMyLoyaltyLedger = (token: string) =>
+  request<LoyaltyLedgerRow[]>('/loyalty/ledger', authed(token));

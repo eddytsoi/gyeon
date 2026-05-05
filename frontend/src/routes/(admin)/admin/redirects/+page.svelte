@@ -1,0 +1,129 @@
+<script lang="ts">
+  import { enhance } from '$app/forms';
+  import type { PageData } from './$types';
+  import type { Redirect } from '$lib/api/admin';
+  import { showResult } from '$lib/stores/notifications.svelte';
+  import { spotlight } from '$lib/actions/spotlight';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
+  import * as m from '$lib/paraglide/messages';
+
+  let { data }: { data: PageData } = $props();
+
+  let deleting = $state<Redirect | null>(null);
+</script>
+
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">{m.admin_redirects_heading()}</h2>
+      <p class="text-sm text-gray-500 mt-0.5">{m.admin_redirects_subtitle()}</p>
+    </div>
+    <NewButton label={m.admin_redirects_new()} href="/admin/redirects/new" />
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+       use:spotlight={{ selector: '.js-row' }}>
+    {#if data.items.length === 0}
+      <div class="flex flex-col items-center justify-center py-20 text-center">
+        <p class="text-sm font-medium text-gray-400">{m.admin_redirects_empty()}</p>
+        <a href="/admin/redirects/new" class="mt-3 text-sm text-gray-900 underline underline-offset-2">
+          {m.admin_redirects_create_first()}
+        </a>
+      </div>
+    {:else}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-50">
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_redirects_col_from()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_redirects_col_to()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_redirects_col_code()}</th>
+            <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_redirects_col_status()}</th>
+            <th class="px-6 py-3.5"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {#each data.items as r}
+            <tr class="js-row transition-colors">
+              <td class="px-6 py-4">
+                <p class="font-mono text-gray-900 truncate max-w-xs">{r.from_path}</p>
+                {#if r.note}
+                  <p class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.note}</p>
+                {/if}
+              </td>
+              <td class="px-6 py-4 font-mono text-gray-700 truncate max-w-xs">{r.to_path}</td>
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-medium
+                             {r.code === 301 ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}">
+                  {r.code}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                             {r.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
+                  {r.is_active ? m.admin_redirects_status_active() : m.admin_redirects_status_inactive()}
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center justify-end gap-2">
+                  <a href="/admin/redirects/{r.id}"
+                     class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                    </svg>
+                  </a>
+                  <button onclick={() => deleting = r}
+                          class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </div>
+</div>
+
+<!-- Delete modal -->
+{#if deleting}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => deleting = null} role="button" tabindex="-1"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+      <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_redirects_delete_title()}</h3>
+      <p class="text-sm text-gray-500 mb-5">
+        {m.admin_redirects_delete_body_pre()}<span class="font-mono font-medium text-gray-700">{deleting.from_path}</span>{m.admin_redirects_delete_body_post()}
+      </p>
+      <div class="flex gap-3">
+        <button onclick={() => deleting = null}
+                class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
+                       text-gray-700 hover:bg-gray-50 transition-colors">
+          {m.common_cancel()}
+        </button>
+        <form method="POST" action="?/delete" class="flex-1"
+              use:enhance={() => {
+                const path = deleting?.from_path ?? '';
+                return async ({ result, update }) => {
+                  showResult(result, m.admin_redirects_deleted_success({ path }), m.admin_redirects_deleted_failure({ path }));
+                  await update();
+                  deleting = null;
+                };
+              }}>
+          <input type="hidden" name="id" value={deleting.id} />
+          <button type="submit"
+                  class="w-full px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium
+                         hover:bg-red-600 transition-colors">
+            {m.common_delete()}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+{/if}

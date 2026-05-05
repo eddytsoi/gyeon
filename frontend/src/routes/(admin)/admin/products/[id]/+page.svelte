@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { adminUploadMedia, adminGetVariants } from '$lib/api/admin';
+  import { adminUploadMedia, adminGetVariants, adminGetVariantStockHistory, type VariantHistoryRow } from '$lib/api/admin';
   import type { PageData } from './$types';
   import type { BundleItem, Variant } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
@@ -51,6 +51,32 @@
   let showAddVariant = $state(false);
   let editingVariant = $state<typeof data.variants[0] | null>(null);
   let showStockModal = $state<typeof data.variants[0] | null>(null);
+  let historyVariant = $state<typeof data.variants[0] | null>(null);
+  let historyRows = $state<VariantHistoryRow[]>([]);
+  let historyLoading = $state(false);
+
+  async function openHistory(v: typeof data.variants[0]) {
+    historyVariant = v;
+    historyRows = [];
+    historyLoading = true;
+    try {
+      historyRows = await adminGetVariantStockHistory(data.token ?? '', v.product_id, v.id);
+    } catch (e) {
+      notify.error('Failed to load history', e instanceof Error ? e.message : '');
+    } finally {
+      historyLoading = false;
+    }
+  }
+
+  function fmtReason(r: string): string {
+    switch (r) {
+      case 'order.checkout': return 'Order checkout';
+      case 'admin.adjust': return 'Stock adjustment';
+      case 'admin.variant_update': return 'Variant edit';
+      case 'wc.import': return 'WooCommerce import';
+      default: return r;
+    }
+  }
 
   // Usable media — uploaded images, videos (mp4/webm), plus all links
   // (links are tested at render time via onload/onerror).
@@ -635,6 +661,16 @@
                       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round"
                           d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                      </svg>
+                    </button>
+                    <!-- Stock History -->
+                    <button onclick={() => openHistory(variant)}
+                            title={m.admin_product_edit_variants_tip_history()}
+                            aria-label={m.admin_product_edit_variants_tip_history()}
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                       </svg>
                     </button>
                     <!-- Edit -->
@@ -1771,3 +1807,64 @@
     cursor: grabbing !important;
   }
 </style>
+
+<!-- Variant Stock History modal (P2 #23) -->
+{#if historyVariant}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => historyVariant = null} role="button" tabindex="-1"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+        <div>
+          <h3 class="text-base font-bold text-gray-900">{m.admin_product_edit_variants_history_title()}</h3>
+          <p class="text-xs text-gray-500 mt-0.5">{historyVariant.sku} · {m.admin_product_edit_variants_history_current({ qty: historyVariant.stock_qty })}</p>
+        </div>
+        <button onclick={() => historyVariant = null}
+                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        {#if historyLoading}
+          <p class="px-6 py-12 text-sm text-gray-400 text-center">{m.admin_product_edit_variants_history_loading()}</p>
+        {:else if historyRows.length === 0}
+          <p class="px-6 py-12 text-sm text-gray-400 text-center">{m.admin_product_edit_variants_history_empty()}</p>
+        {:else}
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-gray-50 sticky top-0 bg-white">
+                <th class="text-left px-6 py-3 font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_history_col_time()}</th>
+                <th class="text-left px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_history_col_change()}</th>
+                <th class="text-left px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_history_col_reason()}</th>
+                <th class="text-left px-3 py-3 font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_history_col_actor()}</th>
+                <th class="px-6 py-3"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {#each historyRows as h}
+                <tr>
+                  <td class="px-6 py-2.5 text-gray-500 whitespace-nowrap">{new Date(h.created_at).toLocaleString()}</td>
+                  <td class="px-3 py-2.5 font-mono">
+                    <span class={h.delta > 0 ? 'text-emerald-700' : 'text-red-600'}>{h.delta > 0 ? '+' : ''}{h.delta}</span>
+                    <span class="text-gray-400 ml-1">({h.before_qty}→{h.after_qty})</span>
+                  </td>
+                  <td class="px-3 py-2.5 text-gray-700">{fmtReason(h.reason)}</td>
+                  <td class="px-3 py-2.5 text-gray-500">
+                    {#if h.actor_email}
+                      {h.actor_email}
+                    {:else if h.order_id}
+                      <span class="font-mono text-xs">order ·{h.order_id.slice(0, 8)}</span>
+                    {:else}
+                      —
+                    {/if}
+                  </td>
+                  <td class="px-6 py-2.5"></td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}

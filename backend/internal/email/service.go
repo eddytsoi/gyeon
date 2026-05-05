@@ -17,7 +17,8 @@ import (
 var ErrNotConfigured = errors.New("smtp is not configured")
 
 type Service struct {
-	settings *settings.Service
+	settings  *settings.Service
+	tmplStore *Store // optional DB-backed override layer (P2 #20). nil = compiled defaults only.
 }
 
 func NewService(s *settings.Service) *Service {
@@ -205,9 +206,10 @@ func (s *Service) SendPaymentLink(ctx context.Context, p PaymentLinkParams) erro
 	if p.Currency == "" {
 		p.Currency = "HKD"
 	}
-	subject := fmt.Sprintf("完成付款 — %s", orderRef(p.OrderNumber, p.OrderID))
-	html := renderPaymentLinkHTML(p)
-	text := renderPaymentLinkText(p)
+	subject, html, text := s.applyTemplate(ctx, "payment_link", p, func() (string, string, string) {
+		return fmt.Sprintf("完成付款 — %s", orderRef(p.OrderNumber, p.OrderID)),
+			renderPaymentLinkHTML(p), renderPaymentLinkText(p)
+	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
@@ -222,9 +224,10 @@ func (s *Service) SendPasswordResetEmail(ctx context.Context, p PasswordResetPar
 	if p.ExpiryHours == 0 {
 		p.ExpiryHours = 24
 	}
-	subject := "重設您的 Gyeon 帳戶密碼"
-	html := renderPasswordResetHTML(p)
-	text := renderPasswordResetText(p)
+	subject, html, text := s.applyTemplate(ctx, "password_reset", p, func() (string, string, string) {
+		return "重設您的 Gyeon 帳戶密碼",
+			renderPasswordResetHTML(p), renderPasswordResetText(p)
+	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
@@ -236,9 +239,10 @@ func (s *Service) SendAdminMessageNotification(ctx context.Context, p AdminMessa
 	if err != nil {
 		return err
 	}
-	subject := fmt.Sprintf("店家回覆 — %s", orderRef(p.OrderNumber, ""))
-	html := renderAdminMessageHTML(p)
-	text := renderAdminMessageText(p)
+	subject, html, text := s.applyTemplate(ctx, "admin_message", p, func() (string, string, string) {
+		return fmt.Sprintf("店家回覆 — %s", orderRef(p.OrderNumber, "")),
+			renderAdminMessageHTML(p), renderAdminMessageText(p)
+	})
 	return s.send(cfg, p.To, subject, text, html)
 }
 
@@ -254,9 +258,10 @@ func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams)
 		p.Currency = "HKD"
 	}
 
-	subject := fmt.Sprintf("訂單確認 — %s", orderRef(p.OrderNumber, p.OrderID))
-	html := renderOrderHTML(p)
-	text := renderOrderText(p)
+	subject, html, text := s.applyTemplate(ctx, "order_confirmation", p, func() (string, string, string) {
+		return fmt.Sprintf("訂單確認 — %s", orderRef(p.OrderNumber, p.OrderID)),
+			renderOrderHTML(p), renderOrderText(p)
+	})
 
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
@@ -268,9 +273,10 @@ func (s *Service) SendOrderShipped(ctx context.Context, p ShippedEmailParams) er
 	if err != nil {
 		return err
 	}
-	subject := fmt.Sprintf("您的訂單已寄出 — %s", orderRef(p.OrderNumber, p.OrderID))
-	html := renderShippedHTML(p)
-	text := renderShippedText(p)
+	subject, html, text := s.applyTemplate(ctx, "order_shipped", p, func() (string, string, string) {
+		return fmt.Sprintf("您的訂單已寄出 — %s", orderRef(p.OrderNumber, p.OrderID)),
+			renderShippedHTML(p), renderShippedText(p)
+	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
@@ -284,9 +290,10 @@ func (s *Service) SendOrderRefunded(ctx context.Context, p RefundEmailParams) er
 	if p.Currency == "" {
 		p.Currency = "HKD"
 	}
-	subject := fmt.Sprintf("退款通知 — %s", orderRef(p.OrderNumber, p.OrderID))
-	html := renderRefundHTML(p)
-	text := renderRefundText(p)
+	subject, html, text := s.applyTemplate(ctx, "order_refunded", p, func() (string, string, string) {
+		return fmt.Sprintf("退款通知 — %s", orderRef(p.OrderNumber, p.OrderID)),
+			renderRefundHTML(p), renderRefundText(p)
+	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
@@ -300,9 +307,10 @@ func (s *Service) SendAbandonedCart(ctx context.Context, p AbandonedCartParams) 
 	if p.Currency == "" {
 		p.Currency = "HKD"
 	}
-	subject := "您的購物車還在等您 — Gyeon"
-	html := renderAbandonedCartHTML(p)
-	text := renderAbandonedCartText(p)
+	subject, html, text := s.applyTemplate(ctx, "abandoned_cart", p, func() (string, string, string) {
+		return "您的購物車還在等您 — Gyeon",
+			renderAbandonedCartHTML(p), renderAbandonedCartText(p)
+	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
@@ -323,9 +331,10 @@ func (s *Service) SendLowStockAlert(ctx context.Context, p LowStockParams) error
 	if to == "" {
 		return ErrNotConfigured
 	}
-	subject := fmt.Sprintf("低庫存警示 — %s", p.ProductName)
-	html := renderLowStockHTML(p)
-	text := renderLowStockText(p)
+	subject, html, text := s.applyTemplate(ctx, "low_stock_alert", p, func() (string, string, string) {
+		return fmt.Sprintf("低庫存警示 — %s", p.ProductName),
+			renderLowStockHTML(p), renderLowStockText(p)
+	})
 	return s.send(cfg, to, subject, text, html)
 }
 

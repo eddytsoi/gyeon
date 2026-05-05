@@ -1054,6 +1054,13 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 }
 
 func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, req UpdateVariantRequest) (*Variant, error) {
+	// Snapshot the prior stock so we can write inventory_history only when the
+	// quantity actually changes (avoids spamming the log on pure metadata edits).
+	var beforeQty int
+	if err := s.db.QueryRowContext(ctx, `SELECT stock_qty FROM product_variants WHERE id = $1`, variantID).Scan(&beforeQty); err != nil {
+		return nil, err
+	}
+
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, low_stock_threshold=$7, weight_grams=$8, is_active=$9, length_mm=$10, width_mm=$11, height_mm=$12
@@ -1065,6 +1072,7 @@ func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, re
 	if err != nil {
 		return nil, err
 	}
+	recordStockChange(ctx, s.db, variantID, beforeQty, v.StockQty, "admin.variant_update", nil, nil)
 	return &v, nil
 }
 
@@ -1074,6 +1082,11 @@ func (s *ProductService) DeleteVariant(ctx context.Context, variantID string) er
 }
 
 func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req AdjustStockRequest) (*Variant, error) {
+	var beforeQty int
+	if err := s.db.QueryRowContext(ctx, `SELECT stock_qty FROM product_variants WHERE id = $1`, variantID).Scan(&beforeQty); err != nil {
+		return nil, err
+	}
+
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE product_variants SET stock_qty = GREATEST(0, stock_qty + $2)
@@ -1085,6 +1098,7 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 	if err != nil {
 		return nil, err
 	}
+	recordStockChange(ctx, s.db, variantID, beforeQty, v.StockQty, "admin.adjust", nil, nil)
 	return &v, nil
 }
 

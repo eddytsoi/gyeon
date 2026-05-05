@@ -11,6 +11,7 @@
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
+  import { trackViewItem, trackAddToCart } from '$lib/tracker';
   import { onMount } from 'svelte';
 
   let { data }: { data: PageData } = $props();
@@ -32,6 +33,13 @@
   onMount(() => {
     recentlyViewedStore.init();
     recentlyViewedStore.push(data.product.id);
+    // P3 #26 — fire view_item to GA4 / Meta Pixel (no-ops if neither configured)
+    const v = data.variants.slice().sort((a, b) => a.price - b.price)[0];
+    trackViewItem({
+      id: data.product.id,
+      name: data.product.name,
+      price: v?.price ?? 0
+    });
   });
   let activeImageID = $state<string | undefined>(undefined);
   let activeTab = $state<'content' | 'howto' | 'surfaces'>('content');
@@ -210,6 +218,13 @@
     adding = true;
     try {
       await cartStore.add(selectedVariant.id, qty);
+      // P3 #26 — analytics; safe no-op if no tracker configured
+      trackAddToCart({
+        id: data.product.id,
+        name: data.product.name,
+        price: selectedVariant.price,
+        quantity: qty
+      });
       added = true;
       setTimeout(() => (added = false), 2500);
     } finally {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -43,6 +44,7 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Put("/{id}/variants/{variantID}", h.updateVariant)
 	r.Delete("/{id}/variants/{variantID}", h.deleteVariant)
 	r.Post("/{id}/variants/{variantID}/stock", h.adjustStock)
+	r.Get("/{id}/variants/{variantID}/history", h.variantStockHistory)
 
 	// Image sub-routes
 	r.Get("/{id}/images", h.listImages)
@@ -229,10 +231,22 @@ func (h *ProductHandler) adjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	variant, err := h.svc.AdjustStock(r.Context(), variantID, req)
 	if err != nil {
+		log.Printf("AdjustStock variant=%s: %v", variantID, err) // surface DB errors
 		respond.InternalError(w)
 		return
 	}
 	respond.JSON(w, http.StatusOK, variant)
+}
+
+func (h *ProductHandler) variantStockHistory(w http.ResponseWriter, r *http.Request) {
+	variantID := chi.URLParam(r, "variantID")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	rows, err := h.svc.ListVariantHistory(r.Context(), variantID, limit)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, rows)
 }
 
 func (h *ProductHandler) listImages(w http.ResponseWriter, r *http.Request) {

@@ -1,10 +1,15 @@
 import { fail } from '@sveltejs/kit';
-import { updateMyProfile } from '$lib/api';
+import { updateMyProfile, getMyLoyaltyBalance } from '$lib/api';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, cookies }) => {
   await parent(); // ensures auth check runs and customer is available
-  return {};
+  const token = cookies.get('customer_token') ?? '';
+  // Best-effort: if loyalty is disabled the endpoint still returns 0.
+  const loyalty = token
+    ? await getMyLoyaltyBalance(token).catch(() => ({ points: 0 }))
+    : { points: 0 };
+  return { loyalty };
 };
 
 export const actions: Actions = {

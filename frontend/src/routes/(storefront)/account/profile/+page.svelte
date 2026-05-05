@@ -16,6 +16,15 @@
   <title>{m.account_profile_title()}</title>
 </svelte:head>
 
+{#if (data.loyalty?.points ?? 0) > 0}
+  <!-- P3 #24 — points balance card. Hidden until the customer has accrued any. -->
+  <div class="bg-gradient-to-br from-gray-900 to-gray-700 rounded-2xl p-5 mb-6 text-white">
+    <p class="text-xs uppercase tracking-widest opacity-60">{m.loyalty_balance_label()}</p>
+    <p class="mt-1.5 text-3xl font-bold tabular-nums">{data.loyalty.points.toLocaleString()}</p>
+    <p class="text-xs opacity-70 mt-1">{m.loyalty_balance_hint()}</p>
+  </div>
+{/if}
+
 <div class="bg-white rounded-2xl border border-gray-100 p-6">
   <h1 class="text-xl font-bold text-gray-900 mb-6">{m.account_profile_heading()}</h1>
 

@@ -31,11 +31,32 @@ var publicSettingKeys = []string{
 	"tax_label",
 	"tax_inclusive",
 	"public_base_url",
+	"ga4_measurement_id",         // P3 #26 — read by storefront tracker
+	"meta_pixel_id",              // P3 #26
+	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
+}
+
+// AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local
+// to avoid an import cycle.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
 }
 
 type Service struct {
-	db *sql.DB
+	db    *sql.DB
+	audit AuditRecorder
 }
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *Service) SetAudit(rec AuditRecorder) { s.audit = rec }
 
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
@@ -113,6 +134,20 @@ func (s *Service) TTL(ctx context.Context, key string, fallbackSecs int) time.Du
 }
 
 func (s *Service) BulkSet(ctx context.Context, updates map[string]string) ([]Setting, error) {
+	// Snapshot prior values for audit (only keys being changed, only when audit
+	// is wired — otherwise skip to avoid the extra round-trip).
+	var before map[string]string
+	if s.audit != nil && len(updates) > 0 {
+		before = make(map[string]string, len(updates))
+		for k := range updates {
+			if prev, err := s.Get(ctx, k); err == nil {
+				before[k] = prev.Value
+			} else {
+				before[k] = ""
+			}
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -131,5 +166,13 @@ func (s *Service) BulkSet(ctx context.Context, updates map[string]string) ([]Set
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, AuditEntry{
+			Action: "settings.bulk_update", EntityType: "settings", EntityID: "",
+			Before: before, After: updates,
+		})
+	}
+
 	return s.ListAll(ctx)
 }
