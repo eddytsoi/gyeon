@@ -161,19 +161,21 @@
       </div>
 
       {#if t.override}
-        <form method="POST" action="?/reset"
-              use:enhance={() => async ({ result, update }) => {
-                showResult(result, m.admin_email_templates_reset_success(), m.admin_email_templates_reset_failure());
-                await update();
-              }}>
-          <button type="submit"
-                  class="w-full px-3 py-2 rounded-xl border border-red-200 text-sm text-red-600 hover:bg-red-50 transition-colors">
-            {m.admin_email_templates_reset()}
-          </button>
-        </form>
+        <button type="submit" form="reset-template-form"
+                class="w-full px-3 py-2 rounded-xl border border-red-200 text-sm text-red-600 hover:bg-red-50 transition-colors">
+          {m.admin_email_templates_reset()}
+        </button>
       {/if}
     </div>
   </form>
+
+  {#if t.override}
+    <form id="reset-template-form" method="POST" action="?/reset"
+          use:enhance={() => async ({ result, update }) => {
+            showResult(result, m.admin_email_templates_reset_success(), m.admin_email_templates_reset_failure());
+            await update();
+          }}></form>
+  {/if}
 </div>
 
 {#if showingPreview}
