@@ -198,6 +198,36 @@
     }
   }
 
+  let iframeUnlocked = $state(false);
+
+  $effect(() => {
+    activeImage?.id;
+    iframeUnlocked = false;
+  });
+
+  let overlayStartT = 0;
+  const TAP_MAX_MOVE = 10;
+  const TAP_MAX_TIME = 350;
+
+  function onOverlayTouchStart(e: TouchEvent) {
+    overlayStartT = e.timeStamp;
+    onTouchStart(e);
+  }
+  function onOverlayTouchEnd(e: TouchEvent) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dt = e.timeStamp - overlayStartT;
+    const isTap =
+      Math.abs(dx) < TAP_MAX_MOVE &&
+      Math.abs(dy) < TAP_MAX_MOVE &&
+      dt < TAP_MAX_TIME;
+    if (isTap) {
+      iframeUnlocked = true;
+      e.preventDefault();
+    }
+    onTouchEnd(e);
+  }
+
   let qty = $state(1);
   let adding = $state(false);
   let added = $state(false);
@@ -285,6 +315,28 @@
                     allowfullscreen
                     frameborder="0"
                   ></iframe>
+                  {#if !iframeUnlocked}
+                    <button
+                      type="button"
+                      aria-label={activeImage.video_autoplay
+                        ? 'Tap to interact with video; swipe to change media'
+                        : 'Tap to play video; swipe to change media'}
+                      class="absolute inset-0 z-[5] hidden pointer-coarse:block bg-transparent
+                             focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                      ontouchstart={onOverlayTouchStart}
+                      ontouchend={onOverlayTouchEnd}
+                    >
+                      {#if !activeImage.video_autoplay}
+                        <span aria-hidden="true" class="absolute inset-0 flex items-center justify-center">
+                          <span class="w-16 h-16 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white">
+                            <svg class="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </span>
+                        </span>
+                      {/if}
+                    </button>
+                  {/if}
                 {:else if isVideo(activeImage)}
                   <video
                     src={activeImage.url}
