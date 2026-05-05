@@ -115,6 +115,7 @@
   const ORDER_NUMBER_KEYS = new Set(['order_number_prefix']);
   const LOW_STOCK_KEYS = new Set(['low_stock_threshold_default', 'low_stock_alert_enabled']);
   const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
+  const LOYALTY_KEYS = new Set(['loyalty_enabled', 'loyalty_points_per_hkd', 'loyalty_redeem_rate_hkd']);
   const ABANDONED_KEYS = new Set(['abandoned_cart_enabled', 'abandoned_cart_threshold_hours']);
   const ORPHAN_KEYS = new Set(['timezone', 'site_description', 'contact_email']);
   const PAYMENT_KEYS = new Set([
@@ -237,6 +238,7 @@
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
         !TAX_KEYS.has(s.key) &&
+        !LOYALTY_KEYS.has(s.key) &&
         !ABANDONED_KEYS.has(s.key) &&
         !LOW_STOCK_KEYS.has(s.key) &&
         !ORPHAN_KEYS.has(s.key)
@@ -286,9 +288,36 @@
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
   let stripeSaveCards = $state(settingValue('stripe_save_cards') === 'true');
   let lowStockAlertEnabled = $state(settingValue('low_stock_alert_enabled') !== 'false');
+  // ── Tax ─────────────────────────────────────────────────────────
   let taxEnabled = $state(settingValue('tax_enabled') === 'true');
   let taxInclusive = $state(settingValue('tax_inclusive') === 'true');
+  let taxLabel = $state(settingValue('tax_label') || 'Sales Tax');
+  const initialTaxRatePct = (() => {
+    const raw = settingValue('tax_rate');
+    if (!raw) return 0;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n * 100 : 0;
+  })();
+  let taxRatePct = $state<number>(initialTaxRatePct);
+  const TAX_PREVIEW_SUBTOTAL = 100;
+  const taxRateValue = $derived.by(() => {
+    const r = (Number(taxRatePct) || 0) / 100;
+    return r.toFixed(6).replace(/\.?0+$/, '') || '0';
+  });
+  const taxPreviewTax = $derived.by(() => {
+    if (!taxEnabled) return 0;
+    const r = (Number(taxRatePct) || 0) / 100;
+    if (taxInclusive) return TAX_PREVIEW_SUBTOTAL - TAX_PREVIEW_SUBTOTAL / (1 + r);
+    return TAX_PREVIEW_SUBTOTAL * r;
+  });
+  const taxPreviewSubtotal = $derived(taxInclusive ? TAX_PREVIEW_SUBTOTAL - taxPreviewTax : TAX_PREVIEW_SUBTOTAL);
+  const taxPreviewTotal = $derived(taxInclusive ? TAX_PREVIEW_SUBTOTAL : TAX_PREVIEW_SUBTOTAL + taxPreviewTax);
+  function fmtHKD(n: number): string {
+    return `HK$${n.toFixed(2)}`;
+  }
+
   let abandonedEnabled = $state(settingValue('abandoned_cart_enabled') === 'true');
+  let loyaltyEnabled = $state(settingValue('loyalty_enabled') === 'true');
   let abandonedRunPending = $state(false);
   let abandonedRunResult = $state<string | null>(null);
 
@@ -583,20 +612,6 @@
     <!-- Commerce tab -->
     <div class="tab-panel" class:active={activeTab === 'commerce'}>
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_shipping_heading()}</h2>
-      <p class="text-xs text-gray-400 mb-4">
-        {shippingCountriesSetting?.description ?? m.admin_settings_shipping_subtitle()}
-      </p>
-      <MultiSelect
-        options={countryOptions}
-        selected={shippingCountries}
-        placeholder={m.admin_settings_shipping_placeholder()}
-        onChange={(values) => (shippingCountries = values)}
-      />
-      <input type="hidden" name="shipping_countries" value={JSON.stringify(shippingCountries)} />
-    </div>
-
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
         <div>
           <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_heading()}</h2>
@@ -793,20 +808,24 @@
       <div class="{taxEnabled ? '' : 'opacity-50 pointer-events-none'} space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label for="tax_rate" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_tax_rate()}</label>
+            <label for="tax_rate_pct" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_tax_rate()}</label>
             <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_tax_rate_hint()}</p>
-            <input id="tax_rate" name="tax_rate"
-                   type="number" min="0" max="1" step="0.0001"
-                   value={settingValue('tax_rate') || '0'}
-                   placeholder="0.05"
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <div class="relative">
+              <input id="tax_rate_pct"
+                     type="number" min="0" max="100" step="0.01"
+                     bind:value={taxRatePct}
+                     placeholder="5"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-9 text-sm font-mono
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <span class="absolute inset-y-0 right-3 flex items-center text-sm text-gray-400 pointer-events-none">%</span>
+            </div>
+            <input type="hidden" name="tax_rate" value={taxRateValue} />
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="tax_label" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_tax_label()}</label>
             <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_tax_label_hint()}</p>
             <input id="tax_label" name="tax_label"
-                   type="text" value={settingValue('tax_label') || 'Sales Tax'}
+                   type="text" bind:value={taxLabel}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
@@ -827,6 +846,65 @@
                          transition duration-200 {taxInclusive ? 'translate-x-5' : 'translate-x-0'}"></span>
           </button>
           <input type="hidden" name="tax_inclusive" value={taxInclusive ? 'true' : 'false'} />
+        </div>
+
+        <div class="pt-3 border-t border-gray-100">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.admin_tax_preview_heading()}</p>
+          <div class="space-y-1.5 font-mono text-sm">
+            <div class="flex justify-between text-gray-600">
+              <span>{m.admin_tax_preview_subtotal()}</span>
+              <span>{fmtHKD(taxPreviewSubtotal)}</span>
+            </div>
+            <div class="flex justify-between text-gray-600">
+              <span>{taxLabel || 'Tax'} ({taxRatePct.toFixed(2)}%)</span>
+              <span>{fmtHKD(taxPreviewTax)}</span>
+            </div>
+            <div class="flex justify-between pt-1.5 border-t border-gray-100 text-gray-900 font-semibold">
+              <span>{m.admin_tax_preview_total()}</span>
+              <span>{fmtHKD(taxPreviewTotal)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_loyalty_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_loyalty_subtitle()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (loyaltyEnabled = !loyaltyEnabled)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {loyaltyEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={loyaltyEnabled}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {loyaltyEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="loyalty_enabled" value={loyaltyEnabled ? 'true' : 'false'} />
+      </div>
+
+      <div class="{loyaltyEnabled ? '' : 'opacity-50 pointer-events-none'} grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="loyalty_points_per_hkd" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_label_loyalty_points_per_hkd()}</label>
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_desc_loyalty_points_per_hkd()}</p>
+          <input id="loyalty_points_per_hkd" name="loyalty_points_per_hkd"
+                 type="number" min="0" step="0.1"
+                 value={settingValue('loyalty_points_per_hkd') || '1'}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="loyalty_redeem_rate_hkd" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_label_loyalty_redeem_rate_hkd()}</label>
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_desc_loyalty_redeem_rate_hkd()}</p>
+          <input id="loyalty_redeem_rate_hkd" name="loyalty_redeem_rate_hkd"
+                 type="number" min="0" step="1"
+                 value={settingValue('loyalty_redeem_rate_hkd') || '100'}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>
     </div>
@@ -880,6 +958,20 @@
 
     <!-- Logistics tab -->
     <div class="tab-panel" class:active={activeTab === 'logistics'}>
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_shipping_heading()}</h2>
+      <p class="text-xs text-gray-400 mb-4">
+        {shippingCountriesSetting?.description ?? m.admin_settings_shipping_subtitle()}
+      </p>
+      <MultiSelect
+        options={countryOptions}
+        selected={shippingCountries}
+        placeholder={m.admin_settings_shipping_placeholder()}
+        onChange={(values) => (shippingCountries = values)}
+      />
+      <input type="hidden" name="shipping_countries" value={JSON.stringify(shippingCountries)} />
+    </div>
+
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
         <div>
