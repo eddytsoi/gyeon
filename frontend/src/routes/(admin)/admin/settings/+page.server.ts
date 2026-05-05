@@ -1,13 +1,16 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { adminGetSettings, adminBulkUpdateSettings } from '$lib/api/admin';
+import { adminGetSettings, adminBulkUpdateSettings, adminGetMedia } from '$lib/api/admin';
 
 export const load: PageServerLoad = async ({ parent }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
-  const settings = await adminGetSettings(token).catch(() => []);
-  return { settings };
+  const [settings, mediaFiles] = await Promise.all([
+    adminGetSettings(token).catch(() => []),
+    adminGetMedia(token).catch(() => [])
+  ]);
+  return { settings, mediaFiles };
 };
 
 export const actions: Actions = {

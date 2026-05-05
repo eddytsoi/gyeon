@@ -3,6 +3,7 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
+  import MediaPicker from '$lib/components/admin/MediaPicker.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
@@ -106,6 +107,7 @@
 
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
+  const FAVICON_KEYS = new Set(['favicon_url']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
@@ -196,7 +198,8 @@
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
-        !ORDER_NUMBER_KEYS.has(s.key)
+        !ORDER_NUMBER_KEYS.has(s.key) &&
+        !FAVICON_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -207,6 +210,9 @@
 
   const mcpSetting = $derived(data.settings.find((s) => s.key === 'mcp_enabled'));
   let mcpOn = $state(mcpSetting?.value === 'true');
+
+  const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
+  let faviconUrl = $state(faviconSetting?.value ?? '');
 
   // ── Default Storefront Language ─────────────────────────────────
   const STOREFRONT_LANG_OPTIONS = $derived([
@@ -516,6 +522,21 @@
         </select>
       </div>
     </div>
+
+    <!-- Favicon -->
+    {#if faviconSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <MediaPicker
+          files={data.mediaFiles ?? []}
+          value={faviconUrl}
+          onChange={(url) => (faviconUrl = url)}
+          accept="image"
+          label={m.admin_settings_favicon_heading()}
+          description={faviconSetting.description ?? m.admin_settings_favicon_subtitle()}
+        />
+        <input type="hidden" name="favicon_url" value={faviconUrl} />
+      </div>
+    {/if}
 
     </div>
 
