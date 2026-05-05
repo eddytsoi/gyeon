@@ -197,6 +197,9 @@
       else goPrev();
     }
   }
+  function onTouchCancel() {
+    touchActive = false;
+  }
 
   let iframeUnlocked = $state(false);
 
@@ -298,6 +301,7 @@
           class="aspect-[4/3] lg:aspect-[5/4] rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100"
           ontouchstart={onTouchStart}
           ontouchend={onTouchEnd}
+          ontouchcancel={onTouchCancel}
         >
           {#if activeImage}
             {#key activeImage.id}
@@ -310,7 +314,7 @@
                   <iframe
                     src={getEmbedURL(activeImage) ?? ''}
                     title={activeImage.alt_text ?? data.product.name}
-                    class="w-full h-full"
+                    class="w-full h-full {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
                     allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
                     allowfullscreen
                     frameborder="0"
@@ -321,7 +325,7 @@
                       aria-label={activeImage.video_autoplay
                         ? 'Tap to interact with video; swipe to change media'
                         : 'Tap to play video; swipe to change media'}
-                      class="absolute inset-0 z-[5] hidden pointer-coarse:block bg-transparent
+                      class="absolute inset-0 z-[5] hidden [@media(pointer:coarse)]:block bg-transparent
                              focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       ontouchstart={onOverlayTouchStart}
                       ontouchend={onOverlayTouchEnd}
