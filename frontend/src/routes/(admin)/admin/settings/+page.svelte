@@ -116,6 +116,7 @@
   const LOW_STOCK_KEYS = new Set(['low_stock_threshold_default', 'low_stock_alert_enabled']);
   const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
   const ABANDONED_KEYS = new Set(['abandoned_cart_enabled', 'abandoned_cart_threshold_hours']);
+  const ORPHAN_KEYS = new Set(['timezone', 'site_description', 'contact_email']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
     'stripe_country',
@@ -185,6 +186,41 @@
     upload_max_image_mb: m.admin_settings_media_image_limit(),
     upload_max_video_mb: m.admin_settings_media_video_limit()
   });
+  const TEXT_SETTING_LABELS = $derived<Record<string, string>>({
+    currency: m.admin_settings_label_currency(),
+    free_shipping_threshold_hkd: m.admin_settings_label_free_shipping_threshold_hkd(),
+    ga4_measurement_id: m.admin_settings_label_ga4_measurement_id(),
+    loyalty_enabled: m.admin_settings_label_loyalty_enabled(),
+    loyalty_points_per_hkd: m.admin_settings_label_loyalty_points_per_hkd(),
+    loyalty_redeem_rate_hkd: m.admin_settings_label_loyalty_redeem_rate_hkd(),
+    meta_pixel_id: m.admin_settings_label_meta_pixel_id(),
+    site_name: m.admin_settings_label_site_name(),
+    wc_consumer_key: m.admin_settings_label_wc_consumer_key(),
+    wc_consumer_secret: m.admin_settings_label_wc_consumer_secret(),
+    wc_url: m.admin_settings_label_wc_url()
+  });
+  const SETTING_DESCS = $derived<Record<string, string>>({
+    maintenance_mode: m.admin_settings_desc_maintenance_mode(),
+    mcp_enabled: m.admin_settings_desc_mcp_enabled(),
+    cache_ttl_shop: m.admin_settings_desc_cache_ttl_shop(),
+    cache_ttl_cms: m.admin_settings_desc_cache_ttl_cms(),
+    cache_ttl_nav: m.admin_settings_desc_cache_ttl_nav(),
+    cloudflare_zone_id: m.admin_settings_desc_cloudflare_zone_id(),
+    cloudflare_api_token: m.admin_settings_desc_cloudflare_api_token(),
+    upload_max_image_mb: m.admin_settings_desc_upload_max_image_mb(),
+    upload_max_video_mb: m.admin_settings_desc_upload_max_video_mb(),
+    currency: m.admin_settings_desc_currency(),
+    free_shipping_threshold_hkd: m.admin_settings_desc_free_shipping_threshold_hkd(),
+    ga4_measurement_id: m.admin_settings_desc_ga4_measurement_id(),
+    loyalty_enabled: m.admin_settings_desc_loyalty_enabled(),
+    loyalty_points_per_hkd: m.admin_settings_desc_loyalty_points_per_hkd(),
+    loyalty_redeem_rate_hkd: m.admin_settings_desc_loyalty_redeem_rate_hkd(),
+    meta_pixel_id: m.admin_settings_desc_meta_pixel_id(),
+    site_name: m.admin_settings_desc_site_name(),
+    wc_consumer_key: m.admin_settings_desc_wc_consumer_key(),
+    wc_consumer_secret: m.admin_settings_desc_wc_consumer_secret(),
+    wc_url: m.admin_settings_desc_wc_url()
+  });
 
   const textSettings = $derived(
     data.settings.filter(
@@ -199,7 +235,11 @@
         !SHIPPING_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
-        !FAVICON_KEYS.has(s.key)
+        !FAVICON_KEYS.has(s.key) &&
+        !TAX_KEYS.has(s.key) &&
+        !ABANDONED_KEYS.has(s.key) &&
+        !LOW_STOCK_KEYS.has(s.key) &&
+        !ORPHAN_KEYS.has(s.key)
     )
   );
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
@@ -382,7 +422,7 @@
     { key: 'smtp_host',       label: m.admin_settings_email_smtp_host(),       placeholder: 'smtp.gmail.com' },
     { key: 'smtp_port',       label: m.admin_settings_email_smtp_port(),       placeholder: '587' },
     { key: 'smtp_username',   label: m.admin_settings_email_smtp_username(),   placeholder: 'you@gmail.com' },
-    { key: 'smtp_password',   label: m.admin_settings_email_smtp_password(),   placeholder: 'Gmail App Password (16 chars)', password: true,
+    { key: 'smtp_password',   label: m.admin_settings_email_smtp_password(),   placeholder: m.admin_settings_email_smtp_password_placeholder(), password: true,
       hint: m.admin_settings_email_smtp_password_hint() },
     { key: 'smtp_from_email', label: m.admin_settings_email_from_email(),      placeholder: 'noreply@yourdomain.com' },
     { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'Gyeon' },
@@ -452,8 +492,8 @@
         <div class="flex items-center justify-between gap-4">
           <div>
             <p class="text-sm font-semibold text-gray-900">{m.admin_settings_maintenance_heading()}</p>
-            {#if maintenanceSetting.description}
-              <p class="text-xs text-gray-400 mt-0.5">{maintenanceSetting.description}</p>
+            {#if SETTING_DESCS[maintenanceSetting.key] ?? maintenanceSetting.description}
+              <p class="text-xs text-gray-400 mt-0.5">{SETTING_DESCS[maintenanceSetting.key] ?? maintenanceSetting.description}</p>
             {/if}
           </div>
           <button type="button"
@@ -482,8 +522,8 @@
         <div class="flex items-center justify-between gap-4">
           <div>
             <p class="text-sm font-semibold text-gray-900">{m.admin_settings_webmcp_heading()}</p>
-            {#if mcpSetting.description}
-              <p class="text-xs text-gray-400 mt-0.5">{mcpSetting.description}</p>
+            {#if SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}
+              <p class="text-xs text-gray-400 mt-0.5">{SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}</p>
             {/if}
           </div>
           <button type="button"
@@ -952,7 +992,7 @@
               <label for="shipany_origin_district" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_district()}</label>
               <input id="shipany_origin_district" name="shipany_origin_district" type="text" list="hk-districts-origin"
                      value={settingValue('shipany_origin_district')}
-                     placeholder="觀塘區"
+                     placeholder={m.admin_settings_shipany_pickup_district_placeholder()}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
               <datalist id="hk-districts-origin">
@@ -1201,8 +1241,8 @@
                      class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {CACHE_TTL_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
               </label>
-              {#if setting.description}
-                <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+              {#if SETTING_DESCS[setting.key] ?? setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
               {/if}
               <div class="flex items-center gap-2">
                 <input id={setting.key} name={setting.key} type="number" min="60" step="30"
@@ -1227,8 +1267,8 @@
                      class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {CLOUDFLARE_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
               </label>
-              {#if setting.description}
-                <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+              {#if SETTING_DESCS[setting.key] ?? setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
               {/if}
               <input id={setting.key} name={setting.key}
                      type={setting.key === 'cloudflare_api_token' ? 'password' : 'text'}
@@ -1252,8 +1292,8 @@
                      class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {MEDIA_LIMIT_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
               </label>
-              {#if setting.description}
-                <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+              {#if SETTING_DESCS[setting.key] ?? setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
               {/if}
               <div class="flex items-center gap-2">
                 <input id={setting.key} name={setting.key} type="number" min="1"
@@ -1279,10 +1319,10 @@
               <div class="flex flex-col gap-1.5">
                 <label for={setting.key}
                        class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  {setting.key.replace(/_/g, ' ')}
+                  {TEXT_SETTING_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
                 </label>
-                {#if setting.description}
-                  <p class="text-xs text-gray-400 -mt-0.5">{setting.description}</p>
+                {#if SETTING_DESCS[setting.key] ?? setting.description}
+                  <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
                 {/if}
                 <input id={setting.key} name={setting.key} value={setting.value}
                        type={setting.key.includes('secret') || setting.key.includes('password') ? 'password' : 'text'}
