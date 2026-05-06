@@ -85,6 +85,29 @@ sw.addEventListener('fetch', (event) => {
     return;
   }
 
+  // SvelteKit SPA navigation fetches `<route>/__data.json` instead of
+  // doing a full document load — so `req.mode` is not 'navigate' and the
+  // handler above never fires. Without intercepting these, an offline
+  // in-app link click falls through to the network, the load() throws,
+  // and SvelteKit renders its default 500 error page. Returning 503 here
+  // lets the root +error.svelte detect offline and redirect to
+  // /offline.html for a consistent branded experience.
+  if (url.pathname.endsWith('/__data.json')) {
+    event.respondWith(
+      (async () => {
+        try {
+          return await fetch(req);
+        } catch {
+          return new Response('{"type":"error","error":{"message":"Offline"}}', {
+            status: 503,
+            headers: { 'Content-Type': 'application/json; charset=utf-8' }
+          });
+        }
+      })()
+    );
+    return;
+  }
+
   // Skip dynamic + auth-sensitive paths so they always hit the network.
   if (
     url.pathname.startsWith('/api/') ||
