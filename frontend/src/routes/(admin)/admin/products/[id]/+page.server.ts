@@ -61,6 +61,8 @@ export const actions: Actions = {
       name: form.get('name')?.toString() ?? '',
       excerpt: form.get('excerpt')?.toString() || undefined,
       description: form.get('description')?.toString() || undefined,
+      how_to_use: form.get('how_to_use')?.toString() || undefined,
+      compatible_surfaces: form.getAll('compatible_surfaces').map((v) => v.toString()),
       status: form.get('status')?.toString() ?? 'active',
       kind
     };

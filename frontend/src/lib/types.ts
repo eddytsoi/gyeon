@@ -18,6 +18,8 @@ export interface Product {
   name: string;
   excerpt?: string;
   description?: string;
+  how_to_use?: string;
+  compatible_surfaces?: string[];
   status: string;
   kind?: string; // 'simple' | 'bundle'
   created_at: string;

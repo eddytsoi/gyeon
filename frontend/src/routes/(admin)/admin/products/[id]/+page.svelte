@@ -30,6 +30,27 @@
   let autoSlug = $state(!data.product);
   let saving = $state(false);
 
+  // Compatible-surface checkbox state. Keys mirror the storefront tab icons; the
+  // server stores them as a TEXT[]. Order is the render order on the storefront.
+  const SURFACE_KEYS = ['paint', 'glass', 'wheels', 'leather', 'trim', 'fabric'] as const;
+  type SurfaceKey = typeof SURFACE_KEYS[number];
+  const surfaceLabels: Record<SurfaceKey, () => string> = {
+    paint:   m.product_detail_surface_paint,
+    glass:   m.product_detail_surface_glass,
+    wheels:  m.product_detail_surface_wheels,
+    leather: m.product_detail_surface_leather,
+    trim:    m.product_detail_surface_trim,
+    fabric:  m.product_detail_surface_fabric
+  };
+  let selectedSurfaces = $state<Set<SurfaceKey>>(
+    new Set((data.product?.compatible_surfaces ?? []).filter((s): s is SurfaceKey => (SURFACE_KEYS as readonly string[]).includes(s)))
+  );
+  function toggleSurface(key: SurfaceKey) {
+    const next = new Set(selectedSurfaces);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    selectedSurfaces = next;
+  }
+
   // bundle → simple destructive-change confirmation flow
   const originalKind = data.product?.kind ?? 'simple';
   const isBundleToSimplePending = $derived(
@@ -483,6 +504,33 @@
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.description ?? ''}</textarea>
+        </div>
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_product_edit_label_how_to_use()}
+            <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+          </label>
+          <textarea id="how_to_use" name="how_to_use" rows="6"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
+                    >{data.product?.how_to_use ?? ''}</textarea>
+        </div>
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_product_edit_label_compatible_surfaces()}
+          </span>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {#each SURFACE_KEYS as key}
+              <label class="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm cursor-pointer
+                            hover:bg-gray-50 transition-colors">
+                <input type="checkbox" name="compatible_surfaces" value={key}
+                       checked={selectedSurfaces.has(key)}
+                       onchange={() => toggleSurface(key)}
+                       class="rounded border-gray-300 focus:ring-gray-900" />
+                <span>{surfaceLabels[key]()}</span>
+              </label>
+            {/each}
+          </div>
         </div>
       </div>
       {#if data.isNew}

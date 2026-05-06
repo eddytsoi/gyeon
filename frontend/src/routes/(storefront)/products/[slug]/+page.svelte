@@ -683,44 +683,44 @@
       </div>
 
     {:else if activeTab === 'howto'}
-      <div class="max-w-2xl flex flex-col gap-10">
-        {#each [
-          { step: '01', title: m.product_detail_howto_step1_title(), desc: m.product_detail_howto_step1_desc() },
-          { step: '02', title: m.product_detail_howto_step2_title(), desc: m.product_detail_howto_step2_desc() },
-          { step: '03', title: m.product_detail_howto_step3_title(), desc: m.product_detail_howto_step3_desc() }
-        ] as s}
-          <div class="flex gap-6 items-start">
-            <span class="text-5xl font-black leading-none flex-shrink-0 w-14"
-                  style="color: rgb(113,135,183); opacity: 0.6">{s.step}</span>
-            <div class="pt-1">
-              <h3 class="font-bold text-gray-900 mb-2">{s.title}</h3>
-              <p class="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
-            </div>
+      <div class="max-w-2xl">
+        {#if data.product.how_to_use}
+          <div class="text-gray-700 text-base leading-relaxed">
+            {@html `<p class="mb-5 leading-relaxed text-gray-700">${renderMarkdown(data.product.how_to_use)}</p>`}
           </div>
-        {/each}
+        {:else}
+          <p class="text-gray-400">{m.product_detail_no_content()}</p>
+        {/if}
       </div>
 
     {:else if activeTab === 'surfaces'}
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-        {#each [
-          { name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
-          { name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
-          { name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
-          { name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-          { name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
-        ] as surface}
-          <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center"
-                 style="background: rgb(51,73,119)">
-              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
-              </svg>
+      {@const allSurfaces = [
+        { key: 'paint',   name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+        { key: 'glass',   name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
+        { key: 'wheels',  name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+        { key: 'leather', name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+        { key: 'trim',    name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
+        { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+      ]}
+      {@const selected = new Set(data.product.compatible_surfaces ?? [])}
+      {@const surfaces = allSurfaces.filter(s => selected.has(s.key))}
+      {#if surfaces.length > 0}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+          {#each surfaces as surface}
+            <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center"
+                   style="background: rgb(51,73,119)">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
+                </svg>
+              </div>
+              <span class="text-sm font-semibold text-gray-700">{surface.name}</span>
             </div>
-            <span class="text-sm font-semibold text-gray-700">{surface.name}</span>
-          </div>
-        {/each}
-      </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-gray-400">{m.product_detail_no_content()}</p>
+      {/if}
     {/if}
   </div>
 </div>
