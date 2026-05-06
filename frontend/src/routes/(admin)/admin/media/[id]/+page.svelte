@@ -23,6 +23,24 @@
   let showDeleteModal = $state(false);
   let saving = $state(false);
   let deleting = $state(false);
+  let mediaWidth = $state<number | null>(null);
+  let mediaHeight = $state<number | null>(null);
+
+  function onImgLoad(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    if (img.naturalWidth && img.naturalHeight) {
+      mediaWidth = img.naturalWidth;
+      mediaHeight = img.naturalHeight;
+    }
+  }
+
+  function onVideoMeta(e: Event) {
+    const v = e.currentTarget as HTMLVideoElement;
+    if (v.videoWidth && v.videoHeight) {
+      mediaWidth = v.videoWidth;
+      mediaHeight = v.videoHeight;
+    }
+  }
 
   function formatBytes(n: number) {
     if (n === 0) return '—';
@@ -138,12 +156,14 @@
         <video
           src={file.url}
           controls
+          onloadedmetadata={onVideoMeta}
           class="w-full h-full object-contain bg-black"
         ></video>
       {:else if isImage}
         <img
           src={file.url}
           alt={file.original_name}
+          onload={onImgLoad}
           class="w-full h-full object-contain"
         />
       {:else if isLink}
@@ -151,6 +171,7 @@
           <img
             src={file.url}
             alt={file.original_name}
+            onload={onImgLoad}
             class="w-full h-full object-contain"
             onerror={() => { linkImageFailed = true; }}
           />
@@ -258,6 +279,13 @@
             <p class="text-sm text-gray-700">{formatBytes(file.size_bytes)}</p>
           </div>
         </div>
+
+        {#if mediaWidth && mediaHeight}
+          <div>
+            <p class="text-xs font-medium text-gray-500 mb-1">{m.admin_media_edit_label_dimensions()}</p>
+            <p class="text-sm text-gray-700 font-mono">{mediaWidth} × {mediaHeight}</p>
+          </div>
+        {/if}
 
         <div>
           <p class="text-xs font-medium text-gray-500 mb-1">{m.admin_media_edit_label_uploaded_at()}</p>

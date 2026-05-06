@@ -108,6 +108,8 @@
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
+  const CURRENCY_KEYS = new Set(['currency']);
+  const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
@@ -241,9 +243,13 @@
         !LOYALTY_KEYS.has(s.key) &&
         !ABANDONED_KEYS.has(s.key) &&
         !LOW_STOCK_KEYS.has(s.key) &&
-        !ORPHAN_KEYS.has(s.key)
+        !ORPHAN_KEYS.has(s.key) &&
+        !CURRENCY_KEYS.has(s.key) &&
+        !FREE_SHIPPING_KEYS.has(s.key)
     )
   );
+  const currencySetting = $derived(data.settings.find((s) => s.key === 'currency'));
+  const freeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_hkd'));
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
   const cloudflareSettings = $derived(data.settings.filter((s) => CLOUDFLARE_KEYS.has(s.key)));
   const mediaLimitSettings = $derived(data.settings.filter((s) => MEDIA_LIMIT_KEYS.has(s.key)));
@@ -611,6 +617,23 @@
 
     <!-- Commerce tab -->
     <div class="tab-panel" class:active={activeTab === 'commerce'}>
+    {#if currencySetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="currency" class="text-sm font-semibold text-gray-900">
+            {m.admin_settings_label_currency()}
+          </label>
+          {#if SETTING_DESCS['currency'] ?? currencySetting.description}
+            <p class="text-xs text-gray-400">{SETTING_DESCS['currency'] ?? currencySetting.description}</p>
+          {/if}
+          <input id="currency" name="currency" type="text"
+                 value={currencySetting.value}
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    {/if}
+
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">
         <div>
@@ -971,6 +994,23 @@
       />
       <input type="hidden" name="shipping_countries" value={JSON.stringify(shippingCountries)} />
     </div>
+
+    {#if freeShippingSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="free_shipping_threshold_hkd" class="text-sm font-semibold text-gray-900">
+            {m.admin_settings_label_free_shipping_threshold_hkd()}
+          </label>
+          {#if SETTING_DESCS['free_shipping_threshold_hkd'] ?? freeShippingSetting.description}
+            <p class="text-xs text-gray-400">{SETTING_DESCS['free_shipping_threshold_hkd'] ?? freeShippingSetting.description}</p>
+          {/if}
+          <input id="free_shipping_threshold_hkd" name="free_shipping_threshold_hkd" type="text"
+                 value={freeShippingSetting.value}
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    {/if}
 
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">

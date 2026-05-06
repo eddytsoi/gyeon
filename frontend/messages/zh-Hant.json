@@ -1105,6 +1105,7 @@
   "admin_media_edit_type_image": "圖片",
   "admin_media_edit_type_video": "影片",
   "admin_media_edit_label_size": "檔案大小",
+  "admin_media_edit_label_dimensions": "原始尺寸",
   "admin_media_edit_label_uploaded_at": "上傳時間",
   "admin_media_edit_label_used_by": "使用於",
   "admin_media_edit_used_by_format": "{type}：{name}",

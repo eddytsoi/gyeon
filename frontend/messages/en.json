@@ -1105,6 +1105,7 @@
   "admin_media_edit_type_image": "Image",
   "admin_media_edit_type_video": "Video",
   "admin_media_edit_label_size": "File size",
+  "admin_media_edit_label_dimensions": "Dimensions",
   "admin_media_edit_label_uploaded_at": "Uploaded at",
   "admin_media_edit_label_used_by": "Used by",
   "admin_media_edit_used_by_format": "{type}: {name}",
