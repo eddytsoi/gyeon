@@ -48,6 +48,23 @@ type wcProduct struct {
 	Categories    []wcProductCategory `json:"categories"`
 	Images        []wcImage           `json:"images"`
 	Variations    []int               `json:"variations"`
+	// BundledItems is populated only when WooCommerce Product Bundles is
+	// active and the product Type is "bundle". Each entry references a
+	// component product (and optionally a specific variation) along with
+	// the default quantity to ship inside the bundle.
+	BundledItems []wcBundledItem `json:"bundled_items"`
+}
+
+// wcBundledItem mirrors a single component row exposed by the WooCommerce
+// Product Bundles plugin. We deliberately read only the fields needed to
+// resolve the component variant in Gyeon — discount / stock_status / etc.
+// are ignored on first-pass import.
+type wcBundledItem struct {
+	BundledItemID   int `json:"bundled_item_id"`
+	ProductID       int `json:"product_id"`
+	VariationID     int `json:"variation_id"`
+	MenuOrder       int `json:"menu_order"`
+	QuantityDefault int `json:"quantity_default"`
 }
 
 type wcVariation struct {
@@ -103,9 +120,15 @@ func (c *wcClient) get(path string, params url.Values, out interface{}) error {
 }
 
 // fetchProductTotal returns the total number of products via the X-WP-Total header.
-func (c *wcClient) fetchProductTotal() int {
-	req, err := http.NewRequest(http.MethodGet,
-		c.baseURL+"/wp-json/wc/v3/products?per_page=1&page=1", nil)
+// When wcType is non-empty, the count is scoped to that WooCommerce product
+// type (e.g. "bundle") so the progress bar denominator reflects only the
+// products that will actually be processed in this run.
+func (c *wcClient) fetchProductTotal(wcType string) int {
+	u := c.baseURL + "/wp-json/wc/v3/products?per_page=1&page=1"
+	if wcType != "" {
+		u += "&type=" + url.QueryEscape(wcType)
+	}
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return 0
 	}
@@ -150,9 +173,15 @@ func (c *wcClient) fetchCategories() ([]wcCategory, error) {
 	return all, nil
 }
 
-func (c *wcClient) fetchProducts(page int) ([]wcProduct, error) {
+// fetchProducts returns one page of products. When wcType is non-empty
+// (e.g. "bundle"), WooCommerce filters server-side to that type so we
+// don't waste bandwidth pulling products we'll skip client-side.
+func (c *wcClient) fetchProducts(page int, wcType string) ([]wcProduct, error) {
 	var products []wcProduct
 	params := url.Values{"per_page": {"100"}, "page": {fmt.Sprintf("%d", page)}}
+	if wcType != "" {
+		params.Set("type", wcType)
+	}
 	if err := c.get("/wp-json/wc/v3/products", params, &products); err != nil {
 		return nil, fmt.Errorf("products page %d: %w", page, err)
 	}

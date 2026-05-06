@@ -32,6 +32,20 @@ const (
 	ModeReplace = "replace"
 )
 
+// ProductTypeFilter narrows what the import pulls from WooCommerce.
+// Each run handles one filter so its delete/cleanup logic stays scoped:
+// running "products" never wipes previously imported bundles and vice
+// versa. The merchant can re-run with the other filter when ready.
+const (
+	// ProductTypeProducts (default): WC simple + variable products mapped
+	// to Gyeon kind="simple".
+	ProductTypeProducts = "products"
+	// ProductTypeBundleProducts: WC Product Bundles plugin entries mapped
+	// to Gyeon kind="bundle". Components are resolved by wc_product_id
+	// against products imported in a previous "products" run.
+	ProductTypeBundleProducts = "bundle_products"
+)
+
 // ImportRequest holds WooCommerce credentials and import options.
 type ImportRequest struct {
 	WCURL    string `json:"wc_url"`
@@ -43,6 +57,10 @@ type ImportRequest struct {
 	// Used for partial / smoke-test imports; stale cleanup is skipped when
 	// Limit > 0 so a small subset run cannot wipe out the rest of the catalog.
 	Limit int `json:"limit"`
+	// ProductType chooses what to import: "products" (simple + variable,
+	// default) or "bundle_products" (WC Product Bundles plugin entries).
+	// One filter per run keeps stale-cleanup scoped to that kind.
+	ProductType string `json:"product_type"`
 }
 
 // ProgressUpdate is sent via SSE for every meaningful step of the import.
@@ -118,9 +136,41 @@ func (s *Service) TestConnection(req ImportRequest) error {
 // ProductTotal returns the WC store's total product count via the
 // X-WP-Total header. Returns 0 on any error — the test endpoint already
 // validated connectivity, so a missing total is just a UX nicety we can
-// surface or skip without breaking the success case.
+// surface or skip without breaking the success case. Scoped to the
+// requested ProductType when set so the displayed count matches what
+// will actually be imported.
 func (s *Service) ProductTotal(req ImportRequest) int {
-	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchProductTotal()
+	wcType, _ := resolveProductTypeFilter(req.ProductType)
+	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchProductTotal(wcType)
+}
+
+// resolveProductTypeFilter maps the public product_type to (wc API type
+// filter, Gyeon kind). Unknown values fall back to the "products" preset.
+func resolveProductTypeFilter(productType string) (wcType, gyeonKind string) {
+	switch productType {
+	case ProductTypeBundleProducts:
+		return "bundle", "bundle"
+	default:
+		// "products" or empty — WC's ?type= only accepts a single value, so
+		// instead of two requests we fetch unfiltered and skip non-matching
+		// types client-side. Total count is taken without a type filter for
+		// the same reason; merchants without bundles see an accurate number,
+		// stores with bundles see a slightly inflated denominator that the
+		// progress bar tolerates.
+		return "", "simple"
+	}
+}
+
+// matchesProductType reports whether a WC product type matches the
+// requested filter. Used to defensively skip rows the WC API may have
+// returned despite a server-side ?type= filter (e.g. plugin quirks).
+func matchesProductType(productType, wcProductType string) bool {
+	switch productType {
+	case ProductTypeBundleProducts:
+		return wcProductType == "bundle"
+	default:
+		return wcProductType == "simple" || wcProductType == "variable"
+	}
 }
 
 // RunStreaming performs the full import, calling send() with a ProgressUpdate
@@ -130,11 +180,12 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	if mode == "" {
 		mode = ModeUpsert
 	}
+	wcType, gyeonKind := resolveProductTypeFilter(req.ProductType)
 
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := ProgressUpdate{Errors: []string{}}
 
-	p.TotalProducts = wc.fetchProductTotal()
+	p.TotalProducts = wc.fetchProductTotal(wcType)
 	// When the caller capped the run, show the cap as the denominator so
 	// the progress bar represents work scheduled, not the WC store size.
 	if req.Limit > 0 && (p.TotalProducts == 0 || p.TotalProducts > req.Limit) {
@@ -142,10 +193,11 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	}
 	send(p)
 
-	// Replace mode: nuke all previously WC-imported rows up front.
-	// Manual products (wc_product_id IS NULL) survive.
+	// Replace mode: nuke previously WC-imported rows up front. Scoped to
+	// the current kind so a "products" replace doesn't wipe bundles and
+	// vice versa. Manual products (wc_product_id IS NULL) survive.
 	if mode == ModeReplace {
-		if err := s.productSvc.DeleteAllWCImported(ctx); err != nil {
+		if err := s.productSvc.DeleteAllWCImported(ctx, gyeonKind); err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("clear WC-imported products: %v", err))
 			p.Done = true
 			send(p)
@@ -167,7 +219,7 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 
 pages:
 	for page := 1; ; page++ {
-		products, err := wc.fetchProducts(page)
+		products, err := wc.fetchProducts(page, wcType)
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch products page %d: %v", page, err))
 			break
@@ -179,10 +231,20 @@ pages:
 			if req.Limit > 0 && p.ProcessedProducts >= req.Limit {
 				break pages
 			}
+			// Defensive client-side filter — server-side ?type= is missing
+			// for the "products" preset, and even when set we don't trust
+			// every plugin to honour it perfectly.
+			if !matchesProductType(req.ProductType, prod.Type) {
+				continue
+			}
 			p.CurrentProduct = prod.Name
 			send(p)
 			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
-			s.importProduct(ctx, wc, prod, categoryMap, &p)
+			if gyeonKind == "bundle" {
+				s.importBundleProduct(ctx, prod, categoryMap, &p)
+			} else {
+				s.importProduct(ctx, wc, prod, categoryMap, &p)
+			}
 			p.ProcessedProducts++
 			p.CurrentProduct = ""
 			send(p)
@@ -192,9 +254,10 @@ pages:
 	// Stale cleanup: delete WC-imported products whose WC ID was not seen
 	// in this run. Skipped under Limit > 0 — a partial run hasn't seen the
 	// rest of the catalog, so its "seen" set isn't authoritative and the
-	// delete would wipe products the run never visited.
+	// delete would wipe products the run never visited. Scoped to gyeonKind
+	// so the other kind's previously-imported rows aren't affected.
 	if req.Limit == 0 {
-		if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, seenWCProductIDs); derr != nil {
+		if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, gyeonKind, seenWCProductIDs); derr != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("delete stale products: %v", derr))
 		} else {
 			p.StaleDeleted = int(n)
@@ -276,6 +339,7 @@ func (s *Service) importProduct(
 		Excerpt:     excerpt,
 		Description: desc,
 		Status:      mapStatus(prod.Status),
+		Kind:        "simple",
 	}
 	var productID string
 	var err error
@@ -386,6 +450,162 @@ func (s *Service) importProduct(
 	} else {
 		p.ImportedProducts++
 	}
+}
+
+// importBundleProduct handles a WC product whose Type == "bundle". The
+// product itself is upserted as kind="bundle" (which auto-seeds the
+// BUNDLE-* variant); the bundled_items array is resolved against
+// previously-imported component products (matched by wc_product_id) and
+// stored atomically via SetBundleItems. Components missing from Gyeon
+// are recorded as warnings — the merchant should run "Products" import
+// before "Bundle Products" so all components exist.
+func (s *Service) importBundleProduct(
+	ctx context.Context,
+	prod wcProduct,
+	categoryMap map[string]string,
+	p *ProgressUpdate,
+) {
+	var categoryID *string
+	if len(prod.Categories) > 0 {
+		if id, ok := categoryMap[prod.Categories[0].Slug]; ok {
+			categoryID = &id
+		}
+	}
+
+	var desc *string
+	if prod.Description != "" {
+		s := htmlToMarkdown(prod.Description)
+		desc = &s
+	}
+	var excerpt *string
+	if prod.ShortDescription != "" {
+		s := htmlToMarkdown(prod.ShortDescription)
+		excerpt = &s
+	}
+
+	existingID, lookupErr := s.productSvc.GetIDByWCProductID(ctx, prod.ID)
+	existedBefore := lookupErr == nil
+
+	upsertReq := shop.UpsertWCProductRequest{
+		WCProductID: prod.ID,
+		CategoryID:  categoryID,
+		Slug:        prod.Slug,
+		Name:        prod.Name,
+		Excerpt:     excerpt,
+		Description: desc,
+		Status:      mapStatus(prod.Status),
+		Kind:        "bundle",
+	}
+	var productID string
+	var err error
+	if existedBefore {
+		productID = existingID
+		err = s.productSvc.UpdateWCProduct(ctx, productID, upsertReq)
+	} else {
+		productID, err = s.productSvc.CreateWCProduct(ctx, upsertReq)
+	}
+	if err != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("upsert bundle %q: %v", prod.Slug, err))
+		p.Failed++
+		return
+	}
+
+	// Update the bundle's BUNDLE-* variant price from WC. Stock is derived
+	// from components by GetDerivedStock, so we don't write it here.
+	bundleVariantID, err := s.productSvc.GetBundleVariantID(ctx, productID)
+	if err != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("locate BUNDLE variant for %q: %v", prod.Slug, err))
+	} else {
+		price, compareAt := parsePrices(prod.RegularPrice, prod.SalePrice)
+		if uerr := s.productSvc.UpdateBundleVariantPrice(ctx, bundleVariantID, price, compareAt); uerr != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("price for bundle %q: %v", prod.Slug, uerr))
+		}
+		p.ImportedVariants++
+	}
+
+	// Resolve bundled_items to Gyeon component variants. Items whose
+	// component product hasn't been imported yet are skipped with a
+	// warning so the run continues; admin can fill the gap by running
+	// "Products" import then re-running "Bundle Products".
+	inputs := make([]shop.BundleItemInput, 0, len(prod.BundledItems))
+	for _, bi := range prod.BundledItems {
+		variantID, ok := s.resolveBundleComponent(ctx, bi)
+		if !ok {
+			p.Errors = append(p.Errors, fmt.Sprintf(
+				"bundle %q: component WC product %d not found in Gyeon (run Products import first)",
+				prod.Slug, bi.ProductID))
+			continue
+		}
+		qty := bi.QuantityDefault
+		if qty < 1 {
+			qty = 1
+		}
+		inputs = append(inputs, shop.BundleItemInput{
+			ComponentVariantID: variantID,
+			Quantity:           qty,
+			SortOrder:          bi.MenuOrder,
+		})
+	}
+	if _, err := s.productSvc.SetBundleItems(ctx, productID, inputs); err != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("set bundle_items for %q: %v", prod.Slug, err))
+	}
+
+	// Images — same refresh policy as simple/variable: drop WC-sourced,
+	// re-add from current WC payload, reuse media_files when URL unchanged.
+	if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
+		p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
+	}
+	for _, img := range prod.Images {
+		var alt *string
+		if img.Alt != "" {
+			alt = &img.Alt
+		}
+		req := shop.AddImageRequest{
+			URL:       &img.Src,
+			AltText:   alt,
+			SortOrder: img.Position,
+			IsPrimary: img.Position == 0,
+		}
+		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
+			req.MediaFileID = &id
+		} else {
+			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
+			if err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+			} else {
+				req.MediaFileID = &mediaID
+			}
+		}
+		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
+		}
+	}
+
+	if existedBefore {
+		p.UpdatedProducts++
+	} else {
+		p.ImportedProducts++
+	}
+}
+
+// resolveBundleComponent maps a WC bundled_item to a Gyeon variant ID.
+// Prefers an exact wc_variation_id match (when the bundle pins a specific
+// variation); otherwise falls back to the component product's first active
+// variant — deterministic and easy for the admin to retarget later.
+func (s *Service) resolveBundleComponent(ctx context.Context, bi wcBundledItem) (string, bool) {
+	if bi.VariationID != 0 {
+		if id, err := s.productSvc.GetVariantIDByWCVariationID(ctx, bi.VariationID); err == nil {
+			return id, true
+		}
+	}
+	productID, err := s.productSvc.GetIDByWCProductID(ctx, bi.ProductID)
+	if err != nil {
+		return "", false
+	}
+	if id, err := s.productSvc.FindFirstActiveVariantID(ctx, productID); err == nil {
+		return id, true
+	}
+	return "", false
 }
 
 func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string, prod wcProduct) error {

@@ -8,6 +8,7 @@
 
   type Step = 'idle' | 'confirming' | 'testing' | 'importing' | 'done' | 'error';
   type Mode = 'upsert' | 'replace';
+  type ProductType = 'products' | 'bundle_products';
 
   interface Progress {
     total_products: number;
@@ -74,6 +75,7 @@
   let errorMsg = $state('');
   let progress = $state<Progress | null>(null);
   let mode = $state<Mode>('upsert');
+  let productType = $state<ProductType>('products');
 
   let wcUrl = $state('');
   let wcKey = $state('');
@@ -199,6 +201,7 @@
           wc_key: wcKey,
           wc_secret: wcSecret,
           mode,
+          product_type: productType,
           limit: limit && limit > 0 ? Math.floor(limit) : 0
         })
       });
@@ -460,6 +463,22 @@
         {/if}
 
         <div class="flex flex-col gap-5">
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_product_type" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_label_product_type()}
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_product_type_hint()}</p>
+            <select id="wc_product_type" bind:value={productType}
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="products">{m.admin_import_product_type_products()}</option>
+              <option value="bundle_products">{m.admin_import_product_type_bundle_products()}</option>
+            </select>
+            {#if productType === 'bundle_products'}
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_product_type_bundle_warning()}</p>
+            {/if}
+          </div>
+
           <div class="flex flex-col gap-1.5">
             <label for="wc_limit" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {m.admin_import_label_limit()}

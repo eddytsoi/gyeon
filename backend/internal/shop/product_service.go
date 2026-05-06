@@ -736,6 +736,9 @@ func (s *ProductService) GetIDByWCProductID(ctx context.Context, wcID int) (stri
 }
 
 // UpsertWCProductRequest carries the WC-derived fields for an upsert.
+// Kind defaults to "simple" when empty; pass "bundle" for WC Product
+// Bundles imports so CreateWCProduct also seeds the auto-generated
+// BUNDLE-* variant the rest of the system expects.
 type UpsertWCProductRequest struct {
 	WCProductID int
 	CategoryID  *string
@@ -744,6 +747,7 @@ type UpsertWCProductRequest struct {
 	Excerpt     *string
 	Description *string
 	Status      string
+	Kind        string
 }
 
 // CreateWCProduct does a plain INSERT for a brand-new WC import row. The
@@ -759,13 +763,39 @@ type UpsertWCProductRequest struct {
 // monotone-without-gaps for the upsert mode (replace mode is already
 // gap-free because it deletes rows up front so no conflicts ever fire).
 func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProductRequest) (string, error) {
-	var id string
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO products (wc_product_id, category_id, slug, name, excerpt, description, status)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id`,
-		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status).Scan(&id)
+	kind := req.Kind
+	if kind == "" {
+		kind = "simple"
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var id string
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO products (wc_product_id, category_id, slug, name, excerpt, description, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id`,
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).Scan(&id); err != nil {
+		return "", err
+	}
+
+	// Bundle products require the auto-generated BUNDLE-* variant the rest
+	// of the system uses for cart/order linkage. Mirror Create()'s logic so
+	// imported bundles are immediately usable.
+	if kind == "bundle" {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_variants (product_id, sku, price, stock_qty)
+			 VALUES ($1, $2, 0, 0)`,
+			id, defaultBundleSKU(id)); err != nil {
+			return "", fmt.Errorf("auto-create bundle variant: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 	s.cache.DeleteByPrefix(productPrefix)
@@ -774,9 +804,58 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 
 // UpdateWCProduct syncs WC-sourced fields onto an existing row. id /
 // number are intentionally untouched so admin URLs (PRD-N) remain stable
-// across re-imports.
+// across re-imports. When the WC product type changes between runs (e.g.
+// merchant converts simple → bundle in WC), this also handles the kind
+// transition by mirroring Update()'s cleanup / variant-seeding logic.
 func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, req UpsertWCProductRequest) error {
-	_, err := s.db.ExecContext(ctx,
+	kind := req.Kind
+	if kind == "" {
+		kind = "simple"
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var existingKind string
+	if err := tx.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, productID).Scan(&existingKind); err != nil {
+		return err
+	}
+
+	// bundle → simple: drop bundle_items and the BUNDLE-* variant so the
+	// product's invariants stay clean. The simple-fallback variant the
+	// importer is about to upsert will fill the gap.
+	if existingKind == "bundle" && kind != "bundle" {
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM bundle_items WHERE bundle_product_id = $1`, productID); err != nil {
+			return fmt.Errorf("cleanup bundle_items: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`DELETE FROM product_variants WHERE product_id = $1 AND sku LIKE 'BUNDLE-%'`, productID); err != nil {
+			return fmt.Errorf("cleanup bundle variant: %w", err)
+		}
+	}
+
+	// non-bundle → bundle: seed the BUNDLE-* variant if one isn't already
+	// present (idempotent for repeated bundle re-imports).
+	if existingKind != "bundle" && kind == "bundle" {
+		var count int
+		_ = tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM product_variants WHERE product_id = $1 AND sku LIKE 'BUNDLE-%'`, productID).
+			Scan(&count)
+		if count == 0 {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO product_variants (product_id, sku, price, stock_qty)
+				 VALUES ($1, $2, 0, 0)`,
+				productID, defaultBundleSKU(productID)); err != nil {
+				return fmt.Errorf("auto-create bundle variant: %w", err)
+			}
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx,
 		`UPDATE products
 		    SET category_id = $2,
 		        slug        = $3,
@@ -784,10 +863,14 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		        excerpt     = $5,
 		        description = $6,
 		        status      = $7,
+		        kind        = $8,
 		        updated_at  = NOW()
 		  WHERE id = $1`,
-		productID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status)
-	if err != nil {
+		productID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(productPrefix)
@@ -872,12 +955,22 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 // was not seen in the current import (i.e. the WC store no longer has
 // them). Manually-created products (wc_product_id IS NULL) are never
 // touched. Returns rows deleted.
-func (s *ProductService) DeleteStaleWCProducts(ctx context.Context, keepWCIDs []int) (int64, error) {
-	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM products
-		  WHERE wc_product_id IS NOT NULL
-		    AND NOT (wc_product_id = ANY($1))`,
-		pq.Array(keepWCIDs))
+//
+// kind scopes the delete to one product kind ("simple" or "bundle"); pass
+// empty to delete across kinds. The importer always runs one kind per
+// invocation, so without this scope a "products" import would wipe every
+// previously-imported bundle (their wc_product_ids weren't seen) and vice
+// versa.
+func (s *ProductService) DeleteStaleWCProducts(ctx context.Context, kind string, keepWCIDs []int) (int64, error) {
+	q := `DELETE FROM products
+	       WHERE wc_product_id IS NOT NULL
+	         AND NOT (wc_product_id = ANY($1))`
+	args := []any{pq.Array(keepWCIDs)}
+	if kind != "" {
+		q += ` AND kind = $2`
+		args = append(args, kind)
+	}
+	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -912,12 +1005,68 @@ func (s *ProductService) DeleteSimpleWCVariant(ctx context.Context, productID st
 	return err
 }
 
+// GetVariantIDByWCVariationID resolves a WC variation ID to its Gyeon
+// variant UUID. Used by the bundle importer to link bundled_items that
+// pin a specific variation. Returns sql.ErrNoRows if no variant matches —
+// caller falls back to FindFirstActiveVariantID.
+func (s *ProductService) GetVariantIDByWCVariationID(ctx context.Context, wcVariationID int) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM product_variants WHERE wc_variation_id = $1`, wcVariationID).Scan(&id)
+	return id, err
+}
+
+// FindFirstActiveVariantID returns the lowest-id active variant for the
+// given product. Used by the bundle importer when a bundled_item points
+// at a variable component without specifying which variation, so we pick
+// a deterministic default the admin can adjust later.
+func (s *ProductService) FindFirstActiveVariantID(ctx context.Context, productID string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM product_variants
+		 WHERE product_id = $1 AND is_active = TRUE
+		 ORDER BY created_at ASC, id ASC
+		 LIMIT 1`, productID).Scan(&id)
+	return id, err
+}
+
+// GetBundleVariantID returns the auto-generated BUNDLE-* variant ID for a
+// bundle product so the importer can update its price (stock is derived).
+func (s *ProductService) GetBundleVariantID(ctx context.Context, productID string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM product_variants
+		 WHERE product_id = $1 AND sku LIKE 'BUNDLE-%'
+		 LIMIT 1`, productID).Scan(&id)
+	return id, err
+}
+
+// UpdateBundleVariantPrice writes a fresh price onto the bundle's BUNDLE-*
+// variant. Other fields (stock_qty, weight) are intentionally left alone:
+// stock is derived from components and weight is irrelevant for a bundle.
+func (s *ProductService) UpdateBundleVariantPrice(ctx context.Context, variantID string, price float64, compareAt *float64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE product_variants
+		    SET price = $2, compare_at_price = $3, updated_at = NOW()
+		  WHERE id = $1`,
+		variantID, price, compareAt)
+	return err
+}
+
 // DeleteAllWCImported removes all WC-imported products. Manually-created
 // products are kept. Used by the "replace" import mode.
-func (s *ProductService) DeleteAllWCImported(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM products WHERE wc_product_id IS NOT NULL`)
-	if err != nil {
+//
+// kind scopes the delete to one product kind; pass empty to wipe across
+// kinds. See DeleteStaleWCProducts for the rationale — same isolation
+// concern between "products" and "bundle products" import runs.
+func (s *ProductService) DeleteAllWCImported(ctx context.Context, kind string) error {
+	q := `DELETE FROM products WHERE wc_product_id IS NOT NULL`
+	args := []any{}
+	if kind != "" {
+		q += ` AND kind = $1`
+		args = append(args, kind)
+	}
+	if _, err := s.db.ExecContext(ctx, q, args...); err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(productPrefix)
