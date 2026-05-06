@@ -42,7 +42,16 @@
     });
   });
   let activeImageID = $state<string | undefined>(undefined);
-  let activeTab = $state<'content' | 'howto' | 'surfaces'>('content');
+
+  type TabId = 'content' | 'howto' | 'surfaces';
+  const availableTabs: TabId[] = (() => {
+    const arr: TabId[] = [];
+    if (data.product.description?.trim()) arr.push('content');
+    if (data.product.how_to_use?.trim()) arr.push('howto');
+    if ((data.product.compatible_surfaces ?? []).length > 0) arr.push('surfaces');
+    return arr;
+  })();
+  let activeTab = $state<TabId>(availableTabs[0] ?? 'content');
 
   function renderMarkdown(md: string): string {
     return md
@@ -650,63 +659,55 @@
 </div>
 
 <!-- ── TABS ───────────────────────────────────────────────────────── -->
-<div class="bg-white">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+{#if availableTabs.length > 0}
+  {@const tabLabels: Record<TabId, string> = {
+    content:  m.product_detail_tab_content(),
+    howto:    m.product_detail_tab_howto(),
+    surfaces: m.product_detail_tab_surfaces()
+  }}
+  <div class="bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
 
-    <div class="flex gap-0 border-b border-gray-200 mb-10">
-      {#each [
-        { id: 'content',  label: m.product_detail_tab_content() },
-        { id: 'howto',    label: m.product_detail_tab_howto() },
-        { id: 'surfaces', label: m.product_detail_tab_surfaces() }
-      ] as tab}
-        <button
-          onclick={() => (activeTab = tab.id as typeof activeTab)}
-          class="px-6 py-4 text-sm font-semibold uppercase tracking-widest border-b-2 transition-colors"
-          style={activeTab === tab.id
-            ? 'border-color: rgb(51,73,119); color: rgb(25,37,63)'
-            : 'border-color: transparent; color: #9ca3af'}
-        >
-          {tab.label}
-        </button>
-      {/each}
-    </div>
-
-    {#if activeTab === 'content'}
-      <div class="max-w-2xl">
-        {#if data.product.description}
-          <div class="text-gray-700 text-base leading-relaxed">
-            {@html `<p class="mb-5 leading-relaxed text-gray-700">${renderMarkdown(data.product.description)}</p>`}
-          </div>
-        {:else}
-          <p class="text-gray-400">{m.product_detail_no_content()}</p>
-        {/if}
+      <div class="flex gap-0 border-b border-gray-200 mb-10">
+        {#each availableTabs as id}
+          <button
+            onclick={() => (activeTab = id)}
+            class="px-6 py-4 text-sm font-semibold uppercase tracking-widest border-b-2 transition-colors"
+            style={activeTab === id
+              ? 'border-color: rgb(51,73,119); color: rgb(25,37,63)'
+              : 'border-color: transparent; color: #9ca3af'}
+          >
+            {tabLabels[id]}
+          </button>
+        {/each}
       </div>
 
-    {:else if activeTab === 'howto'}
-      <div class="max-w-2xl">
-        {#if data.product.how_to_use}
+      {#if activeTab === 'content'}
+        <div class="max-w-2xl">
           <div class="text-gray-700 text-base leading-relaxed">
-            {@html `<p class="mb-5 leading-relaxed text-gray-700">${renderMarkdown(data.product.how_to_use)}</p>`}
+            {@html `<p class="mb-5 leading-relaxed text-gray-700">${renderMarkdown(data.product.description ?? '')}</p>`}
           </div>
-        {:else}
-          <p class="text-gray-400">{m.product_detail_no_content()}</p>
-        {/if}
-      </div>
+        </div>
 
-    {:else if activeTab === 'surfaces'}
-      {@const allSurfaces = [
-        { key: 'paint',   name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
-        { key: 'glass',   name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
-        { key: 'wheels',  name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-        { key: 'leather', name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
-        { key: 'trim',    name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-        { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
-      ]}
-      {@const selected = new Set(data.product.compatible_surfaces ?? [])}
-      {@const surfaces = allSurfaces.filter(s => selected.has(s.key))}
-      {#if surfaces.length > 0}
+      {:else if activeTab === 'howto'}
+        <div class="max-w-2xl">
+          <div class="text-gray-700 text-base leading-relaxed">
+            {@html `<p class="mb-5 leading-relaxed text-gray-700">${renderMarkdown(data.product.how_to_use ?? '')}</p>`}
+          </div>
+        </div>
+
+      {:else if activeTab === 'surfaces'}
+        {@const allSurfaces = [
+          { key: 'paint',   name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+          { key: 'glass',   name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
+          { key: 'wheels',  name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { key: 'leather', name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+          { key: 'trim',    name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
+          { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+        ]}
+        {@const selected = new Set(data.product.compatible_surfaces ?? [])}
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-          {#each surfaces as surface}
+          {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
             <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
               <div class="w-10 h-10 rounded-xl flex items-center justify-center"
                    style="background: rgb(51,73,119)">
@@ -718,12 +719,10 @@
             </div>
           {/each}
         </div>
-      {:else}
-        <p class="text-gray-400">{m.product_detail_no_content()}</p>
       {/if}
-    {/if}
+    </div>
   </div>
-</div>
+{/if}
 
 <!-- ── RELATED ────────────────────────────────────────────────────── -->
 {#if data.related.length > 0}
