@@ -601,7 +601,7 @@
           onChange={(url) => (faviconUrl = url)}
           accept="image"
           label={m.admin_settings_favicon_heading()}
-          description={faviconSetting.description ?? m.admin_settings_favicon_subtitle()}
+          description={m.admin_settings_favicon_subtitle()}
         />
         <input type="hidden" name="favicon_url" value={faviconUrl} />
       </div>
