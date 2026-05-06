@@ -220,15 +220,23 @@
           if (btn) btn.textContent = 'Retry / 重試';
         }
 
+        // If the URL is literally /offline.html (e.g., legacy redirect path),
+        // reloading would just re-serve this static file forever. Bounce to
+        // / instead. Otherwise the URL is the page the user actually wanted
+        // (served via the SW navigation fallback), so reload() retries it.
+        function performRetry() {
+          if (window.location.pathname === '/offline.html') {
+            window.location.replace('/');
+          } else {
+            window.location.reload();
+          }
+        }
+
         var retry = document.getElementById('retry');
         if (retry) {
-          retry.addEventListener('click', function () {
-            window.location.reload();
-          });
+          retry.addEventListener('click', performRetry);
         }
-        window.addEventListener('online', function () {
-          window.location.reload();
-        });
+        window.addEventListener('online', performRetry);
       })();
     </script>
   </body>
