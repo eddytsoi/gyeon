@@ -124,6 +124,7 @@ type ProductImage struct {
 	MimeType      *string `json:"mime_type,omitempty"`
 	ThumbnailURL  *string `json:"thumbnail_url,omitempty"`
 	VideoAutoplay bool    `json:"video_autoplay"`
+	VideoFit      string  `json:"video_fit"`
 	AltText       *string `json:"alt_text,omitempty"`
 	SortOrder     int     `json:"sort_order"`
 	IsPrimary     bool    `json:"is_primary"`
@@ -1123,6 +1124,7 @@ func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req Up
 		        mf.mime_type,
 		        mf.thumbnail_url,
 		        mf.video_autoplay,
+		        mf.video_fit,
 		        upd.alt_text, upd.sort_order, upd.is_primary, upd.created_at
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
 		imageID, req.AltText, req.SortOrder, req.IsPrimary))
@@ -1165,10 +1167,14 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 func scanProductImage(row interface{ Scan(...any) error }) (ProductImage, error) {
 	var img ProductImage
 	var autoplay sql.NullBool
+	var fit sql.NullString
 	err := row.Scan(&img.ID, &img.ProductID, &img.VariantID, &img.MediaFileID,
-		&img.URL, &img.MimeType, &img.ThumbnailURL, &autoplay, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
+		&img.URL, &img.MimeType, &img.ThumbnailURL, &autoplay, &fit, &img.AltText, &img.SortOrder, &img.IsPrimary, &img.CreatedAt)
 	if autoplay.Valid {
 		img.VideoAutoplay = autoplay.Bool
+	}
+	if fit.Valid {
+		img.VideoFit = fit.String
 	}
 	return img, err
 }
@@ -1180,6 +1186,7 @@ func (s *ProductService) ListImages(ctx context.Context, productID string) ([]Pr
 		        mf.mime_type,
 		        mf.thumbnail_url,
 		        mf.video_autoplay,
+		        mf.video_fit,
 		        pi.alt_text, pi.sort_order, pi.is_primary, pi.created_at
 		 FROM product_images pi
 		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
@@ -1244,6 +1251,7 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 		        mf.mime_type,
 		        mf.thumbnail_url,
 		        mf.video_autoplay,
+		        mf.video_fit,
 		        ins.alt_text, ins.sort_order, ins.is_primary, ins.created_at
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
 		productID, req.VariantID, req.MediaFileID, req.URL, req.AltText, req.SortOrder, req.IsPrimary))

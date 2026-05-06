@@ -37,6 +37,7 @@
   let linkUrl = $state('');
   let linkName = $state('');
   let linkAutoplay = $state(false);
+  let linkFit = $state<'contain' | 'cover'>('contain');
   let linkSaving = $state(false);
   let linkError = $state('');
 
@@ -44,6 +45,7 @@
     linkUrl = '';
     linkName = '';
     linkAutoplay = false;
+    linkFit = 'contain';
     linkError = '';
     linkModalOpen = true;
   }
@@ -60,7 +62,8 @@
     linkError = '';
     try {
       const added = await adminAddMediaLink(data.token, url, linkName.trim(), {
-        autoplay: detectedStreaming ? linkAutoplay : false
+        autoplay: detectedStreaming ? linkAutoplay : false,
+        videoFit: detectedStreaming ? linkFit : 'contain'
       });
       media = [added, ...media];
       linkModalOpen = false;
@@ -262,6 +265,22 @@
             >
               <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {linkAutoplay ? 'translate-x-4' : 'translate-x-0.5'}"></span>
             </button>
+          </label>
+          <label class="flex items-center justify-between gap-3 pt-1" for="link-fit">
+            <span class="text-xs font-medium text-gray-700">
+              {m.admin_media_link_modal_fit_label()}
+              <span class="block text-gray-400 font-normal mt-0.5">{m.admin_media_link_modal_fit_hint()}</span>
+            </span>
+            <select
+              id="link-fit"
+              bind:value={linkFit}
+              data-testid="streaming-fit-select"
+              class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-900
+                     focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="contain">{m.admin_media_link_modal_fit_contain()}</option>
+              <option value="cover">{m.admin_media_link_modal_fit_cover()}</option>
+            </select>
           </label>
         {/if}
         {#if linkError}

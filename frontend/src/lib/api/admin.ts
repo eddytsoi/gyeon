@@ -590,6 +590,7 @@ export interface MediaFile {
   thumbnail_url?: string | null;
   thumbnail_size_bytes?: number | null;
   video_autoplay?: boolean;
+  video_fit?: 'contain' | 'cover';
 }
 
 export const adminGetMedia = (token: string) =>
@@ -601,7 +602,7 @@ export const adminGetMediaFile = (token: string, id: string) =>
 export const adminUpdateMedia = (
   token: string,
   id: string,
-  body: { original_name?: string; url?: string; video_autoplay?: boolean }
+  body: { original_name?: string; url?: string; video_autoplay?: boolean; video_fit?: 'contain' | 'cover' }
 ) =>
   request<MediaFile>(`/admin/media/${id}`, token, {
     method: 'PATCH',
@@ -615,11 +616,16 @@ export const adminAddMediaLink = (
   token: string,
   url: string,
   name: string,
-  opts?: { autoplay?: boolean }
+  opts?: { autoplay?: boolean; videoFit?: 'contain' | 'cover' }
 ) =>
   request<MediaFile>('/admin/media/link', token, {
     method: 'POST',
-    body: JSON.stringify({ url, name, autoplay: opts?.autoplay ?? false })
+    body: JSON.stringify({
+      url,
+      name,
+      autoplay: opts?.autoplay ?? false,
+      video_fit: opts?.videoFit ?? 'contain'
+    })
   });
 
 export const adminUploadMedia = (

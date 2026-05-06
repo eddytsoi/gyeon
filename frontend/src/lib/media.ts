@@ -173,6 +173,12 @@ export function getEmbedURL(
   }
 }
 
+export type VideoFit = 'contain' | 'cover';
+
+export function getVideoFit(input: { video_fit?: VideoFit | null }): VideoFit {
+  return input.video_fit === 'cover' ? 'cover' : 'contain';
+}
+
 export const DEFAULT_IMAGE_MAX_MB = 1;
 export const DEFAULT_VIDEO_MAX_MB = 10;
 

@@ -311,14 +311,25 @@
                 out:slide={{ dir: direction === 'next' ? -1 : 1 }}
               >
                 {#if isStreamingVideo(activeImage) && getEmbedURL(activeImage)}
-                  <iframe
-                    src={getEmbedURL(activeImage) ?? ''}
-                    title={activeImage.alt_text ?? data.product.name}
-                    class="w-full h-full {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
-                    allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
-                    allowfullscreen
-                    frameborder="0"
-                  ></iframe>
+                  {#if activeImage.video_fit === 'cover'}
+                    <iframe
+                      src={getEmbedURL(activeImage) ?? ''}
+                      title={activeImage.alt_text ?? data.product.name}
+                      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 min-w-full min-h-full aspect-video {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
+                      allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
+                      allowfullscreen
+                      frameborder="0"
+                    ></iframe>
+                  {:else}
+                    <iframe
+                      src={getEmbedURL(activeImage) ?? ''}
+                      title={activeImage.alt_text ?? data.product.name}
+                      class="w-full h-full {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
+                      allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
+                      allowfullscreen
+                      frameborder="0"
+                    ></iframe>
+                  {/if}
                   {#if !iframeUnlocked}
                     <button
                       type="button"
@@ -346,7 +357,7 @@
                     src={activeImage.url}
                     autoplay muted loop playsinline preload="metadata"
                     aria-label={activeImage.alt_text ?? data.product.name}
-                    class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                    class="w-full h-full {activeImage.video_fit === 'contain' ? 'object-contain' : 'object-cover'} transition-transform duration-700 group-hover:scale-[1.03]"
                   ></video>
                 {:else}
                   <img

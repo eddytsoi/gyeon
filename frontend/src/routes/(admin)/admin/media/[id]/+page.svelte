@@ -3,7 +3,7 @@
   import type { PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import { showResult } from '$lib/stores/notifications.svelte';
-  import { isStreamingVideo, getEmbedURL } from '$lib/media';
+  import { isStreamingVideo, getEmbedURL, type VideoFit } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -12,12 +12,14 @@
   const isLink = $derived(file.mime_type === 'link');
   const isStreaming = $derived(isStreamingVideo(file));
   let autoplayState = $state(data.file.video_autoplay ?? false);
+  let fitState = $state<VideoFit>(data.file.video_fit === 'cover' ? 'cover' : 'contain');
   const embedURL = $derived(getEmbedURL(file, { autoplay: autoplayState }));
   const isVideo = $derived(
     file.mime_type.startsWith('video/') ||
     (isLink && /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(file.url))
   );
   const isImage = $derived(file.mime_type.startsWith('image/'));
+  const showFitControl = $derived(isVideo || isStreaming);
 
   let linkImageFailed = $state(false);
   let showDeleteModal = $state(false);
@@ -142,22 +144,33 @@
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
     <!-- Left: preview -->
-    <div class="rounded-2xl overflow-hidden bg-gray-100 aspect-square flex items-center justify-center">
+    <div class="rounded-2xl overflow-hidden bg-gray-100 aspect-square flex items-center justify-center relative">
       {#if isStreaming && embedURL}
-        <iframe
-          src={embedURL}
-          title={file.original_name}
-          class="w-full h-full"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowfullscreen
-          frameborder="0"
-        ></iframe>
+        {#if fitState === 'cover'}
+          <iframe
+            src={embedURL}
+            title={file.original_name}
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 min-w-full min-h-full aspect-video"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+            frameborder="0"
+          ></iframe>
+        {:else}
+          <iframe
+            src={embedURL}
+            title={file.original_name}
+            class="w-full h-full"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+            frameborder="0"
+          ></iframe>
+        {/if}
       {:else if isVideo}
         <video
           src={file.url}
           controls
           onloadedmetadata={onVideoMeta}
-          class="w-full h-full object-contain bg-black"
+          class="w-full h-full {fitState === 'cover' ? 'object-cover' : 'object-contain'} bg-black"
         ></video>
       {:else if isImage}
         <img
@@ -329,6 +342,29 @@
             </label>
             <input type="hidden" name="video_autoplay_present" value="1" />
             <input type="hidden" name="video_autoplay" value={autoplayState ? 'true' : 'false'} />
+          </div>
+        {/if}
+
+        {#if showFitControl}
+          <div>
+            <label class="flex items-center justify-between gap-3" for="video_fit">
+              <span class="text-xs font-medium text-gray-700">
+                {m.admin_media_edit_fit_label()}
+                <span class="block text-gray-400 font-normal mt-0.5">{m.admin_media_edit_fit_hint()}</span>
+              </span>
+              <select
+                id="video_fit"
+                bind:value={fitState}
+                data-testid="video-fit-select"
+                class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-900
+                       focus:outline-none focus:ring-2 focus:ring-gray-900"
+              >
+                <option value="contain">{m.admin_media_edit_fit_contain()}</option>
+                <option value="cover">{m.admin_media_edit_fit_cover()}</option>
+              </select>
+            </label>
+            <input type="hidden" name="video_fit_present" value="1" />
+            <input type="hidden" name="video_fit" value={fitState} />
           </div>
         {/if}
 
