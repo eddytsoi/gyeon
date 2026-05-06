@@ -171,6 +171,7 @@
     'smtp_from_email', 'smtp_from_name', 'public_base_url',
     'admin_alert_email'
   ]);
+  const WC_KEYS = new Set(['wc_consumer_key', 'wc_consumer_secret', 'wc_url']);
 
   const CACHE_TTL_LABELS = $derived<Record<string, string>>({
     cache_ttl_shop: m.admin_settings_cache_label_shop(),
@@ -197,10 +198,7 @@
     loyalty_points_per_hkd: m.admin_settings_label_loyalty_points_per_hkd(),
     loyalty_redeem_rate_hkd: m.admin_settings_label_loyalty_redeem_rate_hkd(),
     meta_pixel_id: m.admin_settings_label_meta_pixel_id(),
-    site_name: m.admin_settings_label_site_name(),
-    wc_consumer_key: m.admin_settings_label_wc_consumer_key(),
-    wc_consumer_secret: m.admin_settings_label_wc_consumer_secret(),
-    wc_url: m.admin_settings_label_wc_url()
+    site_name: m.admin_settings_label_site_name()
   });
   const SETTING_DESCS = $derived<Record<string, string>>({
     maintenance_mode: m.admin_settings_desc_maintenance_mode(),
@@ -219,10 +217,7 @@
     loyalty_points_per_hkd: m.admin_settings_desc_loyalty_points_per_hkd(),
     loyalty_redeem_rate_hkd: m.admin_settings_desc_loyalty_redeem_rate_hkd(),
     meta_pixel_id: m.admin_settings_desc_meta_pixel_id(),
-    site_name: m.admin_settings_desc_site_name(),
-    wc_consumer_key: m.admin_settings_desc_wc_consumer_key(),
-    wc_consumer_secret: m.admin_settings_desc_wc_consumer_secret(),
-    wc_url: m.admin_settings_desc_wc_url()
+    site_name: m.admin_settings_desc_site_name()
   });
 
   const textSettings = $derived(
@@ -245,7 +240,8 @@
         !LOW_STOCK_KEYS.has(s.key) &&
         !ORPHAN_KEYS.has(s.key) &&
         !CURRENCY_KEYS.has(s.key) &&
-        !FREE_SHIPPING_KEYS.has(s.key)
+        !FREE_SHIPPING_KEYS.has(s.key) &&
+        !WC_KEYS.has(s.key)
     )
   );
   const currencySetting = $derived(data.settings.find((s) => s.key === 'currency'));
