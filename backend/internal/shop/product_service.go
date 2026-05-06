@@ -30,17 +30,19 @@ func defaultBundleSKU(productID string) string {
 var productSearchFields = []string{"p.name", "p.slug", "p.number::text"}
 
 type Product struct {
-	ID          string  `json:"id"`
-	Number      int64   `json:"number"`
-	CategoryID  *string `json:"category_id,omitempty"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Excerpt     *string `json:"excerpt,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Status      string  `json:"status"`
-	Kind        string  `json:"kind"` // "simple" | "bundle"
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID                 string   `json:"id"`
+	Number             int64    `json:"number"`
+	CategoryID         *string  `json:"category_id,omitempty"`
+	Slug               string   `json:"slug"`
+	Name               string   `json:"name"`
+	Excerpt            *string  `json:"excerpt,omitempty"`
+	Description        *string  `json:"description,omitempty"`
+	HowToUse           *string  `json:"how_to_use,omitempty"`
+	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	Status             string   `json:"status"`
+	Kind               string   `json:"kind"` // "simple" | "bundle"
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
 }
 
 // ProductWithMeta enriches Product with quick-glance fields useful for list
@@ -132,13 +134,15 @@ type ProductImage struct {
 }
 
 type CreateProductRequest struct {
-	CategoryID  *string `json:"category_id"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Excerpt     *string `json:"excerpt"`
-	Description *string `json:"description"`
-	Status      string  `json:"status"`
-	Kind        string  `json:"kind"` // "simple" | "bundle"; defaults to "simple"
+	CategoryID         *string  `json:"category_id"`
+	Slug               string   `json:"slug"`
+	Name               string   `json:"name"`
+	Excerpt            *string  `json:"excerpt"`
+	Description        *string  `json:"description"`
+	HowToUse           *string  `json:"how_to_use"`
+	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	Status             string   `json:"status"`
+	Kind               string   `json:"kind"` // "simple" | "bundle"; defaults to "simple"
 }
 
 type UpdateProductRequest struct {
@@ -202,13 +206,15 @@ const productSelect = `
 	       COALESCE(t.name,        p.name)        AS name,
 	       p.excerpt,
 	       COALESCE(t.description, p.description) AS description,
+	       p.how_to_use, p.compatible_surfaces,
 	       p.status, p.kind, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
 	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
-		&p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
+		&p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
+		&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -342,6 +348,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		       COALESCE(t.name,        p.name)        AS name,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
@@ -371,7 +378,8 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		var pm ProductWithMeta
 		if err := rows.Scan(
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
-			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 		); err != nil {
 			return nil, err
@@ -403,6 +411,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		       COALESCE(t.name,        p.name)        AS name,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
@@ -432,7 +441,8 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		var pm ProductWithMeta
 		if err := rows.Scan(
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
-			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 		); err != nil {
 			return nil, err
@@ -467,6 +477,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		       COALESCE(t.name,        p.name)        AS name,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
@@ -496,7 +507,8 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		var pm ProductWithMeta
 		if err := rows.Scan(
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
-			&pm.Excerpt, &pm.Description, &pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 		); err != nil {
 			return nil, err
@@ -610,13 +622,18 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	surfaces := req.CompatibleSurfaces
+	if surfaces == nil {
+		surfaces = []string{}
+	}
+
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, excerpt, description, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, category_id, slug, name, excerpt, description, status, kind, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		`INSERT INTO products (category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING id, category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces), req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -685,13 +702,21 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		}
 	}
 
+	surfaces := req.CompatibleSurfaces
+	if surfaces == nil {
+		surfaces = []string{}
+	}
+
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`UPDATE products SET category_id=$2, slug=$3, name=$4, excerpt=$5, description=$6, status=$7, kind=$8
+		`UPDATE products SET category_id=$2, slug=$3, name=$4, excerpt=$5, description=$6,
+		                     how_to_use=$7, compatible_surfaces=$8, status=$9, kind=$10
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, excerpt, description, status, kind, created_at, updated_at`,
-		id, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		 RETURNING id, category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
+		id, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description,
+		req.HowToUse, pq.Array(surfaces), req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description,
+			&p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
