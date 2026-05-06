@@ -15,7 +15,12 @@ export const actions: Actions = {
   save: async ({ request, params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
     const data = await request.formData();
-    const body: { original_name?: string; url?: string; video_autoplay?: boolean } = {};
+    const body: {
+      original_name?: string;
+      url?: string;
+      video_autoplay?: boolean;
+      video_fit?: 'contain' | 'cover';
+    } = {};
 
     const name = (data.get('original_name') as string)?.trim();
     if (name) body.original_name = name;
@@ -25,6 +30,11 @@ export const actions: Actions = {
 
     if (data.has('video_autoplay_present')) {
       body.video_autoplay = data.get('video_autoplay') === 'true';
+    }
+
+    if (data.has('video_fit_present')) {
+      const fit = data.get('video_fit');
+      if (fit === 'cover' || fit === 'contain') body.video_fit = fit;
     }
 
     try {
