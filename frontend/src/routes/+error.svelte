@@ -4,12 +4,15 @@
   import { onMount } from 'svelte';
 
   // When a load() fails offline (typically the SPA __data.json fetch on
-  // PWA installs that have lost network), redirect to the branded
-  // /offline.html that the service worker pre-caches. Without this, the
-  // SvelteKit default error page renders as a 500 inside the PWA shell.
+  // PWA installs that have lost network), trigger a full document reload.
+  // The service worker's navigate-mode handler will then serve the cached
+  // /offline.html as the fallback while preserving the user's intended
+  // URL — so when they click Retry once back online, reload() re-requests
+  // the page they actually wanted, not /offline.html (which is a real
+  // static file and would just serve the offline shell again).
   onMount(() => {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      window.location.replace('/offline.html');
+      window.location.reload();
     }
   });
 </script>
