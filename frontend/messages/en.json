@@ -1077,6 +1077,8 @@
   "admin_media_badge_link": "Link",
   "admin_media_url_copied": "Image URL copied",
   "admin_media_tip_copy": "Copy URL",
+  "admin_password_copy_tip": "Copy",
+  "admin_password_copied": "Copied",
   "admin_media_tip_edit": "Edit",
   "admin_media_tip_delete": "Delete",
   "admin_media_ref_product": "Product",

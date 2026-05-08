@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
+  import PasswordInput from '$lib/components/admin/PasswordInput.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -564,10 +565,8 @@
           <label for="wc_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_import_settings_label_secret()}
           </label>
-          <input id="wc_secret" type="password" placeholder={m.admin_import_settings_secret_placeholder()}
-                 bind:value={wcSecret}
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <PasswordInput id="wc_secret" placeholder={m.admin_import_settings_secret_placeholder()}
+                         bind:value={wcSecret} />
         </div>
 
         <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
