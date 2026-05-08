@@ -1269,6 +1269,8 @@
   "admin_settings_shipany_network_error": "Network error",
   "admin_settings_email_heading": "Email (SMTP)",
   "admin_settings_email_subtitle": "Used to send order confirmation emails. Gmail: enable 2FA → create an App Password at myaccount.google.com/apppasswords.",
+  "admin_settings_email_enabled_heading": "Email enabled",
+  "admin_settings_email_enabled_hint": "Master switch for outgoing email. When off, transactional and notification emails are skipped (the Test Email button still works so you can validate SMTP).",
   "admin_settings_email_smtp_host": "SMTP Host",
   "admin_settings_email_smtp_port": "SMTP Port",
   "admin_settings_email_smtp_username": "SMTP Username",

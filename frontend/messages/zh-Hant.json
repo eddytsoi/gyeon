@@ -1269,6 +1269,8 @@
   "admin_settings_shipany_network_error": "網絡錯誤",
   "admin_settings_email_heading": "電郵（SMTP）",
   "admin_settings_email_subtitle": "用於發送訂單確認電郵。Gmail：啟用雙重驗證後，於 myaccount.google.com/apppasswords 建立應用程式密碼。",
+  "admin_settings_email_enabled_heading": "啟用電郵",
+  "admin_settings_email_enabled_hint": "電郵總開關。關閉時，所有交易及通知電郵都不會發出（「測試電郵」按鈕仍然可用，方便你驗證 SMTP 設定）。",
   "admin_settings_email_smtp_host": "SMTP 主機",
   "admin_settings_email_smtp_port": "SMTP 埠",
   "admin_settings_email_smtp_username": "SMTP 用戶名稱",

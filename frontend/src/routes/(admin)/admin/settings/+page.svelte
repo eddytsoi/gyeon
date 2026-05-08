@@ -168,6 +168,7 @@
     'shipany_order_ref_suffix', 'shipany_show_courier_tracking_number'
   ]);
   const SMTP_KEYS = new Set([
+    'email_enabled',
     'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
     'smtp_from_email', 'smtp_from_name', 'public_base_url',
     'admin_alert_email'
@@ -321,6 +322,7 @@
 
   let abandonedEnabled = $state(settingValue('abandoned_cart_enabled') === 'true');
   let loyaltyEnabled = $state(settingValue('loyalty_enabled') === 'true');
+  let emailEnabled = $state(settingValue('email_enabled') !== 'false');
   let abandonedRunPending = $state(false);
   let abandonedRunResult = $state<string | null>(null);
 
@@ -1314,6 +1316,25 @@
       <p class="text-xs text-gray-400 mb-5">
         {m.admin_settings_email_subtitle()}
       </p>
+
+      <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_email_enabled_heading()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_email_enabled_hint()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (emailEnabled = !emailEnabled)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {emailEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={emailEnabled}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {emailEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="email_enabled" value={emailEnabled ? 'true' : 'false'} />
+      </div>
+
       <div class="flex flex-col gap-5">
         {#each SMTP_FIELDS as field}
           <div class="flex flex-col gap-1.5">
@@ -1323,12 +1344,18 @@
             {#if field.hint}
               <p class="text-xs text-gray-400 -mt-0.5">{field.hint}</p>
             {/if}
-            <input id={field.key} name={field.key}
-                   type={field.password ? 'password' : 'text'}
-                   value={settingValue(field.key)}
-                   placeholder={field.placeholder}
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            {#if field.password}
+              <PasswordInput id={field.key} name={field.key}
+                             value={settingValue(field.key)}
+                             placeholder={field.placeholder} />
+            {:else}
+              <input id={field.key} name={field.key}
+                     type="text"
+                     value={settingValue(field.key)}
+                     placeholder={field.placeholder}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            {/if}
           </div>
         {/each}
       </div>
@@ -1385,12 +1412,18 @@
               {#if SETTING_DESCS[setting.key] ?? setting.description}
                 <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
               {/if}
-              <input id={setting.key} name={setting.key}
-                     type={setting.key === 'cloudflare_api_token' ? 'password' : 'text'}
-                     value={setting.value}
-                     placeholder={CLOUDFLARE_PLACEHOLDERS[setting.key] ?? ''}
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              {#if setting.key === 'cloudflare_api_token'}
+                <PasswordInput id={setting.key} name={setting.key}
+                               value={setting.value}
+                               placeholder={CLOUDFLARE_PLACEHOLDERS[setting.key] ?? ''} />
+              {:else}
+                <input id={setting.key} name={setting.key}
+                       type="text"
+                       value={setting.value}
+                       placeholder={CLOUDFLARE_PLACEHOLDERS[setting.key] ?? ''}
+                       class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              {/if}
             </div>
           {/each}
         </div>

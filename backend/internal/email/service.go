@@ -15,6 +15,7 @@ import (
 )
 
 var ErrNotConfigured = errors.New("smtp is not configured")
+var ErrDisabled = errors.New("email sending is disabled")
 
 type Service struct {
 	settings  *settings.Service
@@ -36,6 +37,16 @@ type Config struct {
 }
 
 func (s *Service) loadConfig(ctx context.Context) (Config, error) {
+	if !s.isEnabled(ctx) {
+		return Config{}, ErrDisabled
+	}
+	return s.loadSMTPConfig(ctx)
+}
+
+// loadSMTPConfig reads the SMTP credentials without consulting the
+// email_enabled master switch. SendTest uses this so the admin can validate
+// SMTP settings even when outgoing email is globally disabled.
+func (s *Service) loadSMTPConfig(ctx context.Context) (Config, error) {
 	c := Config{
 		Host:      s.read(ctx, "smtp_host"),
 		Username:  s.read(ctx, "smtp_username"),
@@ -56,6 +67,14 @@ func (s *Service) loadConfig(ctx context.Context) (Config, error) {
 		return c, ErrNotConfigured
 	}
 	return c, nil
+}
+
+// isEnabled returns true unless the email_enabled site setting is explicitly
+// "false". A missing row (fresh install before migration 055) defaults to
+// enabled so existing behaviour is preserved.
+func (s *Service) isEnabled(ctx context.Context) bool {
+	v := strings.TrimSpace(s.read(ctx, "email_enabled"))
+	return !strings.EqualFold(v, "false")
 }
 
 func (s *Service) PublicBaseURL(ctx context.Context) string {
@@ -171,9 +190,11 @@ type LowStockParams struct {
 	AdminProductURL string
 }
 
-// SendTest sends a plain test email to verify SMTP configuration.
+// SendTest sends a plain test email to verify SMTP configuration. Bypasses
+// the email_enabled master switch so the admin can validate credentials even
+// when outgoing email is globally disabled.
 func (s *Service) SendTest(ctx context.Context, to string) error {
-	cfg, err := s.loadConfig(ctx)
+	cfg, err := s.loadSMTPConfig(ctx)
 	if err != nil {
 		return err
 	}
