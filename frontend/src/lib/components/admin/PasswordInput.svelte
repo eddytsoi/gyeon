@@ -17,12 +17,20 @@
     name,
     value = $bindable(''),
     placeholder,
-    autocomplete = 'off',
+    autocomplete = 'new-password',
     class: extraClass = '',
   }: Props = $props();
 
   let copied = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // Readonly until focus blocks browser/password-manager autofill from
+  // overwriting the saved secret with the user's login password. Once the
+  // user focuses the field they can still edit it normally.
+  function unlock(e: FocusEvent | MouseEvent) {
+    const el = e.currentTarget as HTMLInputElement;
+    if (el.hasAttribute('readonly')) el.removeAttribute('readonly');
+  }
 
   async function copy() {
     const text = value ?? '';
@@ -53,6 +61,12 @@
     bind:value
     {placeholder}
     {autocomplete}
+    readonly
+    onfocus={unlock}
+    onpointerdown={unlock}
+    data-1p-ignore="true"
+    data-lpignore="true"
+    data-bwignore="true"
     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm
            focus:outline-none focus:ring-2 focus:ring-gray-900" />
   <button
