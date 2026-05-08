@@ -108,6 +108,44 @@ type wcCustomer struct {
 	Shipping  wcCustomerAddress `json:"shipping"`
 }
 
+// wcOrderBilling adds Email on top of wcCustomerAddress because the order
+// payload (unlike the customer payload) includes the billing email of guest
+// checkouts. Shipping addresses on orders never carry an email field.
+type wcOrderBilling struct {
+	wcCustomerAddress
+	Email string `json:"email"`
+}
+
+type wcLineItem struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	ProductID   int    `json:"product_id"`
+	VariationID int    `json:"variation_id"`
+	Quantity    int    `json:"quantity"`
+	SKU         string `json:"sku"`
+	Price       string `json:"price"`    // unit price (ex-tax)
+	Subtotal    string `json:"subtotal"` // line subtotal pre-discount, ex-tax
+	Total       string `json:"total"`    // line total post-discount, ex-tax
+	TotalTax    string `json:"total_tax"`
+}
+
+type wcOrder struct {
+	ID            int               `json:"id"`
+	Number        string            `json:"number"`
+	Status        string            `json:"status"`
+	DateCreated   string            `json:"date_created"`
+	Currency      string            `json:"currency"`
+	CustomerID    int               `json:"customer_id"`
+	CustomerNote  string            `json:"customer_note"`
+	Total         string            `json:"total"`
+	TotalTax      string            `json:"total_tax"`
+	DiscountTotal string            `json:"discount_total"`
+	ShippingTotal string            `json:"shipping_total"`
+	LineItems     []wcLineItem      `json:"line_items"`
+	Billing       wcOrderBilling    `json:"billing"`
+	Shipping      wcCustomerAddress `json:"shipping"`
+}
+
 type wcClient struct {
 	baseURL    string
 	key        string
@@ -250,6 +288,42 @@ func (c *wcClient) fetchCustomers(page int) ([]wcCustomer, error) {
 		return nil, fmt.Errorf("customers page %d: %w", page, err)
 	}
 	return customers, nil
+}
+
+// fetchOrderTotal returns the WC store's total order count via X-WP-Total.
+// 0 on any error.
+func (c *wcClient) fetchOrderTotal() int {
+	u := c.baseURL + "/wp-json/wc/v3/orders?per_page=1&page=1&status=any"
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return 0
+	}
+	req.SetBasicAuth(c.key, c.secret)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	total, _ := strconv.Atoi(resp.Header.Get("X-WP-Total"))
+	return total
+}
+
+// fetchOrders returns one page of orders, oldest first so the import
+// processes history in chronological order. status=any so trash and
+// draft are also fetched (we filter them out in the orchestrator).
+func (c *wcClient) fetchOrders(page int) ([]wcOrder, error) {
+	var orders []wcOrder
+	params := url.Values{
+		"per_page": {"100"},
+		"page":     {fmt.Sprintf("%d", page)},
+		"status":   {"any"},
+		"orderby":  {"id"},
+		"order":    {"asc"},
+	}
+	if err := c.get("/wp-json/wc/v3/orders", params, &orders); err != nil {
+		return nil, fmt.Errorf("orders page %d: %w", page, err)
+	}
+	return orders, nil
 }
 
 func (c *wcClient) fetchVariations(productID int) ([]wcVariation, error) {

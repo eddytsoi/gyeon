@@ -365,6 +365,123 @@
     customersProgress = null;
   }
 
+  // ── Orders import (parallel state machine) ───────────────────────
+  interface OrdersProgress {
+    total_orders: number;
+    processed_orders: number;
+    imported_orders: number;
+    updated_orders: number;
+    imported_line_items: number;
+    unlinked_line_items: number;
+    skipped_orders: number;
+    failed: number;
+    current_order?: string;
+    done: boolean;
+    errors: string[];
+  }
+
+  let ordersStep = $state<Step>('idle');
+  let ordersErrorMsg = $state('');
+  let ordersProgress = $state<OrdersProgress | null>(null);
+  let ordersLimit = $state<number | null>(null);
+
+  const ordersPct = $derived(
+    ordersProgress && ordersProgress.total_orders > 0
+      ? Math.min(100, Math.round((ordersProgress.processed_orders / ordersProgress.total_orders) * 100))
+      : 0
+  );
+
+  function openOrdersConfirm() {
+    if (!credsConfigured) {
+      notify.error(m.admin_import_no_creds_title(), m.admin_import_no_creds_body());
+      setTab('settings');
+      return;
+    }
+    ordersStep = 'confirming';
+  }
+
+  function cancelOrdersConfirm() {
+    ordersStep = 'idle';
+  }
+
+  async function runOrdersImport() {
+    ordersStep = 'testing';
+    ordersErrorMsg = '';
+    ordersProgress = null;
+
+    try {
+      const testRes = await fetch('/api/v1/admin/import/woocommerce/orders/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
+      });
+      if (!testRes.ok) {
+        ordersErrorMsg = (await testRes.text()) || m.admin_import_run_failed_default();
+        ordersStep = 'error';
+        return;
+      }
+    } catch {
+      ordersErrorMsg = m.admin_import_run_timeout();
+      ordersStep = 'error';
+      return;
+    }
+
+    ordersStep = 'importing';
+    try {
+      const res = await fetch('/api/v1/admin/import/woocommerce/orders/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({
+          wc_url: wcUrl,
+          wc_key: wcKey,
+          wc_secret: wcSecret,
+          limit: ordersLimit && ordersLimit > 0 ? Math.floor(ordersLimit) : 0
+        })
+      });
+
+      if (!res.ok || !res.body) {
+        ordersErrorMsg = (await res.text()) || m.admin_import_stream_failed_default();
+        ordersStep = 'error';
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const messages = buffer.split('\n\n');
+        buffer = messages.pop() ?? '';
+        for (const msg of messages) {
+          const dataLine = msg.split('\n').find(l => l.startsWith('data: '));
+          if (!dataLine) continue;
+          try {
+            const update: OrdersProgress = JSON.parse(dataLine.slice(6));
+            ordersProgress = update;
+            if (update.done) { ordersStep = 'done'; }
+          } catch { /* ignore malformed */ }
+        }
+      }
+
+      if (ordersStep === 'importing') {
+        ordersErrorMsg = m.admin_import_stream_dropped();
+        ordersStep = 'error';
+      }
+    } catch {
+      ordersErrorMsg = m.admin_import_run_error();
+      ordersStep = 'error';
+    }
+  }
+
+  function resetOrders() {
+    ordersStep = 'idle';
+    ordersErrorMsg = '';
+    ordersProgress = null;
+  }
+
   function reset() {
     step = 'idle';
     errorMsg = '';
@@ -404,6 +521,33 @@
           {m.admin_import_confirm_cancel()}
         </button>
         <button onclick={runImport}
+                class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-xl
+                       hover:bg-gray-700 transition-colors">
+          {m.admin_import_confirm_proceed()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Orders confirm modal -->
+{#if ordersStep === 'confirming'}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+       role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <h2 class="text-base font-semibold text-gray-900 mb-3">{m.admin_import_orders_confirm_title()}</h2>
+      <p class="text-sm text-gray-600 leading-relaxed mb-6">
+        {ordersLimit && ordersLimit > 0
+          ? m.admin_import_orders_confirm_limited({ limit: ordersLimit })
+          : m.admin_import_orders_confirm_full()}
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button onclick={cancelOrdersConfirm}
+                class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl
+                       hover:bg-gray-50 transition-colors">
+          {m.admin_import_confirm_cancel()}
+        </button>
+        <button onclick={runOrdersImport}
                 class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-xl
                        hover:bg-gray-700 transition-colors">
           {m.admin_import_confirm_proceed()}
@@ -687,14 +831,171 @@
 
   <!-- ──────────── Tab 2: Import Orders ──────────── -->
   <div class="tab-panel" class:active={activeTab === 'orders'}>
-    <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-      <svg class="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24"
-           stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d={TAB_ICONS.orders} />
-      </svg>
-      <h2 class="text-sm font-semibold text-gray-900">{m.admin_import_coming_soon_heading()}</h2>
-      <p class="text-xs text-gray-400 mt-1">{m.admin_import_coming_soon_orders()}</p>
-    </div>
+    {#if ordersStep === 'error'}
+      <div class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6">
+        {ordersErrorMsg}
+      </div>
+    {/if}
+
+    {#if ordersStep === 'testing' || ordersStep === 'importing' || ordersStep === 'done'}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+
+        <div class="flex flex-col gap-3 mb-6">
+          <div class="flex items-center gap-3">
+            {#if ordersStep === 'testing'}
+              <span class="w-4 h-4 rounded-full border-2 border-gray-900 border-t-transparent animate-spin shrink-0"></span>
+            {:else}
+              <span class="flex items-center justify-center w-4 h-4 rounded-full bg-green-500 shrink-0">
+                <svg class="w-2.5 h-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </span>
+            {/if}
+            <span class="text-sm {ordersStep === 'testing' ? 'font-medium text-gray-900' : 'text-gray-400'}">
+              {m.admin_import_test_step_label()}
+            </span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            {#if ordersStep === 'importing'}
+              <span class="w-4 h-4 rounded-full border-2 border-gray-900 border-t-transparent animate-spin shrink-0"></span>
+            {:else if ordersStep === 'done'}
+              <span class="flex items-center justify-center w-4 h-4 rounded-full bg-green-500 shrink-0">
+                <svg class="w-2.5 h-2.5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </span>
+            {:else}
+              <span class="w-4 h-4 rounded-full border border-gray-200 bg-gray-50 shrink-0"></span>
+            {/if}
+            <span class="text-sm {ordersStep === 'importing' ? 'font-medium text-gray-900' : ordersStep === 'done' ? 'text-gray-400' : 'text-gray-300'}">
+              {m.admin_import_orders_step_label()}
+            </span>
+          </div>
+        </div>
+
+        {#if (ordersStep === 'importing' || ordersStep === 'done') && ordersProgress}
+          <div class="mb-4">
+            <div class="flex items-baseline justify-between mb-2">
+              <span class="text-sm font-medium text-gray-900">
+                {ordersProgress.total_orders > 0
+                  ? m.admin_import_orders_progress_count({ processed: ordersProgress.processed_orders, total: ordersProgress.total_orders })
+                  : m.admin_import_orders_progress_count_loading({ processed: ordersProgress.processed_orders })}
+              </span>
+              <span class="text-xs text-gray-400">
+                {m.admin_import_orders_progress_line_items({ count: ordersProgress.imported_line_items })}
+              </span>
+            </div>
+
+            <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+              <div
+                class="h-2 rounded-full transition-all duration-300
+                       {ordersStep === 'done' ? 'bg-green-500' : 'bg-gray-900'}"
+                style="width: {ordersPct}%"
+              ></div>
+            </div>
+
+            <div class="flex items-center justify-between mt-2">
+              <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                <span class="text-green-600">{m.admin_import_progress_added({ count: ordersProgress.imported_orders })}</span>
+                <span class="text-blue-600">{m.admin_import_progress_updated({ count: ordersProgress.updated_orders })}</span>
+                {#if ordersProgress.skipped_orders > 0}
+                  <span class="text-gray-500">{m.admin_import_orders_progress_skipped({ count: ordersProgress.skipped_orders })}</span>
+                {/if}
+                {#if ordersProgress.unlinked_line_items > 0}
+                  <span class="text-amber-600">{m.admin_import_orders_progress_unlinked({ count: ordersProgress.unlinked_line_items })}</span>
+                {/if}
+                {#if ordersProgress.failed > 0}
+                  <span class="text-red-500">{m.admin_import_progress_failed({ count: ordersProgress.failed })}</span>
+                {/if}
+              </div>
+              <span class="text-xs text-gray-400">{ordersPct}%</span>
+            </div>
+
+            {#if ordersProgress.current_order}
+              <p class="text-xs text-gray-400 mt-2 truncate">
+                {m.admin_import_orders_progress_current({ name: ordersProgress.current_order })}
+              </p>
+            {/if}
+          </div>
+        {/if}
+
+        {#if ordersStep === 'done' && ordersProgress}
+          <div class="pt-4 border-t border-gray-100">
+            <p class="text-sm font-medium text-gray-700 mb-1">{m.admin_import_done_heading()}</p>
+            {#if ordersProgress.errors?.length > 0}
+              <details class="mt-2">
+                <summary class="text-xs font-semibold text-gray-500 cursor-pointer select-none">
+                  {ordersProgress.errors.length === 1
+                    ? m.admin_import_done_errors_one({ count: ordersProgress.errors.length })
+                    : m.admin_import_done_errors_many({ count: ordersProgress.errors.length })}
+                </summary>
+                <ul class="mt-2 max-h-40 overflow-y-auto flex flex-col gap-1">
+                  {#each ordersProgress.errors as err}
+                    <li class="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-1.5">{err}</li>
+                  {/each}
+                </ul>
+              </details>
+            {/if}
+            <button onclick={resetOrders}
+                    class="mt-3 text-xs text-gray-400 underline hover:text-gray-600 transition-colors">
+              {m.admin_import_done_reimport()}
+            </button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if ordersStep === 'idle' || ordersStep === 'error'}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6">
+        {#if credsConfigured}
+          <div class="flex items-center justify-between gap-3 mb-5 px-3 py-2 bg-gray-50 rounded-xl">
+            <div class="text-xs text-gray-600 truncate">
+              <span class="text-gray-400">{m.admin_import_creds_pill_label()}</span>
+              <span class="font-medium text-gray-900">{wcUrl}</span>
+            </div>
+            <button type="button" onclick={() => setTab('settings')}
+                    class="text-xs text-gray-500 hover:text-gray-900 underline whitespace-nowrap">
+              {m.admin_import_creds_pill_edit()}
+            </button>
+          </div>
+        {:else}
+          <div class="flex items-center justify-between gap-3 mb-5 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+            <p class="text-xs text-amber-800">{m.admin_import_no_creds_pill()}</p>
+            <button type="button" onclick={() => setTab('settings')}
+                    class="text-xs font-medium text-amber-900 hover:underline whitespace-nowrap">
+              {m.admin_import_no_creds_pill_link()}
+            </button>
+          </div>
+        {/if}
+
+        <p class="text-xs text-gray-500 mb-5">{m.admin_import_orders_intro()}</p>
+
+        <div class="flex flex-col gap-5">
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_orders_limit" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_label_limit()}
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_limit_hint()}</p>
+            <input id="wc_orders_limit" type="number" min="0" step="1" placeholder={m.admin_import_limit_placeholder()}
+                   bind:value={ordersLimit}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            {#if ordersLimit && ordersLimit > 0}
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_limit_warning()}</p>
+            {/if}
+          </div>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-gray-100">
+          <button type="button" onclick={openOrdersConfirm}
+                  class="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl
+                         hover:bg-gray-700 transition-colors">
+            {m.admin_import_orders_run_button()}
+          </button>
+        </div>
+      </div>
+    {/if}
   </div>
 
   <!-- ──────────── Tab 3: Import Customers ──────────── -->

@@ -371,6 +371,8 @@ func main() {
 			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
 			r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
 			r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
+			r.Post("/admin/import/woocommerce/orders/test", importHandler.OrdersTest)
+			r.Post("/admin/import/woocommerce/orders/stream", importHandler.OrdersImportStream)
 		})
 	})
 
