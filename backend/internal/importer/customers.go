@@ -12,6 +12,14 @@ import (
 	"gyeon/backend/internal/email"
 )
 
+// Setup-email modes for the customers import. The field on
+// CustomersImportRequest carries one of these strings.
+const (
+	SetupEmailModeSkip         = "skip"         // never email
+	SetupEmailModePasswordless = "passwordless" // email customers without a password yet, only if not already emailed
+	SetupEmailModeForce        = "force"        // email every imported customer, regardless of state
+)
+
 // CustomersImportRequest mirrors ImportRequest but is scoped to the
 // /wc/v3/customers endpoint. Only upsert mode is supported — replace
 // would orphan order rows (orders.customer_id ON DELETE SET NULL) and
@@ -22,10 +30,15 @@ type CustomersImportRequest struct {
 	WCSecret string `json:"wc_secret"`
 	// Limit caps the run. 0 = no cap (full sync).
 	Limit int `json:"limit"`
-	// SendSetupEmail, when true, fires off a setup-password email to each
-	// newly-inserted customer (not to ones that already existed). Re-runs
-	// won't re-spam imported rows because the email is gated on insert.
-	SendSetupEmail bool `json:"send_setup_email"`
+	// SetupEmailMode controls who receives the setup-password email:
+	//   "skip"         — never send (silent import).
+	//   "passwordless" — send iff password_hash IS NULL AND setup_email_sent_at IS NULL.
+	//                    A row imported earlier under "skip" therefore still becomes
+	//                    eligible the first time the admin runs "passwordless".
+	//   "force"        — send to every imported customer. Useful for re-onboarding
+	//                    campaigns or post-incident resets.
+	// Empty / unrecognized values fall back to "skip" (safest default).
+	SetupEmailMode string `json:"setup_email_mode"`
 }
 
 // CustomersProgressUpdate is streamed once per processed customer plus a
@@ -96,17 +109,22 @@ pages:
 			p.CurrentCustomer = displayName(c)
 			send(p)
 
-			newID, err := s.upsertCustomer(ctx, c, &p)
+			customerID, err := s.upsertCustomer(ctx, c, &p)
 			if err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("customer %s: %v", c.Email, err))
 				p.Failed++
-			} else if req.SendSetupEmail && newID != "" {
-				// Fire-and-forget: SMTP is slow and we don't want to block
-				// the import. Failures get logged server-side, not surfaced
-				// in the SSE stream — emailsQueued counts dispatches, not
-				// deliveries. Re-runs of the import never re-send because
-				// upsertCustomer returns "" for already-existing rows.
-				go s.sendSetupPasswordEmail(c, newID, &emailsQueued)
+			} else if customerID != "" && s.shouldSendSetupEmail(ctx, customerID, req.SetupEmailMode) {
+				// Mark first so concurrent / repeat runs don't re-send. If the
+				// SMTP send fails the customer stays "marked"; admin can use
+				// "force" mode to retry. Fire-and-forget after marking — SMTP
+				// is slow and we don't want to block the import. Failures get
+				// logged server-side; emailsQueued counts dispatches.
+				if _, uerr := s.db.ExecContext(ctx,
+					`UPDATE customers SET setup_email_sent_at = NOW() WHERE id=$1`, customerID); uerr != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("mark setup email %s: %v", c.Email, uerr))
+				} else {
+					go s.sendSetupPasswordEmail(c, customerID, &emailsQueued)
+				}
 			}
 			p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
 			p.ProcessedCustomers++
@@ -123,9 +141,10 @@ pages:
 }
 
 // sendSetupPasswordEmail mints a 7-day setup token via the customers
-// service and sends the standard password-reset email. Used by the
-// customers import when SendSetupEmail is set. Errors are logged but
-// never surface to the importer caller — best-effort delivery.
+// service and sends the standard password-reset email. Caller has
+// already gated on SetupEmailMode and stamped customers.setup_email_sent_at,
+// so this function just delivers. Errors are logged but never surface to
+// the importer caller — best-effort delivery.
 func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, counter *int64) {
 	if s.customerSvc == nil || s.emailSvc == nil {
 		return
@@ -157,16 +176,39 @@ func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, count
 	atomic.AddInt64(counter, 1)
 }
 
+// shouldSendSetupEmail decides whether the loop should fire a setup-password
+// email for the given customer. "skip" never sends. "force" always sends.
+// "passwordless" sends only when the customer has no password AND has not
+// already been emailed in a prior run.
+func (s *Service) shouldSendSetupEmail(ctx context.Context, customerID, mode string) bool {
+	switch mode {
+	case SetupEmailModeForce:
+		return true
+	case SetupEmailModePasswordless:
+		var passwordSet, alreadyEmailed bool
+		err := s.db.QueryRowContext(ctx,
+			`SELECT (password_hash IS NOT NULL AND password_hash != ''),
+			        (setup_email_sent_at IS NOT NULL)
+			   FROM customers WHERE id=$1`, customerID).Scan(&passwordSet, &alreadyEmailed)
+		if err != nil {
+			return false
+		}
+		return !passwordSet && !alreadyEmailed
+	default:
+		return false
+	}
+}
+
 // upsertCustomer inserts a new customer (with billing + shipping addresses)
 // or, if a row already exists either by wc_customer_id or email, updates the
 // names / phone in place. Existing rows keep their addresses untouched —
 // re-running the import never overwrites address edits an admin (or the
 // customer themself, post-import) made on storefront.
 //
-// Returns the local customer.id only when a brand-new row was inserted; an
-// empty string means the WC customer was matched against an existing row,
-// so the caller knows not to send a setup-password email (avoiding spam on
-// re-runs).
+// Returns the local customer.id whether the row was newly inserted or
+// matched against an existing one. The setup-email gate is decided
+// downstream by shouldSendSetupEmail (which checks password_hash and
+// setup_email_sent_at), not by insert-vs-update here.
 func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *CustomersProgressUpdate) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -214,7 +256,7 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 		if err := tx.Commit(); err != nil {
 			return "", err
 		}
-		return "", nil
+		return customerID, nil
 	}
 
 	if err := tx.QueryRowContext(ctx,

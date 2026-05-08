@@ -264,11 +264,13 @@
     errors: string[];
   }
 
+  type CustomersSetupEmailMode = 'skip' | 'passwordless' | 'force';
+
   let customersStep = $state<Step>('idle');
   let customersErrorMsg = $state('');
   let customersProgress = $state<CustomersProgress | null>(null);
   let customersLimit = $state<number | null>(null);
-  let customersSendSetupEmail = $state(false);
+  let customersSetupEmailMode = $state<CustomersSetupEmailMode>('passwordless');
 
   const customersPct = $derived(
     customersProgress && customersProgress.total_customers > 0
@@ -321,7 +323,7 @@
           wc_key: wcKey,
           wc_secret: wcSecret,
           limit: customersLimit && customersLimit > 0 ? Math.floor(customersLimit) : 0,
-          send_setup_email: customersSendSetupEmail
+          setup_email_mode: customersSetupEmailMode
         })
       });
 
@@ -1155,15 +1157,30 @@
             {/if}
           </div>
 
-          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
-                        {customersSendSetupEmail ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
-            <input type="checkbox" bind:checked={customersSendSetupEmail}
-                   class="mt-1 accent-gray-900" />
-            <span class="flex-1">
-              <span class="block text-sm font-medium text-gray-900">{m.admin_import_customers_send_setup_label()}</span>
-              <span class="block text-xs text-gray-500 mt-0.5">{m.admin_import_customers_send_setup_hint()}</span>
+          <div class="flex flex-col gap-1.5">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_customers_setup_email_heading()}
             </span>
-          </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_customers_setup_email_intro()}</p>
+            <div class="flex flex-col gap-2 mt-1">
+              {#each [
+                { id: 'skip', label: m.admin_import_customers_setup_email_skip_label(), hint: m.admin_import_customers_setup_email_skip_hint() },
+                { id: 'passwordless', label: m.admin_import_customers_setup_email_passwordless_label(), hint: m.admin_import_customers_setup_email_passwordless_hint() },
+                { id: 'force', label: m.admin_import_customers_setup_email_force_label(), hint: m.admin_import_customers_setup_email_force_hint() }
+              ] as opt}
+                <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
+                              {customersSetupEmailMode === opt.id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+                  <input type="radio" name="customers_setup_email_mode" value={opt.id}
+                         bind:group={customersSetupEmailMode}
+                         class="mt-1 accent-gray-900" />
+                  <span class="flex-1">
+                    <span class="block text-sm font-medium text-gray-900">{opt.label}</span>
+                    <span class="block text-xs text-gray-500 mt-0.5">{opt.hint}</span>
+                  </span>
+                </label>
+              {/each}
+            </div>
+          </div>
         </div>
 
         <div class="mt-6 pt-5 border-t border-gray-100">
