@@ -159,7 +159,7 @@
   ];
   const SHIPANY_KEYS = new Set([
     'shipany_enabled', 'shipany_user_id', 'shipany_api_key',
-    'shipany_webhook_secret', 'shipany_region', 'shipany_origin_name',
+    'shipany_region', 'shipany_origin_name',
     'shipany_origin_phone', 'shipany_origin_line1', 'shipany_origin_line2',
     'shipany_origin_district', 'shipany_origin_city', 'shipany_origin_postal',
     'shipany_default_weight_grams', 'shipany_default_courier',
@@ -1056,16 +1056,6 @@
                 <option value={opt.value} selected={settingValue('shipany_region') === opt.value}>{opt.label}</option>
               {/each}
             </select>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label for="shipany_webhook_secret" class="text-xs font-medium text-gray-600">
-              {m.admin_settings_shipany_label_webhook_secret()} <span class="text-gray-400 font-normal">{m.admin_settings_shipany_webhook_optional()}</span>
-            </label>
-            <p class="text-xs text-gray-400 -mt-0.5">
-              {m.admin_settings_shipany_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/shipany/webhook</code>{m.admin_settings_shipany_webhook_hint_post()}
-            </p>
-            <PasswordInput id="shipany_webhook_secret" name="shipany_webhook_secret"
-                           value={settingValue('shipany_webhook_secret')} />
           </div>
         </div>
 
