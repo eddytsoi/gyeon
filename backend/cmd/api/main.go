@@ -86,7 +86,7 @@ func main() {
 
 	// Services
 	categorySvc := shop.NewCategoryService(conn, cacheStore, shopTTL)
-	productSvc := shop.NewProductService(conn, cacheStore, shopTTL)
+	productSvc := shop.NewProductService(conn, cacheStore, shopTTL, settingsSvc)
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
 	customerSvc := customers.NewService(conn)
@@ -254,7 +254,7 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public storefront
-		r.Mount("/categories", shop.NewCategoryHandler(categorySvc).Routes())
+		r.Mount("/categories", shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs).Routes())
 		r.Mount("/products", productHandler.Routes())
 		r.Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
 		r.Mount("/orders", orders.NewOrderHandler(orderSvc).Routes())

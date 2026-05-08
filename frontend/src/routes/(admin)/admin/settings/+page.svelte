@@ -284,6 +284,23 @@
   );
   const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }));
 
+  // ── Hidden Categories ──────────────────────────────────────────
+  function parseIDList(raw: string | undefined): string[] {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  let hiddenCategoryIds = $state<string[]>(
+    parseIDList(data.settings.find((s) => s.key === 'hidden_category_ids')?.value)
+  );
+  const categoryOptions = $derived(
+    (data.categories ?? []).map((c) => ({ value: c.id, label: c.name }))
+  );
+
   // ── Payment ─────────────────────────────────────────────────────
   function settingValue(key: string): string {
     return data.settings.find((s) => s.key === key)?.value ?? '';
@@ -632,6 +649,18 @@
         </div>
       </div>
     {/if}
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_hidden_products_heading()}</h2>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_hidden_products_subtitle()}</p>
+      <MultiSelect
+        options={categoryOptions}
+        selected={hiddenCategoryIds}
+        placeholder={m.admin_settings_hidden_products_placeholder()}
+        onChange={(values) => (hiddenCategoryIds = values)}
+      />
+      <input type="hidden" name="hidden_category_ids" value={JSON.stringify(hiddenCategoryIds)} />
+    </div>
 
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4 mb-5">

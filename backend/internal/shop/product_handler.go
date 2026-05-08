@@ -35,6 +35,11 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 
+	// Public single-product fetch by slug (storefront product page +
+	// future "private link" sales flows). Bypasses hidden-category
+	// filtering so direct URLs always resolve.
+	r.Get("/by-slug/{slug}", h.getBySlug)
+
 	// Single variant by ID (used by checkout for pricing)
 	r.Get("/variants/{variantID}", h.getVariantByID)
 
@@ -121,6 +126,16 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) getByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	product, err := h.svc.GetByID(r.Context(), id, r.URL.Query().Get("lang"))
+	if err != nil {
+		respond.NotFound(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, product)
+}
+
+func (h *ProductHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	product, err := h.svc.GetBySlug(r.Context(), slug, r.URL.Query().Get("lang"))
 	if err != nil {
 		respond.NotFound(w)
 		return
