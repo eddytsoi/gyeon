@@ -112,7 +112,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*Customer,
 
 func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error) {
 	var c Customer
-	var hash string
+	var hash sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, created_at, updated_at
 		 FROM customers WHERE email=$1 AND is_active=TRUE`, req.Email).
@@ -123,7 +123,14 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error
 	if err != nil {
 		return nil, err
 	}
-	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+	// Customers imported from WooCommerce (or guest-checkout rows that never
+	// finished setup) have password_hash IS NULL. Treat that the same as a
+	// wrong-password attempt so we don't leak whether a row exists, and the
+	// customer gets pushed toward the "Forgot password?" link.
+	if !hash.Valid || hash.String == "" {
+		return nil, ErrInvalidCredentials
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash.String), []byte(req.Password)) != nil {
 		return nil, ErrInvalidCredentials
 	}
 	return &c, nil

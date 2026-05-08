@@ -257,6 +257,7 @@
     imported_customers: number;
     updated_customers: number;
     imported_addresses: number;
+    setup_emails_queued: number;
     failed: number;
     current_customer?: string;
     done: boolean;
@@ -267,6 +268,7 @@
   let customersErrorMsg = $state('');
   let customersProgress = $state<CustomersProgress | null>(null);
   let customersLimit = $state<number | null>(null);
+  let customersSendSetupEmail = $state(false);
 
   const customersPct = $derived(
     customersProgress && customersProgress.total_customers > 0
@@ -318,7 +320,8 @@
           wc_url: wcUrl,
           wc_key: wcKey,
           wc_secret: wcSecret,
-          limit: customersLimit && customersLimit > 0 ? Math.floor(customersLimit) : 0
+          limit: customersLimit && customersLimit > 0 ? Math.floor(customersLimit) : 0,
+          send_setup_email: customersSendSetupEmail
         })
       });
 
@@ -1068,6 +1071,9 @@
               <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                 <span class="text-green-600">{m.admin_import_progress_added({ count: customersProgress.imported_customers })}</span>
                 <span class="text-blue-600">{m.admin_import_progress_updated({ count: customersProgress.updated_customers })}</span>
+                {#if customersProgress.setup_emails_queued > 0}
+                  <span class="text-purple-600">{m.admin_import_customers_progress_emails({ count: customersProgress.setup_emails_queued })}</span>
+                {/if}
                 {#if customersProgress.failed > 0}
                   <span class="text-red-500">{m.admin_import_progress_failed({ count: customersProgress.failed })}</span>
                 {/if}
@@ -1148,6 +1154,16 @@
               <p class="text-xs text-amber-600 mt-1">{m.admin_import_limit_warning()}</p>
             {/if}
           </div>
+
+          <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer
+                        {customersSendSetupEmail ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="checkbox" bind:checked={customersSendSetupEmail}
+                   class="mt-1 accent-gray-900" />
+            <span class="flex-1">
+              <span class="block text-sm font-medium text-gray-900">{m.admin_import_customers_send_setup_label()}</span>
+              <span class="block text-xs text-gray-500 mt-0.5">{m.admin_import_customers_send_setup_hint()}</span>
+            </span>
+          </label>
         </div>
 
         <div class="mt-6 pt-5 border-t border-gray-100">
