@@ -44,7 +44,10 @@ func (h *PostHandler) PublicRoutes() chi.Router {
 func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pagination(r)
 	posts, err := h.svc.List(r.Context(),
-		r.URL.Query().Get("lang"), r.URL.Query().Get("q"), limit, offset)
+		r.URL.Query().Get("lang"),
+		r.URL.Query().Get("q"),
+		r.URL.Query().Get("category"),
+		limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return

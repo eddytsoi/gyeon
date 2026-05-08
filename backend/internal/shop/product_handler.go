@@ -107,7 +107,10 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	products, err := h.svc.ListAll(r.Context(),
-		r.URL.Query().Get("lang"), r.URL.Query().Get("q"), limit, offset)
+		r.URL.Query().Get("lang"),
+		r.URL.Query().Get("q"),
+		r.URL.Query().Get("category"),
+		limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return

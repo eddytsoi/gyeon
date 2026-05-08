@@ -20,6 +20,14 @@
     else url.searchParams.delete('q');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
+
+  function onCategoryChange(e: Event) {
+    const slug = (e.currentTarget as HTMLSelectElement).value;
+    const url = new URL(page.url);
+    if (slug) url.searchParams.set('category', slug);
+    else url.searchParams.delete('category');
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
 </script>
 
 <svelte:head><title>{m.admin_products_title()}</title></svelte:head>
@@ -29,8 +37,19 @@
   <NewButton label={m.admin_products_new()} href="/admin/products/new" />
 </div>
 
-<div class="mb-4">
+<div class="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">
   <SearchInput value={data.q} placeholder={m.admin_products_search_placeholder()} onChange={onSearch} />
+  <select
+    value={data.category}
+    onchange={onCategoryChange}
+    aria-label={m.admin_products_filter_category_aria()}
+    class="w-full sm:w-auto sm:min-w-[12rem] border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
+    <option value="">{m.admin_products_filter_category_all()}</option>
+    {#each data.categories as c}
+      <option value={c.slug}>{c.name}</option>
+    {/each}
+  </select>
 </div>
 
 <!-- Products table -->

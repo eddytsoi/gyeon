@@ -183,11 +183,24 @@ func (c *wcClient) get(path string, params url.Values, out interface{}) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// fetchProductTotal returns the total number of products via the X-WP-Total header.
-// When wcType is non-empty, the count is scoped to that WooCommerce product
-// type (e.g. "bundle") so the progress bar denominator reflects only the
-// products that will actually be processed in this run.
-func (c *wcClient) fetchProductTotal(wcType string) int {
+// fetchProductTotal returns the total number of products to be processed
+// in a run, summed across the given WC types. WC's ?type= parameter only
+// accepts a single value, so we issue one cheap (per_page=1) request per
+// type and add the X-WP-Total values together. Passing nil / empty falls
+// back to an unfiltered count (every product type) — this preserves the
+// behaviour for callers that don't care about a type-aware denominator.
+func (c *wcClient) fetchProductTotal(wcTypes []string) int {
+	if len(wcTypes) == 0 {
+		return c.fetchTypedProductTotal("")
+	}
+	total := 0
+	for _, t := range wcTypes {
+		total += c.fetchTypedProductTotal(t)
+	}
+	return total
+}
+
+func (c *wcClient) fetchTypedProductTotal(wcType string) int {
 	u := c.baseURL + "/wp-json/wc/v3/products?per_page=1&page=1"
 	if wcType != "" {
 		u += "&type=" + url.QueryEscape(wcType)

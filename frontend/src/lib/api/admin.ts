@@ -42,9 +42,10 @@ export const getStats = (token: string) =>
 
 // Products — admin list hits a dedicated endpoint that returns all statuses;
 // mutations and detail reads use /products/* (token-protected).
-export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '') => {
+export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
+  if (categorySlug) qs.set('category', categorySlug);
   return request<Product[]>(`/admin/inventory/?${qs.toString()}`, token);
 };
 
@@ -224,9 +225,10 @@ export const adminDeletePage = (token: string, id: string) =>
   request(`/admin/cms/pages/${id}`, token, { method: 'DELETE' });
 
 // Posts
-export const adminGetPosts = (token: string, limit = 50, offset = 0, q = '') => {
+export const adminGetPosts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
+  if (categorySlug) qs.set('category', categorySlug);
   return request<CmsPost[]>(`/admin/cms/posts?${qs.toString()}`, token);
 };
 

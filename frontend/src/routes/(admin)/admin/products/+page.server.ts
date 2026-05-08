@@ -7,9 +7,10 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   if (!token) throw redirect(303, '/admin/login');
 
   const q = url.searchParams.get('q') ?? '';
+  const category = url.searchParams.get('category') ?? '';
 
   const [products, categories] = await Promise.all([
-    adminGetProducts(token, 50, 0, q).catch(() => []).then(r => r ?? []),
+    adminGetProducts(token, 50, 0, q, category).catch(() => []).then(r => r ?? []),
     adminGetCategories(token).catch(() => []).then(r => r ?? [])
   ]);
 
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     }))
   );
 
-  return { products: enriched, categories, q };
+  return { products: enriched, categories, q, category };
 };
 
 export const actions: Actions = {

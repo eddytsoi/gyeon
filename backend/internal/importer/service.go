@@ -155,27 +155,37 @@ func (s *Service) TestConnection(req ImportRequest) error {
 // X-WP-Total header. Returns 0 on any error — the test endpoint already
 // validated connectivity, so a missing total is just a UX nicety we can
 // surface or skip without breaking the success case. Scoped to the
-// requested ProductType when set so the displayed count matches what
-// will actually be imported.
+// requested ProductType so the displayed count matches what will actually
+// be imported (the "products" preset sums the simple + variable counts
+// instead of using the unfiltered total, which would inflate the
+// denominator with bundles / grouped / external).
 func (s *Service) ProductTotal(req ImportRequest) int {
-	wcType, _ := resolveProductTypeFilter(req.ProductType)
-	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchProductTotal(wcType)
+	_, countTypes, _ := resolveProductTypeFilter(req.ProductType)
+	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchProductTotal(countTypes)
 }
 
-// resolveProductTypeFilter maps the public product_type to (wc API type
-// filter, Gyeon kind). Unknown values fall back to the "products" preset.
-func resolveProductTypeFilter(productType string) (wcType, gyeonKind string) {
+// resolveProductTypeFilter maps the public product_type to:
+//   - fetchType:  the value passed to ?type= when paging (empty = no
+//     server-side filter; the loop relies on matchesProductType to skip
+//     unwanted rows client-side).
+//   - countTypes: the list of WC types whose totals are summed for the
+//     progress denominator. The total has to match what the import
+//     actually processes — a single-value ?type= can't express
+//     "simple OR variable", so we do two cheap count requests instead.
+//   - gyeonKind:  the local kind string written to products.kind.
+//
+// Unknown values fall back to the "products" preset.
+func resolveProductTypeFilter(productType string) (fetchType string, countTypes []string, gyeonKind string) {
 	switch productType {
 	case ProductTypeBundleProducts:
-		return "bundle", "bundle"
+		return "bundle", []string{"bundle"}, "bundle"
 	default:
-		// "products" or empty — WC's ?type= only accepts a single value, so
-		// instead of two requests we fetch unfiltered and skip non-matching
-		// types client-side. Total count is taken without a type filter for
-		// the same reason; merchants without bundles see an accurate number,
-		// stores with bundles see a slightly inflated denominator that the
-		// progress bar tolerates.
-		return "", "simple"
+		// "products" preset — server-side ?type= can only carry one value,
+		// so we fetch unfiltered and rely on matchesProductType to skip
+		// bundles / grouped / external. The denominator, however, sums
+		// simple + variable totals so it never inflates past what the
+		// client-side filter actually processes.
+		return "", []string{"simple", "variable"}, "simple"
 	}
 }
 
@@ -198,12 +208,12 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	if mode == "" {
 		mode = ModeUpsert
 	}
-	wcType, gyeonKind := resolveProductTypeFilter(req.ProductType)
+	wcType, countTypes, gyeonKind := resolveProductTypeFilter(req.ProductType)
 
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := ProgressUpdate{Errors: []string{}}
 
-	p.TotalProducts = wc.fetchProductTotal(wcType)
+	p.TotalProducts = wc.fetchProductTotal(countTypes)
 	// When the caller capped the run, show the cap as the denominator so
 	// the progress bar represents work scheduled, not the WC store size.
 	if req.Limit > 0 && (p.TotalProducts == 0 || p.TotalProducts > req.Limit) {
