@@ -560,19 +560,29 @@ func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categor
 }
 
 // ListAll returns all products regardless of is_active (admin). locale may be empty.
-// search is optional; see List.
-func (s *ProductService) ListAll(ctx context.Context, locale, search string, limit, offset int) ([]Product, error) {
-	key := fmt.Sprintf("shop:products:all:%s:%s:%d:%d", locale, search, limit, offset)
+// search is optional; see List. categorySlug, when non-empty, restricts the
+// result to products whose category matches the given slug.
+func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]Product, error) {
+	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%d:%d", locale, search, categorySlug, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
 
 	args := []any{locale, limit, offset}
-	query := productSelect + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
-	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
-		query = productSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
-		args = append(args, arg)
+	wheres := []string{}
+	if categorySlug != "" {
+		args = append(args, categorySlug)
+		wheres = append(wheres, fmt.Sprintf(`p.category_id = (SELECT id FROM categories WHERE slug = $%d)`, len(args)))
 	}
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
+		args = append(args, arg)
+		wheres = append(wheres, clause)
+	}
+	query := productSelect
+	if len(wheres) > 0 {
+		query += ` WHERE ` + strings.Join(wheres, ` AND `)
+	}
+	query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

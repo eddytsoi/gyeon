@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gyeon/backend/internal/cache"
@@ -99,19 +100,29 @@ func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 
 // List returns all posts (admin). locale may be empty for base content.
 // search is an optional case-insensitive substring matched against
-// postSearchFields; pass "" to disable.
-func (s *PostService) List(ctx context.Context, locale, search string, limit, offset int) ([]Post, error) {
-	key := fmt.Sprintf("cms:posts:all:%s:%s:%d:%d", locale, search, limit, offset)
+// postSearchFields; pass "" to disable. categorySlug, when non-empty,
+// restricts the result to posts whose category matches the given slug.
+func (s *PostService) List(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]Post, error) {
+	key := fmt.Sprintf("cms:posts:all:%s:%s:%s:%d:%d", locale, search, categorySlug, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Post), nil
 	}
 
 	args := []any{locale, limit, offset}
-	query := postSelect + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
-	if clause, arg := util.BuildSearchClause(search, postSearchFields, 4); clause != "" {
-		query = postSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
-		args = append(args, arg)
+	wheres := []string{}
+	if categorySlug != "" {
+		args = append(args, categorySlug)
+		wheres = append(wheres, fmt.Sprintf(`p.category_id = (SELECT id FROM cms_post_categories WHERE slug = $%d)`, len(args)))
 	}
+	if clause, arg := util.BuildSearchClause(search, postSearchFields, len(args)+1); clause != "" {
+		args = append(args, arg)
+		wheres = append(wheres, clause)
+	}
+	query := postSelect
+	if len(wheres) > 0 {
+		query += ` WHERE ` + strings.Join(wheres, ` AND `)
+	}
+	query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
