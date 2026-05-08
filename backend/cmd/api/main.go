@@ -164,7 +164,7 @@ func main() {
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
 	productSvc.SetThumbnailEnsurer(mediaHandler)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
-	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc))
+	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc, customerSvc, emailSvc))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	redirectsSvc := redirects.NewService(conn)
 	redirectsHandler := redirects.NewHandler(redirectsSvc)

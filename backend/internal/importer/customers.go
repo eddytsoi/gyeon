@@ -5,7 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
+	"sync/atomic"
+
+	"gyeon/backend/internal/email"
 )
 
 // CustomersImportRequest mirrors ImportRequest but is scoped to the
@@ -18,6 +22,10 @@ type CustomersImportRequest struct {
 	WCSecret string `json:"wc_secret"`
 	// Limit caps the run. 0 = no cap (full sync).
 	Limit int `json:"limit"`
+	// SendSetupEmail, when true, fires off a setup-password email to each
+	// newly-inserted customer (not to ones that already existed). Re-runs
+	// won't re-spam imported rows because the email is gated on insert.
+	SendSetupEmail bool `json:"send_setup_email"`
 }
 
 // CustomersProgressUpdate is streamed once per processed customer plus a
@@ -29,6 +37,7 @@ type CustomersProgressUpdate struct {
 	ImportedCustomers  int      `json:"imported_customers"` // newly inserted
 	UpdatedCustomers   int      `json:"updated_customers"`  // matched (by wc_customer_id or email), updated in place
 	ImportedAddresses  int      `json:"imported_addresses"` // billing + shipping rows added on first import
+	SetupEmailsQueued  int      `json:"setup_emails_queued"` // setup-password emails kicked off (async; failures logged server-side)
 	Failed             int      `json:"failed"`
 	CurrentCustomer    string   `json:"current_customer,omitempty"`
 	Done               bool     `json:"done"`
@@ -54,6 +63,11 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 		p.TotalCustomers = req.Limit
 	}
 	send(p)
+
+	// Counter for setup-password emails kicked off via the goroutines below.
+	// Atomic because the dispatch is async; we read it from the import loop
+	// to push the latest value out via the SSE frame.
+	var emailsQueued int64
 
 pages:
 	for page := 1; ; page++ {
@@ -82,18 +96,65 @@ pages:
 			p.CurrentCustomer = displayName(c)
 			send(p)
 
-			if err := s.upsertCustomer(ctx, c, &p); err != nil {
+			newID, err := s.upsertCustomer(ctx, c, &p)
+			if err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("customer %s: %v", c.Email, err))
 				p.Failed++
+			} else if req.SendSetupEmail && newID != "" {
+				// Fire-and-forget: SMTP is slow and we don't want to block
+				// the import. Failures get logged server-side, not surfaced
+				// in the SSE stream — emailsQueued counts dispatches, not
+				// deliveries. Re-runs of the import never re-send because
+				// upsertCustomer returns "" for already-existing rows.
+				go s.sendSetupPasswordEmail(c, newID, &emailsQueued)
 			}
+			p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
 			p.ProcessedCustomers++
 			p.CurrentCustomer = ""
 			send(p)
 		}
 	}
 
+	// Final flush of the emails counter — late dispatches that happened
+	// after the loop exited are still reflected.
+	p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
 	p.Done = true
 	send(p)
+}
+
+// sendSetupPasswordEmail mints a 7-day setup token via the customers
+// service and sends the standard password-reset email. Used by the
+// customers import when SendSetupEmail is set. Errors are logged but
+// never surface to the importer caller — best-effort delivery.
+func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, counter *int64) {
+	if s.customerSvc == nil || s.emailSvc == nil {
+		return
+	}
+	// Use a fresh context so the request that initiated the import being
+	// cancelled (e.g. admin closes the page) doesn't truncate emails that
+	// have already been queued.
+	ctx := context.Background()
+	token, err := s.customerSvc.CreateSetupToken(ctx, customerID)
+	if err != nil {
+		log.Printf("import: setup token for %s: %v", wc.Email, err)
+		return
+	}
+	resetURL := strings.TrimRight(s.emailSvc.PublicBaseURL(ctx), "/") + "/account/reset-password?token=" + token
+	first, last := resolveName(wc)
+	name := strings.TrimSpace(first + " " + last)
+	if name == "" {
+		name = wc.Email
+	}
+	if err := s.emailSvc.SendPasswordResetEmail(ctx, email.PasswordResetParams{
+		CustomerName:  name,
+		CustomerEmail: wc.Email,
+		ResetURL:      resetURL,
+		ExpiryHours:   7 * 24, // matches CreateSetupToken's 7-day expiry
+	}); err != nil {
+		log.Printf("import: setup email for %s: %v", wc.Email, err)
+		return
+	}
+	atomic.AddInt64(counter, 1)
 }
 
 // upsertCustomer inserts a new customer (with billing + shipping addresses)
@@ -101,10 +162,15 @@ pages:
 // names / phone in place. Existing rows keep their addresses untouched —
 // re-running the import never overwrites address edits an admin (or the
 // customer themself, post-import) made on storefront.
-func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *CustomersProgressUpdate) error {
+//
+// Returns the local customer.id only when a brand-new row was inserted; an
+// empty string means the WC customer was matched against an existing row,
+// so the caller knows not to send a setup-password email (avoiding spam on
+// re-runs).
+func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *CustomersProgressUpdate) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback()
 
@@ -120,7 +186,7 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 	if err == nil {
 		existed = true
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("lookup by wc_customer_id: %w", err)
+		return "", fmt.Errorf("lookup by wc_customer_id: %w", err)
 	} else {
 		// 2) Fall back to email so a manually-created storefront account adopts
 		//    its WC counterpart instead of failing the unique email constraint.
@@ -131,10 +197,10 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 			if _, err := tx.ExecContext(ctx,
 				`UPDATE customers SET wc_customer_id=$2 WHERE id=$1`,
 				customerID, wc.ID); err != nil {
-				return fmt.Errorf("backfill wc_customer_id: %w", err)
+				return "", fmt.Errorf("backfill wc_customer_id: %w", err)
 			}
 		} else if !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("lookup by email: %w", err)
+			return "", fmt.Errorf("lookup by email: %w", err)
 		}
 	}
 
@@ -142,36 +208,43 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE customers SET first_name=$2, last_name=$3, phone=$4 WHERE id=$1`,
 			customerID, first, last, phone); err != nil {
-			return fmt.Errorf("update customer: %w", err)
+			return "", fmt.Errorf("update customer: %w", err)
 		}
 		p.UpdatedCustomers++
-	} else {
-		if err := tx.QueryRowContext(ctx,
-			`INSERT INTO customers (email, first_name, last_name, phone, wc_customer_id)
-			 VALUES ($1, $2, $3, $4, $5)
-			 RETURNING id`,
-			wc.Email, first, last, phone, wc.ID).Scan(&customerID); err != nil {
-			return fmt.Errorf("insert customer: %w", err)
+		if err := tx.Commit(); err != nil {
+			return "", err
 		}
-		p.ImportedCustomers++
-
-		// Addresses are only inserted on first import. Re-runs leave the
-		// existing rows alone so admin-edited billing details stick.
-		if hasAddress(wc.Billing) {
-			if err := insertAddress(ctx, tx, customerID, wc.Billing, true); err != nil {
-				return fmt.Errorf("insert billing address: %w", err)
-			}
-			p.ImportedAddresses++
-		}
-		if hasAddress(wc.Shipping) && !sameAddress(wc.Billing, wc.Shipping) {
-			if err := insertAddress(ctx, tx, customerID, wc.Shipping, !hasAddress(wc.Billing)); err != nil {
-				return fmt.Errorf("insert shipping address: %w", err)
-			}
-			p.ImportedAddresses++
-		}
+		return "", nil
 	}
 
-	return tx.Commit()
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO customers (email, first_name, last_name, phone, wc_customer_id)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id`,
+		wc.Email, first, last, phone, wc.ID).Scan(&customerID); err != nil {
+		return "", fmt.Errorf("insert customer: %w", err)
+	}
+	p.ImportedCustomers++
+
+	// Addresses are only inserted on first import. Re-runs leave the
+	// existing rows alone so admin-edited billing details stick.
+	if hasAddress(wc.Billing) {
+		if err := insertAddress(ctx, tx, customerID, wc.Billing, true); err != nil {
+			return "", fmt.Errorf("insert billing address: %w", err)
+		}
+		p.ImportedAddresses++
+	}
+	if hasAddress(wc.Shipping) && !sameAddress(wc.Billing, wc.Shipping) {
+		if err := insertAddress(ctx, tx, customerID, wc.Shipping, !hasAddress(wc.Billing)); err != nil {
+			return "", fmt.Errorf("insert shipping address: %w", err)
+		}
+		p.ImportedAddresses++
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return customerID, nil
 }
 
 // resolveName fills empty first/last_name fallbacks from the WC username

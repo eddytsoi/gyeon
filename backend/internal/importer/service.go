@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"gyeon/backend/internal/customers"
+	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shop"
@@ -78,20 +80,32 @@ type ProgressUpdate struct {
 	Errors            []string `json:"errors"`
 }
 
-// Service orchestrates the WooCommerce → Gyeon product / customers import.
+// Service orchestrates the WooCommerce → Gyeon product / customers / orders
+// import. customerSvc / emailSvc are used only by the customers import to
+// optionally send setup-password emails to newly-inserted customers.
 type Service struct {
 	db          *sql.DB
 	categorySvc *shop.CategoryService
 	productSvc  *shop.ProductService
 	mediaSvc    *media.Service
 	settingsSvc *settings.Service
+	customerSvc *customers.Service
+	emailSvc    *email.Service
 }
 
 // NewService creates an import Service. The *sql.DB is used by the
-// customers import path for direct upserts; the products path goes
-// through productSvc and never touches db directly.
-func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service) *Service {
-	return &Service{db: db, categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc, settingsSvc: settingsSvc}
+// customers / orders import paths for direct upserts; the products path
+// goes through productSvc and never touches db directly.
+func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service, customerSvc *customers.Service, emailSvc *email.Service) *Service {
+	return &Service{
+		db:          db,
+		categorySvc: categorySvc,
+		productSvc:  productSvc,
+		mediaSvc:    mediaSvc,
+		settingsSvc: settingsSvc,
+		customerSvc: customerSvc,
+		emailSvc:    emailSvc,
+	}
 }
 
 // Credentials carries the persisted WooCommerce REST API credentials.
