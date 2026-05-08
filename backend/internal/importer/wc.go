@@ -242,6 +242,9 @@ func (c *wcClient) fetchCategories() ([]wcCategory, error) {
 		if err := c.get("/wp-json/wc/v3/products/categories", params, &batch); err != nil {
 			return nil, fmt.Errorf("categories page %d: %w", page, err)
 		}
+		for i := range batch {
+			batch[i].Slug = decodeSlug(batch[i].Slug)
+		}
 		all = append(all, batch...)
 		if len(batch) < 100 {
 			break
@@ -262,7 +265,25 @@ func (c *wcClient) fetchProducts(page int, wcType string) ([]wcProduct, error) {
 	if err := c.get("/wp-json/wc/v3/products", params, &products); err != nil {
 		return nil, fmt.Errorf("products page %d: %w", page, err)
 	}
+	for i := range products {
+		products[i].Slug = decodeSlug(products[i].Slug)
+		for j := range products[i].Categories {
+			products[i].Categories[j].Slug = decodeSlug(products[i].Categories[j].Slug)
+		}
+	}
 	return products, nil
+}
+
+// decodeSlug normalizes WooCommerce-returned slugs. WC stores non-ASCII
+// slugs as percent-encoded UTF-8 (e.g. "%e7%b6%a0%e8%8c%b6"), but browsers
+// decode URLs so SvelteKit's params.slug is the decoded form. Storing the
+// decoded slug keeps both sides aligned. Falls back to the original on
+// decode failure.
+func decodeSlug(s string) string {
+	if decoded, err := url.QueryUnescape(s); err == nil {
+		return decoded
+	}
+	return s
 }
 
 // fetchCustomerTotal returns the total number of customers via the

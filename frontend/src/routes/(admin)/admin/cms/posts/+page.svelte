@@ -50,7 +50,7 @@
       value={data.category}
       onchange={onCategoryChange}
       aria-label={m.admin_cms_posts_filter_category_aria()}
-      class="w-full sm:w-auto sm:min-w-[12rem] border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white
+      class="sm:w-auto sm:min-w-[12rem] border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white
              focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
       <option value="">{m.admin_cms_posts_filter_category_all()}</option>
       {#each data.categories as c}
