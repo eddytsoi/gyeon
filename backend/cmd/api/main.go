@@ -164,7 +164,7 @@ func main() {
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
 	productSvc.SetThumbnailEnsurer(mediaHandler)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
-	importHandler := importer.NewHandler(importer.NewService(categorySvc, productSvc, mediaSvc, settingsSvc))
+	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	redirectsSvc := redirects.NewService(conn)
 	redirectsHandler := redirects.NewHandler(redirectsSvc)
@@ -369,6 +369,8 @@ func main() {
 			r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
 			r.Post("/admin/import/woocommerce/test", importHandler.Test)
 			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
+			r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
+			r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
 		})
 	})
 
