@@ -112,6 +112,10 @@
   const CURRENCY_KEYS = new Set(['currency']);
   const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
+  // Managed by the Hidden Products section (Commerce tab). Excluded from
+  // textSettings so the generic catch-all loop doesn't render a second
+  // <input name="hidden_category_ids"> that overwrites the real one on submit.
+  const HIDDEN_PRODUCTS_KEYS = new Set(['hidden_category_ids']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -233,6 +237,7 @@
         !PAYMENT_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
+        !HIDDEN_PRODUCTS_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
