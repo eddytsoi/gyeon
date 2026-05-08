@@ -103,3 +103,61 @@ func (h *Handler) ImportStream(w http.ResponseWriter, r *http.Request) {
 
 	h.svc.RunStreaming(r.Context(), req, send)
 }
+
+// CustomersTest handles POST /api/v1/admin/import/woocommerce/customers/test.
+// Same connectivity check as the products test path (the same WC creds
+// authenticate /wc/v3/customers), but additionally returns the total
+// customer count so the admin UI can preview the run size.
+func (h *Handler) CustomersTest(w http.ResponseWriter, r *http.Request) {
+	var req CustomersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+	if err := h.svc.TestConnection(ImportRequest{WCURL: req.WCURL, WCKey: req.WCKey, WCSecret: req.WCSecret}); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"ok":              true,
+		"total_customers": h.svc.CustomerTotal(req),
+	})
+}
+
+// CustomersImportStream handles POST /api/v1/admin/import/woocommerce/customers/stream.
+// Streams Server-Sent Events with CustomersProgressUpdate JSON.
+func (h *Handler) CustomersImportStream(w http.ResponseWriter, r *http.Request) {
+	var req CustomersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	send := func(p CustomersProgressUpdate) {
+		b, _ := json.Marshal(p)
+		fmt.Fprintf(w, "data: %s\n\n", b)
+		flusher.Flush()
+	}
+
+	h.svc.RunCustomersStreaming(r.Context(), req, send)
+}

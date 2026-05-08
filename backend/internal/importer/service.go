@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 
@@ -77,17 +78,20 @@ type ProgressUpdate struct {
 	Errors            []string `json:"errors"`
 }
 
-// Service orchestrates the WooCommerce → Gyeon product import.
+// Service orchestrates the WooCommerce → Gyeon product / customers import.
 type Service struct {
+	db          *sql.DB
 	categorySvc *shop.CategoryService
 	productSvc  *shop.ProductService
 	mediaSvc    *media.Service
 	settingsSvc *settings.Service
 }
 
-// NewService creates an import Service.
-func NewService(categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service) *Service {
-	return &Service{categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc, settingsSvc: settingsSvc}
+// NewService creates an import Service. The *sql.DB is used by the
+// customers import path for direct upserts; the products path goes
+// through productSvc and never touches db directly.
+func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service) *Service {
+	return &Service{db: db, categorySvc: categorySvc, productSvc: productSvc, mediaSvc: mediaSvc, settingsSvc: settingsSvc}
 }
 
 // Credentials carries the persisted WooCommerce REST API credentials.

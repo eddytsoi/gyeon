@@ -82,6 +82,32 @@ type wcAttribute struct {
 	Option string `json:"option"`
 }
 
+// wcCustomerAddress mirrors the billing / shipping payload returned by
+// /wc/v3/customers. Only the fields we map into Gyeon are decoded; ignored
+// keys (company, country mapped names, etc.) just get dropped.
+type wcCustomerAddress struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Address1  string `json:"address_1"`
+	Address2  string `json:"address_2"`
+	City      string `json:"city"`
+	State     string `json:"state"`
+	Postcode  string `json:"postcode"`
+	Country   string `json:"country"`
+	Phone     string `json:"phone"`
+}
+
+type wcCustomer struct {
+	ID        int               `json:"id"`
+	Email     string            `json:"email"`
+	FirstName string            `json:"first_name"`
+	LastName  string            `json:"last_name"`
+	Username  string            `json:"username"`
+	Role      string            `json:"role"`
+	Billing   wcCustomerAddress `json:"billing"`
+	Shipping  wcCustomerAddress `json:"shipping"`
+}
+
 type wcClient struct {
 	baseURL    string
 	key        string
@@ -186,6 +212,44 @@ func (c *wcClient) fetchProducts(page int, wcType string) ([]wcProduct, error) {
 		return nil, fmt.Errorf("products page %d: %w", page, err)
 	}
 	return products, nil
+}
+
+// fetchCustomerTotal returns the total number of customers via the
+// X-WP-Total header. Returns 0 on any error — caller treats a missing
+// total as "unknown" rather than failing the whole import.
+func (c *wcClient) fetchCustomerTotal() int {
+	u := c.baseURL + "/wp-json/wc/v3/customers?per_page=1&page=1&role=all"
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return 0
+	}
+	req.SetBasicAuth(c.key, c.secret)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	total, _ := strconv.Atoi(resp.Header.Get("X-WP-Total"))
+	return total
+}
+
+// fetchCustomers returns one page of customers. role=all is required —
+// /wc/v3/customers defaults to role=customer and silently hides admins
+// and other roles, which would surprise merchants whose WC store has
+// non-customer accounts they want migrated.
+func (c *wcClient) fetchCustomers(page int) ([]wcCustomer, error) {
+	var customers []wcCustomer
+	params := url.Values{
+		"per_page": {"100"},
+		"page":     {fmt.Sprintf("%d", page)},
+		"role":     {"all"},
+		"orderby":  {"id"},
+		"order":    {"asc"},
+	}
+	if err := c.get("/wp-json/wc/v3/customers", params, &customers); err != nil {
+		return nil, fmt.Errorf("customers page %d: %w", page, err)
+	}
+	return customers, nil
 }
 
 func (c *wcClient) fetchVariations(productID int) ([]wcVariation, error) {
