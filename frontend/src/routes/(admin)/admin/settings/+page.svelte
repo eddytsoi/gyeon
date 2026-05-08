@@ -5,6 +5,7 @@
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import MediaPicker from '$lib/components/admin/MediaPicker.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import PasswordInput from '$lib/components/admin/PasswordInput.svelte';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
@@ -692,19 +693,15 @@
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
-            <input id="stripe_test_publishable_key" name="stripe_test_publishable_key"
-                   type="password" value={settingValue('stripe_test_publishable_key')}
-                   placeholder="pk_test_..."
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="stripe_test_publishable_key" name="stripe_test_publishable_key"
+                           value={settingValue('stripe_test_publishable_key')}
+                           placeholder="pk_test_..." />
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
-            <input id="stripe_test_secret_key" name="stripe_test_secret_key"
-                   type="password" value={settingValue('stripe_test_secret_key')}
-                   placeholder="sk_test_..."
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="stripe_test_secret_key" name="stripe_test_secret_key"
+                           value={settingValue('stripe_test_secret_key')}
+                           placeholder="sk_test_..." />
           </div>
         </div>
       </div>
@@ -716,19 +713,15 @@
         <div class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
             <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
-            <input id="stripe_live_publishable_key" name="stripe_live_publishable_key"
-                   type="password" value={settingValue('stripe_live_publishable_key')}
-                   placeholder="pk_live_..."
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="stripe_live_publishable_key" name="stripe_live_publishable_key"
+                           value={settingValue('stripe_live_publishable_key')}
+                           placeholder="pk_live_..." />
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
-            <input id="stripe_live_secret_key" name="stripe_live_secret_key"
-                   type="password" value={settingValue('stripe_live_secret_key')}
-                   placeholder="sk_live_..."
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="stripe_live_secret_key" name="stripe_live_secret_key"
+                           value={settingValue('stripe_live_secret_key')}
+                           placeholder="sk_live_..." />
           </div>
         </div>
       </div>
@@ -741,11 +734,9 @@
           <p class="text-xs text-gray-400 -mt-0.5">
             {m.admin_settings_payment_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code>{m.admin_settings_payment_webhook_hint_mid()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code>{m.admin_settings_payment_webhook_hint_post()}
           </p>
-          <input id="stripe_webhook_secret" name="stripe_webhook_secret"
-                 type="password" value={settingValue('stripe_webhook_secret')}
-                 placeholder="whsec_..."
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <PasswordInput id="stripe_webhook_secret" name="stripe_webhook_secret"
+                         value={settingValue('stripe_webhook_secret')}
+                         placeholder="whsec_..." />
         </div>
       </div>
 
@@ -1049,11 +1040,9 @@
             <p class="text-xs text-gray-400 -mt-0.5">
               {m.admin_settings_shipany_api_key_hint()}
             </p>
-            <input id="shipany_api_key" name="shipany_api_key" type="password"
-                   value={settingValue('shipany_api_key')}
-                   placeholder={m.admin_settings_shipany_api_key_placeholder()}
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="shipany_api_key" name="shipany_api_key"
+                           value={settingValue('shipany_api_key')}
+                           placeholder={m.admin_settings_shipany_api_key_placeholder()} />
           </div>
           <div class="flex flex-col gap-1.5">
             <label for="shipany_region" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_label_region()}</label>
@@ -1073,10 +1062,8 @@
             <p class="text-xs text-gray-400 -mt-0.5">
               {m.admin_settings_shipany_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/shipany/webhook</code>{m.admin_settings_shipany_webhook_hint_post()}
             </p>
-            <input id="shipany_webhook_secret" name="shipany_webhook_secret" type="password"
-                   value={settingValue('shipany_webhook_secret')}
-                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <PasswordInput id="shipany_webhook_secret" name="shipany_webhook_secret"
+                           value={settingValue('shipany_webhook_secret')} />
           </div>
         </div>
 

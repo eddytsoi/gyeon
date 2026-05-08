@@ -1077,6 +1077,8 @@
   "admin_media_badge_link": "連結",
   "admin_media_url_copied": "圖片網址已複製",
   "admin_media_tip_copy": "複製網址",
+  "admin_password_copy_tip": "複製",
+  "admin_password_copied": "已複製",
   "admin_media_tip_edit": "編輯",
   "admin_media_tip_delete": "刪除",
   "admin_media_ref_product": "產品",
