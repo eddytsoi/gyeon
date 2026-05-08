@@ -128,6 +128,63 @@ func (h *Handler) CustomersTest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// OrdersTest handles POST /api/v1/admin/import/woocommerce/orders/test.
+// Reuses the products test for connectivity (same WC creds authenticate
+// /wc/v3/orders) and returns the total order count.
+func (h *Handler) OrdersTest(w http.ResponseWriter, r *http.Request) {
+	var req OrdersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+	if err := h.svc.TestConnection(ImportRequest{WCURL: req.WCURL, WCKey: req.WCKey, WCSecret: req.WCSecret}); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"ok":           true,
+		"total_orders": h.svc.OrderTotal(req),
+	})
+}
+
+// OrdersImportStream handles POST /api/v1/admin/import/woocommerce/orders/stream.
+// Streams Server-Sent Events with OrdersProgressUpdate JSON.
+func (h *Handler) OrdersImportStream(w http.ResponseWriter, r *http.Request) {
+	var req OrdersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	send := func(p OrdersProgressUpdate) {
+		b, _ := json.Marshal(p)
+		fmt.Fprintf(w, "data: %s\n\n", b)
+		flusher.Flush()
+	}
+
+	h.svc.RunOrdersStreaming(r.Context(), req, send)
+}
+
 // CustomersImportStream handles POST /api/v1/admin/import/woocommerce/customers/stream.
 // Streams Server-Sent Events with CustomersProgressUpdate JSON.
 func (h *Handler) CustomersImportStream(w http.ResponseWriter, r *http.Request) {
