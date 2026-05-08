@@ -119,9 +119,10 @@ export const adminSetBundleItems = (
     body: JSON.stringify({ items })
   });
 
-// Categories
+// Categories — admin opts out of the storefront-facing hidden filter so it
+// can still see / assign / pick from hidden categories.
 export const adminGetCategories = (token: string) =>
-  request<Category[]>('/categories', token);
+  request<Category[]>('/categories?include_hidden=true', token);
 
 export const adminCreateCategory = (token: string, body: Partial<Category>) =>
   request<Category>('/categories', token, { method: 'POST', body: JSON.stringify(body) });

@@ -1,6 +1,7 @@
 package shop
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,11 +11,17 @@ import (
 )
 
 type CategoryHandler struct {
-	svc *CategoryService
+	svc      *CategoryService
+	hiddenFn HiddenCategoryIDsFunc
 }
 
-func NewCategoryHandler(svc *CategoryService) *CategoryHandler {
-	return &CategoryHandler{svc: svc}
+// HiddenCategoryIDsFunc returns the category UUIDs that should be excluded
+// from public list responses. Provided at wiring so the handler doesn't
+// pull in a settings dep directly. Returning nil disables filtering.
+type HiddenCategoryIDsFunc func(ctx context.Context) []string
+
+func NewCategoryHandler(svc *CategoryService, hiddenFn HiddenCategoryIDsFunc) *CategoryHandler {
+	return &CategoryHandler{svc: svc, hiddenFn: hiddenFn}
 }
 
 func (h *CategoryHandler) Routes() chi.Router {
@@ -64,6 +71,26 @@ func (h *CategoryHandler) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respond.InternalError(w)
 		return
+	}
+	// Public callers (storefront) get categories minus the hidden set so
+	// the nav + category pages don't expose private SKUs. Admin opts out
+	// via ?include_hidden=true so it can still assign products to / pick
+	// from hidden categories.
+	if r.URL.Query().Get("include_hidden") != "true" && h.hiddenFn != nil {
+		hidden := h.hiddenFn(r.Context())
+		if len(hidden) > 0 {
+			hide := make(map[string]struct{}, len(hidden))
+			for _, id := range hidden {
+				hide[id] = struct{}{}
+			}
+			filtered := cats[:0]
+			for _, c := range cats {
+				if _, blocked := hide[c.ID]; !blocked {
+					filtered = append(filtered, c)
+				}
+			}
+			cats = filtered
+		}
 	}
 	respond.JSON(w, http.StatusOK, cats)
 }

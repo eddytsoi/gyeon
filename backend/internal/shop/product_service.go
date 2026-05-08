@@ -3,6 +3,7 @@ package shop
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/lib/pq"
 
 	"gyeon/backend/internal/cache"
+	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/util"
 )
 
@@ -228,14 +230,66 @@ type ThumbnailEnsurer interface {
 }
 
 type ProductService struct {
-	db        *sql.DB
-	cache     cache.Store
-	ttl       func(context.Context) time.Duration
-	thumbnail ThumbnailEnsurer
+	db          *sql.DB
+	cache       cache.Store
+	ttl         func(context.Context) time.Duration
+	thumbnail   ThumbnailEnsurer
+	settingsSvc *settings.Service
 }
 
-func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *ProductService {
-	return &ProductService{db: db, cache: c, ttl: ttl}
+func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration, settingsSvc *settings.Service) *ProductService {
+	return &ProductService{db: db, cache: c, ttl: ttl, settingsSvc: settingsSvc}
+}
+
+// HiddenCategoryIDs returns the list of category UUIDs hidden from public
+// listings, exported so adjacent handlers (e.g. the categories list handler)
+// can apply the same filter without re-implementing the parsing logic.
+func (s *ProductService) HiddenCategoryIDs(ctx context.Context) []string {
+	ids, _ := s.hiddenCategoryIDs(ctx)
+	return ids
+}
+
+// hiddenCategoryIDs reads the hidden_category_ids site setting. Returns an
+// empty slice on any error so a misconfigured setting never breaks public
+// listings — it just stops hiding anything. Also returns the raw setting
+// string used to scope cache keys (changing the setting busts the cache).
+func (s *ProductService) hiddenCategoryIDs(ctx context.Context) ([]string, string) {
+	if s.settingsSvc == nil {
+		return nil, ""
+	}
+	st, err := s.settingsSvc.Get(ctx, "hidden_category_ids")
+	if err != nil || st == nil || strings.TrimSpace(st.Value) == "" {
+		return nil, ""
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(st.Value), &ids); err != nil {
+		return nil, ""
+	}
+	cleaned := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			cleaned = append(cleaned, id)
+		}
+	}
+	return cleaned, st.Value
+}
+
+// appendHiddenCategoryFilter appends `p.category_id NOT IN ($N, ...)` to
+// wheres when at least one hidden category is configured. When no hidden
+// categories are set the inputs are returned unchanged.
+func (s *ProductService) appendHiddenCategoryFilter(ctx context.Context, wheres []string, args []any) ([]string, []any, string) {
+	ids, raw := s.hiddenCategoryIDs(ctx)
+	if len(ids) == 0 {
+		return wheres, args, raw
+	}
+	placeholders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		args = append(args, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
+	}
+	wheres = append(wheres, fmt.Sprintf("p.category_id NOT IN (%s)", strings.Join(placeholders, ", ")))
+	return wheres, args, raw
 }
 
 // SetThumbnailEnsurer wires in the media-side helper for lazy video thumbnail
@@ -248,19 +302,21 @@ func (s *ProductService) SetThumbnailEnsurer(t ThumbnailEnsurer) {
 // search is an optional case-insensitive substring matched against
 // productSearchFields; pass "" to disable.
 func (s *ProductService) List(ctx context.Context, locale, search string, limit, offset int) ([]Product, error) {
-	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d", locale, search, limit, offset)
+	args := []any{locale, limit, offset}
+	wheres := []string{"p.status = 'active'"} // public: active only
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
+		wheres = append(wheres, clause)
+		args = append(args, arg)
+	}
+	var hiddenRaw string
+	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+
+	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d:%s", locale, search, limit, offset, hiddenRaw)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
-
-	args := []any{locale, limit, offset}
-	where := "p.status = 'active'" // public: active only
-	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
-		where += " AND " + clause
-		args = append(args, arg)
-	}
 	rows, err := s.db.QueryContext(ctx,
-		productSelect+` WHERE `+where+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
+		productSelect+` WHERE `+strings.Join(wheres, " AND ")+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
 		args...)
 	if err != nil {
 		return nil, err
@@ -307,31 +363,28 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	}
 
 	args := []any{f.Locale, f.Limit, f.Offset}
-	where := "p.status = 'active'"
-	idx := 4
+	wheres := []string{"p.status = 'active'"}
 
 	if f.CategorySlug != "" {
-		where += fmt.Sprintf(" AND p.category_id = (SELECT id FROM categories WHERE slug = $%d AND is_active = TRUE)", idx)
 		args = append(args, f.CategorySlug)
-		idx++
+		wheres = append(wheres, fmt.Sprintf("p.category_id = (SELECT id FROM categories WHERE slug = $%d AND is_active = TRUE)", len(args)))
 	}
-	if clause, arg := util.BuildSearchClause(f.Search, productSearchFields, idx); clause != "" {
-		where += " AND " + clause
+	if clause, arg := util.BuildSearchClause(f.Search, productSearchFields, len(args)+1); clause != "" {
+		wheres = append(wheres, clause)
 		args = append(args, arg)
-		idx++
 	}
 
 	const minPriceSQ = "(SELECT MIN(pv.price) FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = TRUE)"
 	if f.MinPrice != nil {
-		where += fmt.Sprintf(" AND %s >= $%d", minPriceSQ, idx)
 		args = append(args, *f.MinPrice)
-		idx++
+		wheres = append(wheres, fmt.Sprintf("%s >= $%d", minPriceSQ, len(args)))
 	}
 	if f.MaxPrice != nil {
-		where += fmt.Sprintf(" AND %s <= $%d", minPriceSQ, idx)
 		args = append(args, *f.MaxPrice)
-		idx++
+		wheres = append(wheres, fmt.Sprintf("%s <= $%d", minPriceSQ, len(args)))
 	}
+	wheres, args, _ = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
 
 	orderBy := "p.created_at DESC"
 	switch f.Sort {
@@ -394,16 +447,19 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 // tool so agents can act on a result without N+1 follow-ups (notably: bundles
 // expose their single BUNDLE-* variant id directly, ready for add_to_cart).
 func (s *ProductService) ListEnriched(ctx context.Context, locale, search string, limit, offset int) ([]ProductWithMeta, error) {
-	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d", locale, search, limit, offset)
+	args := []any{locale, limit, offset}
+	wheres := []string{"p.status = 'active'"}
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
+		wheres = append(wheres, clause)
+		args = append(args, arg)
+	}
+	var hiddenRaw string
+	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
+
+	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d:%s", locale, search, limit, offset, hiddenRaw)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
-	}
-
-	args := []any{locale, limit, offset}
-	where := "p.status = 'active'"
-	if clause, arg := util.BuildSearchClause(search, productSearchFields, 4); clause != "" {
-		where += " AND " + clause
-		args = append(args, arg)
 	}
 
 	query := `
@@ -460,16 +516,19 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 // ListEnriched. Kept in lockstep so the REST list endpoint exposes the
 // same shape regardless of the `?category=` filter.
 func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]ProductWithMeta, error) {
-	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d", locale, categorySlug, search, limit, offset)
+	args := []any{locale, limit, offset, categorySlug}
+	wheres := []string{"p.status = 'active'", "p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"}
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
+		wheres = append(wheres, clause)
+		args = append(args, arg)
+	}
+	var hiddenRaw string
+	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
+
+	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, hiddenRaw)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
-	}
-
-	args := []any{locale, limit, offset, categorySlug}
-	where := "p.status = 'active' AND p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"
-	if clause, arg := util.BuildSearchClause(search, productSearchFields, 5); clause != "" {
-		where += " AND " + clause
-		args = append(args, arg)
 	}
 
 	query := `
@@ -525,16 +584,19 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 // ListByCategorySlug returns active products filtered to a single category
 // (resolved from its slug). locale and search behave like List.
 func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]Product, error) {
-	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d", locale, categorySlug, search, limit, offset)
+	args := []any{locale, limit, offset, categorySlug}
+	wheres := []string{"p.status = 'active'", "p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"}
+	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
+		wheres = append(wheres, clause)
+		args = append(args, arg)
+	}
+	var hiddenRaw string
+	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
+
+	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, hiddenRaw)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
-	}
-
-	args := []any{locale, limit, offset, categorySlug}
-	where := "p.status = 'active' AND p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"
-	if clause, arg := util.BuildSearchClause(search, productSearchFields, 5); clause != "" {
-		where += " AND " + clause
-		args = append(args, arg)
 	}
 	rows, err := s.db.QueryContext(ctx,
 		productSelect+` WHERE `+where+` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`,
@@ -602,6 +664,26 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	}
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
+}
+
+// GetBySlug fetches a single active product by its slug. Bypasses the
+// hidden-category filter on purpose — direct URLs (and "private link" sales
+// flows) need to keep working even when the product's category is hidden
+// from the public listing. Returns sql.ErrNoRows when the slug doesn't
+// match an active product.
+func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*Product, error) {
+	key := fmt.Sprintf("shop:products:slug:%s:%s", slug, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Product)
+		return &p, nil
+	}
+	p, err := scanProduct(s.db.QueryRowContext(ctx,
+		productSelect+` WHERE p.slug = $2 AND p.status = 'active'`, locale, slug))
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, p, s.ttl(ctx))
+	return &p, nil
 }
 
 // GetByID fetches a product by ID. locale may be empty for base content.

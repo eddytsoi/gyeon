@@ -49,6 +49,11 @@ export const getProductsFiltered = (filters: ProductListFilters) =>
 export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') =>
   request<Product[]>(`/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`);
 export const getProductByID = (id: string) => request<Product>(`/products/${id}`);
+// Public single-product lookup by slug. Bypasses the hidden-category filter
+// on the backend so direct URLs (and "private link" sales flows) keep
+// working even when the product's category is hidden from the storefront.
+export const getProductBySlug = (slug: string) =>
+  request<Product>(`/products/by-slug/${encodeURIComponent(slug)}`);
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
 export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);
 export const getProductImages = (id: string) => request<ProductImage[]>(`/products/${id}/images`);
