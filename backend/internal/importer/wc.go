@@ -53,6 +53,33 @@ type wcProduct struct {
 	// component product (and optionally a specific variation) along with
 	// the default quantity to ship inside the bundle.
 	BundledItems []wcBundledItem `json:"bundled_items"`
+	// MetaData carries WC custom meta (including ACF fields). We decode
+	// values as RawMessage because ACF stores arrays/objects under some
+	// keys; the helpers on wcMeta extract the string form when callers
+	// only care about scalar fields (title_1, content_1, …).
+	MetaData []wcMeta `json:"meta_data"`
+}
+
+// wcMeta is one row from a product's meta_data array. Value is left as
+// RawMessage because WooCommerce returns mixed types (string, array,
+// object) depending on the meta key — string-only callers use String().
+type wcMeta struct {
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
+}
+
+// String returns the meta value as a string when it was stored as a JSON
+// string; arrays / objects / null fall back to "" so callers don't have
+// to type-switch every key.
+func (m wcMeta) String() string {
+	if len(m.Value) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(m.Value, &s); err == nil {
+		return s
+	}
+	return ""
 }
 
 // wcBundledItem mirrors a single component row exposed by the WooCommerce
