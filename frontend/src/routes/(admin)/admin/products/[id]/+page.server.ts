@@ -39,10 +39,11 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const isBundle = !isNew && product?.kind === 'bundle';
   // Always load allProducts when creating (so user can pick components if they switch kind to bundle).
   const needsAllProducts = isNew || isBundle;
-  const [bundleItems, allProducts] = await Promise.all([
+  const [bundleItems, allProductsRes] = await Promise.all([
     isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
-    needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => []) : Promise.resolve([])
+    needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
   ]);
+  const allProducts = allProductsRes.items;
 
   return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew, uploadLimits, token };
 };

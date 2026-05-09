@@ -687,6 +687,11 @@
   "admin_search_placeholder_default": "Search…",
   "admin_search_clear_aria": "Clear search",
 
+  "admin_pagination_aria": "Pagination",
+  "admin_pagination_status": "Page {page} of {total}",
+  "admin_pagination_prev": "Prev",
+  "admin_pagination_next": "Next",
+
   "admin_product_edit_back": "← Products",
   "admin_product_edit_new_title": "New Product",
   "admin_product_edit_edit_title": "Edit Product",

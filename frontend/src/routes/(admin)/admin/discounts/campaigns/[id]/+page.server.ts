@@ -12,10 +12,11 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
   const token = cookies.get('admin_token') ?? '';
-  const [categories, products] = await Promise.all([
+  const [categories, productsRes] = await Promise.all([
     adminGetCategories(token).catch(() => []),
-    adminGetProducts(token, 200, 0, '').catch(() => [])
+    adminGetProducts(token, 200, 0, '').catch(() => ({ items: [], total: 0 }))
   ]);
+  const products = productsRes.items;
   if (params.id === 'new') {
     return { campaign: null as Campaign | null, categories, products };
   }

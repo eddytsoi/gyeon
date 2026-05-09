@@ -8,16 +8,20 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
   let deleteTarget = $state<Product | null>(null);
 
+  // Filter changes reset to page 1 — otherwise narrowing the result set
+  // could leave you stranded on an empty page.
   function onSearch(q: string) {
     const url = new URL(page.url);
     if (q) url.searchParams.set('q', q);
     else url.searchParams.delete('q');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
@@ -26,6 +30,7 @@
     const url = new URL(page.url);
     if (slug) url.searchParams.set('category', slug);
     else url.searchParams.delete('category');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 </script>
@@ -66,7 +71,7 @@
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
-      {#each data.products as { product, variants }}
+      {#each data.products as product}
         <tr class="js-row transition-colors">
           <td class="px-5 py-3">
             <p class="font-medium text-gray-900">{product.name}</p>
@@ -76,7 +81,7 @@
             {data.categories.find(c => c.id === product.category_id)?.name ?? m.admin_products_dash()}
           </td>
           <td class="px-5 py-3 text-gray-500 hidden md:table-cell">
-            {variants.length === 1 ? m.admin_products_variants_one({ count: variants.length }) : m.admin_products_variants_many({ count: variants.length })}
+            {product.variant_count === 1 ? m.admin_products_variants_one({ count: product.variant_count }) : m.admin_products_variants_many({ count: product.variant_count })}
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -127,6 +132,8 @@
     </tbody>
   </table>
 </div>
+
+<Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 
 <!-- Delete confirmation modal -->
 {#if deleteTarget}
