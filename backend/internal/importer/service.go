@@ -341,16 +341,7 @@ func (s *Service) importProduct(
 		}
 	}
 
-	var desc *string
-	if prod.Description != "" {
-		s := htmlToMarkdown(prod.Description)
-		desc = &s
-	}
-	var excerpt *string
-	if prod.ShortDescription != "" {
-		s := htmlToMarkdown(prod.ShortDescription)
-		excerpt = &s
-	}
+	desc, howToUse, excerpt := buildContentFromMeta(prod)
 
 	// Lookup first: lets us pick INSERT vs UPDATE explicitly so we don't
 	// burn a products.number sequence value on every re-imported row
@@ -366,6 +357,7 @@ func (s *Service) importProduct(
 		Name:        prod.Name,
 		Excerpt:     excerpt,
 		Description: desc,
+		HowToUse:    howToUse,
 		Status:      mapStatus(prod.Status),
 		Kind:        "simple",
 	}
@@ -500,16 +492,7 @@ func (s *Service) importBundleProduct(
 		}
 	}
 
-	var desc *string
-	if prod.Description != "" {
-		s := htmlToMarkdown(prod.Description)
-		desc = &s
-	}
-	var excerpt *string
-	if prod.ShortDescription != "" {
-		s := htmlToMarkdown(prod.ShortDescription)
-		excerpt = &s
-	}
+	desc, howToUse, excerpt := buildContentFromMeta(prod)
 
 	existingID, lookupErr := s.productSvc.GetIDByWCProductID(ctx, prod.ID)
 	existedBefore := lookupErr == nil
@@ -521,6 +504,7 @@ func (s *Service) importBundleProduct(
 		Name:        prod.Name,
 		Excerpt:     excerpt,
 		Description: desc,
+		HowToUse:    howToUse,
 		Status:      mapStatus(prod.Status),
 		Kind:        "bundle",
 	}

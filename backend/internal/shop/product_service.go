@@ -902,6 +902,7 @@ type UpsertWCProductRequest struct {
 	Name        string
 	Excerpt     *string
 	Description *string
+	HowToUse    *string
 	Status      string
 	Kind        string
 }
@@ -932,10 +933,10 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 
 	var id string
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (wc_product_id, category_id, slug, name, excerpt, description, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO products (wc_product_id, category_id, slug, name, excerpt, description, how_to_use, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id`,
-		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind).Scan(&id); err != nil {
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.HowToUse, req.Status, kind).Scan(&id); err != nil {
 		return "", err
 	}
 
@@ -1018,11 +1019,12 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		        name        = $4,
 		        excerpt     = $5,
 		        description = $6,
-		        status      = $7,
-		        kind        = $8,
+		        how_to_use  = $7,
+		        status      = $8,
+		        kind        = $9,
 		        updated_at  = NOW()
 		  WHERE id = $1`,
-		productID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.Status, kind); err != nil {
+		productID, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.HowToUse, req.Status, kind); err != nil {
 		return err
 	}
 
