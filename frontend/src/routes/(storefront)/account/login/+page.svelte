@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import type { ActionData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   let { form }: { form: ActionData } = $props();
   let loading = $state(false);
@@ -113,6 +114,7 @@
       aria-modal="true"
       aria-labelledby="forgot-pw-title"
       tabindex="-1"
+      use:focusTrap
     >
       <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{m.account_forgot_heading()}</h3>
       <p class="text-sm text-gray-600 mb-4">
