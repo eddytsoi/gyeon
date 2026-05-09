@@ -53,6 +53,22 @@
     return arr;
   })();
   let activeTab = $state<TabId>(availableTabs[0] ?? 'content');
+  let tabButtons: Partial<Record<TabId, HTMLButtonElement>> = $state({});
+
+  function onTabKeydown(e: KeyboardEvent) {
+    if (availableTabs.length < 2) return;
+    let nextIdx: number | null = null;
+    const i = availableTabs.indexOf(activeTab);
+    if (e.key === 'ArrowRight') nextIdx = (i + 1) % availableTabs.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (i - 1 + availableTabs.length) % availableTabs.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = availableTabs.length - 1;
+    if (nextIdx == null) return;
+    e.preventDefault();
+    const next = availableTabs[nextIdx];
+    activeTab = next;
+    tabButtons[next]?.focus();
+  }
 
   const selectedVariant = $derived(
     data.variants.find((v) => v.id === selectedVariantID) ?? data.variants[0]
@@ -654,11 +670,18 @@
   <div class="bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
 
-      <div class="flex gap-0 border-b border-gray-200 mb-10">
+      <div class="flex gap-0 border-b border-gray-200 mb-10" role="tablist" onkeydown={onTabKeydown}>
         {#each availableTabs as id}
           <button
+            type="button"
+            role="tab"
+            id="pdp-tab-{id}"
+            aria-selected={activeTab === id}
+            aria-controls="pdp-panel-{id}"
+            tabindex={activeTab === id ? 0 : -1}
+            bind:this={tabButtons[id]}
             onclick={() => (activeTab = id)}
-            class="px-6 py-4 text-sm font-semibold uppercase tracking-widest border-b-2 transition-colors"
+            class="px-6 py-4 text-sm font-semibold uppercase tracking-widest border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
             style={activeTab === id
               ? 'border-color: rgb(51,73,119); color: rgb(25,37,63)'
               : 'border-color: transparent; color: #9ca3af'}
@@ -669,14 +692,14 @@
       </div>
 
       {#if activeTab === 'content'}
-        <div class="max-w-2xl">
+        <div class="max-w-2xl" role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0">
           <div class="text-gray-700 text-base leading-relaxed">
             {@html renderMarkdown(data.product.description)}
           </div>
         </div>
 
       {:else if activeTab === 'howto'}
-        <div class="max-w-2xl">
+        <div class="max-w-2xl" role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0">
           <div class="text-gray-700 text-base leading-relaxed">
             {@html renderMarkdown(data.product.how_to_use)}
           </div>
@@ -692,7 +715,8 @@
           { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
         ]}
         {@const selected = new Set(data.product.compatible_surfaces ?? [])}
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4"
+             role="tabpanel" id="pdp-panel-surfaces" aria-labelledby="pdp-tab-surfaces" tabindex="0">
           {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
             <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
               <div class="w-10 h-10 rounded-xl flex items-center justify-center"
