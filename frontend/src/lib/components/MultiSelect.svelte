@@ -17,26 +17,39 @@
   let query = $state('');
   let containerEl: HTMLDivElement | undefined = $state();
 
-  const labelOf = $derived((v: string) => options.find((o) => o.value === v)?.label ?? v);
+  // Defensive dedup: SvelteKit's update({ reset: false }) flow during form
+  // saves can briefly hand the component a transient `options` snapshot with
+  // duplicate values, which would crash the keyed each-blocks below with
+  // each_key_duplicate. Same for `selected` after rapid toggle clicks.
+  const dedupedOptions = $derived.by(() => {
+    const seen = new Set<string>();
+    return options.filter((o) => (seen.has(o.value) ? false : (seen.add(o.value), true)));
+  });
+  const dedupedSelected = $derived.by(() => {
+    const seen = new Set<string>();
+    return selected.filter((v) => (seen.has(v) ? false : (seen.add(v), true)));
+  });
+
+  const labelOf = $derived((v: string) => dedupedOptions.find((o) => o.value === v)?.label ?? v);
 
   const filtered = $derived(
     query.trim() === ''
-      ? options
-      : options.filter((o) => {
+      ? dedupedOptions
+      : dedupedOptions.filter((o) => {
           const q = query.toLowerCase();
           return o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q);
         })
   );
 
   function toggle(value: string) {
-    const next = selected.includes(value)
-      ? selected.filter((v) => v !== value)
-      : [...selected, value];
+    const next = dedupedSelected.includes(value)
+      ? dedupedSelected.filter((v) => v !== value)
+      : [...dedupedSelected, value];
     onChange(next);
   }
 
   function remove(value: string) {
-    onChange(selected.filter((v) => v !== value));
+    onChange(dedupedSelected.filter((v) => v !== value));
   }
 
   function handleClickOutside(e: MouseEvent) {
@@ -62,10 +75,10 @@
            focus:outline-none focus:ring-2 focus:ring-gray-900 flex flex-wrap gap-1.5 items-center
            hover:border-gray-300 transition-colors"
   >
-    {#if selected.length === 0}
+    {#if dedupedSelected.length === 0}
       <span class="text-gray-400">{placeholder}</span>
     {:else}
-      {#each selected as value (value)}
+      {#each dedupedSelected as value (value)}
         <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-800 text-xs rounded-md pl-2 pr-1 py-0.5">
           {labelOf(value)}
           <button
