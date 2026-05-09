@@ -24,6 +24,13 @@ export interface Product {
   kind?: string; // 'simple' | 'bundle'
   created_at: string;
   updated_at: string;
+  // List-endpoint enrichments (ProductWithMeta on the backend)
+  variant_count?: number;
+  primary_image_url?: string | null;
+  default_variant_id?: string | null;
+  min_price?: number | null;
+  min_compare_at_price?: number | null;
+  min_price_stock_qty?: number | null;
 }
 
 export interface BundleItem {

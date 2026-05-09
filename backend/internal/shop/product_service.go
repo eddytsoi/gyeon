@@ -52,9 +52,12 @@ type Product struct {
 // an N+1 follow-up GET per product.
 type ProductWithMeta struct {
 	Product
-	VariantCount     int     `json:"variant_count"`
-	PrimaryImageURL  *string `json:"primary_image_url,omitempty"`
-	DefaultVariantID *string `json:"default_variant_id,omitempty"`
+	VariantCount      int      `json:"variant_count"`
+	PrimaryImageURL   *string  `json:"primary_image_url,omitempty"`
+	DefaultVariantID  *string  `json:"default_variant_id,omitempty"`
+	MinPrice          *float64 `json:"min_price,omitempty"`
+	MinPriceCompareAt *float64 `json:"min_compare_at_price,omitempty"`
+	MinPriceStock     *int     `json:"min_price_stock_qty,omitempty"`
 }
 
 // BundleItem represents a component row in a bundle product.
@@ -415,8 +418,18 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		        LIMIT 1) AS primary_image_url,
 		       (SELECT pv.id FROM product_variants pv
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
-		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id,
+		       cheapest.price AS min_price,
+		       cheapest.compare_at_price AS min_compare_at_price,
+		       cheapest.stock_qty AS min_price_stock_qty
 		FROM products p` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.price, pv.compare_at_price, pv.stock_qty
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.price ASC
+		    LIMIT 1
+		) cheapest ON TRUE
 		WHERE ` + where + `
 		ORDER BY ` + orderBy + ` LIMIT $2 OFFSET $3`
 
@@ -434,6 +447,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.MinPrice, &pm.MinPriceCompareAt, &pm.MinPriceStock,
 		); err != nil {
 			return nil, err
 		}

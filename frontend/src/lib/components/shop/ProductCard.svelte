@@ -4,10 +4,12 @@
   import * as m from '$lib/paraglide/messages';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
 
-  let { product, image, variant }: {
+  let { product, image, variant, loading = 'lazy', fetchpriority = 'auto' }: {
     product: Product;
     image?: ProductImage;
     variant?: Variant;
+    loading?: 'lazy' | 'eager';
+    fetchpriority?: 'high' | 'auto';
   } = $props();
 
   const hasDiscount = $derived(
@@ -45,6 +47,7 @@
         </div>
       {:else}
         <img src={image.thumbnail_url ?? image.url} alt={image.alt_text ?? product.name}
+             {loading} {fetchpriority} decoding="async"
              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       {/if}
     {:else}
