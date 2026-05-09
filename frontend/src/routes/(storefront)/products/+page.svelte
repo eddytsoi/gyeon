@@ -263,7 +263,7 @@
     <!-- Results -->
     <div>
       <div class="flex items-center justify-between mb-4">
-        <p class="text-sm text-gray-500">
+        <p class="text-sm text-gray-500" aria-live="polite">
           {data.total === 1 ? m.products_count_one({ count: data.total }) : m.products_count_many({ count: data.total })}
         </p>
         <select value={data.sort ?? 'new'}
@@ -276,6 +276,16 @@
           <option value="price_desc">{m.products_sort_price_desc()}</option>
           <option value="name">{m.products_sort_name()}</option>
         </select>
+      </div>
+
+      <!-- Polite live announcement: screen readers hear when a new batch
+           appended (items.length changed) or when "loading more" begins. -->
+      <div class="sr-only" role="status" aria-live="polite">
+        {#if loadingMore}
+          {m.products_loading_more()}
+        {:else if items.length > 0}
+          {m.products_loaded_announcement({ shown: items.length, total: data.total })}
+        {/if}
       </div>
 
       {#if items.length === 0 && !loadingMore}

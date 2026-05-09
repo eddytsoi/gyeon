@@ -88,6 +88,8 @@
   "products_search_placeholder": "Search products by name…",
   "products_count_one": "{count} product",
   "products_count_many": "{count} products",
+  "products_loaded_announcement": "Showing {shown} of {total} products",
+  "products_loading_more": "Loading more products",
   "products_no_match": "No products matching \"{query}\"",
   "products_search_aria": "Search products by name",
   "products_filters_button": "Filters",

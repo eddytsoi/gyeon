@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition';
   import { notify, type NotificationType } from '$lib/stores/notifications.svelte';
+  import * as m from '$lib/paraglide/messages';
 
   const STYLES: Record<NotificationType, { bg: string; border: string; iconBg: string; iconColor: string }> = {
     success: { bg: 'bg-white', border: 'border-green-100',  iconBg: 'bg-green-50',  iconColor: 'text-green-600'  },
@@ -10,11 +11,16 @@
   };
 </script>
 
-<div class="fixed top-4 right-4 z-[100] flex flex-col gap-3 w-[22rem] max-w-[calc(100vw-2rem)] pointer-events-none">
+<div class="fixed top-4 right-4 z-[100] flex flex-col gap-3 w-[22rem] max-w-[calc(100vw-2rem)] pointer-events-none"
+     role="region"
+     aria-label="Notifications"
+     aria-live="polite"
+     aria-atomic="false">
   {#each notify.items as n (n.id)}
     {@const s = STYLES[n.type]}
     <div in:fly={{ x: 320, duration: 250 }}
          out:fade={{ duration: 200 }}
+         role={n.type === 'error' ? 'alert' : 'status'}
          class="pointer-events-auto {s.bg} {s.border} border rounded-2xl shadow-lg shadow-gray-900/5
                 p-4 flex items-start gap-3">
       <div class="w-7 h-7 rounded-full {s.iconBg} {s.iconColor} flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -58,7 +64,7 @@
 
       <button type="button"
               onclick={() => notify.dismiss(n.id)}
-              aria-label="Close"
+              aria-label={m.common_aria_close()}
               class="text-gray-300 hover:text-gray-600 transition-colors flex-shrink-0 -mr-1 -mt-1 p-1">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>

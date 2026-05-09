@@ -88,6 +88,8 @@
   "products_search_placeholder": "依名稱搜尋產品…",
   "products_count_one": "共 {count} 件商品",
   "products_count_many": "共 {count} 件商品",
+  "products_loaded_announcement": "已顯示 {shown} 件商品（共 {total} 件）",
+  "products_loading_more": "正在載入更多商品",
   "products_no_match": "找不到符合「{query}」的產品",
   "products_search_aria": "依名稱搜尋產品",
   "products_filters_button": "篩選",
