@@ -357,7 +357,7 @@ type ListFilters struct {
 // ListEnrichedFiltered is the unified storefront product listing with search +
 // category + price range + sort. Skips the cache (too many parameter
 // combinations to be worth caching for the small expected catalog).
-func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters) ([]ProductWithMeta, error) {
+func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters) ([]ProductWithMeta, int, error) {
 	if f.Limit <= 0 || f.Limit > 100 {
 		f.Limit = 20
 	}
@@ -421,7 +421,8 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id,
 		       cheapest.price AS min_price,
 		       cheapest.compare_at_price AS min_compare_at_price,
-		       cheapest.stock_qty AS min_price_stock_qty
+		       cheapest.stock_qty AS min_price_stock_qty,
+		       COUNT(*) OVER() AS total_count
 		FROM products p` + productTranslationJoin + `
 		LEFT JOIN LATERAL (
 		    SELECT pv.price, pv.compare_at_price, pv.stock_qty
@@ -435,11 +436,12 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	products := make([]ProductWithMeta, 0)
+	total := 0
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
@@ -448,12 +450,13 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
 			&pm.MinPrice, &pm.MinPriceCompareAt, &pm.MinPriceStock,
+			&total,
 		); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		products = append(products, pm)
 	}
-	return products, rows.Err()
+	return products, total, rows.Err()
 }
 
 // ListEnriched returns active products plus variant_count, primary_image_url

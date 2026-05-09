@@ -95,11 +95,12 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	products, err := h.svc.ListEnrichedFiltered(r.Context(), filters)
+	products, total, err := h.svc.ListEnrichedFiltered(r.Context(), filters)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	respond.JSON(w, http.StatusOK, products)
 }
 

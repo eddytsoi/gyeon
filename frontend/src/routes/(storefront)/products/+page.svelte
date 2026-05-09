@@ -21,14 +21,14 @@
 
   let items = $state<Product[]>(data.products);
   let loadingMore = $state(false);
-  let hasMore = $state(data.products.length === data.initialLimit);
+  let hasMore = $state(data.products.length < data.total);
   let sentinel = $state<HTMLDivElement | undefined>();
   let abortCtl: AbortController | null = null;
 
   // When SSR data changes (filter goto), reset list + drop any in-flight fetch.
   $effect(() => {
     items = data.products;
-    hasMore = data.products.length === data.initialLimit;
+    hasMore = data.products.length < data.total;
     abortCtl?.abort();
     abortCtl = null;
   });
@@ -94,6 +94,17 @@
     };
   }
 
+  // True when the sentinel is still close enough to the viewport that another
+  // batch should be loaded. After a fast scroll the user is sitting at the
+  // page bottom and the IO callback only fires once on entry, so we re-check
+  // post-append to keep loading until the document is long enough that the
+  // sentinel sits comfortably below the viewport+rootMargin region.
+  function shouldKeepLoading(): boolean {
+    if (!sentinel) return false;
+    const rect = sentinel.getBoundingClientRect();
+    return rect.top - window.innerHeight < 600;
+  }
+
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     loadingMore = true;
@@ -110,6 +121,14 @@
       if ((e as { name?: string })?.name !== 'AbortError') hasMore = false;
     } finally {
       if (!ctl.signal.aborted) loadingMore = false;
+    }
+    // After append: if the user already scrolled past where the sentinel
+    // landed (or the sentinel is still within rootMargin), recurse on the
+    // next frame. requestAnimationFrame ensures layout has settled.
+    if (hasMore && !ctl.signal.aborted) {
+      requestAnimationFrame(() => {
+        if (hasMore && !loadingMore && shouldKeepLoading()) loadMore();
+      });
     }
   }
 
@@ -237,7 +256,7 @@
     <div>
       <div class="flex items-center justify-between mb-4">
         <p class="text-sm text-gray-500">
-          {items.length === 1 ? m.products_count_one({ count: items.length }) : m.products_count_many({ count: items.length })}
+          {data.total === 1 ? m.products_count_one({ count: data.total }) : m.products_count_many({ count: data.total })}
         </p>
         <select value={data.sort ?? 'new'}
                 onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
