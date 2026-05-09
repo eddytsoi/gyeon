@@ -23,6 +23,12 @@
   "common_currency_hk_amount": "HK${amount}",
   "common_currency_amount": "${amount}",
   "common_free": "免費",
+  "common_aria_decrease_quantity": "減少數量",
+  "common_aria_increase_quantity": "增加數量",
+  "common_aria_previous_image": "上一張圖片",
+  "common_aria_next_image": "下一張圖片",
+  "common_aria_go_to_image": "跳至第 {n} 張圖片",
+  "common_aria_close": "關閉",
 
   "header_logo": "Gyeon",
   "header_aria_account_menu": "帳戶選單",

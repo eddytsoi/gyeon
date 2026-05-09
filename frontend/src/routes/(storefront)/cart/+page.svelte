@@ -58,11 +58,16 @@
             <!-- Qty controls -->
             <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
               <button
+                type="button"
                 onclick={() => cartStore.update(item.id, item.quantity - 1)}
-                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50">−</button>
+                aria-label={m.common_aria_decrease_quantity()}
+                disabled={item.quantity <= 1}
+                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">−</button>
               <span class="w-8 text-center text-sm">{item.quantity}</span>
               <button
+                type="button"
                 onclick={() => cartStore.update(item.id, item.quantity + 1)}
+                aria-label={m.common_aria_increase_quantity()}
                 class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50">+</button>
             </div>
 
