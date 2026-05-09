@@ -83,7 +83,11 @@ func (h *CategoryHandler) list(w http.ResponseWriter, r *http.Request) {
 			for _, id := range hidden {
 				hide[id] = struct{}{}
 			}
-			filtered := cats[:0]
+			// Allocate a fresh slice — `cats` aliases the cached list's
+			// backing array, so writing through `cats[:0]` would mutate
+			// the cache and a later `include_hidden=true` read would
+			// surface duplicated trailing entries.
+			filtered := make([]Category, 0, len(cats))
 			for _, c := range cats {
 				if _, blocked := hide[c.ID]; !blocked {
 					filtered = append(filtered, c)
