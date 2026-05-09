@@ -46,6 +46,24 @@ export const getProducts = (limit = 20, offset = 0, search = '') =>
 export const getProductsFiltered = (filters: ProductListFilters, init?: RequestInit) =>
   request<Product[]>(`/products?${buildProductQuery(filters).toString()}`, init);
 
+// Variant of getProductsFiltered that also surfaces the X-Total-Count header
+// so the storefront can render an accurate "共 X 件商品" alongside infinite
+// scroll. Total reflects the WHERE-filtered set BEFORE limit/offset.
+export const getProductsListPage = async (
+  filters: ProductListFilters,
+  init?: RequestInit
+): Promise<{ items: Product[]; total: number }> => {
+  const res = await fetch(`${base()}/products?${buildProductQuery(filters).toString()}`, {
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    ...init
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: /products`);
+  const items = (await res.json()) as Product[];
+  const totalHeader = res.headers.get('X-Total-Count');
+  const total = totalHeader != null ? Number(totalHeader) : items.length;
+  return { items, total: Number.isFinite(total) ? total : items.length };
+};
+
 export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') =>
   request<Product[]>(`/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`);
 export const getProductByID = (id: string) => request<Product>(`/products/${id}`);

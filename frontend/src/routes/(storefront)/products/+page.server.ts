@@ -1,4 +1,4 @@
-import { getCategories, getProductsFiltered, type ProductListFilters } from '$lib/api';
+import { getCategories, getProductsListPage, type ProductListFilters } from '$lib/api';
 import type { PageServerLoad } from './$types';
 
 const SORT_VALUES = new Set(['new', 'price_asc', 'price_desc', 'name']);
@@ -28,13 +28,14 @@ export const load: PageServerLoad = async ({ url }) => {
     sort
   };
 
-  const [products, categories] = await Promise.all([
-    getProductsFiltered(filters).catch(() => []).then(r => r ?? []),
+  const [page, categories] = await Promise.all([
+    getProductsListPage(filters).catch(() => ({ items: [], total: 0 })),
     getCategories().catch(() => []).then(r => r ?? [])
   ]);
 
   return {
-    products,
+    products: page.items,
+    total: page.total,
     categories,
     initialLimit: INITIAL_LIMIT,
     q,
