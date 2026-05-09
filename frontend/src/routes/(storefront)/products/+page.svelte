@@ -184,7 +184,10 @@
   <div class="flex items-center justify-between gap-4 mb-6">
     <h1 class="text-3xl font-bold text-gray-900">{m.products_heading_all()}</h1>
     <button class="md:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-300 text-sm"
-            onclick={() => (mobileFiltersOpen = !mobileFiltersOpen)}>
+            onclick={() => (mobileFiltersOpen = !mobileFiltersOpen)}
+            aria-label={m.products_filters_button_aria()}
+            aria-expanded={mobileFiltersOpen}
+            aria-controls="storefront-product-filters">
       {m.products_filters_button()}
     </button>
   </div>
@@ -196,26 +199,29 @@
       <path stroke-linecap="round" stroke-linejoin="round"
             d="m21 21-4.34-4.34m0 0A7.5 7.5 0 1 0 6.075 6.075a7.5 7.5 0 0 0 10.585 10.585Z"/>
     </svg>
-    <input type="text" bind:value={searchInput} oninput={onSearchInput}
+    <input type="search" bind:value={searchInput} oninput={onSearchInput}
            placeholder={m.products_search_placeholder()}
+           aria-label={m.products_search_aria()}
            class="w-full pl-10 pr-4 py-3 rounded-full border border-gray-200 bg-white text-sm
                   focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8">
     <!-- Filters -->
-    <aside class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-6">
+    <aside id="storefront-product-filters" class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-6">
       <!-- Category -->
       <div>
         <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.products_filter_category()}</h3>
         <div class="space-y-1.5">
           <button onclick={() => onCategoryChange('')}
+                  aria-current={data.category === '' ? 'page' : undefined}
                   class="block w-full text-left text-sm px-2 py-1 rounded
                          {data.category === '' ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
             {m.products_filter_category_all()}
           </button>
           {#each data.categories.filter(c => c.is_active) as cat}
             <button onclick={() => onCategoryChange(cat.slug)}
+                    aria-current={data.category === cat.slug ? 'page' : undefined}
                     class="block w-full text-left text-sm px-2 py-1 rounded
                            {data.category === cat.slug ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
               {cat.name}
@@ -230,10 +236,12 @@
         <div class="grid grid-cols-2 gap-2">
           <input type="number" min="0" step="1" bind:value={minPriceInput}
                  placeholder={m.products_filter_price_min()}
+                 aria-label={m.products_filter_price_min_aria()}
                  class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
           <input type="number" min="0" step="1" bind:value={maxPriceInput}
                  placeholder={m.products_filter_price_max()}
+                 aria-label={m.products_filter_price_max_aria()}
                  class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
@@ -260,6 +268,7 @@
         </p>
         <select value={data.sort ?? 'new'}
                 onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
+                aria-label={m.products_sort_aria()}
                 class="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm
                        focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="new">{m.products_sort_new()}</option>
