@@ -104,6 +104,9 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 // listAll is the admin variant — returns products regardless of status.
+// Response shape: {items: ProductWithMeta[], total: number}. `variant_count`
+// is included on each row so the admin UI never has to fan out one
+// /variants request per product.
 func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
@@ -111,7 +114,7 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	products, err := h.svc.ListAll(r.Context(),
+	products, total, err := h.svc.ListAll(r.Context(),
 		r.URL.Query().Get("lang"),
 		r.URL.Query().Get("q"),
 		r.URL.Query().Get("category"),
@@ -120,7 +123,10 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, products)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": products,
+		"total": total,
+	})
 }
 
 func (h *ProductHandler) getByID(w http.ResponseWriter, r *http.Request) {

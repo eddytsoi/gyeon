@@ -41,9 +41,12 @@ func (h *PostHandler) PublicRoutes() chi.Router {
 	return r
 }
 
+// list is the admin posts listing. Response shape:
+// {items: Post[], total: number}. `total` is the count of matching rows
+// independent of limit/offset, used by the admin UI for paginator math.
 func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pagination(r)
-	posts, err := h.svc.List(r.Context(),
+	posts, total, err := h.svc.List(r.Context(),
 		r.URL.Query().Get("lang"),
 		r.URL.Query().Get("q"),
 		r.URL.Query().Get("category"),
@@ -52,7 +55,10 @@ func (h *PostHandler) list(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, posts)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": posts,
+		"total": total,
+	})
 }
 
 func (h *PostHandler) listPublished(w http.ResponseWriter, r *http.Request) {

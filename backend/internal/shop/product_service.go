@@ -624,10 +624,18 @@ func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categor
 // ListAll returns all products regardless of is_active (admin). locale may be empty.
 // search is optional; see List. categorySlug, when non-empty, restricts the
 // result to products whose category matches the given slug.
-func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]Product, error) {
+// adminListPage caches a page of admin product results plus the total
+// row count so the handler can return both without a second roundtrip.
+type adminListPage struct {
+	Items []ProductWithMeta
+	Total int
+}
+
+func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]ProductWithMeta, int, error) {
 	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%d:%d", locale, search, categorySlug, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
-		return v.([]Product), nil
+		page := v.(adminListPage)
+		return page.Items, page.Total, nil
 	}
 
 	args := []any{locale, limit, offset}
@@ -640,30 +648,61 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 		args = append(args, arg)
 		wheres = append(wheres, clause)
 	}
-	query := productSelect
+	where := ""
 	if len(wheres) > 0 {
-		query += ` WHERE ` + strings.Join(wheres, ` AND `)
+		where = ` WHERE ` + strings.Join(wheres, ` AND `)
 	}
-	query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	// `variant_count` and `total` are computed inline so the admin list
+	// page renders without N+1 follow-ups: previously the SvelteKit
+	// loader fired one /variants call per row just to display a count,
+	// and the handler had no way to surface the matching-row total for
+	// pagination.
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       p.excerpt,
+		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       COUNT(*) OVER () AS total_rows
+		FROM products p` + productTranslationJoin + where +
+		` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	products := make([]Product, 0)
+	products := make([]ProductWithMeta, 0)
+	total := 0
 	for rows.Next() {
-		p, err := scanProduct(rows)
-		if err != nil {
-			return nil, err
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &total,
+		); err != nil {
+			return nil, 0, err
 		}
-		products = append(products, p)
+		products = append(products, pm)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	s.cache.Set(key, products, s.ttl(ctx))
-	return products, nil
+	// When the page is empty (e.g. offset past the last row) the window
+	// function never runs and `total` stays 0 — fall back to a dedicated
+	// COUNT so the UI's "Page X of N" math stays sane. Reuse `args` so
+	// the parameter numbering in `where` keeps matching ($1=locale even
+	// though we drop the translation join here, $2/$3 are unused).
+	if len(products) == 0 && (offset > 0 || search != "" || categorySlug != "") {
+		countQuery := `SELECT COUNT(*) FROM products p` + productTranslationJoin + where
+		_ = s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	}
+	s.cache.Set(key, adminListPage{Items: products, Total: total}, s.ttl(ctx))
+	return products, total, nil
 }
 
 // GetBySlug fetches a single active product by its slug. Bypasses the

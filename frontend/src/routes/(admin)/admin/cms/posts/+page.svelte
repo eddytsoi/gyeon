@@ -8,18 +8,23 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
   let deleteTarget = $state<CmsPost | null>(null);
 
+  // `data.posts` is just the current page; the published-on-this-page
+  // count is the best we can show without an extra count query, and
+  // the count message uses `data.total` for the unfiltered grand total.
   const publishedCount = $derived(data.posts.filter(p => p.is_published).length);
 
   function onSearch(q: string) {
     const url = new URL(page.url);
     if (q) url.searchParams.set('q', q);
     else url.searchParams.delete('q');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
@@ -28,6 +33,7 @@
     const url = new URL(page.url);
     if (slug) url.searchParams.set('category', slug);
     else url.searchParams.delete('category');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 </script>
@@ -38,7 +44,7 @@
     <div>
       <h2 class="text-xl font-bold text-gray-900">{m.admin_cms_posts_heading()}</h2>
       <p class="text-sm text-gray-500 mt-0.5">
-        {m.admin_cms_posts_count({ total: data.posts.length, published: publishedCount })}
+        {m.admin_cms_posts_count({ total: data.total, published: publishedCount })}
       </p>
     </div>
     <NewButton label={m.admin_cms_posts_new()} href="/admin/cms/posts/new" />
@@ -180,6 +186,8 @@
       </table>
     {/if}
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
 
 <!-- Delete confirmation modal -->

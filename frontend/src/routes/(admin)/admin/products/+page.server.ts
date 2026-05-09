@@ -1,6 +1,8 @@
-import { adminGetProducts, adminGetCategories, adminGetVariants } from '$lib/api/admin';
+import { adminGetProducts, adminGetCategories } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+
+const PAGE_SIZE = 50;
 
 export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
@@ -8,20 +10,23 @@ export const load: PageServerLoad = async ({ parent, url }) => {
 
   const q = url.searchParams.get('q') ?? '';
   const category = url.searchParams.get('category') ?? '';
+  const pageNum = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
+  const offset = (pageNum - 1) * PAGE_SIZE;
 
-  const [products, categories] = await Promise.all([
-    adminGetProducts(token, 50, 0, q, category).catch(() => []).then(r => r ?? []),
+  const [productsRes, categories] = await Promise.all([
+    adminGetProducts(token, PAGE_SIZE, offset, q, category).catch(() => ({ items: [], total: 0 })),
     adminGetCategories(token).catch(() => []).then(r => r ?? [])
   ]);
 
-  const enriched = await Promise.all(
-    products.map(async (p) => ({
-      product: p,
-      variants: await adminGetVariants(token, p.id).catch(() => []).then(r => r ?? [])
-    }))
-  );
-
-  return { products: enriched, categories, q, category };
+  return {
+    products: productsRes.items,
+    total: productsRes.total,
+    page: pageNum,
+    pageSize: PAGE_SIZE,
+    categories,
+    q,
+    category,
+  };
 };
 
 export const actions: Actions = {

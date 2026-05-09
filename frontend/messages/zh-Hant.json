@@ -687,6 +687,11 @@
   "admin_search_placeholder_default": "搜尋…",
   "admin_search_clear_aria": "清除搜尋",
 
+  "admin_pagination_aria": "分頁",
+  "admin_pagination_status": "第 {page} 頁，共 {total} 頁",
+  "admin_pagination_prev": "上一頁",
+  "admin_pagination_next": "下一頁",
+
   "admin_product_edit_back": "← 產品",
   "admin_product_edit_new_title": "新增產品",
   "admin_product_edit_edit_title": "編輯產品",

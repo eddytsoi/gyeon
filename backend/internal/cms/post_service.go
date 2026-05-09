@@ -98,14 +98,25 @@ func scanPost(row interface{ Scan(...any) error }) (Post, error) {
 	return p, err
 }
 
-// List returns all posts (admin). locale may be empty for base content.
-// search is an optional case-insensitive substring matched against
-// postSearchFields; pass "" to disable. categorySlug, when non-empty,
-// restricts the result to posts whose category matches the given slug.
-func (s *PostService) List(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]Post, error) {
+// adminListPage caches a page of admin post results plus the total
+// matching-row count so the handler can return both without a second
+// roundtrip.
+type adminListPage struct {
+	Items []Post
+	Total int
+}
+
+// List returns all posts (admin) plus the total number of matching rows
+// (independent of limit/offset) so the admin UI can paginate. locale may
+// be empty for base content. search is an optional case-insensitive
+// substring matched against postSearchFields; pass "" to disable.
+// categorySlug, when non-empty, restricts the result to posts whose
+// category matches the given slug.
+func (s *PostService) List(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]Post, int, error) {
 	key := fmt.Sprintf("cms:posts:all:%s:%s:%s:%d:%d", locale, search, categorySlug, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
-		return v.([]Post), nil
+		page := v.(adminListPage)
+		return page.Items, page.Total, nil
 	}
 
 	args := []any{locale, limit, offset}
@@ -118,30 +129,60 @@ func (s *PostService) List(ctx context.Context, locale, search, categorySlug str
 		args = append(args, arg)
 		wheres = append(wheres, clause)
 	}
-	query := postSelect
+	where := ""
 	if len(wheres) > 0 {
-		query += ` WHERE ` + strings.Join(wheres, ` AND `)
+		where = ` WHERE ` + strings.Join(wheres, ` AND `)
 	}
-	query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	// Mirror postSelect's column list + joins, then append a
+	// `COUNT(*) OVER ()` window so the total matching-row count comes
+	// back in the same roundtrip. The window function evaluates over
+	// the matching set before LIMIT/OFFSET is applied — so each
+	// returned row carries the same `total_rows` value. We only fall
+	// through to a dedicated COUNT below when the page is empty
+	// (window functions don't run when there are zero rows).
+	listQuery := `
+		SELECT p.id, p.number, p.category_id, c.slug, c.name, p.slug,
+		       COALESCE(t.title,   p.title)   AS title,
+		       COALESCE(t.excerpt, p.excerpt) AS excerpt,
+		       COALESCE(t.content, p.content) AS content,
+		       p.cover_media_file_id,
+		       COALESCE(mf.url, p.cover_image_url) AS cover_image_url,
+		       p.is_published, p.published_at, p.created_at, p.updated_at,
+		       COUNT(*) OVER () AS total_rows
+		FROM cms_posts p` + postTranslationJoin + `
+		LEFT JOIN media_files mf ON mf.id = p.cover_media_file_id
+		LEFT JOIN cms_post_categories c ON c.id = p.category_id` +
+		where + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.db.QueryContext(ctx, listQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	posts := make([]Post, 0)
+	total := 0
 	for rows.Next() {
-		p, err := scanPost(rows)
-		if err != nil {
-			return nil, err
+		var p Post
+		if err := rows.Scan(
+			&p.ID, &p.Number, &p.CategoryID, &p.CategorySlug, &p.CategoryName,
+			&p.Slug, &p.Title, &p.Excerpt,
+			&p.Content, &p.CoverMediaFileID, &p.CoverImageURL,
+			&p.IsPublished, &p.PublishedAt, &p.CreatedAt, &p.UpdatedAt,
+			&total,
+		); err != nil {
+			return nil, 0, err
 		}
 		posts = append(posts, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	s.cache.Set(key, posts, s.ttl(ctx))
-	return posts, nil
+	if len(posts) == 0 && (offset > 0 || search != "" || categorySlug != "") {
+		countQuery := `SELECT COUNT(*) FROM cms_posts p` + postTranslationJoin + where
+		_ = s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	}
+	s.cache.Set(key, adminListPage{Items: posts, Total: total}, s.ttl(ctx))
+	return posts, total, nil
 }
 
 // ListPublishedByCategorySlug returns published posts filtered by a category

@@ -42,11 +42,23 @@ export const getStats = (token: string) =>
 
 // Products — admin list hits a dedicated endpoint that returns all statuses;
 // mutations and detail reads use /products/* (token-protected).
+//
+// Response wraps the rows in `{items, total}` so the admin UI can render
+// pagination math without a second roundtrip. Each row carries
+// `variant_count` so the list page never has to fan out one /variants
+// request per product.
+export interface AdminProductRow extends Product {
+  variant_count: number;
+}
+export interface PagedResponse<T> {
+  items: T[];
+  total: number;
+}
 export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
   if (categorySlug) qs.set('category', categorySlug);
-  return request<Product[]>(`/admin/inventory/?${qs.toString()}`, token);
+  return request<PagedResponse<AdminProductRow>>(`/admin/inventory/?${qs.toString()}`, token);
 };
 
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
@@ -225,12 +237,12 @@ export const adminUpdatePage = (token: string, id: string, body: Partial<CmsPage
 export const adminDeletePage = (token: string, id: string) =>
   request(`/admin/cms/pages/${id}`, token, { method: 'DELETE' });
 
-// Posts
+// Posts — admin list returns `{items, total}` for pagination.
 export const adminGetPosts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
   if (categorySlug) qs.set('category', categorySlug);
-  return request<CmsPost[]>(`/admin/cms/posts?${qs.toString()}`, token);
+  return request<PagedResponse<CmsPost>>(`/admin/cms/posts?${qs.toString()}`, token);
 };
 
 export const adminGetPost = (token: string, id: string) =>
