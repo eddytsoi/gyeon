@@ -3,16 +3,35 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import ProductCard from '$lib/components/shop/ProductCard.svelte';
+  import ProductCardSkeleton from '$lib/components/shop/ProductCardSkeleton.svelte';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
   import { siteOrigin } from '$lib/seo';
+  import { getProductsFiltered, type ProductListFilters } from '$lib/api';
+  import type { Product, ProductImage, Variant } from '$lib/types';
 
   let { data }: { data: PageData } = $props();
+
+  const BATCH_SIZE = 6;
 
   let searchInput = $state(data.q);
   let minPriceInput = $state(data.minPrice != null ? String(data.minPrice) : '');
   let maxPriceInput = $state(data.maxPrice != null ? String(data.maxPrice) : '');
   let mobileFiltersOpen = $state(false);
+
+  let items = $state<Product[]>(data.products);
+  let loadingMore = $state(false);
+  let hasMore = $state(data.products.length === data.initialLimit);
+  let sentinel = $state<HTMLDivElement | undefined>();
+  let abortCtl: AbortController | null = null;
+
+  // When SSR data changes (filter goto), reset list + drop any in-flight fetch.
+  $effect(() => {
+    items = data.products;
+    hasMore = data.products.length === data.initialLimit;
+    abortCtl?.abort();
+    abortCtl = null;
+  });
 
   function navigate(updater: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(page.url.searchParams);
@@ -62,6 +81,78 @@
   }
 
   const hasFilters = $derived(!!(data.q || data.category || data.minPrice != null || data.maxPrice != null || (data.sort && data.sort !== 'new')));
+
+  function currentFilters(): ProductListFilters {
+    return {
+      limit: BATCH_SIZE,
+      offset: items.length,
+      search: data.q || undefined,
+      category: data.category || undefined,
+      minPrice: data.minPrice ?? undefined,
+      maxPrice: data.maxPrice ?? undefined,
+      sort: data.sort
+    };
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    abortCtl?.abort();
+    abortCtl = new AbortController();
+    const ctl = abortCtl;
+    try {
+      const next = await getProductsFiltered(currentFilters(), { signal: ctl.signal });
+      // Guard against a filter-reset that happened while we were awaiting.
+      if (ctl.signal.aborted) return;
+      items = [...items, ...next];
+      if (next.length < BATCH_SIZE) hasMore = false;
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name !== 'AbortError') hasMore = false;
+    } finally {
+      if (!ctl.signal.aborted) loadingMore = false;
+    }
+  }
+
+  $effect(() => {
+    if (!sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '600px' }
+    );
+    io.observe(sentinel);
+    return () => {
+      io.disconnect();
+      abortCtl?.abort();
+    };
+  });
+
+  // Adapt list-row product into ProductCard's image/variant props (kept
+  // backward-compatible so the card component is unchanged for other consumers).
+  function imageOf(p: Product): ProductImage | undefined {
+    if (!p.primary_image_url) return undefined;
+    return {
+      id: '',
+      product_id: p.id,
+      url: p.primary_image_url,
+      thumbnail_url: p.primary_image_url,
+      alt_text: p.name,
+      sort_order: 0,
+      is_primary: true
+    };
+  }
+
+  function variantOf(p: Product): Variant | undefined {
+    if (p.min_price == null) return undefined;
+    return {
+      id: p.default_variant_id ?? '',
+      product_id: p.id,
+      sku: '',
+      price: p.min_price,
+      compare_at_price: p.min_compare_at_price ?? undefined,
+      stock_qty: p.min_price_stock_qty ?? 0,
+      is_active: true
+    };
+  }
 </script>
 
 <Seo
@@ -146,7 +237,7 @@
     <div>
       <div class="flex items-center justify-between mb-4">
         <p class="text-sm text-gray-500">
-          {data.products.length === 1 ? m.products_count_one({ count: data.products.length }) : m.products_count_many({ count: data.products.length })}
+          {items.length === 1 ? m.products_count_one({ count: items.length }) : m.products_count_many({ count: items.length })}
         </p>
         <select value={data.sort ?? 'new'}
                 onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
@@ -159,7 +250,7 @@
         </select>
       </div>
 
-      {#if data.products.length === 0}
+      {#if items.length === 0 && !loadingMore}
         <div class="text-center py-24 text-gray-400">
           {#if data.q}
             <p class="text-base">{m.products_no_match({ query: data.q })}</p>
@@ -175,32 +266,25 @@
         </div>
       {:else}
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-6">
-          {#each data.products as item}
+          {#each items as p, i (p.id)}
             <ProductCard
-              product={item.product}
-              image={item.primaryImage}
-              variant={item.cheapestVariant}
+              product={p}
+              image={imageOf(p)}
+              variant={variantOf(p)}
+              loading={i < 3 ? 'eager' : 'lazy'}
+              fetchpriority={i < 3 ? 'high' : 'auto'}
             />
           {/each}
+          {#if loadingMore}
+            {#each Array(BATCH_SIZE) as _, i (`sk-${i}`)}
+              <ProductCardSkeleton />
+            {/each}
+          {/if}
         </div>
 
-        <!-- Pagination -->
-        <div class="mt-12 flex justify-center gap-4">
-          {#if data.offset > 0}
-            <a href="/products?{new URLSearchParams({ ...Object.fromEntries(page.url.searchParams), offset: String(data.offset - data.limit) }).toString()}"
-               class="px-6 py-2 border border-gray-300 rounded-full text-sm font-medium
-                      text-gray-700 hover:border-gray-900 transition-colors">
-              {m.common_previous_arrow()}
-            </a>
-          {/if}
-          {#if data.products.length === data.limit}
-            <a href="/products?{new URLSearchParams({ ...Object.fromEntries(page.url.searchParams), offset: String(data.offset + data.limit) }).toString()}"
-               class="px-6 py-2 border border-gray-300 rounded-full text-sm font-medium
-                      text-gray-700 hover:border-gray-900 transition-colors">
-              {m.common_next_arrow()}
-            </a>
-          {/if}
-        </div>
+        {#if hasMore}
+          <div bind:this={sentinel} class="h-1 mt-8" aria-hidden="true"></div>
+        {/if}
       {/if}
     </div>
   </div>

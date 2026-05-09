@@ -43,8 +43,8 @@ const buildProductQuery = (filters: ProductListFilters): URLSearchParams => {
 export const getProducts = (limit = 20, offset = 0, search = '') =>
   request<Product[]>(`/products?${buildProductQuery({ limit, offset, search }).toString()}`);
 
-export const getProductsFiltered = (filters: ProductListFilters) =>
-  request<Product[]>(`/products?${buildProductQuery(filters).toString()}`);
+export const getProductsFiltered = (filters: ProductListFilters, init?: RequestInit) =>
+  request<Product[]>(`/products?${buildProductQuery(filters).toString()}`, init);
 
 export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') =>
   request<Product[]>(`/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`);
