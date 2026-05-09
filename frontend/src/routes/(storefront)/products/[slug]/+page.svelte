@@ -381,7 +381,7 @@
             <button
               type="button"
               onclick={goPrev}
-              aria-label="Previous image"
+              aria-label={m.common_aria_previous_image()}
               class="hidden md:flex absolute left-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
                      rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
                      opacity-0 group-hover:opacity-100 transition-opacity duration-200
@@ -394,7 +394,7 @@
             <button
               type="button"
               onclick={goNext}
-              aria-label="Next image"
+              aria-label={m.common_aria_next_image()}
               class="hidden md:flex absolute right-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
                      rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
                      opacity-0 group-hover:opacity-100 transition-opacity duration-200
@@ -413,7 +413,7 @@
               <button
                 type="button"
                 onclick={() => (activeImageID = img.id)}
-                aria-label={`Go to image ${i + 1}`}
+                aria-label={m.common_aria_go_to_image({ n: i + 1 })}
                 aria-current={activeIndex === i ? 'true' : undefined}
                 class="h-1.5 rounded-full transition-all
                        {activeIndex === i ? 'w-6' : 'w-1.5 bg-gray-300 hover:bg-gray-400'}"
@@ -525,12 +525,17 @@
         <div class="flex gap-3">
           <div class="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
             <button
+              type="button"
               onclick={() => (qty = Math.max(1, qty - 1))}
-              class="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-lg"
+              aria-label={m.common_aria_decrease_quantity()}
+              disabled={qty <= 1}
+              class="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
             >−</button>
-            <span class="w-10 text-center text-sm font-semibold text-gray-900">{qty}</span>
+            <span class="w-10 text-center text-sm font-semibold text-gray-900" aria-live="polite">{qty}</span>
             <button
+              type="button"
               onclick={() => (qty = qty + 1)}
+              aria-label={m.common_aria_increase_quantity()}
               class="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-lg"
             >+</button>
           </div>
