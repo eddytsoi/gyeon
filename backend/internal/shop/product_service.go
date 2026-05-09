@@ -410,7 +410,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
 		       (SELECT COALESCE(
 		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
-		            mf.url, pi.url)
+		            mf.webp_url, mf.url, pi.url)
 		        FROM product_images pi
 		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		        WHERE pi.product_id = p.id
@@ -490,7 +490,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
 		       (SELECT COALESCE(
 		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
-		            mf.url, pi.url)
+		            mf.webp_url, mf.url, pi.url)
 		        FROM product_images pi
 		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		        WHERE pi.product_id = p.id
@@ -559,7 +559,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
 		       (SELECT COALESCE(
 		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
-		            mf.url, pi.url)
+		            mf.webp_url, mf.url, pi.url)
 		        FROM product_images pi
 		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		        WHERE pi.product_id = p.id
