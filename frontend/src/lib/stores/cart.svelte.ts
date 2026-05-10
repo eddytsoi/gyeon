@@ -5,7 +5,7 @@ function createCartStore() {
   let cart = $state<Cart | null>(null);
   let loading = $state(false);
 
-  const itemCount = $derived(cart?.items.reduce((sum, i) => sum + i.quantity, 0) ?? 0);
+  const itemCount = $derived(cart?.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0);
 
   function getSessionToken(): string {
     let token = localStorage.getItem('gyeon_session');
