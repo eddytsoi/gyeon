@@ -37,7 +37,7 @@
           </video>
         {:else if isStreamingVideo(image) && !image.thumbnail_url}
           <div class="w-full h-full flex items-center justify-center bg-gray-100">
-            <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <svg class="w-12 h-12 text-gray-300" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75 5.25 3.75-5.25 3.75v-7.5Z" />
             </svg>
           </div>
@@ -48,7 +48,7 @@
         {/if}
       {:else}
         <div class="w-full h-full flex items-center justify-center text-gray-300">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" fill="none"
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" aria-hidden="true" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5
@@ -74,17 +74,17 @@
             HK${variant.price.toFixed(2)}
           </span>
           {#if hasDiscount}
-            <span class="text-sm text-gray-400 line-through">
+            <span class="text-sm text-gray-500 line-through">
               HK${variant.compare_at_price!.toFixed(2)}
             </span>
-            <span class="text-xs font-medium text-red-500">{m.product_card_discount_pct({ pct: discountPct })}</span>
+            <span class="text-xs font-medium text-red-600">{m.product_card_discount_pct({ pct: discountPct })}</span>
           {/if}
         </div>
         {#if variant.stock_qty === 0}
-          <span class="text-xs text-gray-400">{m.product_card_out_of_stock()}</span>
+          <span class="text-xs text-gray-500">{m.product_card_out_of_stock()}</span>
         {/if}
       {:else}
-        <span class="mt-auto text-sm text-gray-400 pt-2">{m.product_card_no_variants()}</span>
+        <span class="mt-auto text-sm text-gray-500 pt-2">{m.product_card_no_variants()}</span>
       {/if}
     </div>
   </a>
