@@ -34,7 +34,9 @@ func (s *Service) List(ctx context.Context, customerID string) ([]Item, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT w.id, w.product_id, w.created_at,
 		        p.slug, p.name,
-		        (SELECT COALESCE(mf.url, pi.url)
+		        (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
 		         FROM product_images pi
 		         LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		         WHERE pi.product_id = p.id
