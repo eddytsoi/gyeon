@@ -105,7 +105,12 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
 		        p.name, p.slug, pv.sku, pv.price, pv.weight_grams,
 		        pv.length_mm, pv.width_mm, pv.height_mm,
-		        COALESCE(vmf.url, vi.url, pmf.url, pi.url) AS image_url
+		        COALESCE(
+		            CASE WHEN vmf.mime_type LIKE 'video/%' THEN vmf.thumbnail_url END,
+		            vmf.webp_url, vmf.url, vi.url,
+		            CASE WHEN pmf.mime_type LIKE 'video/%' THEN pmf.thumbnail_url END,
+		            pmf.webp_url, pmf.url, pi.url
+		        ) AS image_url
 		 FROM cart_items ci
 		 JOIN product_variants pv ON pv.id = ci.variant_id
 		 JOIN products p ON p.id = pv.product_id

@@ -1506,7 +1506,10 @@ func scanProductImage(row interface{ Scan(...any) error }) (ProductImage, error)
 func (s *ProductService) ListImages(ctx context.Context, productID string) ([]ProductImage, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pi.id, pi.product_id, pi.variant_id, pi.media_file_id,
-		        COALESCE(mf.url, pi.url, '') AS url,
+		        COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.url
+		                 ELSE mf.webp_url END,
+		            mf.url, pi.url, '') AS url,
 		        mf.mime_type,
 		        mf.thumbnail_url,
 		        mf.video_autoplay,

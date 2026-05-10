@@ -83,7 +83,7 @@ const postSelect = `
 	       COALESCE(t.excerpt, p.excerpt) AS excerpt,
 	       COALESCE(t.content, p.content) AS content,
 	       p.cover_media_file_id,
-	       COALESCE(mf.url, p.cover_image_url) AS cover_image_url,
+	       COALESCE(mf.webp_url, mf.url, p.cover_image_url) AS cover_image_url,
 	       p.is_published, p.published_at, p.created_at, p.updated_at
 	FROM cms_posts p` + postTranslationJoin + `
 	LEFT JOIN media_files mf ON mf.id = p.cover_media_file_id
@@ -146,7 +146,7 @@ func (s *PostService) List(ctx context.Context, locale, search, categorySlug str
 		       COALESCE(t.excerpt, p.excerpt) AS excerpt,
 		       COALESCE(t.content, p.content) AS content,
 		       p.cover_media_file_id,
-		       COALESCE(mf.url, p.cover_image_url) AS cover_image_url,
+		       COALESCE(mf.webp_url, mf.url, p.cover_image_url) AS cover_image_url,
 		       p.is_published, p.published_at, p.created_at, p.updated_at,
 		       COUNT(*) OVER () AS total_rows
 		FROM cms_posts p` + postTranslationJoin + `
@@ -295,7 +295,7 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 		 SELECT ins.id, ins.number, ins.category_id, c.slug, c.name,
 		        ins.slug, ins.title, ins.excerpt, ins.content,
 		        ins.cover_media_file_id,
-		        COALESCE(mf.url, ins.cover_image_url) AS cover_image_url,
+		        COALESCE(mf.webp_url, mf.url, ins.cover_image_url) AS cover_image_url,
 		        ins.is_published, ins.published_at, ins.created_at, ins.updated_at
 		 FROM ins
 		 LEFT JOIN media_files mf ON mf.id = ins.cover_media_file_id
@@ -322,7 +322,7 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 		 SELECT upd.id, upd.number, upd.category_id, c.slug, c.name,
 		        upd.slug, upd.title, upd.excerpt, upd.content,
 		        upd.cover_media_file_id,
-		        COALESCE(mf.url, upd.cover_image_url) AS cover_image_url,
+		        COALESCE(mf.webp_url, mf.url, upd.cover_image_url) AS cover_image_url,
 		        upd.is_published, upd.published_at, upd.created_at, upd.updated_at
 		 FROM upd
 		 LEFT JOIN media_files mf ON mf.id = upd.cover_media_file_id

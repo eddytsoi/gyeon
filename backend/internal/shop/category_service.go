@@ -69,7 +69,7 @@ func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
-		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
+		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -102,7 +102,7 @@ func (s *CategoryService) GetBySlug(ctx context.Context, slug string) (*Category
 	}
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
-		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
+		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -125,7 +125,7 @@ func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, er
 	}
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
-		        c.media_file_id, COALESCE(mf.url, c.image_url) AS image_url,
+		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -145,7 +145,7 @@ func (s *CategoryService) Create(ctx context.Context, req CreateCategoryRequest)
 		     RETURNING *
 		 )
 		 SELECT ins.id, ins.parent_id, ins.slug, ins.name, ins.description,
-		        ins.media_file_id, COALESCE(mf.url, ins.image_url) AS image_url,
+		        ins.media_file_id, COALESCE(mf.webp_url, mf.url, ins.image_url) AS image_url,
 		        ins.sort_order, ins.is_active, ins.created_at, ins.updated_at
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
 		req.ParentID, req.Slug, req.Name, req.Description, req.MediaFileID, req.ImageURL, req.SortOrder))
@@ -166,7 +166,7 @@ func (s *CategoryService) Update(ctx context.Context, id string, req UpdateCateg
 		     RETURNING *
 		 )
 		 SELECT upd.id, upd.parent_id, upd.slug, upd.name, upd.description,
-		        upd.media_file_id, COALESCE(mf.url, upd.image_url) AS image_url,
+		        upd.media_file_id, COALESCE(mf.webp_url, mf.url, upd.image_url) AS image_url,
 		        upd.sort_order, upd.is_active, upd.created_at, upd.updated_at
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
 		id, req.ParentID, req.Slug, req.Name, req.Description,
