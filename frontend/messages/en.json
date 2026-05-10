@@ -94,6 +94,8 @@
   "products_search_aria": "Search products by name",
   "products_filters_button": "Filters",
   "products_filters_button_aria": "Show or hide filters",
+  "products_filters_section_heading": "Filters",
+  "products_results_section_heading": "Results",
   "products_filter_category": "Category",
   "products_filter_category_all": "All categories",
   "products_filter_price": "Price",

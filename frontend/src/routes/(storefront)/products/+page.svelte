@@ -195,6 +195,7 @@
   <!-- Search bar -->
   <div class="relative mb-6">
     <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+         aria-hidden="true"
          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
       <path stroke-linecap="round" stroke-linejoin="round"
             d="m21 21-4.34-4.34m0 0A7.5 7.5 0 1 0 6.075 6.075a7.5 7.5 0 0 0 10.585 10.585Z"/>
@@ -208,20 +209,23 @@
 
   <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8">
     <!-- Filters -->
-    <aside id="storefront-product-filters" class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-6">
+    <aside id="storefront-product-filters"
+           aria-labelledby="storefront-filters-heading"
+           class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-6">
+      <h2 id="storefront-filters-heading" class="sr-only">{m.products_filters_section_heading()}</h2>
       <!-- Category -->
       <div>
         <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.products_filter_category()}</h3>
         <div class="space-y-1.5">
           <button onclick={() => onCategoryChange('')}
-                  aria-current={data.category === '' ? 'page' : undefined}
+                  aria-pressed={data.category === ''}
                   class="block w-full text-left text-sm px-2 py-1 rounded
                          {data.category === '' ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
             {m.products_filter_category_all()}
           </button>
           {#each data.categories.filter(c => c.is_active) as cat}
             <button onclick={() => onCategoryChange(cat.slug)}
-                    aria-current={data.category === cat.slug ? 'page' : undefined}
+                    aria-pressed={data.category === cat.slug}
                     class="block w-full text-left text-sm px-2 py-1 rounded
                            {data.category === cat.slug ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
               {cat.name}
@@ -261,7 +265,8 @@
     </aside>
 
     <!-- Results -->
-    <div>
+    <section aria-labelledby="storefront-results-heading">
+      <h2 id="storefront-results-heading" class="sr-only">{m.products_results_section_heading()}</h2>
       <div class="flex items-center justify-between mb-4">
         <p class="text-sm text-gray-500" aria-live="polite">
           {data.total === 1 ? m.products_count_one({ count: data.total }) : m.products_count_many({ count: data.total })}
@@ -289,7 +294,7 @@
       </div>
 
       {#if items.length === 0 && !loadingMore}
-        <div class="text-center py-24 text-gray-400">
+        <div class="text-center py-24 text-gray-500">
           {#if data.q}
             <p class="text-base">{m.products_no_match({ query: data.q })}</p>
           {:else}
@@ -324,6 +329,6 @@
           <div bind:this={sentinel} class="h-1 mt-8" aria-hidden="true"></div>
         {/if}
       {/if}
-    </div>
+    </section>
   </div>
 </div>

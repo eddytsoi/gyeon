@@ -94,6 +94,8 @@
   "products_search_aria": "依名稱搜尋產品",
   "products_filters_button": "篩選",
   "products_filters_button_aria": "顯示或隱藏篩選器",
+  "products_filters_section_heading": "篩選",
+  "products_results_section_heading": "搜尋結果",
   "products_filter_category": "分類",
   "products_filter_category_all": "全部分類",
   "products_filter_price": "價格",
