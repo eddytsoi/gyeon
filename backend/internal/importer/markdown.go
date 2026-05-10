@@ -37,6 +37,16 @@ func metaString(meta []wcMeta, key string) string {
 	return ""
 }
 
+// metaStringPtr is like metaString but returns nil for missing/empty values,
+// suited to optional *string fields on upsert requests.
+func metaStringPtr(meta []wcMeta, key string) *string {
+	v := strings.TrimSpace(metaString(meta, key))
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 // buildContentFromMeta maps a WC product's ACF custom fields onto the
 // (description, how_to_use, excerpt) trio Gyeon stores. Layout:
 //

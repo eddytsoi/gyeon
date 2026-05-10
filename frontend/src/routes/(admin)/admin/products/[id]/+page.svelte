@@ -1326,11 +1326,12 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => editingVariant = null} role="button" tabindex="-1" aria-label={m.admin_modal_close()}></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
       <div class="p-6 pb-0">
         <h3 class="font-semibold text-gray-900">{m.admin_product_edit_edit_variant_title()}</h3>
       </div>
       <form method="POST" action="?/updateVariant"
+            class="flex flex-col min-h-0 flex-1"
             use:enhance={({ formData }) => {
               if (updatingVariant) return;
               updatingVariant = true;
@@ -1346,6 +1347,7 @@
         <input type="hidden" name="old_image_id" value={editVariantOldImageId ?? ''} />
         <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
         <input type="hidden" name="remove_image" value={String(editVariantRemoveImage)} />
+        <div class="flex-1 overflow-y-auto min-h-0">
         <!-- Full-width image preview -->
         <div class="relative mt-4 w-full aspect-video bg-gray-100">
           {#if editVariantPreviewUrl}
@@ -1494,6 +1496,7 @@
                          hover:border-gray-400 transition-colors">
             {m.admin_product_edit_edit_variant_cancel()}
           </button>
+        </div>
         </div>
         </div>
       </form>

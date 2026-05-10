@@ -537,7 +537,14 @@
                       ? 'border-color: #e5e7eb; color: #374151'
                       : ''}
                 >
-                  {v.sku}
+                  {(() => {
+                    const n = v.name?.trim();
+                    if (!n) return v.sku;
+                    return n.split(' / ').map((p) => {
+                      const i = p.indexOf(':');
+                      return i >= 0 ? p.slice(i + 1).trim() : p;
+                    }).join(' / ');
+                  })()}
                 </button>
               {/each}
             </div>

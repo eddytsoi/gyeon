@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
@@ -355,6 +356,7 @@ func (s *Service) importProduct(
 		CategoryID:  categoryID,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
+		Subtitle:    metaStringPtr(prod.MetaData, "subtitle"),
 		Excerpt:     excerpt,
 		Description: desc,
 		HowToUse:    howToUse,
@@ -502,6 +504,7 @@ func (s *Service) importBundleProduct(
 		CategoryID:  categoryID,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
+		Subtitle:    metaStringPtr(prod.MetaData, "subtitle"),
 		Excerpt:     excerpt,
 		Description: desc,
 		HowToUse:    howToUse,
@@ -631,10 +634,11 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  nil, // simple-product fallback — identified by NULL
 		SKU:            prod.Slug,
+		Name:           nil, // simple products have no variation attributes
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
-		WeightGrams:    parseWeightKg(prod.Weight),
+		WeightGrams:    parseWeightGrams(prod.Weight),
 		LengthMM:       parseDimensionCM(prod.Dimensions.Length),
 		WidthMM:        parseDimensionCM(prod.Dimensions.Width),
 		HeightMM:       parseDimensionCM(prod.Dimensions.Height),
@@ -654,10 +658,11 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  &wcID,
 		SKU:            fmt.Sprintf("%s-%d", productSlug, v.ID),
+		Name:           formatVariantName(v.Attributes),
 		Price:          price,
 		CompareAtPrice: compareAt,
 		StockQty:       stockQty,
-		WeightGrams:    parseWeightKg(v.Weight),
+		WeightGrams:    parseWeightGrams(v.Weight),
 		LengthMM:       parseDimensionCM(v.Dimensions.Length),
 		WidthMM:        parseDimensionCM(v.Dimensions.Width),
 		HeightMM:       parseDimensionCM(v.Dimensions.Height),
@@ -678,18 +683,42 @@ func parsePrices(regularPrice, salePrice string) (price float64, compareAt *floa
 	return regular, nil
 }
 
-// parseWeightKg converts a WooCommerce weight (kg, decimal string) to *int
-// grams. Returns nil for empty / zero / invalid input so the variant falls
-// back to shipany_default_weight_grams instead of being shipped as 0g.
-func parseWeightKg(kg string) *int {
-	if kg == "" {
+// formatVariantName joins WC variation attributes into Gyeon's variant
+// name format. A single attribute {Name: "容量", Option: "500ml"} becomes
+// "容量:500ml"; multiple pairs are joined with " / ". Returns nil if no
+// usable pairs are present so the variant's name column stays NULL rather
+// than holding an empty string.
+func formatVariantName(attrs []wcAttribute) *string {
+	parts := make([]string, 0, len(attrs))
+	for _, a := range attrs {
+		name := strings.TrimSpace(a.Name)
+		opt := strings.TrimSpace(a.Option)
+		if name == "" || opt == "" {
+			continue
+		}
+		parts = append(parts, name+":"+opt)
+	}
+	if len(parts) == 0 {
 		return nil
 	}
-	f, err := strconv.ParseFloat(kg, 64)
+	s := strings.Join(parts, " / ")
+	return &s
+}
+
+// parseWeightGrams parses a WooCommerce weight (decimal string) as grams.
+// The merchant must configure WooCommerce → Settings → Products → Weight
+// unit = g; we don't read the store-level unit, we just trust the value.
+// Returns nil for empty / zero / invalid input so the variant falls back
+// to shipany_default_weight_grams instead of being shipped as 0g.
+func parseWeightGrams(s string) *int {
+	if s == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil || f <= 0 {
 		return nil
 	}
-	g := int(f*1000 + 0.5)
+	g := int(f + 0.5)
 	if g <= 0 {
 		return nil
 	}
