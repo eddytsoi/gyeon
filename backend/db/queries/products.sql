@@ -25,8 +25,8 @@ SELECT * FROM products
 WHERE slug = $1 AND is_active = TRUE;
 
 -- name: CreateProduct :one
-INSERT INTO products (category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpdateProduct :one
@@ -35,11 +35,12 @@ SET
     category_id         = $2,
     slug                = $3,
     name                = $4,
-    excerpt             = $5,
-    description         = $6,
-    how_to_use          = $7,
-    compatible_surfaces = $8,
-    is_active           = $9
+    subtitle            = $5,
+    excerpt             = $6,
+    description         = $7,
+    how_to_use          = $8,
+    compatible_surfaces = $9,
+    is_active           = $10
 WHERE id = $1
 RETURNING *;
 
