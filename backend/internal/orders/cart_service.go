@@ -126,7 +126,7 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	}
 	defer rows.Close()
 
-	var items []CartItem
+	items := []CartItem{}
 	for rows.Next() {
 		var item CartItem
 		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,

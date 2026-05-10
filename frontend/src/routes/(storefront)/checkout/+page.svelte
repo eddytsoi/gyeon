@@ -92,7 +92,7 @@
   const activeCart = $derived(cartStore.cart);
 
   const subtotal = $derived(
-    activeCart?.items.reduce((sum, item) => {
+    activeCart?.items?.reduce((sum, item) => {
       const v = variantMap[item.variant_id];
       return sum + (v ? v.price * item.quantity : 0);
     }, 0) ?? 0

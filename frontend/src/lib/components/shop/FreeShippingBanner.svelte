@@ -22,7 +22,7 @@
   });
 
   const subtotal = $derived(
-    cartStore.cart?.items.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0
+    cartStore.cart?.items?.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0
   );
 
   const remaining = $derived(Math.max(0, threshold() - subtotal));
