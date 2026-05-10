@@ -37,6 +37,7 @@ type Product struct {
 	CategoryID         *string  `json:"category_id,omitempty"`
 	Slug               string   `json:"slug"`
 	Name               string   `json:"name"`
+	Subtitle           *string  `json:"subtitle,omitempty"`
 	Excerpt            *string  `json:"excerpt,omitempty"`
 	Description        *string  `json:"description,omitempty"`
 	HowToUse           *string  `json:"how_to_use,omitempty"`
@@ -93,12 +94,14 @@ type SetBundleItemsRequest struct {
 type ProductTranslation struct {
 	Locale      string  `json:"locale"`
 	Name        string  `json:"name"`
+	Subtitle    *string `json:"subtitle,omitempty"`
 	Description *string `json:"description,omitempty"`
 	UpdatedAt   string  `json:"updated_at"`
 }
 
 type UpsertProductTranslationRequest struct {
 	Name        string  `json:"name"`
+	Subtitle    *string `json:"subtitle"`
 	Description *string `json:"description"`
 }
 
@@ -142,6 +145,7 @@ type CreateProductRequest struct {
 	CategoryID         *string  `json:"category_id"`
 	Slug               string   `json:"slug"`
 	Name               string   `json:"name"`
+	Subtitle           *string  `json:"subtitle"`
 	Excerpt            *string  `json:"excerpt"`
 	Description        *string  `json:"description"`
 	HowToUse           *string  `json:"how_to_use"`
@@ -209,6 +213,7 @@ const productTranslationJoin = `
 const productSelect = `
 	SELECT p.id, p.number, p.category_id, p.slug,
 	       COALESCE(t.name,        p.name)        AS name,
+	       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
 	       p.excerpt,
 	       COALESCE(t.description, p.description) AS description,
 	       p.how_to_use, p.compatible_surfaces,
@@ -217,7 +222,7 @@ const productSelect = `
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
-	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name,
+	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle,
 		&p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 		&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
@@ -402,6 +407,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.how_to_use, p.compatible_surfaces,
@@ -445,7 +451,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
-			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
@@ -482,6 +488,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.how_to_use, p.compatible_surfaces,
@@ -513,7 +520,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
-			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
@@ -551,6 +558,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.how_to_use, p.compatible_surfaces,
@@ -582,7 +590,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
-			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
@@ -677,6 +685,7 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
 		       p.excerpt,
 		       COALESCE(t.description, p.description) AS description,
 		       p.how_to_use, p.compatible_surfaces,
@@ -697,7 +706,7 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
-			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name,
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &total,
@@ -777,11 +786,11 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		 RETURNING id, category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces), req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces), req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -857,13 +866,13 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`UPDATE products SET category_id=$2, slug=$3, name=$4, excerpt=$5, description=$6,
-		                     how_to_use=$7, compatible_surfaces=$8, status=$9, kind=$10
+		`UPDATE products SET category_id=$2, slug=$3, name=$4, subtitle=$5, excerpt=$6, description=$7,
+		                     how_to_use=$8, compatible_surfaces=$9, status=$10, kind=$11
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
-		id, req.CategoryID, req.Slug, req.Name, req.Excerpt, req.Description,
+		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
+		id, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description,
 		req.HowToUse, pq.Array(surfaces), req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Excerpt, &p.Description,
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description,
 			&p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
@@ -1592,7 +1601,7 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 
 func (s *ProductService) ListTranslations(ctx context.Context, productID string) ([]ProductTranslation, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT locale, name, description, updated_at
+		`SELECT locale, name, subtitle, description, updated_at
 		 FROM product_translations WHERE product_id = $1 ORDER BY locale`, productID)
 	if err != nil {
 		return nil, err
@@ -1601,7 +1610,7 @@ func (s *ProductService) ListTranslations(ctx context.Context, productID string)
 	out := make([]ProductTranslation, 0)
 	for rows.Next() {
 		var t ProductTranslation
-		if err := rows.Scan(&t.Locale, &t.Name, &t.Description, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.Locale, &t.Name, &t.Subtitle, &t.Description, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -1612,13 +1621,13 @@ func (s *ProductService) ListTranslations(ctx context.Context, productID string)
 func (s *ProductService) UpsertTranslation(ctx context.Context, productID, locale string, req UpsertProductTranslationRequest) (*ProductTranslation, error) {
 	var t ProductTranslation
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO product_translations (product_id, locale, name, description)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO product_translations (product_id, locale, name, subtitle, description)
+		 VALUES ($1, $2, $3, $4, $5)
 		 ON CONFLICT (product_id, locale) DO UPDATE
-		   SET name=$3, description=$4, updated_at=NOW()
-		 RETURNING locale, name, description, updated_at`,
-		productID, locale, req.Name, req.Description).
-		Scan(&t.Locale, &t.Name, &t.Description, &t.UpdatedAt)
+		   SET name=$3, subtitle=$4, description=$5, updated_at=NOW()
+		 RETURNING locale, name, subtitle, description, updated_at`,
+		productID, locale, req.Name, req.Subtitle, req.Description).
+		Scan(&t.Locale, &t.Name, &t.Subtitle, &t.Description, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

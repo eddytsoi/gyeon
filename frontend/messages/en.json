@@ -721,6 +721,7 @@
   "admin_product_edit_label_type": "Type",
   "admin_product_edit_type_simple": "Simple",
   "admin_product_edit_type_bundle": "Bundle",
+  "admin_product_edit_label_subtitle": "Subtitle",
   "admin_product_edit_label_excerpt": "Excerpt",
   "admin_product_edit_label_content": "Content",
   "admin_product_edit_content_markdown_hint": "(Markdown)",

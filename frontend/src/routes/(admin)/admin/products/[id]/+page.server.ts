@@ -60,6 +60,7 @@ export const actions: Actions = {
       category_id: form.get('category_id')?.toString() || undefined,
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
+      subtitle: form.get('subtitle')?.toString() || undefined,
       excerpt: form.get('excerpt')?.toString() || undefined,
       description: form.get('description')?.toString() || undefined,
       how_to_use: form.get('how_to_use')?.toString() || undefined,

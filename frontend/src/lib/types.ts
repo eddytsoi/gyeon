@@ -16,6 +16,7 @@ export interface Product {
   category_id?: string;
   slug: string;
   name: string;
+  subtitle?: string;
   excerpt?: string;
   description?: string;
   how_to_use?: string;
