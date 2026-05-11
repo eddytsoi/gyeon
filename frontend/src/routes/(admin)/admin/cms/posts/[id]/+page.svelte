@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import MultiSelect from '$lib/components/MultiSelect.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -17,14 +18,22 @@
   let content = $state(p?.content ?? '');
   let coverImageUrl = $state(p?.cover_image_url ?? '');
   let categoryID = $state(p?.category_id ?? '');
-  let extraCategoryIDs = $state<Set<string>>(
-    new Set((p?.category_ids ?? []).filter((id) => id !== p?.category_id))
+  let extraCategoryIDs = $state<string[]>(
+    (p?.category_ids ?? []).filter((id) => id !== p?.category_id)
   );
-  function toggleExtraCategory(id: string) {
-    const next = new Set(extraCategoryIDs);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    extraCategoryIDs = next;
-  }
+  const sortedCategories = $derived(
+    data.categories.toSorted((a, b) => a.sort_order - b.sort_order)
+  );
+  const extraCategoryOptions = $derived(
+    sortedCategories
+      .filter((c) => c.id !== categoryID)
+      .map((c) => ({ value: c.id, label: c.name }))
+  );
+  $effect(() => {
+    if (categoryID && extraCategoryIDs.includes(categoryID)) {
+      extraCategoryIDs = extraCategoryIDs.filter((id) => id !== categoryID);
+    }
+  });
   let isPublished = $state(p?.is_published ?? false);
 
   // Auto-generate slug from title when creating
@@ -154,40 +163,41 @@
           </div>
         </div>
 
-        <!-- Category -->
+        <!-- Categories -->
         {#if data.categories.length > 0}
-          <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div class="bg-white rounded-2xl border border-gray-100">
             <div class="px-6 py-4 border-b border-gray-50">
               <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_post_edit_section_category()}</h3>
             </div>
             <div class="px-6 py-5 space-y-4">
-              <select name="category_id" bind:value={categoryID}
-                      class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                             text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
-                             focus:border-transparent transition bg-white">
-                <option value="">{m.admin_cms_post_edit_no_category()}</option>
-                {#each data.categories.toSorted((a, b) => a.sort_order - b.sort_order) as cat}
-                  <option value={cat.id}>{cat.name}</option>
-                {/each}
-              </select>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {m.admin_cms_post_edit_label_primary_category()}
+                </label>
+                <select name="category_id" bind:value={categoryID}
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
+                               text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
+                               focus:border-transparent transition bg-white">
+                  <option value="">{m.admin_cms_post_edit_no_category()}</option>
+                  {#each sortedCategories as cat}
+                    <option value={cat.id}>{cat.name}</option>
+                  {/each}
+                </select>
+              </div>
               {#if data.categories.length > 1}
-                <div class="flex flex-col gap-2">
+                <div class="flex flex-col gap-1.5">
                   <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {m.admin_cms_post_edit_additional_categories()}
                   </span>
-                  <p class="text-xs text-gray-400">{m.admin_cms_post_edit_additional_categories_hint()}</p>
-                  <div class="flex flex-col gap-1.5">
-                    {#each data.categories.toSorted((a, b) => a.sort_order - b.sort_order).filter((c) => c.id !== categoryID) as cat}
-                      <label class="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm cursor-pointer
-                                    hover:bg-gray-50 transition-colors">
-                        <input type="checkbox" name="category_ids" value={cat.id}
-                               checked={extraCategoryIDs.has(cat.id)}
-                               onchange={() => toggleExtraCategory(cat.id)}
-                               class="rounded border-gray-300 focus:ring-gray-900" />
-                        <span>{cat.name}</span>
-                      </label>
-                    {/each}
-                  </div>
+                  <MultiSelect
+                    options={extraCategoryOptions}
+                    selected={extraCategoryIDs}
+                    placeholder={m.admin_cms_post_edit_additional_categories_placeholder()}
+                    onChange={(values) => (extraCategoryIDs = values)}
+                  />
+                  {#each extraCategoryIDs as id (id)}
+                    <input type="hidden" name="category_ids" value={id} />
+                  {/each}
                 </div>
               {/if}
             </div>
