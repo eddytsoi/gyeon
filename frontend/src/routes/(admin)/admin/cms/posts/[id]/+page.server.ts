@@ -38,6 +38,7 @@ export const actions: Actions = {
       content: (data.get('content') as string) ?? '',
       cover_image_url: (data.get('cover_image_url') as string) || undefined,
       category_id: (data.get('category_id') as string) || undefined,
+      category_ids: data.getAll('category_ids').map((v) => v.toString()).filter(Boolean),
       is_published: data.get('is_published') === 'true'
     };
 

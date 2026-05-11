@@ -14,6 +14,7 @@ export interface Product {
   id: string;
   number: number;
   category_id?: string;
+  category_ids?: string[];
   slug: string;
   name: string;
   subtitle?: string;
@@ -280,6 +281,7 @@ export interface Address {
 export interface CmsPost {
   id: string;
   category_id?: string;
+  category_ids?: string[];
   category_slug?: string;
   category_name?: string;
   slug: string;

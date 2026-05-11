@@ -58,6 +58,7 @@ export const actions: Actions = {
     const kind = form.get('kind')?.toString() ?? 'simple';
     const body = {
       category_id: form.get('category_id')?.toString() || undefined,
+      category_ids: form.getAll('category_ids').map((v) => v.toString()).filter(Boolean),
       slug: form.get('slug')?.toString() ?? '',
       name: form.get('name')?.toString() ?? '',
       subtitle: form.get('subtitle')?.toString() || undefined,
