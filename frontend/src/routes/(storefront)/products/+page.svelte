@@ -185,7 +185,7 @@
   <div class="flex items-end justify-between gap-4 mb-8 md:mb-10">
     <header>
       <Eyebrow class="mb-2">Listing</Eyebrow>
-      <h1 class="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-ink-900 leading-none">
+      <h1 class="font-display text-[1.575rem] md:text-[2.1rem] lg:text-[2.625rem] font-bold tracking-tight text-ink-900 leading-none">
         {m.products_heading_all()}
       </h1>
       <p class="mt-3 text-sm text-ink-500" aria-live="polite">
@@ -280,7 +280,7 @@
       <h2 id="storefront-results-heading" class="sr-only">{m.products_results_section_heading()}</h2>
 
       <!-- Active filter chips + sort row (gyeon-project-design-system §3.2) -->
-      <div class="flex flex-wrap items-center justify-between gap-3 py-4 border-y border-ink-300/60 mb-8">
+      <div class="flex flex-wrap items-center justify-between gap-3 py-4 mb-8">
         <ul class="flex flex-wrap items-center gap-2 min-h-[28px]">
           {#if data.category}
             {@const cat = data.categories.find((c) => c.slug === data.category)}

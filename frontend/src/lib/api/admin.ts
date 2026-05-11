@@ -611,6 +611,33 @@ export interface MediaFile {
 export const adminGetMedia = (token: string) =>
   request<MediaFile[]>('/admin/media', token);
 
+export type AdminMediaType = 'all' | 'image' | 'video' | 'link';
+
+// Paginated variant for the admin media library page. Surfaces X-Total-Count
+// so the page can drive infinite scroll + render an accurate header badge for
+// the current filter. The `adminGetMedia` overload above stays unchanged so
+// media-picker callers (settings, product editor) keep the whole-library fetch.
+export const adminGetMediaPage = async (
+  token: string,
+  opts: { limit: number; offset: number; type?: AdminMediaType },
+  init?: RequestInit
+): Promise<{ items: MediaFile[]; total: number }> => {
+  const qs = new URLSearchParams({
+    limit: String(opts.limit),
+    offset: String(opts.offset)
+  });
+  if (opts.type && opts.type !== 'all') qs.set('type', opts.type);
+  const res = await fetch(`${base()}/admin/media?${qs.toString()}`, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    ...init
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: /admin/media`);
+  const items = (await res.json()) as MediaFile[];
+  const totalHeader = res.headers.get('X-Total-Count');
+  const total = totalHeader != null ? Number(totalHeader) : items.length;
+  return { items, total: Number.isFinite(total) ? total : items.length };
+};
+
 export const adminGetMediaFile = (token: string, id: string) =>
   request<MediaFile>(`/admin/media/${id}`, token);
 

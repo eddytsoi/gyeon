@@ -94,6 +94,48 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	hasPageParams := q.Has("limit") || q.Has("offset") || q.Has("type")
+	if limit <= 0 {
+		// Preserve legacy behavior for callers (settings + product editor
+		// media pickers) that fetch the whole library in one shot.
+		if hasPageParams {
+			limit = 20
+		} else {
+			limit = 200
+		}
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// `type` mirrors the storefront-style filter pushed from the admin media
+	// page: image / video / link / all (or empty). Image matches both
+	// image/* mime types and link rows whose URL has an image extension —
+	// kept in sync with frontend/src/lib/media.ts isImage().
+	typ := strings.ToLower(strings.TrimSpace(q.Get("type")))
+	var where string
+	switch typ {
+	case "image":
+		where = "WHERE (mf.mime_type LIKE 'image/%' OR (mf.mime_type = 'link' AND mf.url ~* '\\.(jpe?g|png|gif|webp|svg|avif|heic|bmp)([?#]|$)'))"
+	case "video":
+		where = "WHERE mf.mime_type LIKE 'video/%'"
+	case "link":
+		where = "WHERE mf.mime_type = 'link'"
+	}
+
+	var total int
+	if err := h.db.QueryRowContext(r.Context(),
+		`SELECT COUNT(*) FROM media_files mf `+where).Scan(&total); err != nil {
+		respond.InternalError(w)
+		return
+	}
+
 	rows, err := h.db.QueryContext(r.Context(), `
 		SELECT mf.id, mf.filename, mf.original_name, mf.mime_type,
 		       mf.size_bytes, mf.url, mf.created_at,
@@ -125,11 +167,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		    FROM cms_posts cp JOIN media_files mf2 ON mf2.url = cp.cover_image_url
 		    WHERE cp.cover_media_file_id IS NULL AND cp.cover_image_url IS NOT NULL
 		) refs ON refs.mf_id = mf.id
+		`+where+`
 		GROUP BY mf.id, mf.filename, mf.original_name, mf.mime_type,
 		         mf.size_bytes, mf.url, mf.created_at, mf.webp_url, mf.webp_size_bytes,
 		         mf.thumbnail_url, mf.thumbnail_size_bytes, mf.video_autoplay, mf.video_fit
 		ORDER BY mf.created_at DESC
-		LIMIT 200`)
+		LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -173,6 +216,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 			go h.EnsureVideoThumbnail(context.Background(), id)
 		}
 	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	respond.JSON(w, http.StatusOK, files)
 }
 
