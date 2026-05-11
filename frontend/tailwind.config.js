@@ -59,6 +59,10 @@ export default {
         'banner':  '16 / 9',
         'card':    '4 / 5',
       },
+      // Storefront/admin shell — bumped from default 80rem (1280px) to 96rem (1536px).
+      maxWidth: {
+        '7xl': '96rem',
+      },
     }
   },
   plugins: []

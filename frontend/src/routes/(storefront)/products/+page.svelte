@@ -16,8 +16,11 @@
   const BATCH_SIZE = 6;
 
   let searchInput = $state(data.q);
-  let minPriceInput = $state(data.minPrice != null ? String(data.minPrice) : '');
-  let maxPriceInput = $state(data.maxPrice != null ? String(data.maxPrice) : '');
+  // Dual-range price slider state. Range = [0, data.priceMax]; an unset upper
+  // bound parks the upper thumb at the maximum (meaning "no upper limit").
+  const PRICE_STEP = 10;
+  let priceLower = $state(data.minPrice ?? 0);
+  let priceUpper = $state(data.maxPrice ?? data.priceMax);
   let mobileFiltersOpen = $state(false);
 
   let items = $state<Product[]>(data.products);
@@ -32,6 +35,12 @@
     hasMore = data.products.length < data.total;
     abortCtl?.abort();
     abortCtl = null;
+  });
+
+  // Re-sync slider when SSR pushes a new URL (back/forward, chip dismissal).
+  $effect(() => {
+    priceLower = data.minPrice ?? 0;
+    priceUpper = data.maxPrice ?? data.priceMax;
   });
 
   function navigate(updater: (params: URLSearchParams) => void) {
@@ -67,17 +76,30 @@
     });
   }
 
-  function applyPrice() {
-    navigate(p => {
-      if (minPriceInput) p.set('min_price', minPriceInput); else p.delete('min_price');
-      if (maxPriceInput) p.set('max_price', maxPriceInput); else p.delete('max_price');
-    });
+  // Debounced commit of slider value → URL. Keeps the thumb feeling instant
+  // while avoiding a navigation per drag tick. Lower/upper at the bounds means
+  // "no constraint" — strip the param so chips/URL don't show a noop filter.
+  let priceTimeout: ReturnType<typeof setTimeout> | undefined;
+  function onPriceInput() {
+    if (priceLower > priceUpper - PRICE_STEP) {
+      priceLower = Math.max(0, priceUpper - PRICE_STEP);
+    }
+    if (priceUpper < priceLower + PRICE_STEP) {
+      priceUpper = Math.min(data.priceMax, priceLower + PRICE_STEP);
+    }
+    clearTimeout(priceTimeout);
+    priceTimeout = setTimeout(() => {
+      navigate(p => {
+        if (priceLower > 0) p.set('min_price', String(priceLower)); else p.delete('min_price');
+        if (priceUpper < data.priceMax) p.set('max_price', String(priceUpper)); else p.delete('max_price');
+      });
+    }, 250);
   }
 
   function clearAll() {
     searchInput = '';
-    minPriceInput = '';
-    maxPriceInput = '';
+    priceLower = 0;
+    priceUpper = data.priceMax;
     goto('/products', { noScroll: true });
   }
 
@@ -248,29 +270,30 @@
         </div>
       </div>
 
-      <!-- Price -->
+      <!-- Price — dual-range slider, real-time, no apply button.
+           Heading + live "HK$X – HK$Y" readout make the price intent explicit. -->
       <div>
-        <h3 class="text-[11px] font-display font-semibold text-navy-500 uppercase tracking-[0.18em] mb-3">
-          {m.products_filter_price()}
+        <h3 class="text-[11px] font-display font-semibold text-navy-500 uppercase tracking-[0.18em] mb-2">
+          {m.products_filter_price()} (HK$)
         </h3>
-        <div class="grid grid-cols-2 gap-2">
-          <input type="number" min="0" step="1" bind:value={minPriceInput}
-                 placeholder={m.products_filter_price_min()}
-                 aria-label={m.products_filter_price_min_aria()}
-                 class="w-full px-2.5 py-1.5 rounded-sm border border-ink-300 text-sm font-body
-                        focus:outline-none focus:ring-2 focus:ring-navy-300" />
-          <input type="number" min="0" step="1" bind:value={maxPriceInput}
-                 placeholder={m.products_filter_price_max()}
-                 aria-label={m.products_filter_price_max_aria()}
-                 class="w-full px-2.5 py-1.5 rounded-sm border border-ink-300 text-sm font-body
-                        focus:outline-none focus:ring-2 focus:ring-navy-300" />
+        <div class="flex items-baseline justify-between mb-3 tabular-nums font-body text-sm text-ink-900">
+          <span aria-live="polite">HK${priceLower}</span>
+          <span class="text-ink-500">–</span>
+          <span aria-live="polite">HK${priceUpper}{priceUpper >= data.priceMax ? '+' : ''}</span>
         </div>
-        <button onclick={applyPrice}
-                class="mt-3 w-full text-[11px] font-display font-bold uppercase tracking-[0.15em]
-                       text-navy-500 px-3 py-2 rounded-sm border border-navy-500
-                       hover:bg-navy-500 hover:text-white transition-colors">
-          {m.products_filter_price_apply()}
-        </button>
+        <div class="dual-range relative h-6 mt-1">
+          <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] bg-ink-300/70 rounded-full"></div>
+          <div class="absolute top-1/2 -translate-y-1/2 h-[3px] bg-navy-500 rounded-full"
+               style="left: {(priceLower / data.priceMax) * 100}%; right: {(1 - priceUpper / data.priceMax) * 100}%"></div>
+          <input type="range" min="0" max={data.priceMax} step={PRICE_STEP}
+                 bind:value={priceLower} oninput={onPriceInput}
+                 aria-label={m.products_filter_price_min_aria()}
+                 class="dual-range-input absolute inset-0 appearance-none bg-transparent pointer-events-none" />
+          <input type="range" min="0" max={data.priceMax} step={PRICE_STEP}
+                 bind:value={priceUpper} oninput={onPriceInput}
+                 aria-label={m.products_filter_price_max_aria()}
+                 class="dual-range-input absolute inset-0 appearance-none bg-transparent pointer-events-none" />
+        </div>
       </div>
 
     </aside>
@@ -307,7 +330,7 @@
           {/if}
           {#if data.minPrice != null || data.maxPrice != null}
             <li>
-              <button onclick={() => { minPriceInput = ''; maxPriceInput = ''; navigate((p) => { p.delete('min_price'); p.delete('max_price'); }); }}
+              <button onclick={() => { priceLower = 0; priceUpper = data.priceMax; navigate((p) => { p.delete('min_price'); p.delete('max_price'); }); }}
                       class="inline-flex items-center gap-1.5 text-[11px] font-display font-semibold uppercase tracking-[0.15em]
                              text-ink-900 px-3 py-1.5 rounded-full bg-paper hover:bg-cream transition-colors tabular-nums">
                 HK${data.minPrice ?? 0}–{data.maxPrice ?? '∞'}
@@ -392,3 +415,39 @@
     </section>
   </div>
 </div>
+
+<style>
+  /*
+   * Dual-range slider — two stacked <input type=range> overlapping so each
+   * thumb is independently draggable. The track itself is rendered by the
+   * sibling div; the inputs are transparent. pointer-events: none on the
+   * input strips, then re-enabled on the thumb so the upper input doesn't
+   * swallow clicks on the lower handle.
+   */
+  .dual-range-input { -webkit-appearance: none; -moz-appearance: none; }
+  .dual-range-input::-webkit-slider-runnable-track { background: transparent; border: 0; height: 100%; }
+  .dual-range-input::-moz-range-track { background: transparent; border: 0; height: 100%; }
+  .dual-range-input::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px; width: 18px; border-radius: 9999px;
+    background: #19253F; /* navy-900 */
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 1px 3px rgba(25,37,63,0.25);
+    cursor: grab; margin-top: 0;
+  }
+  .dual-range-input::-moz-range-thumb {
+    pointer-events: auto;
+    appearance: none;
+    height: 18px; width: 18px; border-radius: 9999px;
+    background: #19253F;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 1px 3px rgba(25,37,63,0.25);
+    cursor: grab;
+  }
+  .dual-range-input:active::-webkit-slider-thumb { cursor: grabbing; }
+  .dual-range-input:active::-moz-range-thumb { cursor: grabbing; }
+  .dual-range-input:focus-visible::-webkit-slider-thumb { outline: 2px solid #285394; outline-offset: 2px; }
+  .dual-range-input:focus-visible::-moz-range-thumb { outline: 2px solid #285394; outline-offset: 2px; }
+</style>

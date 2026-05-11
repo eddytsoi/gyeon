@@ -1,8 +1,9 @@
-import { getCategories, getProductsListPage, type ProductListFilters } from '$lib/api';
+import { getCategories, getProductsFiltered, getProductsListPage, type ProductListFilters } from '$lib/api';
 import type { PageServerLoad } from './$types';
 
 const SORT_VALUES = new Set(['new', 'price_asc', 'price_desc', 'name']);
 const INITIAL_LIMIT = 12;
+const PRICE_BOUND_FLOOR = 100;
 
 function parsePositiveFloat(s: string | null): number | undefined {
   if (!s) return undefined;
@@ -28,10 +29,15 @@ export const load: PageServerLoad = async ({ url }) => {
     sort
   };
 
-  const [page, categories] = await Promise.all([
+  const [page, categories, costliest] = await Promise.all([
     getProductsListPage(filters).catch(() => ({ items: [], total: 0 })),
-    getCategories().catch(() => []).then(r => r ?? [])
+    getCategories().catch(() => []).then(r => r ?? []),
+    // Single most-expensive product (unfiltered) → stable upper bound for the slider.
+    getProductsFiltered({ limit: 1, offset: 0, sort: 'price_desc' }).catch(() => [])
   ]);
+
+  const apiMax = costliest[0]?.min_price ?? 0;
+  const priceMax = Math.max(PRICE_BOUND_FLOOR, Math.ceil(apiMax / 100) * 100);
 
   return {
     products: page.items,
@@ -42,6 +48,7 @@ export const load: PageServerLoad = async ({ url }) => {
     category,
     sort,
     minPrice: minPrice ?? null,
-    maxPrice: maxPrice ?? null
+    maxPrice: maxPrice ?? null,
+    priceMax
   };
 };

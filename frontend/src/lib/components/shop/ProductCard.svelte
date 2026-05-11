@@ -80,7 +80,7 @@
     <!-- Text -->
     <div class="pt-4 flex flex-col gap-1">
       {#if product.subtitle}
-        <p class="font-display text-sm md:text-base font-medium text-ink-900 line-clamp-1 tracking-wide uppercase">
+        <p class="font-display text-[0.7438rem] md:text-[0.85rem] font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
           {product.subtitle}
         </p>
       {/if}
