@@ -121,7 +121,6 @@
                 {/if}
               </span>
               <span class="flex-1 text-gray-800">{opt.label}</span>
-              <span class="text-xs text-gray-400">{opt.value}</span>
             </button>
           </li>
         {:else}
