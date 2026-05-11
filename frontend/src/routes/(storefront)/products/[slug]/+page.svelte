@@ -304,7 +304,7 @@
       <!-- LEFT: Image Gallery -->
       <div class="flex flex-col gap-4">
         <div
-          class="aspect-[4/3] lg:aspect-[5/4] rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100"
+          class="aspect-square rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100"
           ontouchstart={onTouchStart}
           ontouchend={onTouchEnd}
           ontouchcancel={onTouchCancel}
