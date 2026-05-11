@@ -21,33 +21,32 @@
       ? Math.round((1 - variant.price / variant.compare_at_price!) * 100)
       : 0
   );
+
+  const soldOut = $derived(variant != null && variant.stock_qty === 0);
 </script>
 
-<div class="group relative flex flex-col rounded-2xl overflow-hidden bg-white border border-gray-100
-            hover:shadow-md transition-shadow duration-200">
-  <!-- Card body is one link; wishlist button below is a sibling so it isn't
-       a forbidden interactive descendant of the <a>. -->
-  <a href="/products/{product.slug}" class="flex flex-col flex-1">
-    <!-- Image -->
-    <div class="aspect-square bg-gray-50 overflow-hidden">
+<div class="group relative flex flex-col">
+  <a href="/products/{product.slug}" class="flex flex-col">
+    <!-- Square media -->
+    <div class="relative aspect-square bg-paper overflow-hidden rounded-lg">
       {#if image}
         {#if isVideo(image) && !isStreamingVideo(image) && !image.thumbnail_url}
           <video src={image.url} muted playsinline preload="metadata"
-                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                 class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]">
           </video>
         {:else if isStreamingVideo(image) && !image.thumbnail_url}
-          <div class="w-full h-full flex items-center justify-center bg-gray-100">
-            <svg class="w-12 h-12 text-gray-300" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <div class="w-full h-full flex items-center justify-center bg-paper">
+            <svg class="w-12 h-12 text-ink-300" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75 5.25 3.75-5.25 3.75v-7.5Z" />
             </svg>
           </div>
         {:else}
           <img src={image.thumbnail_url ?? image.url} alt={image.alt_text ?? product.name}
                {loading} {fetchpriority} decoding="async"
-               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+               class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
         {/if}
       {:else}
-        <div class="w-full h-full flex items-center justify-center text-gray-300">
+        <div class="w-full h-full flex items-center justify-center text-ink-300">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" aria-hidden="true" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -59,38 +58,56 @@
           </svg>
         </div>
       {/if}
+
+      <!-- Discount chip — square, navy, top-right -->
+      {#if hasDiscount}
+        <span class="absolute top-3 right-3 inline-flex items-center justify-center
+                     w-12 h-12 bg-navy-500 text-white font-display font-bold text-sm
+                     rounded-sm tabular-nums">
+          {m.product_card_discount_pct({ pct: discountPct })}
+        </span>
+      {/if}
+
+      <!-- Sold-out pill — bottom-left -->
+      {#if soldOut}
+        <span class="absolute bottom-3 left-3 px-2.5 py-1 bg-white/95 text-ink-900
+                     text-[11px] uppercase tracking-[0.15em] font-semibold rounded-sm">
+          {m.product_card_out_of_stock()}
+        </span>
+      {/if}
     </div>
 
-    <!-- Info -->
-    <div class="p-4 flex flex-col gap-1 flex-1">
-      <h3 class="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-gray-600
-                 transition-colors">
+    <!-- Text -->
+    <div class="pt-4 flex flex-col gap-1">
+      {#if product.subtitle}
+        <p class="font-display text-sm md:text-base font-medium text-ink-900 line-clamp-1 tracking-wide uppercase">
+          {product.subtitle}
+        </p>
+      {/if}
+      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors">
         {product.name}
       </h3>
 
       {#if variant}
-        <div class="mt-auto flex items-center gap-2 pt-2">
-          <span class="font-semibold text-gray-900">
+        <div class="mt-1 flex items-baseline gap-2">
+          <span class="font-display text-base md:text-lg font-bold tabular-nums text-ink-900">
             HK${variant.price.toFixed(2)}
           </span>
           {#if hasDiscount}
-            <span class="text-sm text-gray-500 line-through">
+            <span class="text-sm font-body line-through tabular-nums text-ink-500">
               HK${variant.compare_at_price!.toFixed(2)}
             </span>
-            <span class="text-xs font-medium text-red-600">{m.product_card_discount_pct({ pct: discountPct })}</span>
           {/if}
         </div>
-        {#if variant.stock_qty === 0}
-          <span class="text-xs text-gray-500">{m.product_card_out_of_stock()}</span>
-        {/if}
       {:else}
-        <span class="mt-auto text-sm text-gray-500 pt-2">{m.product_card_no_variants()}</span>
+        <span class="mt-1 text-sm text-ink-500">{m.product_card_no_variants()}</span>
       {/if}
     </div>
   </a>
 
-  <!-- Wishlist heart (overlay sibling — not nested inside the link) -->
-  <div class="absolute top-2 right-2 z-10">
+  <!-- Wishlist heart — top-left, ghost, hover-revealed (always visible on touch) -->
+  <div class="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
+       data-hover-only>
     <WishlistButton productID={product.id} variant="icon" />
   </div>
 </div>

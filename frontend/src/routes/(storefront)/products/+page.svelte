@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import ProductCard from '$lib/components/shop/ProductCard.svelte';
   import ProductCardSkeleton from '$lib/components/shop/ProductCardSkeleton.svelte';
+  import Eyebrow from '$lib/components/shop/Eyebrow.svelte';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
   import { siteOrigin } from '$lib/seo';
@@ -180,10 +181,21 @@
   canonical={`${siteOrigin(page.data.publicSettings)}/products`}
 />
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-  <div class="flex items-center justify-between gap-4 mb-6">
-    <h1 class="text-3xl font-bold text-gray-900">{m.products_heading_all()}</h1>
-    <button class="md:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-300 text-sm"
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+  <div class="flex items-end justify-between gap-4 mb-8 md:mb-10">
+    <header>
+      <Eyebrow class="mb-2">Listing</Eyebrow>
+      <h1 class="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-ink-900 leading-none">
+        {m.products_heading_all()}
+      </h1>
+      <p class="mt-3 text-sm text-ink-500" aria-live="polite">
+        {data.total === 1 ? m.products_count_one({ count: data.total }) : m.products_count_many({ count: data.total })}
+      </p>
+      <div class="mt-4 h-px w-12 bg-navy-500"></div>
+    </header>
+    <button class="md:hidden inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-ink-300
+                   text-[11px] font-display font-semibold uppercase tracking-[0.15em] text-ink-900
+                   hover:border-navy-500 hover:text-navy-500 transition-colors"
             onclick={() => (mobileFiltersOpen = !mobileFiltersOpen)}
             aria-label={m.products_filters_button_aria()}
             aria-expanded={mobileFiltersOpen}
@@ -193,8 +205,8 @@
   </div>
 
   <!-- Search bar -->
-  <div class="relative mb-6">
-    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+  <div class="relative mb-8">
+    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500"
          aria-hidden="true"
          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
       <path stroke-linecap="round" stroke-linejoin="round"
@@ -203,31 +215,33 @@
     <input type="search" bind:value={searchInput} oninput={onSearchInput}
            placeholder={m.products_search_placeholder()}
            aria-label={m.products_search_aria()}
-           class="w-full pl-10 pr-4 py-3 rounded-full border border-gray-200 bg-white text-sm
-                  focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+           class="w-full pl-10 pr-4 py-3 rounded-md border border-ink-300 bg-white text-sm font-body
+                  focus:outline-none focus:ring-2 focus:ring-navy-300 focus:border-transparent" />
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8">
+  <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 lg:gap-12">
     <!-- Filters -->
     <aside id="storefront-product-filters"
            aria-labelledby="storefront-filters-heading"
-           class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-6">
+           class="{mobileFiltersOpen ? 'block' : 'hidden'} md:block space-y-8">
       <h2 id="storefront-filters-heading" class="sr-only">{m.products_filters_section_heading()}</h2>
       <!-- Category -->
       <div>
-        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.products_filter_category()}</h3>
-        <div class="space-y-1.5">
+        <h3 class="text-[11px] font-display font-semibold text-navy-500 uppercase tracking-[0.18em] mb-3">
+          {m.products_filter_category()}
+        </h3>
+        <div class="space-y-1">
           <button onclick={() => onCategoryChange('')}
                   aria-pressed={data.category === ''}
-                  class="block w-full text-left text-sm px-2 py-1 rounded
-                         {data.category === '' ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
+                  class="block w-full text-left text-sm font-body py-1.5 transition-colors
+                         {data.category === '' ? 'font-semibold text-navy-500' : 'text-ink-900/80 hover:text-navy-500'}">
             {m.products_filter_category_all()}
           </button>
           {#each data.categories.filter(c => c.is_active) as cat}
             <button onclick={() => onCategoryChange(cat.slug)}
                     aria-pressed={data.category === cat.slug}
-                    class="block w-full text-left text-sm px-2 py-1 rounded
-                           {data.category === cat.slug ? 'font-semibold text-gray-900' : 'text-gray-600 hover:text-gray-900'}">
+                    class="block w-full text-left text-sm font-body py-1.5 transition-colors
+                           {data.category === cat.slug ? 'font-semibold text-navy-500' : 'text-ink-900/80 hover:text-navy-500'}">
               {cat.name}
             </button>
           {/each}
@@ -236,51 +250,95 @@
 
       <!-- Price -->
       <div>
-        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.products_filter_price()}</h3>
+        <h3 class="text-[11px] font-display font-semibold text-navy-500 uppercase tracking-[0.18em] mb-3">
+          {m.products_filter_price()}
+        </h3>
         <div class="grid grid-cols-2 gap-2">
           <input type="number" min="0" step="1" bind:value={minPriceInput}
                  placeholder={m.products_filter_price_min()}
                  aria-label={m.products_filter_price_min_aria()}
-                 class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                 class="w-full px-2.5 py-1.5 rounded-sm border border-ink-300 text-sm font-body
+                        focus:outline-none focus:ring-2 focus:ring-navy-300" />
           <input type="number" min="0" step="1" bind:value={maxPriceInput}
                  placeholder={m.products_filter_price_max()}
                  aria-label={m.products_filter_price_max_aria()}
-                 class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                 class="w-full px-2.5 py-1.5 rounded-sm border border-ink-300 text-sm font-body
+                        focus:outline-none focus:ring-2 focus:ring-navy-300" />
         </div>
         <button onclick={applyPrice}
-                class="mt-2 w-full text-xs font-medium text-gray-700 px-3 py-1.5 rounded-lg
-                       border border-gray-200 hover:bg-gray-50">
+                class="mt-3 w-full text-[11px] font-display font-bold uppercase tracking-[0.15em]
+                       text-navy-500 px-3 py-2 rounded-sm border border-navy-500
+                       hover:bg-navy-500 hover:text-white transition-colors">
           {m.products_filter_price_apply()}
         </button>
       </div>
 
-      {#if hasFilters}
-        <button onclick={clearAll}
-                class="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2">
-          {m.products_filter_clear_all()}
-        </button>
-      {/if}
     </aside>
 
     <!-- Results -->
     <section aria-labelledby="storefront-results-heading">
       <h2 id="storefront-results-heading" class="sr-only">{m.products_results_section_heading()}</h2>
-      <div class="flex items-center justify-between mb-4">
-        <p class="text-sm text-gray-500" aria-live="polite">
-          {data.total === 1 ? m.products_count_one({ count: data.total }) : m.products_count_many({ count: data.total })}
-        </p>
-        <select value={data.sort ?? 'new'}
-                onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
-                aria-label={m.products_sort_aria()}
-                class="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm
-                       focus:outline-none focus:ring-2 focus:ring-gray-900">
-          <option value="new">{m.products_sort_new()}</option>
-          <option value="price_asc">{m.products_sort_price_asc()}</option>
-          <option value="price_desc">{m.products_sort_price_desc()}</option>
-          <option value="name">{m.products_sort_name()}</option>
-        </select>
+
+      <!-- Active filter chips + sort row (gyeon-project-design-system §3.2) -->
+      <div class="flex flex-wrap items-center justify-between gap-3 py-4 border-y border-ink-300/60 mb-8">
+        <ul class="flex flex-wrap items-center gap-2 min-h-[28px]">
+          {#if data.category}
+            {@const cat = data.categories.find((c) => c.slug === data.category)}
+            <li>
+              <button onclick={() => onCategoryChange('')}
+                      class="inline-flex items-center gap-1.5 text-[11px] font-display font-semibold uppercase tracking-[0.15em]
+                             text-ink-900 px-3 py-1.5 rounded-full bg-paper hover:bg-cream transition-colors">
+                {cat?.name ?? data.category}
+                <span aria-hidden="true" class="text-ink-500">×</span>
+                <span class="sr-only">Remove filter</span>
+              </button>
+            </li>
+          {/if}
+          {#if data.q}
+            <li>
+              <button onclick={() => { searchInput = ''; navigate((p) => p.delete('q')); }}
+                      class="inline-flex items-center gap-1.5 text-[11px] font-display font-semibold uppercase tracking-[0.15em]
+                             text-ink-900 px-3 py-1.5 rounded-full bg-paper hover:bg-cream transition-colors">
+                "{data.q}"
+                <span aria-hidden="true" class="text-ink-500">×</span>
+                <span class="sr-only">Remove search</span>
+              </button>
+            </li>
+          {/if}
+          {#if data.minPrice != null || data.maxPrice != null}
+            <li>
+              <button onclick={() => { minPriceInput = ''; maxPriceInput = ''; navigate((p) => { p.delete('min_price'); p.delete('max_price'); }); }}
+                      class="inline-flex items-center gap-1.5 text-[11px] font-display font-semibold uppercase tracking-[0.15em]
+                             text-ink-900 px-3 py-1.5 rounded-full bg-paper hover:bg-cream transition-colors tabular-nums">
+                HK${data.minPrice ?? 0}–{data.maxPrice ?? '∞'}
+                <span aria-hidden="true" class="text-ink-500">×</span>
+                <span class="sr-only">Remove price range</span>
+              </button>
+            </li>
+          {/if}
+          {#if hasFilters}
+            <li>
+              <button onclick={clearAll}
+                      class="text-[11px] font-display font-semibold uppercase tracking-[0.15em]
+                             text-navy-500 hover:text-navy-700 underline underline-offset-4 px-1">
+                {m.products_filter_clear_all()}
+              </button>
+            </li>
+          {/if}
+        </ul>
+        <div class="flex items-center gap-3">
+          <span class="text-[11px] font-display uppercase tracking-[0.15em] text-ink-500">Sort</span>
+          <select value={data.sort ?? 'new'}
+                  onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
+                  aria-label={m.products_sort_aria()}
+                  class="font-display font-medium text-sm border-0 bg-transparent
+                         focus:outline-none focus:ring-0 cursor-pointer text-ink-900">
+            <option value="new">{m.products_sort_new()}</option>
+            <option value="price_asc">{m.products_sort_price_asc()}</option>
+            <option value="price_desc">{m.products_sort_price_desc()}</option>
+            <option value="name">{m.products_sort_name()}</option>
+          </select>
+        </div>
       </div>
 
       <!-- Polite live announcement: screen readers hear when a new batch
@@ -294,36 +352,38 @@
       </div>
 
       {#if items.length === 0 && !loadingMore}
-        <div class="text-center py-24 text-gray-500">
+        <div class="text-center py-24 text-ink-500">
           {#if data.q}
-            <p class="text-base">{m.products_no_match({ query: data.q })}</p>
+            <p class="text-base font-body">{m.products_no_match({ query: data.q })}</p>
           {:else}
-            <p class="text-base">{m.products_empty()}</p>
+            <p class="text-base font-body">{m.products_empty()}</p>
           {/if}
           {#if hasFilters}
             <button onclick={clearAll}
-                    class="mt-4 text-sm text-gray-700 underline underline-offset-2">
+                    class="mt-4 text-sm text-navy-500 underline underline-offset-4">
               {m.products_filter_clear_all()}
             </button>
           {/if}
         </div>
       {:else}
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 md:gap-6">
+        <ul class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-10 md:gap-x-6 md:gap-y-12">
           {#each items as p, i (p.id)}
-            <ProductCard
-              product={p}
-              image={imageOf(p)}
-              variant={variantOf(p)}
-              loading={i < 3 ? 'eager' : 'lazy'}
-              fetchpriority={i < 3 ? 'high' : 'auto'}
-            />
+            <li>
+              <ProductCard
+                product={p}
+                image={imageOf(p)}
+                variant={variantOf(p)}
+                loading={i < 3 ? 'eager' : 'lazy'}
+                fetchpriority={i < 3 ? 'high' : 'auto'}
+              />
+            </li>
           {/each}
           {#if loadingMore}
             {#each Array(BATCH_SIZE) as _, i (`sk-${i}`)}
-              <ProductCardSkeleton />
+              <li><ProductCardSkeleton /></li>
             {/each}
           {/if}
-        </div>
+        </ul>
 
         {#if hasMore}
           <div bind:this={sentinel} class="h-1 mt-8" aria-hidden="true"></div>

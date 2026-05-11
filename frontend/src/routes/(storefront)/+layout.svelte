@@ -2,6 +2,7 @@
   import '../../app.css';
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
+  import AnnouncementStrip from '$lib/components/shop/AnnouncementStrip.svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { registerStorefrontTools } from '$lib/webmcp';
@@ -43,7 +44,8 @@
   {m.a11y_skip_to_content()}
 </a>
 
-<div class="min-h-screen flex flex-col bg-gray-50">
+<div class="min-h-screen flex flex-col bg-white">
+  <AnnouncementStrip settings={data.publicSettings ?? []} />
   <Header navItems={data.headerNav?.items ?? []} customer={data.customer} />
   <main id="main-content" tabindex="-1" class="flex-1">
     {@render children()}

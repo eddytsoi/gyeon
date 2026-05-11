@@ -10,6 +10,8 @@
   import { siteOrigin, snippet } from '$lib/seo';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
+  import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
+  import StickyAddToCart from '$lib/components/shop/StickyAddToCart.svelte';
   import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
   import { trackViewItem, trackAddToCart } from '$lib/tracker';
   import { renderMarkdown } from '$lib/markdown';
@@ -241,6 +243,10 @@
   let adding = $state(false);
   let added = $state(false);
 
+  // DOM refs for the sticky-cart visibility observer (StickyAddToCart §4.8).
+  let summaryEl = $state<HTMLDivElement | undefined>();
+  let ctaEl = $state<HTMLDivElement | undefined>();
+
   const inStock = $derived((selectedVariant?.stock_qty ?? 0) > 0);
   const hasDiscount = $derived(
     selectedVariant?.compare_at_price != null &&
@@ -286,25 +292,25 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
 
     <!-- Breadcrumb -->
-    <nav class="flex gap-2 items-center text-[11px] uppercase tracking-[0.15em] text-gray-400 mb-10">
-      <a href="/" class="hover:text-gray-700 transition-colors">{m.common_home()}</a>
-      <span>/</span>
-      <a href="/products" class="hover:text-gray-700 transition-colors">{m.common_products()}</a>
+    <nav class="flex flex-wrap gap-2 items-center text-[11px] font-display uppercase tracking-[0.15em] text-ink-500 mb-10">
+      <a href="/" class="hover:text-navy-500 transition-colors">{m.common_home()}</a>
+      <span aria-hidden="true">/</span>
+      <a href="/products" class="hover:text-navy-500 transition-colors">{m.common_products()}</a>
       {#if data.category}
-        <span>/</span>
+        <span aria-hidden="true">/</span>
         <a href="/products/category/{data.category.slug}"
-           class="hover:text-gray-700 transition-colors">{data.category.name}</a>
+           class="hover:text-navy-500 transition-colors">{data.category.name}</a>
       {/if}
-      <span>/</span>
-      <span class="font-semibold" style="color: rgb(25,37,63)">{data.product.name}</span>
+      <span aria-hidden="true">/</span>
+      <span class="font-semibold text-navy-900 truncate max-w-[60vw]">{data.product.name}</span>
     </nav>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-12 lg:gap-20 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16 items-start">
 
       <!-- LEFT: Image Gallery -->
       <div class="flex flex-col gap-4">
         <div
-          class="aspect-square rounded-3xl overflow-hidden bg-gray-50 relative group border border-gray-100"
+          class="aspect-square rounded-lg overflow-hidden bg-paper relative group"
           ontouchstart={onTouchStart}
           ontouchend={onTouchEnd}
           ontouchcancel={onTouchCancel}
@@ -387,10 +393,10 @@
           {/if}
 
           {#if hasDiscount}
-            <div class="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide text-white"
-                 style="background: rgb(51,73,119)">
+            <span class="absolute top-4 right-4 z-10 inline-flex items-center justify-center
+                         w-12 h-12 bg-navy-500 text-white font-display font-bold text-sm rounded-sm tabular-nums">
               −{discountPct}%
-            </div>
+            </span>
           {/if}
 
           {#if imageCount > 1}
@@ -399,9 +405,9 @@
               onclick={goPrev}
               aria-label={m.common_aria_previous_image()}
               class="hidden md:flex absolute left-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
-                     rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                     hover:bg-white hover:text-gray-900"
+                     rounded-full bg-white/90 backdrop-blur text-ink-900 shadow-card
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-gy
+                     hover:bg-white hover:text-navy-500"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -412,9 +418,9 @@
               onclick={goNext}
               aria-label={m.common_aria_next_image()}
               class="hidden md:flex absolute right-3 top-1/2 z-10 -translate-y-1/2 w-10 h-10 items-center justify-center
-                     rounded-full bg-white/80 backdrop-blur text-gray-700 shadow-sm
-                     opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                     hover:bg-white hover:text-gray-900"
+                     rounded-full bg-white/90 backdrop-blur text-ink-900 shadow-card
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-gy
+                     hover:bg-white hover:text-navy-500"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -431,9 +437,8 @@
                 onclick={() => (activeImageID = img.id)}
                 aria-label={m.common_aria_go_to_image({ n: i + 1 })}
                 aria-current={activeIndex === i ? 'true' : undefined}
-                class="h-1.5 rounded-full transition-all
-                       {activeIndex === i ? 'w-6' : 'w-1.5 bg-gray-300 hover:bg-gray-400'}"
-                style={activeIndex === i ? 'background: rgb(51,73,119)' : ''}
+                class="h-1.5 rounded-full transition-all duration-300 ease-gy
+                       {activeIndex === i ? 'w-6 bg-navy-500' : 'w-1.5 bg-ink-300 hover:bg-ink-500'}"
               ></button>
             {/each}
           </div>
@@ -444,13 +449,10 @@
             {#each data.images as img}
               <button
                 onclick={() => (activeImageID = img.id)}
-                class="relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all
+                class="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-all duration-200 ease-gy
                        {(activeImageID === img.id || (!activeImageID && img.is_primary))
-                         ? 'opacity-100'
+                         ? 'opacity-100 border-navy-500'
                          : 'border-transparent opacity-50 hover:opacity-80'}"
-                style={(activeImageID === img.id || (!activeImageID && img.is_primary))
-                  ? 'border-color: rgb(51,73,119)'
-                  : ''}
               >
                 {#if isVideo(img)}
                   {#if img.thumbnail_url}
@@ -472,70 +474,77 @@
         {/if}
       </div>
 
-      <!-- RIGHT: Product Info -->
-      <div class="flex flex-col gap-7 lg:pt-2">
+      <!-- RIGHT: Product Info (sticky on lg+) -->
+      <div class="flex flex-col gap-6 lg:pt-2 lg:sticky lg:top-24 lg:self-start"
+           bind:this={summaryEl}>
 
-        <!-- Category label -->
+        <!-- Category eyebrow chip -->
         {#if data.category}
-          <span class="text-[11px] font-bold uppercase tracking-[0.25em]"
-                style="color: rgb(51,73,119)">
+          <a href="/products/category/{data.category.slug}"
+             class="self-start inline-flex items-center gap-1 text-[11px] font-display font-semibold uppercase
+                    tracking-[0.15em] text-navy-500 bg-paper hover:bg-cream
+                    px-2.5 py-1 rounded-sm transition-colors">
             {data.category.name}
-          </span>
+          </a>
         {/if}
 
-        <!-- Name -->
-        <h1 class="text-4xl lg:text-5xl font-black tracking-tight leading-[1.05] text-gray-900">
+        <!-- Name (compressed display, clamp 28-44px) -->
+        <h1 class="font-display text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.05] text-ink-900">
           {data.product.name}
         </h1>
 
-        <!-- Subtitle -->
+        <!-- Subtitle in navy -->
         {#if data.product.subtitle}
-          <p class="text-base lg:text-lg font-medium text-gray-600 -mt-3 leading-snug">
+          <p class="text-base md:text-lg font-display font-medium text-navy-500 leading-snug -mt-3">
             {data.product.subtitle}
-          </p>
-        {/if}
-
-        <!-- Excerpt -->
-        {#if data.product.excerpt}
-          <p class="text-gray-500 leading-relaxed text-sm max-w-md">
-            {data.product.excerpt}
           </p>
         {/if}
 
         <!-- Price -->
         {#if selectedVariant}
-          <div class="flex items-baseline gap-3">
-            <span class="text-3xl font-bold tracking-tight text-gray-900">
+          <div class="flex items-baseline gap-3 flex-wrap">
+            <span class="font-display text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-ink-900">
               HK${selectedVariant.price.toFixed(2)}
             </span>
             {#if hasDiscount}
-              <span class="text-lg text-gray-400 line-through">
+              <span class="font-body text-base md:text-lg line-through tabular-nums text-ink-500">
                 HK${selectedVariant.compare_at_price!.toFixed(2)}
+              </span>
+              <span class="text-[11px] font-display font-bold uppercase tracking-[0.15em] text-navy-500 tabular-nums">
+                −{discountPct}% off
               </span>
             {/if}
           </div>
         {/if}
 
-        <div class="border-t border-gray-100"></div>
+        <!-- Excerpt (body) -->
+        {#if data.product.excerpt}
+          <p class="font-body text-base leading-[1.75] text-ink-900/85 max-w-md">
+            {data.product.excerpt}
+          </p>
+        {/if}
+
+        <div class="border-t border-ink-300/60"></div>
 
         <!-- Variant selector -->
         {#if data.variants.length > 0}
           <div>
-            <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-3">
+            <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-3">
               {data.variants.length > 1 ? m.product_detail_options_label_multi() : m.product_detail_options_label_single()}
             </p>
             <div class="flex flex-wrap gap-2">
               {#each data.variants as v}
+                {@const isSelected = selectedVariant?.id === v.id}
+                {@const isAvailable = v.stock_qty > 0}
                 <button
                   onclick={() => selectVariant(v.id, v.sku)}
-                  disabled={v.stock_qty === 0}
-                  class="px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all
-                         {v.stock_qty === 0 ? 'opacity-25 cursor-not-allowed line-through border-gray-200 text-gray-400' : ''}"
-                  style={selectedVariant?.id === v.id
-                    ? 'border-color: rgb(51,73,119); background: rgb(51,73,119); color: white'
-                    : v.stock_qty > 0
-                      ? 'border-color: #e5e7eb; color: #374151'
-                      : ''}
+                  disabled={!isAvailable}
+                  class="px-4 py-2.5 rounded-xl font-display text-sm font-bold border-2 transition-all duration-200 ease-gy
+                         {isSelected
+                           ? 'bg-navy-500 border-navy-500 text-white'
+                           : isAvailable
+                             ? 'border-ink-300 text-ink-900 hover:border-navy-500'
+                             : 'opacity-40 cursor-not-allowed line-through border-ink-300 text-ink-500'}"
                 >
                   {(() => {
                     const n = v.name?.trim();
@@ -554,17 +563,16 @@
         <!-- Bundle contents (above qty + CTA) -->
         {#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
           <div>
-            <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-3">
+            <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-3">
               {m.product_detail_bundle_heading()}
             </p>
             <ul class="flex flex-col gap-2">
               {#each data.bundleItems as item}
-                <li class="flex items-center gap-3 text-sm">
-                  <span class="inline-flex items-center justify-center min-w-[2rem] h-6 px-1.5 rounded-md text-xs font-bold text-white"
-                        style="background: rgb(51,73,119)">
+                <li class="flex items-center gap-3 text-sm font-body">
+                  <span class="inline-flex items-center justify-center min-w-[2rem] h-6 px-1.5 rounded-sm font-display text-xs font-bold text-white bg-navy-500 tabular-nums">
                     {item.quantity}×
                   </span>
-                  <span class="text-gray-800 truncate">
+                  <span class="text-ink-900 truncate">
                     {item.display_name_override || item.component_product_name || item.component_sku}
                   </span>
                 </li>
@@ -574,34 +582,35 @@
         {/if}
 
         <!-- Qty + CTA -->
-        <div class="flex gap-3">
-          <div class="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+        <div class="flex gap-3" bind:this={ctaEl}>
+          <div class="flex items-center border-2 border-ink-300 rounded-xl overflow-hidden bg-white">
             <button
               type="button"
               onclick={() => (qty = Math.max(1, qty - 1))}
               aria-label={m.common_aria_decrease_quantity()}
               disabled={qty <= 1}
-              class="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
+              class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
+                     disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg"
             >−</button>
-            <span class="w-10 text-center text-sm font-semibold text-gray-900" aria-live="polite">{qty}</span>
+            <span class="w-10 text-center font-display text-sm font-bold text-ink-900 tabular-nums" aria-live="polite">{qty}</span>
             <button
               type="button"
               onclick={() => (qty = qty + 1)}
               aria-label={m.common_aria_increase_quantity()}
-              class="w-11 h-11 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-lg"
+              class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
+                     transition-colors text-lg"
             >+</button>
           </div>
 
           <button
             onclick={addToCart}
             disabled={!inStock || adding}
-            class="flex-1 py-3 px-6 rounded-xl font-bold text-sm tracking-widest uppercase transition-all text-white
-                   {!inStock ? 'cursor-not-allowed opacity-40' : 'active:scale-[0.98]'}"
-            style={inStock
-              ? added
-                ? 'background: #16a34a'
-                : 'background: rgb(51,73,119)'
-              : 'background: #9ca3af'}
+            class="flex-1 h-12 px-6 rounded-md font-display font-bold text-sm tracking-[0.1em] uppercase transition-all duration-200 ease-gy text-white
+                   {!inStock
+                     ? 'bg-ink-300 cursor-not-allowed'
+                     : added
+                       ? 'bg-success'
+                       : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
           >
             {#if !inStock}
               {m.product_detail_out_of_stock()}
@@ -615,28 +624,33 @@
           </button>
         </div>
 
+        <!-- Stock + dispatch line -->
         {#if inStock && selectedVariant}
-          <p class="text-xs text-gray-400">{m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}</p>
+          <p class="text-xs font-body text-ink-500 -mt-2">
+            <span class="text-success font-semibold">●</span>
+            {m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}
+          </p>
         {/if}
 
         <WishlistButton productID={data.product.id} variant="full" class="w-full sm:w-auto" />
 
-        <!-- Trust strip -->
-        <div class="flex flex-wrap gap-5 pt-1 border-t border-gray-100">
+        <!-- Trust strip — three column promises -->
+        <ul class="grid grid-cols-3 gap-4 pt-6 border-t border-ink-300/60">
           {#each [
             { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: m.product_detail_trust_genuine() },
             { icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: m.product_detail_trust_shipping() },
             { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', label: m.product_detail_trust_returns() }
           ] as t}
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                   style="color: rgb(113,135,183)">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={t.icon} />
+            <li class="flex flex-col items-center text-center gap-1.5">
+              <svg class="w-5 h-5 text-navy-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={t.icon} />
               </svg>
-              {t.label}
-            </div>
+              <span class="text-[11px] font-display font-semibold uppercase tracking-[0.12em] text-ink-900">
+                {t.label}
+              </span>
+            </li>
           {/each}
-        </div>
+        </ul>
 
       </div>
     </div>
@@ -644,150 +658,188 @@
 </div>
 
 
-<!-- ── SPECS STRIP ────────────────────────────────────────────────── -->
-<div class="bg-[rgb(25,37,63)]">
+<!-- ── SPECS STRIP — gyeon-project-design-system §4.5 ──────────── -->
+<div class="bg-navy-900">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10">
       {#each [
-        { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z', label: m.product_detail_specs_variants(), value: data.variants.length > 0 ? (data.variants.length > 1 ? m.product_detail_specs_sizes_many({ count: data.variants.length }) : m.product_detail_specs_sizes_one({ count: data.variants.length })) : m.product_detail_specs_dash() },
-        { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', label: m.product_detail_specs_availability(), value: inStock ? m.product_detail_specs_in_stock() : m.product_detail_specs_out_of_stock() },
-        { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', label: m.product_detail_specs_coverage(), value: m.product_detail_specs_dash() },
-        { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', label: m.product_detail_specs_durability(), value: m.product_detail_specs_dash() }
+        { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+          label: m.product_detail_specs_variants(),
+          caption: 'SIZE OPTIONS',
+          value: data.variants.length > 0
+            ? (data.variants.length > 1
+                ? m.product_detail_specs_sizes_many({ count: data.variants.length })
+                : m.product_detail_specs_sizes_one({ count: data.variants.length }))
+            : m.product_detail_specs_dash() },
+        { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z',
+          label: m.product_detail_specs_availability(),
+          caption: 'AVAILABILITY',
+          value: inStock ? m.product_detail_specs_in_stock() : m.product_detail_specs_out_of_stock() },
+        { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3',
+          label: m.product_detail_specs_coverage(),
+          caption: 'COVERAGE',
+          value: m.product_detail_specs_dash() },
+        { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+          label: m.product_detail_specs_durability(),
+          caption: 'DURABILITY',
+          value: m.product_detail_specs_dash() }
       ] as spec}
-        <div class="bg-[rgb(25,37,63)] flex flex-col items-center gap-2 py-6 px-4 sm:py-8 sm:px-6 text-center">
-          <svg class="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-navy-900 flex flex-col items-center gap-2 py-8 px-4 sm:py-10 sm:px-6 text-center">
+          <svg class="w-7 h-7 text-amber-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={spec.icon} />
           </svg>
-          <span class="text-xl font-bold text-white">{spec.value}</span>
-          <span class="text-[11px] uppercase tracking-widest text-white/50">{spec.label}</span>
+          <span class="font-display text-2xl md:text-3xl font-bold text-white">{spec.value}</span>
+          <span class="font-display text-sm font-medium text-white/85">{spec.label}</span>
+          <span class="text-[10px] font-display font-semibold uppercase tracking-[0.18em] text-white/40">{spec.caption}</span>
         </div>
       {/each}
     </div>
   </div>
 </div>
 
-<!-- ── TABS ───────────────────────────────────────────────────────── -->
+<!-- ── TABS (md+) / ACCORDION (mobile) — gyeon-project-design-system §4.6 -->
 {#if availableTabs.length > 0}
   {@const tabLabels: Record<TabId, string> = {
     content:  m.product_detail_tab_content(),
     howto:    m.product_detail_tab_howto(),
     surfaces: m.product_detail_tab_surfaces()
   }}
+  {@const allSurfaces = [
+    { key: 'paint',   name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
+    { key: 'glass',   name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
+    { key: 'wheels',  name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { key: 'leather', name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+    { key: 'trim',    name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
+    { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
+  ]}
+  {@const selected = new Set(data.product.compatible_surfaces ?? [])}
+
   <div class="bg-white">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
 
-      <div class="flex gap-0 border-b border-gray-200 mb-10" role="tablist" onkeydown={onTabKeydown}>
-        {#each availableTabs as id}
-          <button
-            type="button"
-            role="tab"
-            id="pdp-tab-{id}"
-            aria-selected={activeTab === id}
-            aria-controls="pdp-panel-{id}"
-            tabindex={activeTab === id ? 0 : -1}
-            bind:this={tabButtons[id]}
-            onclick={() => (activeTab = id)}
-            class="px-6 py-4 text-sm font-semibold uppercase tracking-widest border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
-            style={activeTab === id
-              ? 'border-color: rgb(51,73,119); color: rgb(25,37,63)'
-              : 'border-color: transparent; color: #9ca3af'}
-          >
-            {tabLabels[id]}
-          </button>
-        {/each}
-      </div>
-
-      {#if activeTab === 'content'}
-        <div class="max-w-2xl" role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0">
-          <div class="text-gray-700 text-base leading-relaxed">
-            {@html renderMarkdown(data.product.description)}
-          </div>
-        </div>
-
-      {:else if activeTab === 'howto'}
-        <div class="max-w-2xl" role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0">
-          <div class="text-gray-700 text-base leading-relaxed">
-            {@html renderMarkdown(data.product.how_to_use)}
-          </div>
-        </div>
-
-      {:else if activeTab === 'surfaces'}
-        {@const allSurfaces = [
-          { key: 'paint',   name: m.product_detail_surface_paint(),   icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
-          { key: 'glass',   name: m.product_detail_surface_glass(),   icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2' },
-          { key: 'wheels',  name: m.product_detail_surface_wheels(),  icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { key: 'leather', name: m.product_detail_surface_leather(), icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
-          { key: 'trim',    name: m.product_detail_surface_trim(),    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-          { key: 'fabric',  name: m.product_detail_surface_fabric(),  icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' }
-        ]}
-        {@const selected = new Set(data.product.compatible_surfaces ?? [])}
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4"
-             role="tabpanel" id="pdp-panel-surfaces" aria-labelledby="pdp-tab-surfaces" tabindex="0">
-          {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
-            <div class="flex flex-col items-center gap-3 p-5 rounded-2xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center"
-                   style="background: rgb(51,73,119)">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
-                </svg>
-              </div>
-              <span class="text-sm font-semibold text-gray-700">{surface.name}</span>
-            </div>
+      <!-- DESKTOP: horizontal tab strip with active navy underline -->
+      <div class="hidden md:block">
+        <div class="flex gap-0 border-b border-ink-300/60 mb-10" role="tablist" onkeydown={onTabKeydown}>
+          {#each availableTabs as id}
+            <button
+              type="button"
+              role="tab"
+              id="pdp-tab-{id}"
+              aria-selected={activeTab === id}
+              aria-controls="pdp-panel-{id}"
+              tabindex={activeTab === id ? 0 : -1}
+              bind:this={tabButtons[id]}
+              onclick={() => (activeTab = id)}
+              class="relative px-6 py-4 font-display text-sm font-bold uppercase tracking-[0.12em] transition-colors
+                     after:absolute after:left-0 after:right-0 after:-bottom-px after:h-0.5 after:bg-navy-500
+                     after:transition-transform after:duration-300 after:ease-gy after:origin-center
+                     {activeTab === id
+                       ? 'text-navy-900 after:scale-x-100'
+                       : 'text-ink-500 hover:text-ink-900 after:scale-x-0'}"
+            >
+              {tabLabels[id]}
+            </button>
           {/each}
         </div>
-      {/if}
-    </div>
-  </div>
-{/if}
 
-<!-- ── RELATED ────────────────────────────────────────────────────── -->
-{#if data.related.length > 0}
-  <div class="bg-gray-50 py-16 border-t border-gray-100">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between mb-10">
-        <div>
-          <p class="text-[11px] font-bold uppercase tracking-[0.25em] mb-2"
-             style="color: rgb(113,135,183)">{m.product_detail_related_kicker()}</p>
-          <h2 class="text-2xl font-black text-gray-900">{m.product_detail_related_heading()}</h2>
-        </div>
-        <a href="/products" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">
-          {m.common_view_all_arrow()}
-        </a>
-      </div>
+        {#if activeTab === 'content'}
+          <div class="max-w-2xl" role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0">
+            <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+              {@html renderMarkdown(data.product.description)}
+            </div>
+          </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {#each data.related as p}
-          <a href="/products/{p.slug}"
-             class="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all">
-            <div class="aspect-square bg-gray-50 overflow-hidden group-hover:scale-[1.02] transition-transform duration-500">
-              {#if p.primaryImage}
-                <img
-                  src={p.primaryImage.url}
-                  alt={p.primaryImage.alt_text ?? p.name}
-                  class="w-full h-full object-cover"
-                />
-              {:else}
-                <div class="w-full h-full flex items-center justify-center text-gray-200">
-                  <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-                      d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Z" />
+        {:else if activeTab === 'howto'}
+          <div class="max-w-2xl" role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0">
+            <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+              {@html renderMarkdown(data.product.how_to_use)}
+            </div>
+          </div>
+
+        {:else if activeTab === 'surfaces'}
+          <div class="grid grid-cols-3 lg:grid-cols-6 gap-3"
+               role="tabpanel" id="pdp-panel-surfaces" aria-labelledby="pdp-tab-surfaces" tabindex="0">
+            {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
+              <div class="flex flex-col items-center gap-3 p-5 rounded-lg border border-ink-300/60 hover:border-navy-500 hover:bg-paper transition-colors">
+                <div class="w-10 h-10 rounded-md bg-navy-500 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
                   </svg>
                 </div>
-              {/if}
-            </div>
-            <div class="p-4">
-              <p class="text-sm font-semibold text-gray-900 group-hover:transition-colors leading-snug"
-                 style="color: inherit"
-                 onmouseenter={(e) => (e.currentTarget.style.color = 'rgb(51,73,119)')}
-                 onmouseleave={(e) => (e.currentTarget.style.color = '')}>
-                {p.name}
-              </p>
-            </div>
-          </a>
+                <span class="font-display text-sm font-semibold text-ink-900 text-center">{surface.name}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <!-- MOBILE: accordion (one panel open at a time, controlled by activeTab) -->
+      <div class="md:hidden divide-y divide-ink-300/60 border-y border-ink-300/60">
+        {#each availableTabs as id}
+          {@const expanded = activeTab === id}
+          <div>
+            <button
+              type="button"
+              onclick={() => (activeTab = expanded ? (availableTabs.find(t => t !== id) ?? id) : id)}
+              aria-expanded={expanded}
+              aria-controls="pdp-acc-{id}"
+              class="w-full flex items-center justify-between gap-3 py-4 text-left"
+            >
+              <span class="font-display text-sm font-bold uppercase tracking-[0.12em]
+                           {expanded ? 'text-navy-900' : 'text-ink-900'}">
+                {tabLabels[id]}
+              </span>
+              <svg class="w-4 h-4 text-ink-500 transition-transform duration-200 ease-gy {expanded ? 'rotate-180 text-navy-500' : ''}"
+                   fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            {#if expanded}
+              <div id="pdp-acc-{id}" class="pb-5">
+                {#if id === 'content'}
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                    {@html renderMarkdown(data.product.description)}
+                  </div>
+                {:else if id === 'howto'}
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                    {@html renderMarkdown(data.product.how_to_use)}
+                  </div>
+                {:else if id === 'surfaces'}
+                  <div class="grid grid-cols-3 gap-3">
+                    {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
+                      <div class="flex flex-col items-center gap-2 p-3 rounded-lg border border-ink-300/60">
+                        <div class="w-9 h-9 rounded-md bg-navy-500 flex items-center justify-center">
+                          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
+                          </svg>
+                        </div>
+                        <span class="font-display text-xs font-semibold text-ink-900 text-center leading-tight">{surface.name}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
         {/each}
       </div>
     </div>
   </div>
 {/if}
+
+<!-- ── BUNDLE COMPOSER (replaces flat related row, §4.7) ───────── -->
+<BundleComposer items={data.related} />
+
+<!-- ── STICKY ADD-TO-CART BAR (mobile only, §4.8) ────────────── -->
+<StickyAddToCart
+  ctaEl={ctaEl}
+  product={data.product}
+  variant={selectedVariant}
+  primaryImage={activeImage ?? data.images[0]}
+  onAdd={addToCart}
+  inStock={inStock}
+  adding={adding}
+  added={added}
+/>
 
 <RecentlyViewed excludeID={data.product.id} />
