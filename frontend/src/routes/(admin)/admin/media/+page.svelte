@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import type { MediaFile } from '$lib/api/admin';
-  import { adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
+  import type { AdminMediaType, MediaFile } from '$lib/api/admin';
+  import { adminGetMediaPage, adminUploadMedia, adminDeleteMedia, adminAddMediaLink } from '$lib/api/admin';
   import {
     checkMediaSize,
     isVideo,
@@ -17,14 +17,113 @@
 
   let { data }: { data: PageData } = $props();
 
-  let media = $state<MediaFile[]>(data.media);
-  let filter = $state<'all' | 'image' | 'video' | 'link'>('all');
+  const BATCH_SIZE = data.initialLimit;
+
+  let items = $state<MediaFile[]>(data.media);
+  let total = $state<number>(data.total);
+  let filter = $state<AdminMediaType>('all');
+  let loadingMore = $state(false);
+  let sentinel = $state<HTMLDivElement | undefined>();
+  let abortCtl: AbortController | null = null;
   let dragging = $state(false);
   let dragCounter = $state(0);
   let uploading = $state<Map<string, number>>(new Map());
   let deleteTarget = $state<MediaFile | null>(null);
   let failedImages = $state<Set<string>>(new Set());
   let copiedId = $state<string | null>(null);
+
+  const hasMore = $derived(items.length < total);
+
+  // True when the sentinel is still close enough to the viewport that another
+  // batch should be loaded. Mirrors storefront /products: a single IO entry
+  // doesn't fire again if the user is already sitting past it, so we re-check
+  // after each append and recurse until the sentinel sits comfortably below.
+  function shouldKeepLoading(): boolean {
+    if (!sentinel) return false;
+    const rect = sentinel.getBoundingClientRect();
+    return rect.top - window.innerHeight < 600;
+  }
+
+  // Matches the predicate the chosen filter implies, used to decide whether
+  // an uploaded / linked file should be prepended to the visible list (and
+  // counted against `total`) under the current view.
+  function matchesFilter(f: MediaFile, type: AdminMediaType): boolean {
+    switch (type) {
+      case 'image': return isImage(f);
+      case 'video': return isVideo(f);
+      case 'link': return isLink(f);
+      default: return true;
+    }
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    abortCtl?.abort();
+    abortCtl = new AbortController();
+    const ctl = abortCtl;
+    try {
+      const next = await adminGetMediaPage(
+        data.token,
+        { limit: BATCH_SIZE, offset: items.length, type: filter },
+        { signal: ctl.signal }
+      );
+      if (ctl.signal.aborted) return;
+      items = [...items, ...next.items];
+      total = next.total;
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name !== 'AbortError') total = items.length;
+    } finally {
+      if (!ctl.signal.aborted) loadingMore = false;
+    }
+    if (hasMore && !ctl.signal.aborted) {
+      requestAnimationFrame(() => {
+        if (hasMore && !loadingMore && shouldKeepLoading()) loadMore();
+      });
+    }
+  }
+
+  async function refetchForFilter(type: AdminMediaType) {
+    abortCtl?.abort();
+    abortCtl = new AbortController();
+    const ctl = abortCtl;
+    loadingMore = true;
+    items = [];
+    total = 0;
+    try {
+      const page = await adminGetMediaPage(
+        data.token,
+        { limit: BATCH_SIZE, offset: 0, type },
+        { signal: ctl.signal }
+      );
+      if (ctl.signal.aborted) return;
+      items = page.items;
+      total = page.total;
+    } catch (e: unknown) {
+      if ((e as { name?: string })?.name === 'AbortError') return;
+    } finally {
+      if (!ctl.signal.aborted) loadingMore = false;
+    }
+  }
+
+  function selectFilter(tab: AdminMediaType) {
+    if (filter === tab) return;
+    filter = tab;
+    refetchForFilter(tab);
+  }
+
+  $effect(() => {
+    if (!sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '600px' }
+    );
+    io.observe(sentinel);
+    return () => {
+      io.disconnect();
+      abortCtl?.abort();
+    };
+  });
 
   function copyUrl(file: MediaFile) {
     navigator.clipboard.writeText(file.url);
@@ -65,7 +164,10 @@
         autoplay: detectedStreaming ? linkAutoplay : false,
         videoFit: detectedStreaming ? linkFit : 'contain'
       });
-      media = [added, ...media];
+      if (matchesFilter(added, filter)) {
+        items = [added, ...items];
+        total += 1;
+      }
       linkModalOpen = false;
       notify.success(m.admin_media_added_link_success());
     } catch {
@@ -78,16 +180,6 @@
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const detectedStreaming = $derived(detectStreamingVideoFromURL(linkUrl));
   const providerLabel: Record<StreamingProvider, string> = { youtube: 'YouTube', vimeo: 'Vimeo', wistia: 'Wistia' };
-
-  const filtered = $derived(
-    filter === 'all'
-      ? media
-      : filter === 'image'
-        ? media.filter((f) => isImage(f))
-        : filter === 'video'
-          ? media.filter((f) => isVideo(f))
-          : media.filter((f) => isLink(f))
-  );
 
   function formatBytes(n: number) {
     if (n === 0) return '—';
@@ -162,7 +254,10 @@
         });
         uploading = new Map(uploading.set(placeholderId, 100));
         await new Promise((r) => setTimeout(r, 250));
-        media = [uploaded, ...media];
+        if (matchesFilter(uploaded, filter)) {
+          items = [uploaded, ...items];
+          total += 1;
+        }
         notify.success(m.admin_media_uploaded_success({ name: file.name }));
       } catch (err) {
         const msg = err instanceof Error ? err.message : '';
@@ -179,8 +274,12 @@
     deleteTarget = null;
     try {
       await adminDeleteMedia(data.token, file.id);
-      media = media.filter((f) => f.id !== file.id);
+      const before = items.length;
+      items = items.filter((f) => f.id !== file.id);
+      if (items.length < before) total = Math.max(0, total - 1);
       notify.success(m.admin_media_deleted_success({ name: file.original_name }));
+      // Trigger a top-up if the deletion left a gap that opened the sentinel.
+      if (hasMore && shouldKeepLoading()) loadMore();
     } catch {
       notify.error(m.admin_media_deleted_failure());
     }
@@ -315,7 +414,7 @@
     <div class="flex items-baseline gap-2">
       <h2 class="text-xl font-bold text-gray-900">{m.admin_media_heading()}</h2>
       <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
-        {media.length}
+        {total}
       </span>
     </div>
 
@@ -323,7 +422,7 @@
     <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
       {#each (['all', 'image', 'video', 'link'] as const) as tab}
         <button
-          onclick={() => (filter = tab)}
+          onclick={() => selectFilter(tab)}
           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {filter === tab
             ? 'bg-white text-gray-900 shadow-sm'
             : 'text-gray-500 hover:text-gray-700'}"
@@ -358,7 +457,7 @@
   </div>
 
   <!-- Grid -->
-  {#if filtered.length === 0 && uploading.size === 0}
+  {#if items.length === 0 && uploading.size === 0 && !loadingMore}
     <div class="flex flex-col items-center justify-center py-24 text-center">
       <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
         <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -393,7 +492,7 @@
       {/each}
 
       <!-- Media tiles -->
-      {#each filtered as file (file.id)}
+      {#each items as file (file.id)}
         <div class="flex flex-col gap-1.5">
           <div class="aspect-square rounded-xl overflow-hidden relative group bg-gray-100">
 
@@ -533,7 +632,20 @@
         </div>
       {/each}
 
+      <!-- Loading skeletons while next batch is in flight -->
+      {#if loadingMore}
+        {#each Array(Math.min(BATCH_SIZE, Math.max(1, total - items.length))) as _, i (`sk-${i}`)}
+          <div class="flex flex-col gap-1.5">
+            <div class="aspect-square rounded-xl bg-gray-100 animate-pulse"></div>
+          </div>
+        {/each}
+      {/if}
+
     </div>
+
+    {#if hasMore}
+      <div bind:this={sentinel} class="h-1 mt-4" aria-hidden="true"></div>
+    {/if}
   {/if}
 
 </div>
