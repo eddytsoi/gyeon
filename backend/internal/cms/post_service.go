@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/util"
 )
@@ -17,21 +19,24 @@ import (
 var postSearchFields = []string{"p.title", "p.excerpt", "p.slug", "p.number::text"}
 
 type Post struct {
-	ID               string  `json:"id"`
-	Number           int64   `json:"number"`
-	CategoryID       *string `json:"category_id,omitempty"`
-	CategorySlug     *string `json:"category_slug,omitempty"`
-	CategoryName     *string `json:"category_name,omitempty"`
-	Slug             string  `json:"slug"`
-	Title            string  `json:"title"`
-	Excerpt          *string `json:"excerpt,omitempty"`
-	Content          string  `json:"content"`
-	CoverMediaFileID *string `json:"cover_media_file_id,omitempty"`
-	CoverImageURL    *string `json:"cover_image_url,omitempty"`
-	IsPublished      bool    `json:"is_published"`
-	PublishedAt      *string `json:"published_at,omitempty"`
-	CreatedAt        string  `json:"created_at"`
-	UpdatedAt        string  `json:"updated_at"`
+	ID               string   `json:"id"`
+	Number           int64    `json:"number"`
+	CategoryID       *string  `json:"category_id,omitempty"`
+	CategorySlug     *string  `json:"category_slug,omitempty"`
+	CategoryName     *string  `json:"category_name,omitempty"`
+	// CategoryIDs is the full set of categories the post belongs to
+	// (including primary CategoryID). Populated on single-item reads.
+	CategoryIDs      []string `json:"category_ids,omitempty"`
+	Slug             string   `json:"slug"`
+	Title            string   `json:"title"`
+	Excerpt          *string  `json:"excerpt,omitempty"`
+	Content          string   `json:"content"`
+	CoverMediaFileID *string  `json:"cover_media_file_id,omitempty"`
+	CoverImageURL    *string  `json:"cover_image_url,omitempty"`
+	IsPublished      bool     `json:"is_published"`
+	PublishedAt      *string  `json:"published_at,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
 }
 
 type PostTranslation struct {
@@ -49,14 +54,17 @@ type UpsertPostTranslationRequest struct {
 }
 
 type CreatePostRequest struct {
-	CategoryID       *string `json:"category_id"`
-	Slug             string  `json:"slug"`
-	Title            string  `json:"title"`
-	Excerpt          *string `json:"excerpt"`
-	Content          string  `json:"content"`
-	CoverMediaFileID *string `json:"cover_media_file_id"`
-	CoverImageURL    *string `json:"cover_image_url"`
-	IsPublished      bool    `json:"is_published"`
+	CategoryID       *string  `json:"category_id"`
+	// CategoryIDs is the full set of categories (additional + primary).
+	// The primary is auto-included by the sync.
+	CategoryIDs      []string `json:"category_ids"`
+	Slug             string   `json:"slug"`
+	Title            string   `json:"title"`
+	Excerpt          *string  `json:"excerpt"`
+	Content          string   `json:"content"`
+	CoverMediaFileID *string  `json:"cover_media_file_id"`
+	CoverImageURL    *string  `json:"cover_image_url"`
+	IsPublished      bool     `json:"is_published"`
 }
 
 // UpdatePostRequest is the same as CreatePostRequest (is_published included in both).
@@ -72,6 +80,60 @@ type PostService struct {
 
 func NewPostService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *PostService {
 	return &PostService{db: db, cache: c, ttl: ttl}
+}
+
+// syncCategoryLinks rewrites cms_post_category_links for postID to match
+// finalSet = unique(primary + extras). Primary may be nil; extras may be empty.
+// Idempotent. Caller supplies the tx.
+func (s *PostService) syncCategoryLinks(ctx context.Context, tx *sql.Tx, postID string, primary *string, extras []string) error {
+	final := make(map[string]struct{}, len(extras)+1)
+	if primary != nil && *primary != "" {
+		final[*primary] = struct{}{}
+	}
+	for _, id := range extras {
+		if id != "" {
+			final[id] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(final))
+	for id := range final {
+		ids = append(ids, id)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM cms_post_category_links
+		 WHERE post_id = $1 AND NOT (category_id = ANY($2::uuid[]))`,
+		postID, pq.Array(ids)); err != nil {
+		return fmt.Errorf("delete stale post category links: %w", err)
+	}
+	for _, id := range ids {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO cms_post_category_links (post_id, category_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			postID, id); err != nil {
+			return fmt.Errorf("insert post category link: %w", err)
+		}
+	}
+	return nil
+}
+
+// loadCategoryIDs returns the full set of categories linked to postID.
+func (s *PostService) loadCategoryIDs(ctx context.Context, postID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT category_id::text FROM cms_post_category_links WHERE post_id = $1 ORDER BY created_at`,
+		postID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 const postTranslationJoin = `
@@ -123,7 +185,11 @@ func (s *PostService) List(ctx context.Context, locale, search, categorySlug str
 	wheres := []string{}
 	if categorySlug != "" {
 		args = append(args, categorySlug)
-		wheres = append(wheres, fmt.Sprintf(`p.category_id = (SELECT id FROM cms_post_categories WHERE slug = $%d)`, len(args)))
+		wheres = append(wheres, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM cms_post_category_links pcl
+			         JOIN cms_post_categories c ON c.id = pcl.category_id
+			         WHERE pcl.post_id = p.id AND c.slug = $%d)`,
+			len(args)))
 	}
 	if clause, arg := util.BuildSearchClause(search, postSearchFields, len(args)+1); clause != "" {
 		args = append(args, arg)
@@ -194,7 +260,9 @@ func (s *PostService) ListPublishedByCategorySlug(ctx context.Context, locale, c
 	}
 	rows, err := s.db.QueryContext(ctx,
 		postSelect+` WHERE p.is_published = TRUE
-		             AND p.category_id = (SELECT id FROM cms_post_categories WHERE slug = $4)
+		             AND EXISTS (SELECT 1 FROM cms_post_category_links pcl
+		                         JOIN cms_post_categories c ON c.id = pcl.category_id
+		                         WHERE pcl.post_id = p.id AND c.slug = $4)
 		             ORDER BY p.published_at DESC NULLS LAST LIMIT $2 OFFSET $3`,
 		locale, limit, offset, categorySlug)
 	if err != nil {
@@ -259,6 +327,9 @@ func (s *PostService) GetByID(ctx context.Context, id, locale string) (*Post, er
 	if err != nil {
 		return nil, err
 	}
+	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
+		p.CategoryIDs = ids
+	}
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
@@ -278,12 +349,21 @@ func (s *PostService) GetBySlug(ctx context.Context, slug, locale string) (*Post
 	if err != nil {
 		return nil, err
 	}
+	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
+		p.CategoryIDs = ids
+	}
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
 
 func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post, error) {
-	p, err := scanPost(s.db.QueryRowContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	p, err := scanPost(tx.QueryRowContext(ctx,
 		`WITH ins AS (
 		     INSERT INTO cms_posts (category_id, slug, title, excerpt, content,
 		                            cover_media_file_id, cover_image_url,
@@ -305,12 +385,25 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 	if err != nil {
 		return nil, err
 	}
+	if err := s.syncCategoryLinks(ctx, tx, p.ID, req.CategoryID, req.CategoryIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(postPrefix)
 	return &p, nil
 }
 
 func (s *PostService) Update(ctx context.Context, id string, req UpdatePostRequest) (*Post, error) {
-	p, err := scanPost(s.db.QueryRowContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	p, err := scanPost(tx.QueryRowContext(ctx,
 		`WITH upd AS (
 		     UPDATE cms_posts
 		     SET category_id=$2, slug=$3, title=$4, excerpt=$5, content=$6,
@@ -332,6 +425,13 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 	if err != nil {
 		return nil, err
 	}
+	if err := s.syncCategoryLinks(ctx, tx, p.ID, req.CategoryID, req.CategoryIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(postPrefix)
 	return &p, nil
 }

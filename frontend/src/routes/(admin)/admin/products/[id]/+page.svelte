@@ -30,6 +30,20 @@
   let autoSlug = $state(!data.product);
   let saving = $state(false);
 
+  // Category state — primary is a single FK on `products.category_id`; extras
+  // are stored in product_category_links. UI keeps them as separate controls
+  // (single dropdown for primary, checkbox list for extras). Server dedups,
+  // so if a category appears in both it's just stored once.
+  let primaryCategoryID = $state(data.product?.category_id ?? '');
+  let extraCategoryIDs = $state<Set<string>>(
+    new Set((data.product?.category_ids ?? []).filter((id) => id !== data.product?.category_id))
+  );
+  function toggleExtraCategory(id: string) {
+    const next = new Set(extraCategoryIDs);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    extraCategoryIDs = next;
+  }
+
   // Compatible-surface checkbox state. Keys mirror the storefront tab icons; the
   // server stores them as a TEXT[]. Order is the render order on the storefront.
   const SURFACE_KEYS = ['paint', 'glass', 'wheels', 'leather', 'trim', 'fabric'] as const;
@@ -461,12 +475,12 @@
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="category_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_category()}</label>
-          <select id="category_id" name="category_id"
+          <select id="category_id" name="category_id" bind:value={primaryCategoryID}
                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900">
             <option value="">{m.admin_product_edit_category_none()}</option>
             {#each data.categories as cat}
-              <option value={cat.id} selected={data.product?.category_id === cat.id}>{cat.name}</option>
+              <option value={cat.id}>{cat.name}</option>
             {/each}
           </select>
         </div>
@@ -539,6 +553,26 @@
             {/each}
           </div>
         </div>
+        {#if data.categories.length > 1}
+          <div class="flex flex-col gap-1.5 sm:col-span-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_additional_categories()}
+            </span>
+            <p class="text-xs text-gray-400">{m.admin_product_edit_additional_categories_hint()}</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {#each data.categories.filter((c) => c.id !== primaryCategoryID) as cat}
+                <label class="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm cursor-pointer
+                              hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" name="category_ids" value={cat.id}
+                         checked={extraCategoryIDs.has(cat.id)}
+                         onchange={() => toggleExtraCategory(cat.id)}
+                         class="rounded border-gray-300 focus:ring-gray-900" />
+                  <span>{cat.name}</span>
+                </label>
+              {/each}
+            </div>
+          </div>
+        {/if}
       </div>
       {#if data.isNew}
         <input type="hidden" name="pending_variants" value={pendingVariantsJson} />

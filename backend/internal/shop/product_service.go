@@ -35,6 +35,10 @@ type Product struct {
 	ID                 string   `json:"id"`
 	Number             int64    `json:"number"`
 	CategoryID         *string  `json:"category_id,omitempty"`
+	// CategoryIDs is the full set of categories the product belongs to
+	// (including the primary CategoryID, when set). Populated on single-item
+	// reads; nil/empty on list endpoints where we don't fan out per-row.
+	CategoryIDs        []string `json:"category_ids,omitempty"`
 	Slug               string   `json:"slug"`
 	Name               string   `json:"name"`
 	Subtitle           *string  `json:"subtitle,omitempty"`
@@ -143,6 +147,10 @@ type ProductImage struct {
 
 type CreateProductRequest struct {
 	CategoryID         *string  `json:"category_id"`
+	// CategoryIDs is the full set of categories (additional + primary). The
+	// primary CategoryID is auto-included by the sync, so callers can send
+	// just the extras or the full set — either works.
+	CategoryIDs        []string `json:"category_ids"`
 	Slug               string   `json:"slug"`
 	Name               string   `json:"name"`
 	Subtitle           *string  `json:"subtitle"`
@@ -306,6 +314,63 @@ func (s *ProductService) SetThumbnailEnsurer(t ThumbnailEnsurer) {
 	s.thumbnail = t
 }
 
+// syncCategoryLinks rewrites product_category_links for productID to match
+// finalSet = unique(primary + extras). Primary may be nil; extras may be
+// empty. Idempotent. Caller supplies the tx so this composes with Create /
+// Update inside their existing transactions.
+func (s *ProductService) syncCategoryLinks(ctx context.Context, tx *sql.Tx, productID string, primary *string, extras []string) error {
+	final := make(map[string]struct{}, len(extras)+1)
+	if primary != nil && *primary != "" {
+		final[*primary] = struct{}{}
+	}
+	for _, id := range extras {
+		if id != "" {
+			final[id] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(final))
+	for id := range final {
+		ids = append(ids, id)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM product_category_links
+		 WHERE product_id = $1 AND NOT (category_id = ANY($2::uuid[]))`,
+		productID, pq.Array(ids)); err != nil {
+		return fmt.Errorf("delete stale category links: %w", err)
+	}
+	for _, id := range ids {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_category_links (product_id, category_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			productID, id); err != nil {
+			return fmt.Errorf("insert category link: %w", err)
+		}
+	}
+	return nil
+}
+
+// loadCategoryIDs returns the full set of categories linked to productID.
+// Returns an empty slice (never nil) so callers can attach directly to the
+// JSON response field without a nil check.
+func (s *ProductService) loadCategoryIDs(ctx context.Context, productID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT category_id::text FROM product_category_links WHERE product_id = $1 ORDER BY created_at`,
+		productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // List returns active products. locale may be empty for base content.
 // search is an optional case-insensitive substring matched against
 // productSearchFields; pass "" to disable.
@@ -375,7 +440,11 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 
 	if f.CategorySlug != "" {
 		args = append(args, f.CategorySlug)
-		wheres = append(wheres, fmt.Sprintf("p.category_id = (SELECT id FROM categories WHERE slug = $%d AND is_active = TRUE)", len(args)))
+		wheres = append(wheres, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM product_category_links pcl
+			         JOIN categories c ON c.id = pcl.category_id
+			         WHERE pcl.product_id = p.id AND c.slug = $%d AND c.is_active = TRUE)`,
+			len(args)))
 	}
 	if clause, arg := util.BuildSearchClause(f.Search, productSearchFields, len(args)+1); clause != "" {
 		wheres = append(wheres, clause)
@@ -541,7 +610,12 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 // same shape regardless of the `?category=` filter.
 func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]ProductWithMeta, error) {
 	args := []any{locale, limit, offset, categorySlug}
-	wheres := []string{"p.status = 'active'", "p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"}
+	wheres := []string{
+		"p.status = 'active'",
+		`EXISTS (SELECT 1 FROM product_category_links pcl
+		         JOIN categories c ON c.id = pcl.category_id
+		         WHERE pcl.product_id = p.id AND c.slug = $4 AND c.is_active = TRUE)`,
+	}
 	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
 		wheres = append(wheres, clause)
 		args = append(args, arg)
@@ -610,7 +684,12 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 // (resolved from its slug). locale and search behave like List.
 func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categorySlug, search string, limit, offset int) ([]Product, error) {
 	args := []any{locale, limit, offset, categorySlug}
-	wheres := []string{"p.status = 'active'", "p.category_id = (SELECT id FROM categories WHERE slug = $4 AND is_active = TRUE)"}
+	wheres := []string{
+		"p.status = 'active'",
+		`EXISTS (SELECT 1 FROM product_category_links pcl
+		         JOIN categories c ON c.id = pcl.category_id
+		         WHERE pcl.product_id = p.id AND c.slug = $4 AND c.is_active = TRUE)`,
+	}
 	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
 		wheres = append(wheres, clause)
 		args = append(args, arg)
@@ -667,7 +746,11 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	wheres := []string{}
 	if categorySlug != "" {
 		args = append(args, categorySlug)
-		wheres = append(wheres, fmt.Sprintf(`p.category_id = (SELECT id FROM categories WHERE slug = $%d)`, len(args)))
+		wheres = append(wheres, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM product_category_links pcl
+			         JOIN categories c ON c.id = pcl.category_id
+			         WHERE pcl.product_id = p.id AND c.slug = $%d)`,
+			len(args)))
 	}
 	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
 		args = append(args, arg)
@@ -747,6 +830,9 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 	if err != nil {
 		return nil, err
 	}
+	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
+		p.CategoryIDs = ids
+	}
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
@@ -762,6 +848,9 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 		productSelect+` WHERE p.id = $2`, locale, id))
 	if err != nil {
 		return nil, err
+	}
+	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
+		p.CategoryIDs = ids
 	}
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
@@ -804,10 +893,15 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 		}
 	}
 
+	if err := s.syncCategoryLinks(ctx, tx, p.ID, req.CategoryID, req.CategoryIDs); err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
+	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
@@ -877,10 +971,15 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		return nil, err
 	}
 
+	if err := s.syncCategoryLinks(ctx, tx, p.ID, req.CategoryID, req.CategoryIDs); err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
+	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(productPrefix)
 	return &p, nil
 }
@@ -979,6 +1078,18 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 		}
 	}
 
+	// Maintain the multi-category invariant: primary category must be in the
+	// link table or storefront filters won't see this product. WC import
+	// doesn't manage extras, so just upsert the primary link.
+	if req.CategoryID != nil && *req.CategoryID != "" {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_category_links (product_id, category_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			id, *req.CategoryID); err != nil {
+			return "", fmt.Errorf("link primary category: %w", err)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
@@ -1054,6 +1165,18 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		  WHERE id = $1`,
 		productID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, req.Status, kind); err != nil {
 		return err
+	}
+
+	// Keep the link-table invariant: new primary must be linked. WC import
+	// doesn't manage extras, so if the primary changes, the old primary stays
+	// in the link table — admin can remove it via the product edit UI.
+	if req.CategoryID != nil && *req.CategoryID != "" {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_category_links (product_id, category_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			productID, *req.CategoryID); err != nil {
+			return fmt.Errorf("link primary category: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

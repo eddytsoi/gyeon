@@ -208,6 +208,7 @@ export interface CmsPost {
   id: string;
   number: number;
   category_id?: string;
+  category_ids?: string[];
   slug: string;
   title: string;
   excerpt?: string;
