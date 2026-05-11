@@ -1,8 +1,31 @@
+/*
+ * Gyeon brand fonts — Google Fonts proxies for the licensed stack.
+ *   Barlow Condensed → display (proxy for GT America Compressed)
+ *   Inter            → body    (proxy for Gotham)
+ * When the licensed woff2 files are uploaded to static/fonts/, add a local
+ * @font-face block that wins by source order and remove these imports.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Gyeon body default. Components opt-in to font-display for headings
+   * via the Tailwind utility — body copy inherits the body face here.
+   */
+  html {
+    font-family: 'Inter', 'Gotham', 'Helvetica', 'Arial', sans-serif;
+    color: #1A1A1A; /* --gy-ink-900 */
+  }
+
+  /* Touch devices can't hover — surface card affordances permanently. */
+  @media (hover: none) {
+    .group [data-hover-only] { opacity: 1 !important; }
+  }
+
   /*
    * Prevent Mobile Safari zoom-in on focus.
    * Safari zooms when computed font-size < 16px. We force 16px here
@@ -33,7 +56,7 @@
    * because outline is layered above and never clipped by overflow-hidden.
    */
   :focus-visible {
-    outline: 2px solid #111827; /* gray-900 */
+    outline: 2px solid #285394; /* --gy-navy-300 */
     outline-offset: 2px;
     border-radius: 4px;
   }

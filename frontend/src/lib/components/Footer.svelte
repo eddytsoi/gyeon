@@ -5,47 +5,65 @@
   let { navItems = [] }: { navItems?: NavItem[] } = $props();
 </script>
 
-<footer class="bg-gray-900 text-gray-400 mt-24">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+<footer class="bg-navy-900 text-white/70 mt-24">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 md:py-20">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-8">
+
+      <!-- Brand column -->
       <div class="col-span-2 md:col-span-1">
-        <span class="text-white font-bold text-lg">{m.footer_logo()}</span>
-        <p class="mt-2 text-sm leading-relaxed">
+        <a href="/" class="font-display text-xl font-bold tracking-[0.18em] uppercase text-white">
+          {m.footer_logo()}
+        </a>
+        <p class="mt-4 text-sm font-body leading-relaxed text-white/60">
           {m.footer_tagline()}
         </p>
       </div>
+
+      <!-- Shop -->
       <div>
-        <h3 class="text-white text-sm font-semibold mb-3">{m.footer_section_shop()}</h3>
-        <ul class="space-y-2 text-sm">
+        <h3 class="text-[11px] uppercase tracking-[0.18em] font-display font-semibold text-white mb-4">
+          {m.footer_section_shop()}
+        </h3>
+        <ul class="space-y-2.5 text-sm font-body">
           <li><a href="/products" class="hover:text-white transition-colors">{m.footer_link_all_products()}</a></li>
         </ul>
       </div>
+
+      <!-- Support -->
       <div>
-        <h3 class="text-white text-sm font-semibold mb-3">{m.footer_section_support()}</h3>
-        <ul class="space-y-2 text-sm">
+        <h3 class="text-[11px] uppercase tracking-[0.18em] font-display font-semibold text-white mb-4">
+          {m.footer_section_support()}
+        </h3>
+        <ul class="space-y-2.5 text-sm font-body">
           <li><a href="/cart" class="hover:text-white transition-colors">{m.footer_link_my_cart()}</a></li>
         </ul>
       </div>
+
+      <!-- Contact / about (CMS-driven nav fallback) -->
+      {#if navItems.length > 0}
+        <nav>
+          <h3 class="text-[11px] uppercase tracking-[0.18em] font-display font-semibold text-white mb-4">
+            About
+          </h3>
+          <ul class="space-y-2.5 text-sm font-body">
+            {#each navItems as item}
+              <li>
+                <a href={item.url} target={item.target ?? '_self'}
+                   rel={item.target === '_blank' ? 'noopener' : undefined}
+                   class="hover:text-white transition-colors">
+                  {item.label}
+                </a>
+              </li>
+            {/each}
+          </ul>
+        </nav>
+      {/if}
     </div>
 
-    {#if navItems.length > 0}
-      <nav class="mt-10 border-t border-gray-800 pt-6">
-        <ul class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs">
-          {#each navItems as item}
-            <li>
-              <a href={item.url} target={item.target ?? '_self'}
-                 rel={item.target === '_blank' ? 'noopener' : undefined}
-                 class="hover:text-white transition-colors">
-                {item.label}
-              </a>
-            </li>
-          {/each}
-        </ul>
-      </nav>
-    {/if}
-
-    <div class="{navItems.length > 0 ? 'mt-6' : 'mt-10 border-t border-gray-800 pt-6'} text-xs text-center">
-      {m.footer_copyright({ year: new Date().getFullYear() })}
+    <!-- Below-footer bar -->
+    <div class="mt-12 md:mt-16 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/50">
+      <p class="font-body">{m.footer_copyright({ year: new Date().getFullYear() })}</p>
+      <p class="font-display uppercase tracking-[0.18em]">HK · ZH-HANT</p>
     </div>
   </div>
 </footer>
