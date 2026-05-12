@@ -17,7 +17,6 @@
   } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
   import { sortable } from '$lib/actions/sortable';
-  import { autogrow } from '$lib/actions/autogrow';
 
   let { data }: { data: PageData } = $props();
 
@@ -564,9 +563,9 @@
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_excerpt()}</label>
-          <textarea id="excerpt" name="excerpt" rows="3" use:autogrow
+          <textarea id="excerpt" name="excerpt" rows="3"
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.excerpt ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
@@ -574,9 +573,9 @@
             {m.admin_product_edit_label_content()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="description" name="description" rows="3" use:autogrow
+          <textarea id="description" name="description" rows="10"
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.description ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
@@ -584,9 +583,9 @@
             {m.admin_product_edit_label_how_to_use()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="how_to_use" name="how_to_use" rows="3" use:autogrow
+          <textarea id="how_to_use" name="how_to_use" rows="10"
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.how_to_use ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
