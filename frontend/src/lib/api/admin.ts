@@ -334,6 +334,12 @@ export const adminDeleteNavItem = (token: string, menuID: string, itemID: string
 export const adminReplaceNavItems = (token: string, menuID: string, items: Partial<NavItem>[]) =>
   request<NavItem[]>(`/admin/cms/nav/${menuID}/items`, token, { method: 'PUT', body: JSON.stringify(items) });
 
+export const adminReorderNavItems = (token: string, menuID: string, ids: string[]) =>
+  request<void>(`/admin/cms/nav/${menuID}/items/reorder`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ ids })
+  });
+
 // ── Customers ─────────────────────────────────────────────────────────────────
 
 export interface Customer {
