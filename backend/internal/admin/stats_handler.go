@@ -26,7 +26,7 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var stats Stats
 
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM products WHERE is_active = TRUE`).
+		`SELECT COUNT(*) FROM products WHERE status = 'active'`).
 		Scan(&stats.TotalProducts)
 
 	h.db.QueryRowContext(r.Context(),
