@@ -31,6 +31,41 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Raw HTML pass-through: extract HTML tags / comments before escaping so
+// admins can mix raw HTML into markdown. Plain `<` in prose (e.g. "if a < b")
+// is NOT matched here because the regex requires `[a-zA-Z]` after `<`, so
+// stray angle brackets still get escaped normally.
+const HTML_TAG_RE = /<!--[\s\S]*?-->|<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[a-zA-Z_:][a-zA-Z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/g;
+
+// Block-level HTML tags whose opener/closer on its own line should NOT be
+// wrapped in <p>. Anything else (span, a, strong, em, …) stays inline.
+const BLOCK_TAG_RE = /^(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|iframe|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul|video)$/i;
+
+const SENTINEL_RE = /\x00HTML(\d+)\x00/g;
+
+function extractHtmlTokens(md: string): { text: string; tokens: string[] } {
+  const tokens: string[] = [];
+  const text = md.replace(HTML_TAG_RE, (m) => {
+    const idx = tokens.length;
+    tokens.push(m);
+    return `\x00HTML${idx}\x00`;
+  });
+  return { text, tokens };
+}
+
+// True when the trimmed line starts with a block-level HTML tag — in which
+// case the whole line is emitted raw rather than getting paragraph-wrapped.
+// (Block-level tags like <h2>, <div>, <table> can't legally live inside <p>,
+// so the browser would auto-close the wrapper anyway and leave stray empty
+// <p></p>s in the DOM.)
+function isBlockHtmlLine(trimmed: string, tokens: string[]): boolean {
+  const m = /^\x00HTML(\d+)\x00/.exec(trimmed);
+  if (!m) return false;
+  const tag = tokens[+m[1]];
+  const nameMatch = /^<\/?([a-zA-Z][a-zA-Z0-9-]*)/.exec(tag);
+  return !!nameMatch && BLOCK_TAG_RE.test(nameMatch[1]);
+}
+
 // Inline transformations applied within an already-block-classified
 // run (heading text, list-item body, paragraph line). Operates on
 // already-escaped input so the regex can't be tricked by user `<`s.
@@ -45,7 +80,8 @@ function renderInline(s: string): string {
 
 export function renderMarkdown(md: string | undefined | null): string {
   if (!md) return '';
-  const lines = escapeHtml(md).split('\n');
+  const { text, tokens } = extractHtmlTokens(md);
+  const lines = escapeHtml(text).split('\n');
 
   const out: string[] = [];
   let pBuf: string[] = [];
@@ -109,6 +145,13 @@ export function renderMarkdown(md: string | undefined | null): string {
       continue;
     }
 
+    if (isBlockHtmlLine(trimmed, tokens)) {
+      flushParagraph();
+      flushList();
+      out.push(raw);
+      continue;
+    }
+
     if ((m = ulRe.exec(trimmed))) {
       flushParagraph();
       if (listType !== 'ul') {
@@ -137,5 +180,5 @@ export function renderMarkdown(md: string | undefined | null): string {
   }
   flushParagraph();
   flushList();
-  return out.join('\n');
+  return out.join('\n').replace(SENTINEL_RE, (_, i) => tokens[+i] ?? '');
 }
