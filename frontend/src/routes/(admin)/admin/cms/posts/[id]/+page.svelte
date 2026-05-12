@@ -4,6 +4,7 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
+  import { renderMarkdown } from '$lib/markdown';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -49,22 +50,6 @@
 
   // Split-pane preview state
   let preview = $state(false);
-
-  // Very basic Markdown → HTML preview (headings, bold, italic, code, links, line breaks)
-  function markdownToHtml(md: string): string {
-    return md
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold mt-5 mb-2">$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mt-6 mb-2">$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-6 mb-3">$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code class="bg-gray-100 px-1 rounded text-xs font-mono">$1</code>')
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-blue-600 underline">$1</a>')
-      .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
-      .replace(/\n\n/g, '</p><p class="mb-3">')
-      .replace(/\n/g, '<br>');
-  }
 </script>
 
 <div class="max-w-5xl mx-auto space-y-6">
@@ -238,9 +223,8 @@
               <p class="text-gray-500 text-sm mb-4 italic">{excerpt}</p>
             {/if}
             <hr class="my-4 border-gray-100" />
-            <!-- svelte-ignore html-non-void-elements-not-closed -->
             <div class="text-sm text-gray-700 leading-relaxed">
-              {@html `<p class="mb-3">${markdownToHtml(content || m.admin_cms_post_edit_preview_no_content())}</p>`}
+              {@html renderMarkdown(content || m.admin_cms_post_edit_preview_no_content())}
             </div>
           </div>
         </div>
