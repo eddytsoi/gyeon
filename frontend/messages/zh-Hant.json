@@ -586,6 +586,14 @@
   "admin_orders_delete_failure": "刪除訂單 #{id} 失敗",
   "admin_orders_delete_failure_default": "請稍後再試。",
 
+  "order_status_pending": "待付款",
+  "order_status_paid": "已付款",
+  "order_status_processing": "處理中",
+  "order_status_shipped": "已發貨",
+  "order_status_delivered": "已送達",
+  "order_status_cancelled": "已取消",
+  "order_status_refunded": "已退款",
+
   "admin_order_back": "← 訂單",
   "admin_order_card_status": "狀態",
   "admin_order_card_total": "總計",

@@ -3,6 +3,7 @@
   import type { PageData, ActionData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
+  import { orderStatusLabel } from '$lib/orderStatus';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -127,7 +128,7 @@
                 <td class="px-5 py-3">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                                {statusColour[order.status] ?? 'bg-gray-100 text-gray-600'}">
-                    {order.status}
+                    {orderStatusLabel(order.status)}
                   </span>
                 </td>
                 <td class="px-5 py-3 font-medium text-gray-900">

@@ -4,6 +4,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackPurchase } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
+  import { orderStatusLabel } from '$lib/orderStatus';
 
   let { data }: { data: PageData } = $props();
 
@@ -93,7 +94,7 @@
   <div class="bg-yellow-50 border border-yellow-100 rounded-2xl p-4 mb-8 flex items-center gap-3">
     <div class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></div>
     <p class="text-sm text-yellow-800">
-      {m.checkout_success_status_label()} <strong class="capitalize">{data.order.status}</strong>{m.checkout_success_status_text()}
+      {m.checkout_success_status_label()} <strong>{orderStatusLabel(data.order.status)}</strong>{m.checkout_success_status_text()}
     </p>
   </div>
 

@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { orderStatusLabel } from '$lib/orderStatus';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -47,8 +48,8 @@
           {m.account_order_placed_on({ date: new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' }) })}
         </p>
       </div>
-      <span class="px-3 py-1.5 rounded-full text-sm font-medium capitalize border {statusColors[order.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}">
-        {order.status}
+      <span class="px-3 py-1.5 rounded-full text-sm font-medium border {statusColors[order.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}">
+        {orderStatusLabel(order.status)}
       </span>
     </div>
 
@@ -70,7 +71,7 @@
         </div>
         <div class="flex justify-between mt-2">
           {#each statusSteps as step}
-            <span class="text-xs text-gray-400 capitalize" style="width: 20%; text-align: center">{step}</span>
+            <span class="text-xs text-gray-400" style="width: 20%; text-align: center">{orderStatusLabel(step)}</span>
           {/each}
         </div>
       </div>

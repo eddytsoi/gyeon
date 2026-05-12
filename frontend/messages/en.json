@@ -586,6 +586,14 @@
   "admin_orders_delete_failure": "Failed to delete order #{id}",
   "admin_orders_delete_failure_default": "Please try again.",
 
+  "order_status_pending": "Pending",
+  "order_status_paid": "Paid",
+  "order_status_processing": "Processing",
+  "order_status_shipped": "Shipped",
+  "order_status_delivered": "Delivered",
+  "order_status_cancelled": "Cancelled",
+  "order_status_refunded": "Refunded",
+
   "admin_order_back": "← Orders",
   "admin_order_card_status": "Status",
   "admin_order_card_total": "Total",

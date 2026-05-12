@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { orderStatusLabel } from '$lib/orderStatus';
 
   let { data }: { data: PageData } = $props();
 
@@ -68,8 +69,8 @@
               <span class="text-sm font-medium text-gray-900">
                 HK${order.total.toFixed(2)}
               </span>
-              <span class="px-2.5 py-1 rounded-full text-xs font-medium capitalize {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
-                {order.status}
+              <span class="px-2.5 py-1 rounded-full text-xs font-medium {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
+                {orderStatusLabel(order.status)}
               </span>
             </div>
           </a>

@@ -3,6 +3,7 @@
   import type { ActionData, PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
+  import { orderStatusLabel } from '$lib/orderStatus';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -125,7 +126,7 @@
       <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_status()}</p>
       <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium
                    {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
-        {data.order.status}
+        {orderStatusLabel(data.order.status)}
       </span>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
@@ -437,7 +438,7 @@
                 <p class="text-gray-700 whitespace-pre-wrap break-words">{n.body}</p>
                 <p class="text-xs text-gray-400 mt-1">
                   {#if n.status}
-                    <span class="capitalize {statusColour[n.status] ?? 'bg-gray-100 text-gray-500'} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium mr-2">{n.status}</span>
+                    <span class="{statusColour[n.status] ?? 'bg-gray-100 text-gray-500'} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium mr-2">{orderStatusLabel(n.status)}</span>
                   {/if}
                   {fmtNoticeTime(n.created_at)}
                 </p>
@@ -574,7 +575,7 @@
                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none
                              focus:ring-2 focus:ring-gray-900">
                 {#each allowed as s}
-                  <option value={s}>{s}</option>
+                  <option value={s}>{orderStatusLabel(s)}</option>
                 {/each}
               </select>
             </div>
