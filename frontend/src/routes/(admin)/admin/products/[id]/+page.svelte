@@ -465,8 +465,7 @@
   <title>{data.isNew ? m.admin_product_edit_new_title() : (data.product?.name ?? m.admin_product_edit_edit_title())} — Gyeon Admin</title>
 </svelte:head>
 
-<div class="max-w-4xl">
-  <!-- Back + title -->
+<!-- Back + title -->
   <div class="flex items-center gap-3 mb-6">
     <a href="/admin/products" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">{m.admin_product_edit_back()}</a>
     <span class="text-gray-200">/</span>
@@ -513,10 +512,17 @@
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
         </div>
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <label for="subtitle" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_subtitle()}</label>
+          <input id="subtitle" name="subtitle" type="text" maxlength="255"
+                 value={data.product?.subtitle ?? ''}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_status()}</label>
           <select name="status"
-                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900">
             <option value="active" selected={data.isNew || data.product?.status === 'active'}>{m.admin_product_edit_status_active()}</option>
             <option value="inactive" selected={!data.isNew && data.product?.status === 'inactive'}>{m.admin_product_edit_status_inactive()}</option>
@@ -525,7 +531,7 @@
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_type()}</label>
           <select name="kind" bind:value={kind}
-                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900">
             <option value="simple">{m.admin_product_edit_type_simple()}</option>
             <option value="bundle">{m.admin_product_edit_type_bundle()}</option>
@@ -548,20 +554,13 @@
         <div class="flex flex-col gap-1.5">
           <label for="category_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_category()}</label>
           <select id="category_id" name="category_id" bind:value={primaryCategoryID}
-                  class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900">
             <option value="">{m.admin_product_edit_category_none()}</option>
             {#each primaryCategoryChoices as cat}
               <option value={cat.id}>{cat.name}</option>
             {/each}
           </select>
-        </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="subtitle" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_subtitle()}</label>
-          <input id="subtitle" name="subtitle" type="text" maxlength="255"
-                 value={data.product?.subtitle ?? ''}
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_excerpt()}</label>
@@ -575,8 +574,8 @@
             {m.admin_product_edit_label_content()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="description" name="description" rows="6" use:autogrow
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
+          <textarea id="description" name="description" rows="3" use:autogrow
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.description ?? ''}</textarea>
         </div>
@@ -585,8 +584,8 @@
             {m.admin_product_edit_label_how_to_use()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="how_to_use" name="how_to_use" rows="6" use:autogrow
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
+          <textarea id="how_to_use" name="how_to_use" rows="3" use:autogrow
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.how_to_use ?? ''}</textarea>
         </div>
@@ -1231,7 +1230,6 @@
       </SaveButton>
     </div>
   </div>
-</div>
 
 <!-- ── Add Variant Modal ── -->
 {#if showAddVariant}
