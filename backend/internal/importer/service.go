@@ -328,6 +328,27 @@ func (s *Service) syncCategories(ctx context.Context, wc *wcClient, p *ProgressU
 	return catMap, nil
 }
 
+// resolveWCCategoryIDs translates a WC product's category slugs into Gyeon
+// category UUIDs using categoryMap. The first slug that resolves becomes the
+// primary; every other resolving slug is included in the full list (with
+// the primary first, dedup preserved by order). Slugs absent from the map
+// are silently skipped — the caller has already created missing categories
+// in syncCategories before iterating products.
+func resolveWCCategoryIDs(prod wcProduct, categoryMap map[string]string) (primary *string, all []string) {
+	for _, c := range prod.Categories {
+		id, ok := categoryMap[c.Slug]
+		if !ok {
+			continue
+		}
+		if primary == nil {
+			pid := id
+			primary = &pid
+		}
+		all = append(all, id)
+	}
+	return primary, all
+}
+
 func (s *Service) importProduct(
 	ctx context.Context,
 	wc *wcClient,
@@ -335,12 +356,7 @@ func (s *Service) importProduct(
 	categoryMap map[string]string,
 	p *ProgressUpdate,
 ) {
-	var categoryID *string
-	if len(prod.Categories) > 0 {
-		if id, ok := categoryMap[prod.Categories[0].Slug]; ok {
-			categoryID = &id
-		}
-	}
+	categoryID, categoryIDs := resolveWCCategoryIDs(prod, categoryMap)
 
 	desc, howToUse, excerpt := buildContentFromMeta(prod)
 
@@ -354,6 +370,7 @@ func (s *Service) importProduct(
 	upsertReq := shop.UpsertWCProductRequest{
 		WCProductID: prod.ID,
 		CategoryID:  categoryID,
+		CategoryIDs: categoryIDs,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
 		Subtitle:    metaStringPtr(prod.MetaData, "wc_ps_subtitle"),
@@ -487,12 +504,7 @@ func (s *Service) importBundleProduct(
 	categoryMap map[string]string,
 	p *ProgressUpdate,
 ) {
-	var categoryID *string
-	if len(prod.Categories) > 0 {
-		if id, ok := categoryMap[prod.Categories[0].Slug]; ok {
-			categoryID = &id
-		}
-	}
+	categoryID, categoryIDs := resolveWCCategoryIDs(prod, categoryMap)
 
 	desc, howToUse, excerpt := buildContentFromMeta(prod)
 
@@ -502,6 +514,7 @@ func (s *Service) importBundleProduct(
 	upsertReq := shop.UpsertWCProductRequest{
 		WCProductID: prod.ID,
 		CategoryID:  categoryID,
+		CategoryIDs: categoryIDs,
 		Slug:        prod.Slug,
 		Name:        prod.Name,
 		Subtitle:    metaStringPtr(prod.MetaData, "wc_ps_subtitle"),

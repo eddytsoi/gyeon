@@ -4,6 +4,7 @@ import {
   adminGetProduct, adminGetCategories, adminGetVariants, adminGetImages, adminGetMedia,
   adminCreateProduct, adminUpdateProduct,
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
+  adminReorderVariants,
   adminAddImage, adminUpdateImage, adminDeleteImage,
   adminGetBundleItems, adminSetBundleItems, adminGetProducts,
   adminGetSettings,
@@ -375,6 +376,21 @@ export const actions: Actions = {
       await adminDeleteImage(token, id, imageID);
     } catch {
       return fail(400, { error: 'Failed to delete image' });
+    }
+    return { success: true };
+  },
+
+  reorderVariants: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const ids = (form.get('variant_ids')?.toString() ?? '').split(',').filter(Boolean);
+    try {
+      await adminReorderVariants(token, id, ids);
+    } catch {
+      return fail(400, { error: 'Failed to reorder variants' });
     }
     return { success: true };
   },

@@ -510,9 +510,6 @@
               <span class="font-body text-base md:text-lg line-through tabular-nums text-ink-500">
                 HK${selectedVariant.compare_at_price!.toFixed(2)}
               </span>
-              <span class="text-[11px] font-display font-bold uppercase tracking-[0.15em] text-navy-500 tabular-nums">
-                −{discountPct}% off
-              </span>
             {/if}
           </div>
         {/if}

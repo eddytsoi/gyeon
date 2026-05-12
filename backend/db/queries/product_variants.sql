@@ -1,7 +1,16 @@
 -- name: ListVariantsByProduct :many
 SELECT * FROM product_variants
 WHERE product_id = $1 AND is_active = TRUE
-ORDER BY created_at ASC;
+ORDER BY sort_order ASC, created_at ASC;
+
+-- name: ReorderVariants :exec
+UPDATE product_variants AS pv
+SET sort_order = data.sort_order
+FROM (
+    SELECT unnest(@ids::uuid[])                        AS id,
+           generate_subscripts(@ids::uuid[], 1)::int   AS sort_order
+) AS data
+WHERE pv.id = data.id AND pv.product_id = @product_id;
 
 -- name: GetVariantByID :one
 SELECT * FROM product_variants WHERE id = $1;

@@ -1020,9 +1020,16 @@ func (s *ProductService) GetIDByWCProductID(ctx context.Context, wcID int) (stri
 // Kind defaults to "simple" when empty; pass "bundle" for WC Product
 // Bundles imports so CreateWCProduct also seeds the auto-generated
 // BUNDLE-* variant the rest of the system expects.
+//
+// CategoryID is the primary category (also written to products.category_id).
+// CategoryIDs is the full set of WC-derived categories to link into
+// product_category_links; the primary should be included. Link writes are
+// additive (INSERT ... ON CONFLICT DO NOTHING) so admin-added extras and
+// previously-imported categories that are no longer in WC are preserved.
 type UpsertWCProductRequest struct {
 	WCProductID int
 	CategoryID  *string
+	CategoryIDs []string
 	Slug        string
 	Name        string
 	Subtitle    *string
@@ -1078,16 +1085,11 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 		}
 	}
 
-	// Maintain the multi-category invariant: primary category must be in the
-	// link table or storefront filters won't see this product. WC import
-	// doesn't manage extras, so just upsert the primary link.
-	if req.CategoryID != nil && *req.CategoryID != "" {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO product_category_links (product_id, category_id)
-			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-			id, *req.CategoryID); err != nil {
-			return "", fmt.Errorf("link primary category: %w", err)
-		}
+	// Link every WC-derived category (primary + extras). Additive only —
+	// admin-added extras and previously-imported links that WC no longer
+	// reports are preserved.
+	if err := linkWCCategories(ctx, tx, id, req.CategoryID, req.CategoryIDs); err != nil {
+		return "", err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -1167,22 +1169,52 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		return err
 	}
 
-	// Keep the link-table invariant: new primary must be linked. WC import
-	// doesn't manage extras, so if the primary changes, the old primary stays
-	// in the link table — admin can remove it via the product edit UI.
-	if req.CategoryID != nil && *req.CategoryID != "" {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO product_category_links (product_id, category_id)
-			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-			productID, *req.CategoryID); err != nil {
-			return fmt.Errorf("link primary category: %w", err)
-		}
+	// Link every WC-derived category (primary + extras). Additive only —
+	// admin-added extras and previously-imported links that WC no longer
+	// reports are preserved.
+	if err := linkWCCategories(ctx, tx, productID, req.CategoryID, req.CategoryIDs); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(productPrefix)
+	return nil
+}
+
+// linkWCCategories upserts product_category_links for productID with primary
+// + extras. Both inputs may be empty; nothing happens if the combined set is
+// empty. Idempotent (INSERT ... ON CONFLICT DO NOTHING) and additive — never
+// deletes existing links, so admin-added categories survive re-imports.
+func linkWCCategories(ctx context.Context, tx *sql.Tx, productID string, primary *string, extras []string) error {
+	seen := make(map[string]struct{}, len(extras)+1)
+	add := func(id string) error {
+		if id == "" {
+			return nil
+		}
+		if _, dup := seen[id]; dup {
+			return nil
+		}
+		seen[id] = struct{}{}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_category_links (product_id, category_id)
+			 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			productID, id); err != nil {
+			return fmt.Errorf("link category %s: %w", id, err)
+		}
+		return nil
+	}
+	if primary != nil {
+		if err := add(*primary); err != nil {
+			return err
+		}
+	}
+	for _, id := range extras {
+		if err := add(id); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1452,7 +1484,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 		 LEFT JOIN product_images pi ON pi.variant_id = pv.id
 		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
 		 WHERE pv.product_id = $1 AND pv.is_active = TRUE
-		 ORDER BY pv.created_at ASC`, productID)
+		 ORDER BY pv.sort_order ASC, pv.created_at ASC`, productID)
 	if err != nil {
 		return nil, err
 	}
@@ -1539,6 +1571,26 @@ func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, re
 
 func (s *ProductService) DeleteVariant(ctx context.Context, variantID string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM product_variants WHERE id = $1`, variantID)
+	return err
+}
+
+// ReorderVariants rewrites product_variants.sort_order for the given
+// productID so that variantIDs[i] receives sort_order = i. IDs that don't
+// belong to productID are silently ignored (scoped by the WHERE clause), so
+// stale browser state can't reorder another product's variants.
+func (s *ProductService) ReorderVariants(ctx context.Context, productID string, variantIDs []string) error {
+	if len(variantIDs) == 0 {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE product_variants AS pv
+		    SET sort_order = data.sort_order
+		   FROM (
+		       SELECT unnest($2::uuid[])                          AS id,
+		              generate_subscripts($2::uuid[], 1)::int      AS sort_order
+		   ) AS data
+		  WHERE pv.id = data.id AND pv.product_id = $1`,
+		productID, pq.Array(variantIDs))
 	return err
 }
 
