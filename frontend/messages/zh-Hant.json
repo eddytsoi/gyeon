@@ -1058,7 +1058,6 @@
   "admin_cms_navigation_label_open": "開啟方式",
   "admin_cms_navigation_open_same": "目前分頁",
   "admin_cms_navigation_open_new": "新分頁",
-  "admin_cms_navigation_label_order": "順序",
   "admin_cms_navigation_save": "儲存變更",
   "admin_cms_navigation_add_link_submit": "新增連結",
   "admin_cms_navigation_cancel": "取消",
@@ -1073,6 +1072,9 @@
   "admin_cms_navigation_remove_button": "移除",
   "admin_cms_navigation_remove_success": "連結「{label}」已移除",
   "admin_cms_navigation_remove_failure": "移除連結「{label}」失敗",
+  "admin_cms_navigation_aria_drag": "拖曳以重新排序",
+  "admin_cms_navigation_reorder_success": "連結順序已更新",
+  "admin_cms_navigation_reorder_failure": "更新連結順序失敗",
 
   "admin_media_title": "媒體 — Gyeon 管理員",
   "admin_media_drop_to_upload": "放開以上傳",

@@ -1,9 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import type { PageData } from './$types';
   import type { NavItem } from '$lib/api/admin';
-  import { showResult } from '$lib/stores/notifications.svelte';
+  import { adminReorderNavItems } from '$lib/api/admin';
+  import { showResult, notify } from '$lib/stores/notifications.svelte';
+  import { sortable } from '$lib/actions/sortable';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -20,14 +23,12 @@
   let fLabel = $state('');
   let fUrl = $state('');
   let fTarget = $state('_self');
-  let fOrder = $state(0);
 
   function openAddItem() {
     editingItem = null;
     fLabel = '';
     fUrl = '';
     fTarget = '_self';
-    fOrder = flatItems.length;
     showItemForm = true;
   }
 
@@ -36,16 +37,15 @@
     fLabel = item.label;
     fUrl = item.url;
     fTarget = item.target;
-    fOrder = item.sort_order;
     showItemForm = true;
   }
 
   // Flatten nested items for the list display
   const flatItems = $derived.by(() => {
-    const result: NavItem[] = [];
+    const result: (NavItem & { _depth: number })[] = [];
     function walk(items: NavItem[], depth = 0) {
       for (const item of items) {
-        result.push({ ...item, _depth: depth } as NavItem & { _depth: number });
+        result.push({ ...item, _depth: depth });
         if (item.children?.length) walk(item.children, depth + 1);
       }
     }
@@ -55,6 +55,19 @@
 
   function switchMenu(id: string) {
     goto(`?menu=${id}`, { invalidateAll: true });
+  }
+
+  async function persistReorder(orderedIds: string[]) {
+    if (!data.selected) return;
+    const token = page.data.token ?? '';
+    try {
+      await adminReorderNavItems(token, data.selected.id, orderedIds);
+      notify.success(m.admin_cms_navigation_reorder_success());
+      await invalidateAll();
+    } catch {
+      notify.error(m.admin_cms_navigation_reorder_failure());
+      await invalidateAll();
+    }
   }
 </script>
 
@@ -130,11 +143,24 @@
             </button>
           </div>
         {:else}
-          <div class="divide-y divide-gray-50">
-            {#each flatItems as item}
-              {@const depth = (item as NavItem & { _depth: number })._depth ?? 0}
-              <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/50 transition-colors"
-                   style="padding-left: {1.25 + depth * 1.5}rem">
+          <ul class="divide-y divide-gray-50"
+              use:sortable={{ onReorder: persistReorder }}>
+            {#each flatItems as item (item.id)}
+              {@const depth = item._depth ?? 0}
+              <li class="flex items-center gap-3 px-5 py-3.5 transition-colors bg-white hover:bg-gray-50/50"
+                  data-id={item.id}
+                  style="padding-left: {1.25 + depth * 1.5}rem">
+                <!-- Drag handle -->
+                <button type="button"
+                        data-drag-handle
+                        aria-label={m.admin_cms_navigation_aria_drag()}
+                        class="cursor-grab active:cursor-grabbing p-1 -m-1 text-gray-400
+                               hover:text-gray-700 transition-colors flex-shrink-0">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M7 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm6-10a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm0 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+                  </svg>
+                </button>
+
                 <!-- Indent indicator -->
                 {#if depth > 0}
                   <div class="w-3 h-px bg-gray-200 flex-shrink-0"></div>
@@ -160,10 +186,6 @@
                   </div>
                 </div>
 
-                <span class="text-xs text-gray-300 font-mono w-5 text-center flex-shrink-0">
-                  {item.sort_order}
-                </span>
-
                 <div class="flex items-center gap-1 flex-shrink-0">
                   <button onclick={() => openEditItem(item)}
                           class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
@@ -180,9 +202,9 @@
                     </svg>
                   </button>
                 </div>
-              </div>
+              </li>
             {/each}
-          </div>
+          </ul>
         {/if}
       </div>
     </div>
@@ -216,6 +238,8 @@
             }}
             class="space-y-4">
         <input type="hidden" name="menu_id" value={data.selected.id} />
+        <input type="hidden" name="sort_order"
+               value={editingItem ? editingItem.sort_order : flatItems.length} />
         {#if editingItem}
           <input type="hidden" name="item_id" value={editingItem.id} />
         {/if}
@@ -236,24 +260,15 @@
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_open()}</label>
-            <select name="target" bind:value={fTarget}
-                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                           text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
-                           focus:border-transparent transition bg-white">
-              <option value="_self">{m.admin_cms_navigation_open_same()}</option>
-              <option value="_blank">{m.admin_cms_navigation_open_new()}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_order()}</label>
-            <input type="number" name="sort_order" bind:value={fOrder} min="0"
-                   class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                          text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
-                          focus:border-transparent transition" />
-          </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_cms_navigation_label_open()}</label>
+          <select name="target" bind:value={fTarget}
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
+                         text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
+                         focus:border-transparent transition bg-white">
+            <option value="_self">{m.admin_cms_navigation_open_same()}</option>
+            <option value="_blank">{m.admin_cms_navigation_open_new()}</option>
+          </select>
         </div>
 
         <div class="flex gap-3 pt-2">
@@ -317,3 +332,27 @@
     </div>
   </div>
 {/if}
+
+<style>
+  :global(.gy-ghost) {
+    background: #f3f4f6;
+    border: 1px dashed #d1d5db;
+    border-radius: 0.75rem;
+    margin: 0.25rem 0;
+  }
+  :global(.gy-ghost) > * {
+    opacity: 0;
+  }
+  :global(.gy-chosen) {
+    background: #f9fafb;
+  }
+  :global(.gy-drag) {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 32px -8px rgba(17, 24, 39, 0.25),
+                0 4px 12px -2px rgba(17, 24, 39, 0.1);
+    border: 1px solid #e5e7eb;
+    cursor: grabbing !important;
+    opacity: 1;
+  }
+</style>

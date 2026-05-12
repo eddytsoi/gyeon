@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"gyeon/backend/internal/cache"
 )
 
@@ -221,6 +223,32 @@ func (s *NavService) UpdateItem(ctx context.Context, itemID string, req UpsertNa
 func (s *NavService) DeleteItem(ctx context.Context, itemID string) error {
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM cms_nav_items WHERE id = $1`, itemID)
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(navPrefix)
+	return nil
+}
+
+// ReorderItems rewrites sort_order for the given nav-item IDs to match the
+// supplied list (0-based natural order, matching the flat depth-first display).
+// IDs are scoped to the menu so a stale browser state can't reorder another
+// menu's items. Preserves parent_id and every other field — only sort_order
+// changes.
+func (s *NavService) ReorderItems(ctx context.Context, menuID string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	orders := make([]int64, len(ids))
+	for i := range ids {
+		orders[i] = int64(i)
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE cms_nav_items AS n
+		 SET sort_order = u.idx
+		 FROM unnest($1::uuid[], $2::int[]) AS u(iid, idx)
+		 WHERE n.id = u.iid AND n.menu_id = $3`,
+		pq.Array(ids), pq.Array(orders), menuID)
 	if err != nil {
 		return err
 	}

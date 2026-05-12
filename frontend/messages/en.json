@@ -1058,7 +1058,6 @@
   "admin_cms_navigation_label_open": "Open in",
   "admin_cms_navigation_open_same": "Same tab",
   "admin_cms_navigation_open_new": "New tab",
-  "admin_cms_navigation_label_order": "Order",
   "admin_cms_navigation_save": "Save Changes",
   "admin_cms_navigation_add_link_submit": "Add Link",
   "admin_cms_navigation_cancel": "Cancel",
@@ -1073,6 +1072,9 @@
   "admin_cms_navigation_remove_button": "Remove",
   "admin_cms_navigation_remove_success": "Link '{label}' removed",
   "admin_cms_navigation_remove_failure": "Failed to remove link '{label}'",
+  "admin_cms_navigation_aria_drag": "Drag to reorder",
+  "admin_cms_navigation_reorder_success": "Link order updated",
+  "admin_cms_navigation_reorder_failure": "Failed to update link order",
 
   "admin_media_title": "Media — Gyeon Admin",
   "admin_media_drop_to_upload": "Drop to upload",

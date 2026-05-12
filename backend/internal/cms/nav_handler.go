@@ -21,8 +21,9 @@ func (h *NavHandler) AdminRoutes() chi.Router {
 	r.Get("/", h.listMenus)
 	r.Get("/{id}", h.getMenuByID)
 
-	// Items within a menu
+	// Items within a menu — literal /reorder before /{itemID} so chi prefers it.
 	r.Post("/{id}/items", h.addItem)
+	r.Patch("/{id}/items/reorder", h.reorderItems)
 	r.Put("/{id}/items", h.replaceItems) // bulk reorder/replace
 	r.Put("/{id}/items/{itemID}", h.updateItem)
 	r.Delete("/{id}/items/{itemID}", h.deleteItem)
@@ -110,6 +111,22 @@ func (h *NavHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 func (h *NavHandler) deleteItem(w http.ResponseWriter, r *http.Request) {
 	itemID := chi.URLParam(r, "itemID")
 	if err := h.svc.DeleteItem(r.Context(), itemID); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *NavHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
+	menuID := chi.URLParam(r, "id")
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if err := h.svc.ReorderItems(r.Context(), menuID, req.IDs); err != nil {
 		respond.InternalError(w)
 		return
 	}
