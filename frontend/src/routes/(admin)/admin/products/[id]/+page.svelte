@@ -31,24 +31,23 @@
   let autoSlug = $state(!data.product);
   let saving = $state(false);
 
-  // Category state — primary is a single FK on `products.category_id`; extras
-  // are stored in product_category_links. UI keeps them as separate controls
-  // (single dropdown for primary, multi-select dropdown for extras). Server
-  // dedups, so if a category appears in both it's just stored once.
+  // Category state — the multi-select "Categories" is the source of truth for
+  // every category the product belongs to (stored in product_category_links).
+  // "Primary Category" is a single FK on `products.category_id` and must be one
+  // of the selected categories (or empty). Server dedups the union.
   let primaryCategoryID = $state(data.product?.category_id ?? '');
-  let extraCategoryIDs = $state<string[]>(
-    (data.product?.category_ids ?? []).filter((id) => id !== data.product?.category_id)
+  let categoryIDs = $state<string[]>(data.product?.category_ids ?? []);
+  const categoryOptions = $derived(
+    data.categories.map((c) => ({ value: c.id, label: c.name }))
   );
-  const extraCategoryOptions = $derived(
-    data.categories
-      .filter((c) => c.id !== primaryCategoryID)
-      .map((c) => ({ value: c.id, label: c.name }))
+  const primaryCategoryChoices = $derived(
+    data.categories.filter((c) => categoryIDs.includes(c.id))
   );
-  // Drop any extras that collide with the newly chosen primary so the chip
-  // and the underlying hidden inputs stay consistent.
+  // If the user removes the current primary from the Categories list, drop
+  // the primary so the saved value stays consistent with what's selected.
   $effect(() => {
-    if (primaryCategoryID && extraCategoryIDs.includes(primaryCategoryID)) {
-      extraCategoryIDs = extraCategoryIDs.filter((id) => id !== primaryCategoryID);
+    if (primaryCategoryID && !categoryIDs.includes(primaryCategoryID)) {
+      primaryCategoryID = '';
     }
   });
 
@@ -500,29 +499,29 @@
           </select>
         </div>
         <div class="flex flex-col gap-1.5">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_product_edit_label_additional_categories()}
+          </span>
+          <MultiSelect
+            options={categoryOptions}
+            selected={categoryIDs}
+            placeholder={m.admin_product_edit_additional_categories_placeholder()}
+            onChange={(values) => (categoryIDs = values)}
+          />
+          {#each categoryIDs as id (id)}
+            <input type="hidden" name="category_ids" value={id} />
+          {/each}
+        </div>
+        <div class="flex flex-col gap-1.5">
           <label for="category_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_category()}</label>
           <select id="category_id" name="category_id" bind:value={primaryCategoryID}
                   class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-900">
             <option value="">{m.admin_product_edit_category_none()}</option>
-            {#each data.categories as cat}
+            {#each primaryCategoryChoices as cat}
               <option value={cat.id}>{cat.name}</option>
             {/each}
           </select>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_label_additional_categories()}
-          </span>
-          <MultiSelect
-            options={extraCategoryOptions}
-            selected={extraCategoryIDs}
-            placeholder={m.admin_product_edit_additional_categories_placeholder()}
-            onChange={(values) => (extraCategoryIDs = values)}
-          />
-          {#each extraCategoryIDs as id (id)}
-            <input type="hidden" name="category_ids" value={id} />
-          {/each}
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="subtitle" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_subtitle()}</label>
