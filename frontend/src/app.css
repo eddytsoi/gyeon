@@ -38,7 +38,7 @@
   select {
     font-size: 16px !important;
     transform: scale(0.875);
-    transform-origin: left center;
+    transform-origin: top left;
   }
 
   /* Width compensation: expand then scale back so w-full inputs still fill container */
