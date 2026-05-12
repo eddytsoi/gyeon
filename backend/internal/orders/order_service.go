@@ -169,6 +169,20 @@ var allowedTransitions = map[OrderStatus][]OrderStatus{
 	StatusRefunded:   {},
 }
 
+// AuditRecorder is the minimal interface this service needs from the audit
+// package. Decoupled to avoid an import cycle.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
 type OrderService struct {
 	db          *sql.DB
 	cartSvc     *CartService
@@ -177,8 +191,22 @@ type OrderService struct {
 	paymentSvc  *payment.Service
 	emailSvc    *email.Service
 	taxSvc      *tax.Service
+	audit       AuditRecorder
 	onCreated   func(ctx context.Context, order *Order)
 	onPaid      func(ctx context.Context, order *Order)
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *OrderService) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *OrderService) record(ctx context.Context, action, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: "order", EntityID: entityID,
+		Before: before, After: after,
+	})
 }
 
 // SetOnOrderPaid registers a callback fired after an order's payment_intent
@@ -1117,6 +1145,13 @@ func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req Refu
 	if err != nil {
 		return nil, err
 	}
+	// Snapshot the pre-refund order for audit. `order` is read-only after this
+	// point in IssueRefund; we'll re-fetch the post-refund state at the end.
+	var before *Order
+	if s.audit != nil {
+		copy := *order
+		before = &copy
+	}
 	if order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
 		return nil, fmt.Errorf("order has no payment intent")
 	}
@@ -1193,7 +1228,12 @@ func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req Refu
 
 	go s.sendRefundEmail(context.Background(), orderID, float64(amount)/100.0, req.Reason, newStatus == StatusRefunded)
 
-	return s.GetByID(ctx, orderID)
+	after, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "order.refund", orderID, before, after)
+	return after, nil
 }
 
 func (s *OrderService) sendRefundEmail(ctx context.Context, orderID string, refundAmount float64, reason string, isFull bool) {
@@ -1388,6 +1428,12 @@ func (s *OrderService) GetIDByNumber(ctx context.Context, n int64) (string, erro
 // Delete removes an order and its dependent rows (cascade on order_items
 // and order_status_history). Used by the admin order list "Delete" action.
 func (s *OrderService) Delete(ctx context.Context, id string) error {
+	var before *Order
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM orders WHERE id = $1`, id)
 	if err != nil {
 		return err
@@ -1395,10 +1441,17 @@ func (s *OrderService) Delete(ctx context.Context, id string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrOrderNotFound
 	}
+	s.record(ctx, "order.delete", id, before, nil)
 	return nil
 }
 
 func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateStatusRequest) (*Order, error) {
+	var before *Order
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
 	var current OrderStatus
 	err := s.db.QueryRowContext(ctx, `SELECT status FROM orders WHERE id = $1`, id).Scan(&current)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1466,5 +1519,6 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 		go s.sendShippedEmail(context.Background(), id)
 	}
 
+	s.record(ctx, "order.update_status", order.ID, before, order)
 	return &order, nil
 }

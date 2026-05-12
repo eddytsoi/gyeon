@@ -45,12 +45,54 @@ type AdminLoginRequest struct {
 	Password string `json:"password"`
 }
 
+// AuditRecorder is the minimal interface this service needs from the audit
+// package. Decoupled to avoid an import cycle.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
 type UserService struct {
-	db *sql.DB
+	db    *sql.DB
+	audit AuditRecorder
 }
 
 func NewUserService(db *sql.DB) *UserService {
 	return &UserService{db: db}
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *UserService) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *UserService) record(ctx context.Context, action, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: "admin_user", EntityID: entityID,
+		Before: before, After: after,
+	})
+}
+
+// getByID fetches an admin user without password fields. Used as a before-
+// snapshot for audit on update/delete.
+func (s *UserService) getByID(ctx context.Context, id string) (*AdminUser, error) {
+	var u AdminUser
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, email, name, role, is_active, created_at, updated_at
+		 FROM admin_users WHERE id=$1`, id).
+		Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	return &u, err
 }
 
 func (s *UserService) Login(ctx context.Context, req AdminLoginRequest) (*AdminUser, error) {
@@ -126,10 +168,19 @@ func (s *UserService) Create(ctx context.Context, req CreateAdminUserRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	// Snapshot the returned AdminUser (no password fields) — never serialize
+	// req which contains the plain-text password.
+	s.record(ctx, "admin_user.create", u.ID, nil, u)
 	return &u, nil
 }
 
 func (s *UserService) Update(ctx context.Context, id string, req UpdateAdminUserRequest) (*AdminUser, error) {
+	var before *AdminUser
+	if s.audit != nil {
+		if prev, err := s.getByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
 	var u AdminUser
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE admin_users SET name=$2, role=$3, is_active=$4
@@ -140,10 +191,20 @@ func (s *UserService) Update(ctx context.Context, id string, req UpdateAdminUser
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
-	return &u, err
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "admin_user.update", u.ID, before, u)
+	return &u, nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id string) error {
+	var before *AdminUser
+	if s.audit != nil {
+		if prev, err := s.getByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM admin_users WHERE id=$1`, id)
 	if err != nil {
 		return err
@@ -152,6 +213,7 @@ func (s *UserService) Delete(ctx context.Context, id string) error {
 	if n == 0 {
 		return ErrUserNotFound
 	}
+	s.record(ctx, "admin_user.delete", id, before, nil)
 	return nil
 }
 
