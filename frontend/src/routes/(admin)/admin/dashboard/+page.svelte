@@ -3,6 +3,7 @@
   import * as m from '$lib/paraglide/messages';
   import LineChart from '$lib/components/admin/charts/LineChart.svelte';
   import BarChart from '$lib/components/admin/charts/BarChart.svelte';
+  import { orderStatusLabel } from '$lib/orderStatus';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   let { data }: { data: PageData } = $props();
@@ -35,7 +36,7 @@
     (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.order_count }))
   );
   const statusBars = $derived(
-    (data.statusBreakdown ?? []).map((s) => ({ label: s.status, value: s.count }))
+    (data.statusBreakdown ?? []).map((s) => ({ label: orderStatusLabel(s.status), value: s.count }))
   );
 </script>
 
