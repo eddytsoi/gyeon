@@ -17,10 +17,16 @@ export const load: PageServerLoad = async ({ params }) => {
 
   // Related products come from the public list, which already excludes
   // hidden products, so a hidden product's page won't surface other
-  // hidden products as "related".
-  const related = products
-    .filter((p) => p.id !== product.id && p.category_id === product.category_id && p.status === 'active')
-    .slice(0, 4);
+  // hidden products as "related". Shuffle so each PDP load surfaces a
+  // different mix from the same primary category.
+  const pool = products.filter(
+    (p) => p.id !== product.id && p.category_id === product.category_id && p.status === 'active'
+  );
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const related = pool.slice(0, 4);
 
   const [variants, images, bundleItems, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),

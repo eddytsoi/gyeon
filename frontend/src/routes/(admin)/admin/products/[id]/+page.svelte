@@ -676,7 +676,6 @@
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_col_price()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">{m.admin_product_edit_variants_col_compare_at()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_col_stock()}</th>
-            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell">{m.admin_product_edit_variants_col_weight()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">{m.admin_product_edit_variants_col_status()}</th>
             <th class="px-5 py-3"></th>
           </tr>
@@ -720,9 +719,6 @@
                 <td class="px-5 py-3">
                   <span class="font-medium text-gray-900">{pv.stock_qty}</span>
                 </td>
-                <td class="px-5 py-3 hidden lg:table-cell text-gray-700">
-                  {pv.weight_grams ? m.admin_product_edit_variants_weight_grams({ grams: pv.weight_grams }) : m.admin_product_edit_variants_dash()}
-                </td>
                 <td class="px-5 py-3 hidden md:table-cell">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">{m.admin_product_edit_status_active()}</span>
                 </td>
@@ -741,7 +737,7 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="10" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="9" class="px-5 py-8 text-center text-gray-400 text-sm">
                   {m.admin_product_edit_variants_empty()}
                 </td>
               </tr>
@@ -780,9 +776,6 @@
                   <span class="font-medium {variant.stock_qty <= 5 ? 'text-red-600' : 'text-gray-900'}">
                     {variant.stock_qty}
                   </span>
-                </td>
-                <td class="px-5 py-3 hidden lg:table-cell text-gray-700">
-                  {variant.weight_grams ? m.admin_product_edit_variants_weight_grams({ grams: variant.weight_grams }) : m.admin_product_edit_variants_dash()}
                 </td>
                 <td class="px-5 py-3 hidden md:table-cell">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
