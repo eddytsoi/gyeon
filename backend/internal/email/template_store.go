@@ -5,10 +5,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"html"
 	"log"
 	"strings"
 	texttmpl "text/template"
 )
+
+// emailFuncs is the FuncMap available to every email template (compiled-in
+// defaults AND admin-edited DB overrides). `esc` HTML-escapes user-controlled
+// strings to prevent XSS; `orderref` mirrors the Go-side helper that prefers
+// the customer-facing order number and falls back to a truncated UUID;
+// `mul` multiplies a float by an int (used for line-total calc when the item
+// struct only has UnitPrice + Quantity).
+var emailFuncs = texttmpl.FuncMap{
+	"esc":      html.EscapeString,
+	"orderref": orderRef,
+	"mul":      func(a float64, b int) float64 { return a * float64(b) },
+}
 
 // Template is a DB-stored override for one of the compiled-in email templates.
 type Template struct {
@@ -75,13 +88,13 @@ func (st *Store) Upsert(ctx context.Context, key string, in UpsertInput) (*Templ
 	// Validate templates parse — admins shouldn't be able to break send by
 	// saving a template with `{{.Foo` (missing close brace). Returns an error
 	// surfaced as 422 by the handler.
-	if _, err := texttmpl.New("subject").Parse(in.Subject); err != nil {
+	if _, err := texttmpl.New("subject").Funcs(emailFuncs).Parse(in.Subject); err != nil {
 		return nil, errParseFailure("subject", err)
 	}
-	if _, err := texttmpl.New("html").Parse(in.HTML); err != nil {
+	if _, err := texttmpl.New("html").Funcs(emailFuncs).Parse(in.HTML); err != nil {
 		return nil, errParseFailure("html", err)
 	}
-	if _, err := texttmpl.New("text").Parse(in.Text); err != nil {
+	if _, err := texttmpl.New("text").Funcs(emailFuncs).Parse(in.Text); err != nil {
 		return nil, errParseFailure("text", err)
 	}
 
@@ -140,7 +153,7 @@ func (s *Service) applyTemplate(ctx context.Context, key string, params any,
 }
 
 func executeTemplate(name, body string, params any) (string, bool) {
-	tmpl, err := texttmpl.New(name).Parse(body)
+	tmpl, err := texttmpl.New(name).Funcs(emailFuncs).Parse(body)
 	if err != nil {
 		log.Printf("email: parse %s: %v", name, err)
 		return "", false
