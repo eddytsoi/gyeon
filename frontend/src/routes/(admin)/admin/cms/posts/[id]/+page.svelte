@@ -18,20 +18,19 @@
   let content = $state(p?.content ?? '');
   let coverImageUrl = $state(p?.cover_image_url ?? '');
   let categoryID = $state(p?.category_id ?? '');
-  let extraCategoryIDs = $state<string[]>(
-    (p?.category_ids ?? []).filter((id) => id !== p?.category_id)
-  );
+  let categoryIDs = $state<string[]>(p?.category_ids ?? []);
   const sortedCategories = $derived(
     data.categories.toSorted((a, b) => a.sort_order - b.sort_order)
   );
-  const extraCategoryOptions = $derived(
-    sortedCategories
-      .filter((c) => c.id !== categoryID)
-      .map((c) => ({ value: c.id, label: c.name }))
+  const categoryOptions = $derived(
+    sortedCategories.map((c) => ({ value: c.id, label: c.name }))
+  );
+  const primaryCategoryChoices = $derived(
+    sortedCategories.filter((c) => categoryIDs.includes(c.id))
   );
   $effect(() => {
-    if (categoryID && extraCategoryIDs.includes(categoryID)) {
-      extraCategoryIDs = extraCategoryIDs.filter((id) => id !== categoryID);
+    if (categoryID && !categoryIDs.includes(categoryID)) {
+      categoryID = '';
     }
   });
   let isPublished = $state(p?.is_published ?? false);
@@ -169,7 +168,21 @@
             <div class="px-6 py-4 border-b border-gray-50">
               <h3 class="text-sm font-semibold text-gray-700">{m.admin_cms_post_edit_section_category()}</h3>
             </div>
-            <div class="px-6 py-5 space-y-4">
+            <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {m.admin_cms_post_edit_additional_categories()}
+                </span>
+                <MultiSelect
+                  options={categoryOptions}
+                  selected={categoryIDs}
+                  placeholder={m.admin_cms_post_edit_additional_categories_placeholder()}
+                  onChange={(values) => (categoryIDs = values)}
+                />
+                {#each categoryIDs as id (id)}
+                  <input type="hidden" name="category_ids" value={id} />
+                {/each}
+              </div>
               <div class="flex flex-col gap-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   {m.admin_cms_post_edit_label_primary_category()}
@@ -179,27 +192,11 @@
                                text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900
                                focus:border-transparent transition bg-white">
                   <option value="">{m.admin_cms_post_edit_no_category()}</option>
-                  {#each sortedCategories as cat}
+                  {#each primaryCategoryChoices as cat}
                     <option value={cat.id}>{cat.name}</option>
                   {/each}
                 </select>
               </div>
-              {#if data.categories.length > 1}
-                <div class="flex flex-col gap-1.5">
-                  <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {m.admin_cms_post_edit_additional_categories()}
-                  </span>
-                  <MultiSelect
-                    options={extraCategoryOptions}
-                    selected={extraCategoryIDs}
-                    placeholder={m.admin_cms_post_edit_additional_categories_placeholder()}
-                    onChange={(values) => (extraCategoryIDs = values)}
-                  />
-                  {#each extraCategoryIDs as id (id)}
-                    <input type="hidden" name="category_ids" value={id} />
-                  {/each}
-                </div>
-              {/if}
             </div>
           </div>
         {/if}
