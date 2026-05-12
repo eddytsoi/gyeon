@@ -77,12 +77,40 @@ type CreateAddressRequest struct {
 	IsDefault  bool    `json:"is_default"`
 }
 
+// AuditRecorder is the minimal interface this service needs from the audit
+// package. Decoupled to avoid an import cycle.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
 type Service struct {
-	db *sql.DB
+	db    *sql.DB
+	audit AuditRecorder
 }
 
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *Service) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *Service) record(ctx context.Context, action, entityType, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: entityType, EntityID: entityID,
+		Before: before, After: after,
+	})
 }
 
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (*Customer, error) {
@@ -161,6 +189,12 @@ func (s *Service) GetByEmail(ctx context.Context, email string) (*Customer, erro
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfileRequest) (*Customer, error) {
+	var before *Customer
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
 	var c Customer
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE customers SET first_name=$2, last_name=$3, phone=$4
@@ -171,7 +205,11 @@ func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfil
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "customer.update_profile", "customer", c.ID, before, c)
+	return &c, nil
 }
 
 // customerSearchFields are matched by the optional admin `search` param on List.
@@ -258,10 +296,37 @@ func (s *Service) CreateAddress(ctx context.Context, customerID string, req Crea
 	if err != nil {
 		return nil, err
 	}
-	return &a, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	s.record(ctx, "customer.address.create", "customer_address", a.ID, nil, a)
+	return &a, nil
+}
+
+// getAddress returns a single address scoped to its owning customer. Used as
+// a before-snapshot for audit on update/delete; ErrNoRows is swallowed by
+// callers via the audit nil-check pattern.
+func (s *Service) getAddress(ctx context.Context, customerID, addressID string) (*Address, error) {
+	var a Address
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default, created_at
+		 FROM addresses WHERE id=$1 AND customer_id=$2`, addressID, customerID).
+		Scan(&a.ID, &a.CustomerID, &a.FirstName, &a.LastName, &a.Phone,
+			&a.Line1, &a.Line2, &a.City, &a.State, &a.PostalCode, &a.Country,
+			&a.IsDefault, &a.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &a, err
 }
 
 func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID string, req CreateAddressRequest) (*Address, error) {
+	var before *Address
+	if s.audit != nil {
+		if prev, err := s.getAddress(ctx, customerID, addressID); err == nil {
+			before = prev
+		}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -289,10 +354,20 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID strin
 	if err != nil {
 		return nil, err
 	}
-	return &a, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	s.record(ctx, "customer.address.update", "customer_address", a.ID, before, a)
+	return &a, nil
 }
 
 func (s *Service) DeleteAddress(ctx context.Context, customerID, addressID string) error {
+	var before *Address
+	if s.audit != nil {
+		if prev, err := s.getAddress(ctx, customerID, addressID); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM addresses WHERE id=$1 AND customer_id=$2`, addressID, customerID)
 	if err != nil {
@@ -302,6 +377,7 @@ func (s *Service) DeleteAddress(ctx context.Context, customerID, addressID strin
 	if n == 0 {
 		return ErrNotFound
 	}
+	s.record(ctx, "customer.address.delete", "customer_address", addressID, before, nil)
 	return nil
 }
 
@@ -357,6 +433,8 @@ func (s *Service) IssuePasswordResetToken(ctx context.Context, customerID string
 	if err != nil {
 		return "", time.Time{}, err
 	}
+	s.record(ctx, "customer.password_reset_token.issue", "customer", customerID,
+		nil, map[string]any{"customer_id": customerID, "expires_at": expiresAt})
 	return token, expiresAt, nil
 }
 

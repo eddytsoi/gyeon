@@ -36,6 +36,12 @@ func NewService(db *sql.DB) *Service {
 
 func (s *Service) Record(ctx context.Context, e Entry) {
 	adminID, _ := auth.AdminIDFromContext(ctx)
+	if adminID == "" {
+		// No admin in context (e.g. customer self-service flows). The audit
+		// log is scoped to admin operations — skip non-admin invocations so
+		// shared service methods don't pollute the log.
+		return
+	}
 	ip, _ := IPFromContext(ctx)
 	ua, _ := UserAgentFromContext(ctx)
 

@@ -60,14 +60,57 @@ var ErrNotFound = errors.New("not found")
 
 const pagePrefix = "cms:pages:"
 
+// AuditRecorder is the minimal interface CMS services need from the audit
+// package. Decoupled to avoid an import cycle. Shared by PageService and
+// PostService since they live in the same package.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
 type PageService struct {
 	db    *sql.DB
 	cache cache.Store
 	ttl   func(context.Context) time.Duration
+	audit AuditRecorder
 }
 
 func NewPageService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *PageService {
 	return &PageService{db: db, cache: c, ttl: ttl}
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *PageService) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *PageService) record(ctx context.Context, action, entityType, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: entityType, EntityID: entityID,
+		Before: before, After: after,
+	})
+}
+
+// getTranslation fetches a single page translation by (pageID, locale). Used
+// as a before-snapshot for audit on upsert/delete.
+func (s *PageService) getTranslation(ctx context.Context, pageID, locale string) (*PageTranslation, error) {
+	var t PageTranslation
+	err := s.db.QueryRowContext(ctx,
+		`SELECT locale, title, content, meta_title, meta_desc, updated_at
+		 FROM cms_page_translations WHERE page_id=$1 AND locale=$2`, pageID, locale).
+		Scan(&t.Locale, &t.Title, &t.Content, &t.MetaTitle, &t.MetaDesc, &t.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &t, err
 }
 
 const pageTranslationJoin = `
@@ -176,10 +219,17 @@ func (s *PageService) Create(ctx context.Context, req CreatePageRequest) (*Page,
 		return nil, err
 	}
 	s.cache.DeleteByPrefix(pagePrefix)
+	s.record(ctx, "cms_page.create", "cms_page", p.ID, nil, p)
 	return &p, nil
 }
 
 func (s *PageService) Update(ctx context.Context, id string, req UpdatePageRequest) (*Page, error) {
+	var before *Page
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
+	}
 	var p Page
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE cms_pages SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7
@@ -192,6 +242,7 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 		return nil, err
 	}
 	s.cache.DeleteByPrefix(pagePrefix)
+	s.record(ctx, "cms_page.update", "cms_page", p.ID, before, p)
 	return &p, nil
 }
 
@@ -204,11 +255,18 @@ func (s *PageService) GetIDByNumber(ctx context.Context, n int64) (string, error
 }
 
 func (s *PageService) Delete(ctx context.Context, id string) error {
+	var before *Page
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_pages WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(pagePrefix)
+	s.record(ctx, "cms_page.delete", "cms_page", id, before, nil)
 	return nil
 }
 
@@ -234,6 +292,12 @@ func (s *PageService) ListTranslations(ctx context.Context, pageID string) ([]Pa
 }
 
 func (s *PageService) UpsertTranslation(ctx context.Context, pageID, locale string, req UpsertPageTranslationRequest) (*PageTranslation, error) {
+	var before *PageTranslation
+	if s.audit != nil {
+		if prev, err := s.getTranslation(ctx, pageID, locale); err == nil {
+			before = prev
+		}
+	}
 	var t PageTranslation
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO cms_page_translations (page_id, locale, title, content, meta_title, meta_desc)
@@ -247,10 +311,18 @@ func (s *PageService) UpsertTranslation(ctx context.Context, pageID, locale stri
 		return nil, err
 	}
 	s.cache.DeleteByPrefix(pagePrefix)
+	s.record(ctx, "cms_page.translation.upsert", "cms_page_translation",
+		pageID+":"+locale, before, t)
 	return &t, nil
 }
 
 func (s *PageService) DeleteTranslation(ctx context.Context, pageID, locale string) error {
+	var before *PageTranslation
+	if s.audit != nil {
+		if prev, err := s.getTranslation(ctx, pageID, locale); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM cms_page_translations WHERE page_id = $1 AND locale = $2`, pageID, locale)
 	if err != nil {
@@ -260,5 +332,7 @@ func (s *PageService) DeleteTranslation(ctx context.Context, pageID, locale stri
 		return ErrNotFound
 	}
 	s.cache.DeleteByPrefix(pagePrefix)
+	s.record(ctx, "cms_page.translation.delete", "cms_page_translation",
+		pageID+":"+locale, before, nil)
 	return nil
 }

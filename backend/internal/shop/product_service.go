@@ -245,16 +245,113 @@ type ThumbnailEnsurer interface {
 	EnsureVideoThumbnail(ctx context.Context, mediaFileID string)
 }
 
+// AuditRecorder is the minimal interface this service needs from the audit
+// package. Decoupled to avoid an import cycle.
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
 type ProductService struct {
 	db          *sql.DB
 	cache       cache.Store
 	ttl         func(context.Context) time.Duration
 	thumbnail   ThumbnailEnsurer
 	settingsSvc *settings.Service
+	audit       AuditRecorder
 }
 
 func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration, settingsSvc *settings.Service) *ProductService {
 	return &ProductService{db: db, cache: c, ttl: ttl, settingsSvc: settingsSvc}
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *ProductService) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *ProductService) record(ctx context.Context, action, entityType, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: entityType, EntityID: entityID,
+		Before: before, After: after,
+	})
+}
+
+// getVariant fetches a single variant by ID. Used as a before-snapshot for
+// audit on update/delete.
+func (s *ProductService) getVariant(ctx context.Context, variantID string) (*Variant, error) {
+	var v Variant
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold,
+		        weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at
+		 FROM product_variants WHERE id=$1`, variantID).
+		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
+			&v.IsActive, &v.CreatedAt, &v.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// getImage fetches a single product image by ID. Used as a before-snapshot
+// for audit on update/delete.
+func (s *ProductService) getImage(ctx context.Context, imageID string) (*ProductImage, error) {
+	img, err := scanProductImage(s.db.QueryRowContext(ctx,
+		`SELECT pi.id, pi.product_id, pi.variant_id, pi.media_file_id,
+		        COALESCE(mf.url, pi.url, '') AS url,
+		        mf.mime_type, mf.thumbnail_url, mf.video_autoplay, mf.video_fit,
+		        pi.alt_text, pi.sort_order, pi.is_primary, pi.created_at
+		 FROM product_images pi
+		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		 WHERE pi.id = $1`, imageID))
+	if err != nil {
+		return nil, err
+	}
+	return &img, nil
+}
+
+// listVariantIDs returns the current variant IDs for a product in their
+// stored sort order. Used as a before-snapshot for ReorderVariants.
+func (s *ProductService) listVariantIDs(ctx context.Context, productID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id FROM product_variants WHERE product_id=$1 ORDER BY sort_order ASC, created_at ASC`,
+		productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// getProductTranslation fetches a single product translation. Used as a
+// before-snapshot for audit on upsert/delete.
+func (s *ProductService) getProductTranslation(ctx context.Context, productID, locale string) (*ProductTranslation, error) {
+	var t ProductTranslation
+	err := s.db.QueryRowContext(ctx,
+		`SELECT locale, name, subtitle, description, updated_at
+		 FROM product_translations WHERE product_id=$1 AND locale=$2`, productID, locale).
+		Scan(&t.Locale, &t.Name, &t.Subtitle, &t.Description, &t.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 // HiddenCategoryIDs returns the list of category UUIDs hidden from public
@@ -903,6 +1000,7 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 
 	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.create", "product", p.ID, nil, p)
 	return &p, nil
 }
 
@@ -910,6 +1008,13 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	kind := req.Kind
 	if kind == "" {
 		kind = "simple"
+	}
+
+	var before *Product
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -981,6 +1086,7 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 
 	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.update", "product", p.ID, before, p)
 	return &p, nil
 }
 
@@ -993,11 +1099,18 @@ func (s *ProductService) GetIDByNumber(ctx context.Context, n int64) (string, er
 }
 
 func (s *ProductService) Delete(ctx context.Context, id string) error {
+	var before *Product
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM products WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.delete", "product", id, before, nil)
 	return nil
 }
 
@@ -1543,6 +1656,7 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 	if err != nil {
 		return nil, err
 	}
+	s.record(ctx, "product.variant.create", "product_variant", v.ID, nil, v)
 	return &v, nil
 }
 
@@ -1552,6 +1666,12 @@ func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, re
 	var beforeQty int
 	if err := s.db.QueryRowContext(ctx, `SELECT stock_qty FROM product_variants WHERE id = $1`, variantID).Scan(&beforeQty); err != nil {
 		return nil, err
+	}
+	var before *Variant
+	if s.audit != nil {
+		if prev, err := s.getVariant(ctx, variantID); err == nil {
+			before = prev
+		}
 	}
 
 	var v Variant
@@ -1566,12 +1686,23 @@ func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, re
 		return nil, err
 	}
 	recordStockChange(ctx, s.db, variantID, beforeQty, v.StockQty, "admin.variant_update", nil, nil)
+	s.record(ctx, "product.variant.update", "product_variant", v.ID, before, v)
 	return &v, nil
 }
 
 func (s *ProductService) DeleteVariant(ctx context.Context, variantID string) error {
+	var before *Variant
+	if s.audit != nil {
+		if prev, err := s.getVariant(ctx, variantID); err == nil {
+			before = prev
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM product_variants WHERE id = $1`, variantID)
-	return err
+	if err != nil {
+		return err
+	}
+	s.record(ctx, "product.variant.delete", "product_variant", variantID, before, nil)
+	return nil
 }
 
 // ReorderVariants rewrites product_variants.sort_order for the given
@@ -1582,6 +1713,10 @@ func (s *ProductService) ReorderVariants(ctx context.Context, productID string, 
 	if len(variantIDs) == 0 {
 		return nil
 	}
+	var beforeIDs []string
+	if s.audit != nil {
+		beforeIDs, _ = s.listVariantIDs(ctx, productID)
+	}
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE product_variants AS pv
 		    SET sort_order = data.sort_order
@@ -1591,7 +1726,13 @@ func (s *ProductService) ReorderVariants(ctx context.Context, productID string, 
 		   ) AS data
 		  WHERE pv.id = data.id AND pv.product_id = $1`,
 		productID, pq.Array(variantIDs))
-	return err
+	if err != nil {
+		return err
+	}
+	s.record(ctx, "product.variant.reorder", "product", productID,
+		map[string]any{"variant_ids": beforeIDs},
+		map[string]any{"variant_ids": variantIDs})
+	return nil
 }
 
 func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req AdjustStockRequest) (*Variant, error) {
@@ -1612,10 +1753,19 @@ func (s *ProductService) AdjustStock(ctx context.Context, variantID string, req 
 		return nil, err
 	}
 	recordStockChange(ctx, s.db, variantID, beforeQty, v.StockQty, "admin.adjust", nil, nil)
+	s.record(ctx, "product.variant.adjust_stock", "product_variant", v.ID,
+		map[string]any{"stock_qty": beforeQty},
+		map[string]any{"stock_qty": v.StockQty, "delta": req.Delta, "note": req.Note})
 	return &v, nil
 }
 
 func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req UpdateImageRequest) (*ProductImage, error) {
+	var before *ProductImage
+	if s.audit != nil {
+		if prev, err := s.getImage(ctx, imageID); err == nil {
+			before = prev
+		}
+	}
 	img, err := scanProductImage(s.db.QueryRowContext(ctx,
 		`WITH unset_others AS (
 		     UPDATE product_images SET is_primary = FALSE
@@ -1643,12 +1793,23 @@ func (s *ProductService) UpdateImage(ctx context.Context, imageID string, req Up
 	if err != nil {
 		return nil, err
 	}
+	s.record(ctx, "product.image.update", "product_image", img.ID, before, img)
 	return &img, nil
 }
 
 func (s *ProductService) DeleteImage(ctx context.Context, imageID string) error {
+	var before *ProductImage
+	if s.audit != nil {
+		if prev, err := s.getImage(ctx, imageID); err == nil {
+			before = prev
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM product_images WHERE id = $1`, imageID)
-	return err
+	if err != nil {
+		return err
+	}
+	s.record(ctx, "product.image.delete", "product_image", imageID, before, nil)
+	return nil
 }
 
 func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant, error) {
@@ -1773,6 +1934,7 @@ func (s *ProductService) AddImage(ctx context.Context, productID string, req Add
 	if err != nil {
 		return nil, err
 	}
+	s.record(ctx, "product.image.create", "product_image", img.ID, nil, img)
 	return &img, nil
 }
 
@@ -1798,6 +1960,12 @@ func (s *ProductService) ListTranslations(ctx context.Context, productID string)
 }
 
 func (s *ProductService) UpsertTranslation(ctx context.Context, productID, locale string, req UpsertProductTranslationRequest) (*ProductTranslation, error) {
+	var before *ProductTranslation
+	if s.audit != nil {
+		if prev, err := s.getProductTranslation(ctx, productID, locale); err == nil {
+			before = prev
+		}
+	}
 	var t ProductTranslation
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO product_translations (product_id, locale, name, subtitle, description)
@@ -1812,10 +1980,18 @@ func (s *ProductService) UpsertTranslation(ctx context.Context, productID, local
 	}
 	// Translation changes affect localized list/detail responses
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.translation.upsert", "product_translation",
+		productID+":"+locale, before, t)
 	return &t, nil
 }
 
 func (s *ProductService) DeleteTranslation(ctx context.Context, productID, locale string) error {
+	var before *ProductTranslation
+	if s.audit != nil {
+		if prev, err := s.getProductTranslation(ctx, productID, locale); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM product_translations WHERE product_id = $1 AND locale = $2`, productID, locale)
 	if err != nil {
@@ -1825,6 +2001,8 @@ func (s *ProductService) DeleteTranslation(ctx context.Context, productID, local
 		return errProductNotFound
 	}
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.translation.delete", "product_translation",
+		productID+":"+locale, before, nil)
 	return nil
 }
 
@@ -1940,6 +2118,7 @@ func (s *ProductService) AddBundleItem(ctx context.Context, productID string, in
 	}
 
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.bundle_item.upsert", "product_bundle_item", bi.ID, nil, bi)
 	return &bi, nil
 }
 
@@ -1958,6 +2137,8 @@ func (s *ProductService) RemoveBundleItem(ctx context.Context, productID, compon
 		return errProductNotFound
 	}
 	s.cache.DeleteByPrefix(productPrefix)
+	s.record(ctx, "product.bundle_item.delete", "product_bundle_item",
+		productID+":"+componentVariantID, nil, nil)
 	return nil
 }
 
@@ -1979,6 +2160,11 @@ func (s *ProductService) SetBundleItems(ctx context.Context, productID string, i
 		if compKind == "bundle" {
 			return nil, fmt.Errorf("nested bundles are not allowed: component variant %s belongs to a bundle product", input.ComponentVariantID)
 		}
+	}
+
+	var beforeItems []BundleItem
+	if s.audit != nil {
+		beforeItems, _ = s.GetBundleItems(ctx, productID)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -2012,5 +2198,10 @@ func (s *ProductService) SetBundleItems(ctx context.Context, productID string, i
 	}
 
 	s.cache.DeleteByPrefix(productPrefix)
-	return s.GetBundleItems(ctx, productID)
+	after, err := s.GetBundleItems(ctx, productID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "product.bundle.set", "product_bundle", productID, beforeItems, after)
+	return after, nil
 }

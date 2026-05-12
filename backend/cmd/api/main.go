@@ -62,6 +62,58 @@ func (a settingsAuditAdapter) Record(ctx context.Context, e settings.AuditEntry)
 	})
 }
 
+// productsAuditAdapter bridges shop.AuditRecorder → audit.Service.
+type productsAuditAdapter struct{ svc *audit.Service }
+
+func (a productsAuditAdapter) Record(ctx context.Context, e shop.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// ordersAuditAdapter bridges orders.AuditRecorder → audit.Service.
+type ordersAuditAdapter struct{ svc *audit.Service }
+
+func (a ordersAuditAdapter) Record(ctx context.Context, e orders.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// cmsAuditAdapter bridges cms.AuditRecorder → audit.Service. Shared by both
+// PageService and PostService since they live in the same cms package and
+// reuse the same recorder interface.
+type cmsAuditAdapter struct{ svc *audit.Service }
+
+func (a cmsAuditAdapter) Record(ctx context.Context, e cms.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// customersAuditAdapter bridges customers.AuditRecorder → audit.Service.
+type customersAuditAdapter struct{ svc *audit.Service }
+
+func (a customersAuditAdapter) Record(ctx context.Context, e customers.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// adminUsersAuditAdapter bridges admin.AuditRecorder → audit.Service.
+type adminUsersAuditAdapter struct{ svc *audit.Service }
+
+func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
 func main() {
 	dsn := getenv("DATABASE_URL", "postgres://gyeon:gyeon@localhost:5432/gyeon?sslmode=disable")
 	jwtSecret := getenv("ADMIN_JWT_SECRET", "change-me-in-production")
@@ -187,6 +239,12 @@ func main() {
 	})
 	redirectsSvc.SetAudit(redirectsAuditAdapter{svc: auditSvc})
 	settingsSvc.SetAudit(settingsAuditAdapter{svc: auditSvc})
+	productSvc.SetAudit(productsAuditAdapter{svc: auditSvc})
+	orderSvc.SetAudit(ordersAuditAdapter{svc: auditSvc})
+	pageSvc.SetAudit(cmsAuditAdapter{svc: auditSvc})
+	postSvc.SetAudit(cmsAuditAdapter{svc: auditSvc})
+	customerSvc.SetAudit(customersAuditAdapter{svc: auditSvc})
+	adminUserSvc.SetAudit(adminUsersAuditAdapter{svc: auditSvc})
 	adminMW := auth.AdminMiddleware(jwtSecret)
 	auditInfoMW := audit.RequestInfoMiddleware()
 

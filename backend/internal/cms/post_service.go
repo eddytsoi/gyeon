@@ -76,10 +76,38 @@ type PostService struct {
 	db    *sql.DB
 	cache cache.Store
 	ttl   func(context.Context) time.Duration
+	audit AuditRecorder
 }
 
 func NewPostService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration) *PostService {
 	return &PostService{db: db, cache: c, ttl: ttl}
+}
+
+// SetAudit wires an optional audit recorder. Call from main during setup.
+func (s *PostService) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *PostService) record(ctx context.Context, action, entityType, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: entityType, EntityID: entityID,
+		Before: before, After: after,
+	})
+}
+
+// getTranslation fetches a single post translation by (postID, locale). Used
+// as a before-snapshot for audit on upsert/delete.
+func (s *PostService) getTranslation(ctx context.Context, postID, locale string) (*PostTranslation, error) {
+	var t PostTranslation
+	err := s.db.QueryRowContext(ctx,
+		`SELECT locale, title, excerpt, content, updated_at
+		 FROM cms_post_translations WHERE post_id=$1 AND locale=$2`, postID, locale).
+		Scan(&t.Locale, &t.Title, &t.Excerpt, &t.Content, &t.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &t, err
 }
 
 // syncCategoryLinks rewrites cms_post_category_links for postID to match
@@ -393,10 +421,17 @@ func (s *PostService) Create(ctx context.Context, req CreatePostRequest) (*Post,
 	}
 	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(postPrefix)
+	s.record(ctx, "cms_post.create", "cms_post", p.ID, nil, p)
 	return &p, nil
 }
 
 func (s *PostService) Update(ctx context.Context, id string, req UpdatePostRequest) (*Post, error) {
+	var before *Post
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -433,6 +468,7 @@ func (s *PostService) Update(ctx context.Context, id string, req UpdatePostReque
 	}
 	p.CategoryIDs, _ = s.loadCategoryIDs(ctx, p.ID)
 	s.cache.DeleteByPrefix(postPrefix)
+	s.record(ctx, "cms_post.update", "cms_post", p.ID, before, p)
 	return &p, nil
 }
 
@@ -445,11 +481,18 @@ func (s *PostService) GetIDByNumber(ctx context.Context, n int64) (string, error
 }
 
 func (s *PostService) Delete(ctx context.Context, id string) error {
+	var before *Post
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id, ""); err == nil {
+			before = prev
+		}
+	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM cms_posts WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
 	s.cache.DeleteByPrefix(postPrefix)
+	s.record(ctx, "cms_post.delete", "cms_post", id, before, nil)
 	return nil
 }
 
@@ -475,6 +518,12 @@ func (s *PostService) ListTranslations(ctx context.Context, postID string) ([]Po
 }
 
 func (s *PostService) UpsertTranslation(ctx context.Context, postID, locale string, req UpsertPostTranslationRequest) (*PostTranslation, error) {
+	var before *PostTranslation
+	if s.audit != nil {
+		if prev, err := s.getTranslation(ctx, postID, locale); err == nil {
+			before = prev
+		}
+	}
 	var t PostTranslation
 	err := s.db.QueryRowContext(ctx,
 		`INSERT INTO cms_post_translations (post_id, locale, title, excerpt, content)
@@ -488,10 +537,18 @@ func (s *PostService) UpsertTranslation(ctx context.Context, postID, locale stri
 		return nil, err
 	}
 	s.cache.DeleteByPrefix(postPrefix)
+	s.record(ctx, "cms_post.translation.upsert", "cms_post_translation",
+		postID+":"+locale, before, t)
 	return &t, nil
 }
 
 func (s *PostService) DeleteTranslation(ctx context.Context, postID, locale string) error {
+	var before *PostTranslation
+	if s.audit != nil {
+		if prev, err := s.getTranslation(ctx, postID, locale); err == nil {
+			before = prev
+		}
+	}
 	res, err := s.db.ExecContext(ctx,
 		`DELETE FROM cms_post_translations WHERE post_id = $1 AND locale = $2`, postID, locale)
 	if err != nil {
@@ -501,5 +558,7 @@ func (s *PostService) DeleteTranslation(ctx context.Context, postID, locale stri
 		return ErrNotFound
 	}
 	s.cache.DeleteByPrefix(postPrefix)
+	s.record(ctx, "cms_post.translation.delete", "cms_post_translation",
+		postID+":"+locale, before, nil)
 	return nil
 }
