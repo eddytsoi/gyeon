@@ -39,7 +39,9 @@ const HTML_TAG_RE = /<!--[\s\S]*?-->|<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s+[a-zA-Z_:][a
 
 // Block-level HTML tags whose opener/closer on its own line should NOT be
 // wrapped in <p>. Anything else (span, a, strong, em, …) stays inline.
-const BLOCK_TAG_RE = /^(?:address|article|aside|blockquote|details|div|dl|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|iframe|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul|video)$/i;
+// List follows CommonMark spec block-HTML rule 6 plus pre/script/style/
+// noscript/textarea from rule 1 and video for media embeds.
+const BLOCK_TAG_RE = /^(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|noscript|ol|optgroup|option|p|param|pre|script|search|section|style|summary|table|tbody|td|textarea|tfoot|th|thead|title|tr|track|ul|video)$/i;
 
 const SENTINEL_RE = /\x00HTML(\d+)\x00/g;
 
