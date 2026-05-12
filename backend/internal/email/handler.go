@@ -162,9 +162,12 @@ func (h *TemplateHandler) test(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusServiceUnavailable, "SMTP not configured")
 		return
 	}
-	subject, htmlBody, textBody := h.svc.applyTemplate(r.Context(), key, SampleParamsFor(key), func() (string, string, string) {
+	params := SampleParamsFor(key)
+	subject, htmlBody, textBody := h.svc.applyTemplate(r.Context(), key, params, func() (string, string, string) {
 		def := defaultsFor(key)
-		return def.subject, def.html, def.text
+		return renderDefault("test-subject:"+key, def.subject, params),
+			renderDefault("test-html:"+key, def.html, params),
+			renderDefault("test-text:"+key, def.text, params)
 	})
 	if err := h.svc.send(cfg, req.To, "[TEST] "+subject, textBody, htmlBody); err != nil {
 		respond.Error(w, http.StatusBadGateway, "send failed: "+err.Error())
@@ -185,9 +188,12 @@ func (h *TemplateHandler) preview(w http.ResponseWriter, r *http.Request) {
 		respond.NotFound(w)
 		return
 	}
-	subject, htmlBody, textBody := h.svc.applyTemplate(r.Context(), key, SampleParamsFor(key), func() (string, string, string) {
+	params := SampleParamsFor(key)
+	subject, htmlBody, textBody := h.svc.applyTemplate(r.Context(), key, params, func() (string, string, string) {
 		def := defaultsFor(key)
-		return def.subject, def.html, def.text
+		return renderDefault("preview-subject:"+key, def.subject, params),
+			renderDefault("preview-html:"+key, def.html, params),
+			renderDefault("preview-text:"+key, def.text, params)
 	})
 	respond.JSON(w, http.StatusOK, previewResponse{Subject: subject, HTML: htmlBody, Text: textBody})
 }
@@ -208,65 +214,26 @@ type defaults struct {
 }
 
 func defaultsFor(key string) defaults {
-	// Render the compiled-in template against sample params so admins see a
-	// realistic starting point in the editor.
+	// Returns the raw template *source* (Go text/template syntax) so admins see
+	// `{{.X}}` and `{{range .Items}}` in the editor when they "Reset to defaults".
+	// Preview rendering happens elsewhere via SampleParamsFor + executeTemplate.
 	switch key {
 	case "order_confirmation":
-		p := SampleParamsFor(key).(OrderEmailParams)
-		return defaults{
-			subject: "訂單確認 — " + orderRef(p.OrderNumber, p.OrderID),
-			html:    renderOrderHTML(p),
-			text:    renderOrderText(p),
-		}
+		return defaults{subject: orderConfirmationSubject, html: orderConfirmationHTML, text: orderConfirmationText}
 	case "order_shipped":
-		p := SampleParamsFor(key).(ShippedEmailParams)
-		return defaults{
-			subject: "您的訂單已寄出 — " + orderRef(p.OrderNumber, p.OrderID),
-			html:    renderShippedHTML(p),
-			text:    renderShippedText(p),
-		}
+		return defaults{subject: orderShippedSubject, html: orderShippedHTML, text: orderShippedText}
 	case "order_refunded":
-		p := SampleParamsFor(key).(RefundEmailParams)
-		return defaults{
-			subject: "退款通知 — " + orderRef(p.OrderNumber, p.OrderID),
-			html:    renderRefundHTML(p),
-			text:    renderRefundText(p),
-		}
+		return defaults{subject: orderRefundedSubject, html: orderRefundedHTML, text: orderRefundedText}
 	case "payment_link":
-		p := SampleParamsFor(key).(PaymentLinkParams)
-		return defaults{
-			subject: "完成付款 — " + orderRef(p.OrderNumber, p.OrderID),
-			html:    renderPaymentLinkHTML(p),
-			text:    renderPaymentLinkText(p),
-		}
+		return defaults{subject: paymentLinkSubject, html: paymentLinkHTML, text: paymentLinkText}
 	case "password_reset":
-		p := SampleParamsFor(key).(PasswordResetParams)
-		return defaults{
-			subject: "重設您的 Gyeon 帳戶密碼",
-			html:    renderPasswordResetHTML(p),
-			text:    renderPasswordResetText(p),
-		}
+		return defaults{subject: passwordResetSubject, html: passwordResetHTML, text: passwordResetText}
 	case "admin_message":
-		p := SampleParamsFor(key).(AdminMessageParams)
-		return defaults{
-			subject: "店家回覆 — " + orderRef(p.OrderNumber, ""),
-			html:    renderAdminMessageHTML(p),
-			text:    renderAdminMessageText(p),
-		}
+		return defaults{subject: adminMessageSubject, html: adminMessageHTML, text: adminMessageText}
 	case "abandoned_cart":
-		p := SampleParamsFor(key).(AbandonedCartParams)
-		return defaults{
-			subject: "您的購物車還在等您 — Gyeon",
-			html:    renderAbandonedCartHTML(p),
-			text:    renderAbandonedCartText(p),
-		}
+		return defaults{subject: abandonedCartSubject, html: abandonedCartHTML, text: abandonedCartText}
 	case "low_stock_alert":
-		p := SampleParamsFor(key).(LowStockParams)
-		return defaults{
-			subject: "低庫存警示 — " + p.ProductName,
-			html:    renderLowStockHTML(p),
-			text:    renderLowStockText(p),
-		}
+		return defaults{subject: lowStockAlertSubject, html: lowStockAlertHTML, text: lowStockAlertText}
 	}
 	return defaults{}
 }
