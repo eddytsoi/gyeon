@@ -10,6 +10,7 @@
   import type { Product, ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
+  import * as m from '$lib/paraglide/messages';
 
   interface Item extends Product {
     primaryImage: ProductImage | null;
@@ -63,10 +64,10 @@
   <section class="bg-paper border-y border-ink-300/60">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
       <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-2">
-        Complete the Set
+        {m.product_detail_related_kicker()}
       </p>
       <h2 class="font-display text-2xl md:text-3xl font-bold tracking-tight text-ink-900">
-        完成整套保護
+        {m.product_detail_related_heading()}
       </h2>
       <div class="mt-3 h-px w-12 bg-navy-500"></div>
 
@@ -120,18 +121,18 @@
         <!-- Total + CTA -->
         <aside class="lg:sticky lg:top-24 bg-white p-5 rounded-lg border border-ink-300/60 lg:min-w-[260px]">
           <p class="text-[11px] font-display font-semibold uppercase tracking-[0.15em] text-ink-500">
-            一次過買齊
+            {m.bundle_composer_total_label()}
           </p>
           <p class="mt-1 font-display text-3xl font-bold tabular-nums text-ink-900">
             HK${totalSale.toFixed(2)}
           </p>
           {#if saved > 0}
             <p class="mt-1 text-sm font-display font-semibold text-success tabular-nums">
-              省下 HK${saved.toFixed(2)}
+              {m.bundle_composer_saved({ amount: saved.toFixed(2) })}
             </p>
           {/if}
           <p class="mt-2 text-xs font-body text-ink-500">
-            已選 {selectedCount} / {items.length} 件
+            {m.bundle_composer_selected_count({ selected: selectedCount, total: items.length })}
           </p>
           <button
             type="button"
@@ -145,11 +146,11 @@
                        : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
           >
             {#if added}
-              已加入購物車
+              {m.bundle_composer_cta_added()}
             {:else if adding}
-              加入中…
+              {m.bundle_composer_cta_adding()}
             {:else}
-              加入購物車 →
+              {m.bundle_composer_cta_idle()}
             {/if}
           </button>
         </aside>

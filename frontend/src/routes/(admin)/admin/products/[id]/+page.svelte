@@ -17,6 +17,7 @@
   } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
   import { sortable } from '$lib/actions/sortable';
+  import { autogrow } from '$lib/actions/autogrow';
 
   let { data }: { data: PageData } = $props();
 
@@ -400,6 +401,38 @@
     }
   });
 
+  function onReorderVariants(orderedIds: string[]) {
+    if (data.isNew) {
+      // Pending-variants (new product) — reorder in place, no server call.
+      const byLocalId = new Map(pendingVariants.map(pv => [pv._localId, pv]));
+      const reordered = orderedIds
+        .map(lid => byLocalId.get(lid))
+        .filter((pv): pv is typeof pendingVariants[number] => !!pv);
+      if (reordered.length === pendingVariants.length) {
+        pendingVariants = reordered;
+      }
+      return;
+    }
+    void persistReorderVariants(orderedIds);
+  }
+
+  async function persistReorderVariants(ids: string[]) {
+    const snapshot = [...data.variants];
+    // Optimistic reorder.
+    const byId = new Map(data.variants.map(v => [v.id, v]));
+    const reordered = ids.map(id => byId.get(id)).filter((v): v is typeof data.variants[number] => !!v);
+    if (reordered.length !== data.variants.length) return;
+    data.variants = reordered;
+    try {
+      const fd = new FormData();
+      fd.set('variant_ids', ids.join(','));
+      const res = await fetch('?/reorderVariants', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error();
+    } catch {
+      data.variants = snapshot;
+    }
+  }
+
   function onReorderImages(orderedIds: string[]) {
     const byId = new Map(images.map(img => [img.id, img]));
     const reordered = orderedIds
@@ -532,7 +565,7 @@
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_excerpt()}</label>
-          <textarea id="excerpt" name="excerpt" rows="2"
+          <textarea id="excerpt" name="excerpt" rows="3" use:autogrow
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.excerpt ?? ''}</textarea>
@@ -542,9 +575,9 @@
             {m.admin_product_edit_label_content()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="description" name="description" rows="8"
+          <textarea id="description" name="description" rows="6" use:autogrow
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.description ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
@@ -552,9 +585,9 @@
             {m.admin_product_edit_label_how_to_use()}
             <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
           </label>
-          <textarea id="how_to_use" name="how_to_use" rows="6"
+          <textarea id="how_to_use" name="how_to_use" rows="6" use:autogrow
                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono leading-relaxed
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                     >{data.product?.how_to_use ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
@@ -636,6 +669,7 @@
       <table class="w-full text-sm">
         <thead class="bg-gray-50 border-b border-gray-100">
           <tr>
+            <th class="px-2 py-3 w-8"></th>
             <th class="px-5 py-3 w-12"></th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_col_sku()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_variants_col_name()}</th>
@@ -647,10 +681,20 @@
             <th class="px-5 py-3"></th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-50">
+        <tbody class="divide-y divide-gray-50"
+               use:sortable={{
+                 onReorder: onReorderVariants,
+                 handle: '[data-drag-handle]',
+                 filter: 'button, form, input, a, [role="button"]'
+               }}>
           {#if data.isNew}
             {#each pendingVariants as pv (pv._localId)}
-              <tr class="js-variant-row">
+              <tr class="js-variant-row" data-id={pv._localId}>
+                <td class="px-2 py-3 text-gray-300 cursor-grab active:cursor-grabbing select-none" data-drag-handle aria-hidden="true">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/>
+                  </svg>
+                </td>
                 <td class="px-5 py-3">
                   {#if pv.image_preview_url}
                     {#if detectStreamingVideoFromURL(pv.image_preview_url)}
@@ -697,14 +741,19 @@
               </tr>
             {:else}
               <tr>
-                <td colspan="9" class="px-5 py-8 text-center text-gray-400 text-sm">
+                <td colspan="10" class="px-5 py-8 text-center text-gray-400 text-sm">
                   {m.admin_product_edit_variants_empty()}
                 </td>
               </tr>
             {/each}
           {:else}
-            {#each data.variants as variant}
-              <tr class="js-variant-row">
+            {#each data.variants as variant (variant.id)}
+              <tr class="js-variant-row" data-id={variant.id}>
+                <td class="px-2 py-3 text-gray-300 cursor-grab active:cursor-grabbing select-none" data-drag-handle aria-hidden="true">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/>
+                  </svg>
+                </td>
                 <td class="px-5 py-3">
                   {#if variant.image_url}
                     {#if detectStreamingVideoFromURL(variant.image_url)}

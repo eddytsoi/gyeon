@@ -88,6 +88,12 @@ export const adminDeleteVariant = (token: string, productID: string, variantID: 
 export const adminAdjustStock = (token: string, productID: string, variantID: string, delta: number) =>
   request<Variant>(`/products/${productID}/variants/${variantID}/stock`, token, { method: 'POST', body: JSON.stringify({ delta }) });
 
+export const adminReorderVariants = (token: string, productID: string, ids: string[]) =>
+  request<void>(`/products/${productID}/variants/reorder`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ ids })
+  });
+
 export interface VariantHistoryRow {
   id: string;
   variant_id: string;

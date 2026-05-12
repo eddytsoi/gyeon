@@ -43,9 +43,10 @@ func (h *ProductHandler) Routes() chi.Router {
 	// Single variant by ID (used by checkout for pricing)
 	r.Get("/variants/{variantID}", h.getVariantByID)
 
-	// Variant sub-routes
+	// Variant sub-routes — literal /reorder before /{variantID} so chi prefers it.
 	r.Get("/{id}/variants", h.listVariants)
 	r.Post("/{id}/variants", h.createVariant)
+	r.Patch("/{id}/variants/reorder", h.reorderVariants)
 	r.Put("/{id}/variants/{variantID}", h.updateVariant)
 	r.Delete("/{id}/variants/{variantID}", h.deleteVariant)
 	r.Post("/{id}/variants/{variantID}/stock", h.adjustStock)
@@ -241,6 +242,22 @@ func (h *ProductHandler) updateVariant(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) deleteVariant(w http.ResponseWriter, r *http.Request) {
 	variantID := chi.URLParam(r, "variantID")
 	if err := h.svc.DeleteVariant(r.Context(), variantID); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProductHandler) reorderVariants(w http.ResponseWriter, r *http.Request) {
+	productID := chi.URLParam(r, "id")
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if err := h.svc.ReorderVariants(r.Context(), productID, req.IDs); err != nil {
 		respond.InternalError(w)
 		return
 	}
