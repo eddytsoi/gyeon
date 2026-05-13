@@ -10,7 +10,7 @@
   <meta name="description" content={m.blog_meta_description()} />
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-4 py-12 sm:py-16">
+<div class="max-w-[1280px] mx-auto px-4 lg:px-8 py-12 sm:py-16">
   <!-- Header -->
   <div class="mb-10 sm:mb-14">
     <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">{m.blog_heading()}</h1>
