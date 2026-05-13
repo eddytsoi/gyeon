@@ -10,7 +10,7 @@ set -euo pipefail
 GCP_PROJECT="proven-cogency-477502-v5"  # GCP project ID
 GCP_ZONE="asia-east1-b"  # Hong Kong region
 VM_NAME="gyeon"
-MACHINE_TYPE="e2-small"  # 2 vCPU, 2 GB RAM (~USD $15/mo)
+MACHINE_TYPE="e2-medium"  # 2 vCPU, 4 GB RAM (~USD $30/mo). Earlier "e2-small" (2 GB) ran out of RAM under load.
 GITHUB_REPO="https://github.com/eddytsoi/gyeon.git"
 # ─────────────────────────────────────────────────────────────────────────────
 
