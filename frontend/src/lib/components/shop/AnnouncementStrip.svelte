@@ -1,8 +1,8 @@
 <script lang="ts">
   /*
    * Slim site-wide announcement bar — pinned above the header.
-   * Reads `free_shipping_threshold_hkd` from publicSettings; renders nothing
-   * when threshold ≤ 0 or the user has dismissed it (localStorage flag).
+   * Reads `site_notice` from publicSettings; renders nothing when empty
+   * or the user has dismissed it (localStorage flag).
    * Design system: gyeon-project-design-system §5.1.
    */
   import { onMount } from 'svelte';
@@ -24,11 +24,9 @@
     }
   });
 
-  const threshold = $derived(() => {
-    const raw = settings.find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+  const notice = $derived(
+    (settings.find((s) => s.key === 'site_notice')?.value ?? '').trim()
+  );
 
   function dismiss() {
     dismissed = true;
@@ -36,11 +34,11 @@
   }
 </script>
 
-{#if threshold() > 0 && (!mounted || !dismissed)}
+{#if notice && (!mounted || !dismissed)}
   <div class="bg-cream text-ink-900 border-b border-ink-300/60" role="region" aria-label="Site announcement">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-3 relative">
-      <p class="text-[11px] sm:text-xs font-display font-semibold uppercase tracking-[0.15em] text-center">
-        訂單滿 HK${threshold()} 免運費 · 即日訂購次日送達
+      <p class="text-xs sm:text-[16px] font-display font-semibold uppercase tracking-[0.15em] text-center">
+        {notice}
       </p>
       <button type="button" onclick={dismiss}
               aria-label="Dismiss announcement"

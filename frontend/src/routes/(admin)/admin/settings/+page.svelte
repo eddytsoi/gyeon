@@ -619,6 +619,22 @@
       </div>
     </div>
 
+    <!-- Site Notice (announcement strip) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="site_notice" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_site_notice_heading()}
+        </label>
+        <p class="text-xs text-gray-400">
+          {m.admin_settings_site_notice_subtitle()}
+        </p>
+        <textarea id="site_notice" name="site_notice" rows="2"
+                  class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                         focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  value={settingValue('site_notice') || ''}></textarea>
+      </div>
+    </div>
+
     <!-- Favicon -->
     {#if faviconSetting}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">

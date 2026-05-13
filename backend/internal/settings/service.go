@@ -35,6 +35,7 @@ var publicSettingKeys = []string{
 	"meta_pixel_id",              // P3 #26
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
 	"favicon_url",                // injected into <svelte:head> on storefront + admin
+	"site_notice",                // storefront announcement strip copy
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

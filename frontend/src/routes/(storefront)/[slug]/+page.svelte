@@ -11,7 +11,7 @@
   {#if page.meta_desc}<meta name="description" content={page.meta_desc} />{/if}
 </svelte:head>
 
-<div class="max-w-3xl mx-auto px-4 py-12 sm:py-16">
+<div class="max-w-[1280px] mx-auto px-4 lg:px-8 py-12 sm:py-16">
   <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-8">
     {page.title}
   </h1>

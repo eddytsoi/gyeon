@@ -33,7 +33,7 @@
   jsonLd={blogJsonLd}
 />
 
-<article class="max-w-3xl mx-auto px-4 py-12 sm:py-16">
+<article class="max-w-[1280px] mx-auto px-4 lg:px-8 py-12 sm:py-16">
   <!-- Breadcrumbs -->
   <nav class="flex flex-wrap gap-2 items-center text-[11px] uppercase tracking-[0.15em] text-gray-400 mb-10">
     <a href="/" class="hover:text-gray-700 transition-colors">{m.common_home()}</a>
