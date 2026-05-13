@@ -484,6 +484,7 @@
   "admin_top_shipping": "運送",
   "admin_top_audit_log": "操作記錄",
   "admin_top_email_templates": "Email 模板",
+  "admin_top_import": "匯入",
   "admin_top_admin": "管理員",
   "admin_event_new_order_title": "收到新訂單",
   "admin_event_new_order_body": "新訂單 #{orderNumber} · {customer} · {total}",
@@ -1431,7 +1432,7 @@
   "admin_settings_desc_maintenance_mode": "啟用時，非管理員訪客會被重定向至維護頁面",
   "admin_settings_desc_mcp_enabled": "允許 AI 代理透過 MCP 連接此商店",
 
-  "admin_import_title": "匯入產品 — Gyeon 管理員",
+  "admin_import_title": "匯入 — Gyeon 管理員",
   "admin_import_tab_products": "匯入產品",
   "admin_import_tab_orders": "匯入訂單",
   "admin_import_tab_customers": "匯入客戶",

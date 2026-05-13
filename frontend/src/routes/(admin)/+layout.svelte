@@ -454,6 +454,7 @@
           {:else if $page.url.pathname.includes('shipping')}{m.admin_top_shipping()}
           {:else if $page.url.pathname.includes('audit-log')}{m.admin_top_audit_log()}
           {:else if $page.url.pathname.includes('email-templates')}{m.admin_top_email_templates()}
+          {:else if $page.url.pathname.includes('import')}{m.admin_top_import()}
           {:else}{m.admin_top_admin()}{/if}
         </h1>
 
