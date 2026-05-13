@@ -79,6 +79,9 @@ function renderInline(s: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, `<code class="${CODE_CLASS}">$1</code>`)
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) =>
+      `<img src="${url.replace(/"/g, '&quot;')}" alt="${alt.replace(/"/g, '&quot;')}">`
+    )
     .replace(/\[(.+?)\]\((.+?)\)/g, `<a href="$2" class="${LINK_CLASS}">$1</a>`);
 }
 

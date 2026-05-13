@@ -7,6 +7,7 @@ export type SectionLayout = 'default' | 'split' | 'split-reverse' | 'hero';
 export type SectionPadding = 'sm' | 'md' | 'lg';
 export type SectionWidth = 'default' | 'narrow' | 'full';
 export type SectionAlign = 'left' | 'center';
+export type SectionBleed = 'full' | 'container';
 
 // Static maps so Tailwind JIT sees full class names. Unknown values fall
 // back to defaults via the resolvers below.
@@ -46,6 +47,9 @@ export function resolveWidth(v: unknown): SectionWidth {
 }
 export function resolveAlign(v: unknown): SectionAlign {
   return v === 'left' || v === 'center' ? v : 'left';
+}
+export function resolveBleed(v: unknown): SectionBleed {
+  return v === 'full' || v === 'container' ? v : 'full';
 }
 
 // Split body on a markdown horizontal rule (`---` on its own line). Returns

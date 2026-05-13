@@ -7,6 +7,7 @@
     resolvePadding,
     resolveWidth,
     resolveAlign,
+    resolveBleed,
     splitBodyOnHr
   } from '$lib/shortcodes/section';
   import type { ShortcodeAttrs, ShortcodeRefs } from '$lib/shortcodes/types';
@@ -37,6 +38,7 @@
   const padding = $derived(resolvePadding(attrs.padding));
   const width = $derived(resolveWidth(attrs.width));
   const align = $derived(resolveAlign(attrs.align));
+  const bleed = $derived(resolveBleed(attrs.bleed));
   const id = $derived(attrs.id || undefined);
 
   $effect(() => {
@@ -45,6 +47,7 @@
     warnIfBad('padding', attrs.padding, padding);
     warnIfBad('width', attrs.width, width);
     warnIfBad('align', attrs.align, align);
+    warnIfBad('bleed', attrs.bleed, bleed);
   });
 
   const split = $derived(
@@ -52,7 +55,7 @@
   );
 </script>
 
-<Section {bg} {layout} {padding} {width} {align} {id}>
+<Section {bg} {layout} {padding} {width} {align} {bleed} {id}>
   {#if layout === 'default' || !split}
     <MarkdownContent content={body} {refs} />
   {:else if layout === 'split'}
