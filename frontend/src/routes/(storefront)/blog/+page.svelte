@@ -5,10 +5,11 @@
 
   let { data }: { data: PageData } = $props();
 
-  // Blog list cards are single-column on mobile, full width within max-w-[1280px]
-  // container on lg+, at 16:7 aspect. The first card is the LCP candidate.
-  const CARD_COVER_WIDTHS = [480, 768, 960, 1280];
-  const CARD_COVER_SIZES = '(min-width: 1024px) 1024px, 100vw';
+  // Blog list cards are single-column on mobile, full width within max-w-7xl
+  // container on lg+ (max 1472px after px-8 padding), at 16:7 aspect. The
+  // first card is the LCP candidate.
+  const CARD_COVER_WIDTHS = [480, 768, 960, 1280, 1600];
+  const CARD_COVER_SIZES = '(min-width: 1024px) 1472px, 100vw';
 </script>
 
 <svelte:head>
@@ -16,7 +17,7 @@
   <meta name="description" content={m.blog_meta_description()} />
 </svelte:head>
 
-<div class="max-w-[1280px] mx-auto px-4 lg:px-8 py-12 sm:py-16">
+<div class="max-w-7xl mx-auto px-4 lg:px-8 py-12 sm:py-16">
   <!-- Header -->
   <div class="mb-10 sm:mb-14">
     <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">{m.blog_heading()}</h1>

@@ -1,6 +1,6 @@
 {
   "name": "gyeon-frontend",
-  "version": "0.9.72",
+  "version": "0.9.73",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,6 +25,8 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@fontsource/barlow-condensed": "^5.2.8",
+    "@fontsource/inter": "^5.2.8",
     "@stripe/stripe-js": "^9.3.1",
     "@types/sortablejs": "^1.15.9",
     "sortablejs": "^1.15.7"

@@ -1,11 +1,18 @@
 /*
- * Gyeon brand fonts — Google Fonts proxies for the licensed stack.
+ * Gyeon brand fonts — self-hosted via @fontsource (proxies for the licensed stack).
  *   Barlow Condensed → display (proxy for GT America Compressed)
  *   Inter            → body    (proxy for Gotham)
- * When the licensed woff2 files are uploaded to static/fonts/, add a local
- * @font-face block that wins by source order and remove these imports.
+ * When licensed GT America Compressed + Gotham woff2 land in static/fonts/, swap
+ * these imports for local @font-face blocks that win by source order.
  */
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/barlow-condensed/500.css';
+@import '@fontsource/barlow-condensed/600.css';
+@import '@fontsource/barlow-condensed/700.css';
+@import '@fontsource/barlow-condensed/800.css';
 
 @tailwind base;
 @tailwind components;
