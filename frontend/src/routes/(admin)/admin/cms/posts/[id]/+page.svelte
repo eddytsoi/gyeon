@@ -4,7 +4,8 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
-  import { renderMarkdown } from '$lib/markdown';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -50,6 +51,7 @@
 
   // Split-pane preview state
   let preview = $state(false);
+  let contentTextarea = $state<HTMLTextAreaElement | null>(null);
 </script>
 
 <div class="max-w-5xl mx-auto space-y-6">
@@ -137,7 +139,8 @@
               <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 {m.admin_cms_post_edit_label_content()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_post_edit_content_markdown_hint()}</span>
               </label>
-              <textarea name="content" bind:value={content} rows="20"
+              <ShortcodeToolbar bind:value={content} textarea={contentTextarea} />
+              <textarea name="content" bind:value={content} bind:this={contentTextarea} rows="20"
                         placeholder={m.admin_cms_post_edit_content_placeholder()}
                         class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                                text-gray-900 placeholder-gray-400 font-mono leading-relaxed
@@ -224,7 +227,7 @@
             {/if}
             <hr class="my-4 border-gray-100" />
             <div class="text-sm text-gray-700 leading-relaxed">
-              {@html renderMarkdown(content || m.admin_cms_post_edit_preview_no_content())}
+              <MarkdownContent content={content || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
 import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems } from '$lib/api';
 import { error } from '@sveltejs/kit';
+import { scanShortcodeRefsMany } from '$lib/shortcodes/scan';
+import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -28,10 +30,11 @@ export const load: PageServerLoad = async ({ params }) => {
   }
   const related = pool.slice(0, 4);
 
-  const [variants, images, bundleItems, ...relatedImages] = await Promise.all([
+  const [variants, images, bundleItems, shortcodeRefs, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
     getProductImages(product.id).catch(() => []),
     product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
+    resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use)),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
@@ -40,5 +43,5 @@ export const load: PageServerLoad = async ({ params }) => {
     primaryImage: relatedImages[i]?.find((img) => img.is_primary) ?? relatedImages[i]?.[0] ?? null
   }));
 
-  return { product, variants, images, bundleItems, category, related: relatedWithImage };
+  return { product, variants, images, bundleItems, category, related: relatedWithImage, shortcodeRefs };
 };

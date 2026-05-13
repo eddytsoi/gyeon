@@ -4,7 +4,7 @@
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
   import { siteOrigin, snippet } from '$lib/seo';
-  import { renderMarkdown } from '$lib/markdown';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 
   let { data }: { data: PageData } = $props();
   const { post } = data;
@@ -82,6 +82,6 @@
 
   <!-- Content -->
   <div class="text-gray-700 text-base leading-relaxed">
-    {@html renderMarkdown(post.content)}
+    <MarkdownContent content={post.content} refs={data.shortcodeRefs} />
   </div>
 </article>

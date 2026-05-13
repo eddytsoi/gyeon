@@ -17,6 +17,8 @@
   } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
   import { sortable } from '$lib/actions/sortable';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -30,6 +32,15 @@
   let kind = $state(data.product?.kind ?? 'simple');
   let autoSlug = $state(!data.product);
   let saving = $state(false);
+
+  // Markdown fields backed by $state so the shortcode toolbar can insert
+  // at the cursor. (Was previously plain textareas with default values.)
+  let description = $state(data.product?.description ?? '');
+  let howToUse = $state(data.product?.how_to_use ?? '');
+  let descriptionTextarea = $state<HTMLTextAreaElement | null>(null);
+  let howToUseTextarea = $state<HTMLTextAreaElement | null>(null);
+  let descriptionPreview = $state(false);
+  let howToUsePreview = $state(false);
 
   // Category state — the multi-select "Categories" is the source of truth for
   // every category the product belongs to (stored in product_category_links).
@@ -569,24 +580,52 @@
                     >{data.product?.excerpt ?? ''}</textarea>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_label_content()}
-            <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-          </label>
-          <textarea id="description" name="description" rows="10"
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
-                    >{data.product?.description ?? ''}</textarea>
+          <div class="flex items-center justify-between">
+            <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_content()}
+              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+            </label>
+            <button type="button" onclick={() => descriptionPreview = !descriptionPreview}
+                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+              {descriptionPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+            </button>
+          </div>
+          <ShortcodeToolbar bind:value={description} textarea={descriptionTextarea} />
+          <div class="{descriptionPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+            <textarea id="description" name="description" rows="10" bind:value={description} bind:this={descriptionTextarea}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+            {#if descriptionPreview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 360px">
+                <MarkdownContent content={description || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
+          </div>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_label_how_to_use()}
-            <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-          </label>
-          <textarea id="how_to_use" name="how_to_use" rows="10"
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
-                    >{data.product?.how_to_use ?? ''}</textarea>
+          <div class="flex items-center justify-between">
+            <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_how_to_use()}
+              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+            </label>
+            <button type="button" onclick={() => howToUsePreview = !howToUsePreview}
+                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+              {howToUsePreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+            </button>
+          </div>
+          <ShortcodeToolbar bind:value={howToUse} textarea={howToUseTextarea} />
+          <div class="{howToUsePreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+            <textarea id="how_to_use" name="how_to_use" rows="10" bind:value={howToUse} bind:this={howToUseTextarea}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+            {#if howToUsePreview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 360px">
+                <MarkdownContent content={howToUse || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
+          </div>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">

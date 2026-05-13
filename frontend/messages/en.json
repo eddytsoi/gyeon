@@ -987,6 +987,12 @@
   "admin_cms_posts_deleted_success": "Post '{title}' deleted",
   "admin_cms_posts_deleted_failure": "Failed to delete post '{title}'",
 
+  "admin_shortcode_insert_label": "Insert:",
+  "admin_shortcode_insert_product": "Product",
+  "admin_shortcode_insert_products": "Product grid",
+  "admin_shortcode_insert_button": "Button",
+  "admin_shortcode_insert_note": "Note",
+
   "admin_cms_post_edit_new_heading": "New Post",
   "admin_cms_post_edit_edit_heading": "Edit Post",
   "admin_cms_post_edit_preview_button": "Preview",
