@@ -18,6 +18,10 @@
   let note = $state(r?.note ?? '');
 </script>
 
+<svelte:head>
+  <title>{isNew ? m.admin_redirects_new_title() : m.admin_redirects_edit_title({ path: r?.from_path ?? '' })}</title>
+</svelte:head>
+
 <div class="max-w-2xl mx-auto space-y-6">
   <div class="flex items-center gap-4">
     <a href="/admin/redirects"

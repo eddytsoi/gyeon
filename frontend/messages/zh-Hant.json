@@ -538,6 +538,7 @@
   "admin_products_deleted_failure": "刪除產品「{name}」失敗",
   "admin_products_dash": "—",
 
+  "admin_categories_title": "產品分類 — Gyeon 管理員",
   "admin_categories_heading": "產品分類",
   "admin_categories_count_one": "{count} 個分類 · 拖曳以重新排序",
   "admin_categories_count_many": "{count} 個分類 · 拖曳以重新排序",
@@ -594,6 +595,7 @@
   "order_status_cancelled": "已取消",
   "order_status_refunded": "已退款",
 
+  "admin_order_detail_title": "訂單「{number}」 — Gyeon 管理員",
   "admin_order_back": "← 訂單",
   "admin_order_card_status": "狀態",
   "admin_order_card_total": "總計",
@@ -685,6 +687,8 @@
   "admin_customers_empty": "暫無顧客",
   "admin_customers_empty_hint": "顧客註冊後將顯示於此。",
 
+  "admin_customer_detail_title": "顧客「{name}」 — Gyeon 管理員",
+  "admin_customer_detail_fallback_title": "顧客 — Gyeon 管理員",
   "admin_customer_back": "← 顧客",
   "admin_customer_not_found_heading": "找不到顧客",
   "admin_customer_not_found_body": "找不到此顧客。",
@@ -722,8 +726,10 @@
   "admin_pagination_next": "下一頁",
 
   "admin_product_edit_back": "← 產品",
-  "admin_product_edit_new_title": "新增產品",
-  "admin_product_edit_edit_title": "編輯產品",
+  "admin_product_edit_new_title": "新增產品 — Gyeon 管理員",
+  "admin_product_edit_edit_title": "編輯產品「{name}」 — Gyeon 管理員",
+  "admin_product_edit_new_heading": "新增產品",
+  "admin_product_edit_edit_heading": "編輯產品",
   "admin_product_edit_section_details": "產品詳情",
   "admin_product_edit_label_name": "名稱",
   "admin_product_edit_label_slug": "Slug",
@@ -920,6 +926,7 @@
   "admin_product_edit_kind_modal_cancel": "取消",
   "admin_product_edit_kind_modal_confirm": "確認刪除並儲存",
 
+  "admin_cms_pages_title": "頁面 — Gyeon 管理員",
   "admin_cms_pages_heading": "頁面",
   "admin_cms_pages_count_one": "{count} 個頁面",
   "admin_cms_pages_count_many": "{count} 個頁面",
@@ -941,6 +948,8 @@
   "admin_cms_pages_deleted_success": "頁面「{title}」已刪除",
   "admin_cms_pages_deleted_failure": "刪除頁面「{title}」失敗",
 
+  "admin_cms_page_edit_new_title": "新增頁面 — Gyeon 管理員",
+  "admin_cms_page_edit_edit_title": "編輯頁面「{title}」 — Gyeon 管理員",
   "admin_cms_page_edit_new_heading": "新增頁面",
   "admin_cms_page_edit_edit_heading": "編輯頁面",
   "admin_cms_page_edit_label_title": "標題",
@@ -965,6 +974,7 @@
   "admin_cms_page_edit_save_success": "頁面「{title}」已儲存",
   "admin_cms_page_edit_save_failure": "儲存頁面「{title}」失敗",
 
+  "admin_cms_posts_title": "文章 — Gyeon 管理員",
   "admin_cms_posts_heading": "文章",
   "admin_cms_posts_count": "共 {total} 篇 · 已發佈 {published} 篇",
   "admin_cms_posts_new": "新增文章",
@@ -999,6 +1009,8 @@
   "admin_shortcode_insert_section_hero": "Hero 區塊",
   "admin_shortcode_insert_section_split": "雙欄區塊",
 
+  "admin_cms_post_edit_new_title": "新增文章 — Gyeon 管理員",
+  "admin_cms_post_edit_edit_title": "編輯文章「{title}」 — Gyeon 管理員",
   "admin_cms_post_edit_new_heading": "新增文章",
   "admin_cms_post_edit_edit_heading": "編輯文章",
   "admin_cms_post_edit_preview_button": "預覽",
@@ -1033,6 +1045,7 @@
   "admin_cms_post_edit_save_success": "文章「{title}」已儲存",
   "admin_cms_post_edit_save_failure": "儲存文章「{title}」失敗",
 
+  "admin_cms_post_categories_title": "文章分類 — Gyeon 管理員",
   "admin_cms_post_categories_heading": "文章分類",
   "admin_cms_post_categories_count_one": "{count} 個分類 · 拖曳以重新排序",
   "admin_cms_post_categories_count_many": "{count} 個分類 · 拖曳以重新排序",
@@ -1061,6 +1074,7 @@
   "admin_cms_post_categories_delete_success": "分類「{name}」已刪除",
   "admin_cms_post_categories_delete_failure": "刪除分類「{name}」失敗",
 
+  "admin_cms_navigation_title": "導覽選單 — Gyeon 管理員",
   "admin_cms_navigation_heading": "導覽選單",
   "admin_cms_navigation_subtitle": "管理頁首及頁尾選單",
   "admin_cms_navigation_add_link": "新增連結",
@@ -1157,6 +1171,7 @@
   "admin_media_deleted_success": "{name} 已刪除",
   "admin_media_deleted_failure": "刪除媒體失敗",
 
+  "admin_media_edit_title": "媒體「{name}」 — Gyeon 管理員",
   "admin_media_edit_back": "返回媒體庫",
   "admin_media_edit_save_success": "變更已儲存",
   "admin_media_edit_save_failure": "儲存變更失敗",
@@ -1524,6 +1539,7 @@
   "admin_import_settings_test_button": "測試連線",
   "admin_import_settings_testing": "測試中…",
   "admin_import_settings_test_disclaimer": "不會執行匯入。",
+  "admin_discounts_title": "優惠 — Gyeon 管理員",
   "admin_discounts_heading": "優惠",
   "admin_discounts_subtitle": "管理自動套用優惠活動以及顧客輸入的優惠碼。",
   "admin_discounts_tab_campaigns": "優惠活動",
@@ -1555,8 +1571,12 @@
   "admin_discounts_deleted_campaign_failure": "刪除優惠活動「{name}」失敗",
   "admin_discounts_deleted_coupon_success": "已刪除優惠碼「{code}」",
   "admin_discounts_deleted_coupon_failure": "刪除優惠碼「{code}」失敗",
+  "admin_discounts_campaign_new_title": "新增優惠活動 — Gyeon 管理員",
+  "admin_discounts_campaign_edit_title": "編輯優惠活動「{name}」 — Gyeon 管理員",
   "admin_discounts_campaign_new_heading": "新增優惠活動",
   "admin_discounts_campaign_edit_heading": "編輯優惠活動",
+  "admin_discounts_coupon_new_title": "新增優惠碼 — Gyeon 管理員",
+  "admin_discounts_coupon_edit_title": "編輯優惠碼「{code}」 — Gyeon 管理員",
   "admin_discounts_coupon_new_heading": "新增優惠碼",
   "admin_discounts_coupon_edit_heading": "編輯優惠碼",
   "admin_discounts_coupon_used_count_label": "已使用 {used} / {max}",
@@ -1588,6 +1608,7 @@
   "admin_discounts_coupon_save_success": "已儲存優惠碼「{code}」",
   "admin_discounts_coupon_save_failure": "儲存優惠碼「{code}」失敗",
 
+  "admin_redirects_title": "轉址 — Gyeon 管理員",
   "admin_redirects_heading": "轉址",
   "admin_redirects_subtitle": "把舊網址導向新位置（301 永久 / 302 暫時）。",
   "admin_redirects_new": "新增轉址",
@@ -1599,6 +1620,8 @@
   "admin_redirects_col_status": "狀態",
   "admin_redirects_status_active": "啟用",
   "admin_redirects_status_inactive": "停用",
+  "admin_redirects_new_title": "新增轉址 — Gyeon 管理員",
+  "admin_redirects_edit_title": "編輯轉址「{path}」 — Gyeon 管理員",
   "admin_redirects_new_heading": "新增轉址",
   "admin_redirects_edit_heading": "編輯轉址",
   "admin_redirects_label_from": "來源路徑",
@@ -1624,6 +1647,7 @@
   "admin_tax_preview_subtotal": "小計",
   "admin_tax_preview_total": "總計",
 
+  "admin_audit_log_title": "操作記錄 — Gyeon 管理員",
   "admin_audit_log_heading": "操作記錄",
   "admin_audit_log_subtitle": "高敏感度後台操作的歷史紀錄，含操作者與變更前後的 JSON。",
   "admin_audit_log_filter_action": "動作",
@@ -1652,6 +1676,8 @@
   "admin_product_edit_variants_history_col_reason": "原因",
   "admin_product_edit_variants_history_col_actor": "操作者",
 
+  "admin_email_templates_title": "Email 模板 — Gyeon 管理員",
+  "admin_email_templates_edit_title": "編輯 Email 模板「{name}」 — Gyeon 管理員",
   "admin_email_templates_heading": "Email 模板",
   "admin_email_templates_subtitle": "自訂交易郵件的內容。隨時可重置回內建預設版本。",
   "admin_email_templates_col_name": "模板",

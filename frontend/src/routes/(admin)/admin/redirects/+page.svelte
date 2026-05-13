@@ -12,6 +12,8 @@
   let deleting = $state<Redirect | null>(null);
 </script>
 
+<svelte:head><title>{m.admin_redirects_title()}</title></svelte:head>
+
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">

@@ -50,6 +50,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{m.admin_email_templates_edit_title({ name: t.display_name })}</title>
+</svelte:head>
+
 <div class="max-w-5xl mx-auto space-y-6">
   <div class="flex items-center gap-4">
     <a href="/admin/email-templates"

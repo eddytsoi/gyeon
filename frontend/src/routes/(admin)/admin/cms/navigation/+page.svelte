@@ -71,6 +71,8 @@
   }
 </script>
 
+<svelte:head><title>{m.admin_cms_navigation_title()}</title></svelte:head>
+
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">

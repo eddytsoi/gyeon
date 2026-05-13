@@ -75,6 +75,8 @@
   }
 </script>
 
+<svelte:head><title>{m.admin_categories_title()}</title></svelte:head>
+
 <div class="max-w-2xl mx-auto space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">

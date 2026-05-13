@@ -484,7 +484,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.isNew ? m.admin_product_edit_new_title() : (data.product?.name ?? m.admin_product_edit_edit_title())} — Gyeon Admin</title>
+  <title>{data.isNew ? m.admin_product_edit_new_title() : m.admin_product_edit_edit_title({ name: data.product?.name ?? '' })}</title>
 </svelte:head>
 
 <!-- Back + title -->
@@ -492,7 +492,7 @@
     <a href="/admin/products" class="text-sm text-gray-400 hover:text-gray-700 transition-colors">{m.admin_product_edit_back()}</a>
     <span class="text-gray-200">/</span>
     <h1 class="text-xl font-bold text-gray-900">
-      {data.isNew ? m.admin_product_edit_new_title() : (data.product?.name ?? m.admin_product_edit_edit_title())}
+      {data.isNew ? m.admin_product_edit_new_heading() : (data.product?.name ?? m.admin_product_edit_edit_heading())}
     </h1>
   </div>
 
