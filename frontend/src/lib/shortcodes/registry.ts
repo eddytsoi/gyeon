@@ -5,6 +5,7 @@ import ButtonShortcode from '$lib/components/shortcodes/ButtonShortcode.svelte';
 import NoteShortcode from '$lib/components/shortcodes/NoteShortcode.svelte';
 import SectionShortcode from '$lib/components/shortcodes/SectionShortcode.svelte';
 import BannerShortcode from '$lib/components/shortcodes/BannerShortcode.svelte';
+import ContactFormShortcode from '$lib/components/shortcodes/ContactFormShortcode.svelte';
 
 // The single place that maps shortcode names to their renderer components.
 // Add a new shortcode by importing its component here and adding it to the
@@ -15,5 +16,6 @@ export const shortcodeRegistry: Record<string, Component<any>> = {
   button: ButtonShortcode,
   note: NoteShortcode,
   section: SectionShortcode,
-  banner: BannerShortcode
+  banner: BannerShortcode,
+  'contact-form': ContactFormShortcode
 };

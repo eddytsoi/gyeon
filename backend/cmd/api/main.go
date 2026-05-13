@@ -19,6 +19,7 @@ import (
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
 	"gyeon/backend/internal/email"
+	"gyeon/backend/internal/forms"
 	"gyeon/backend/internal/importer"
 	"gyeon/backend/internal/lookup"
 	"gyeon/backend/internal/loyalty"
@@ -27,6 +28,7 @@ import (
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/recaptcha"
 	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shipany"
@@ -225,6 +227,11 @@ func main() {
 	auditHandler := audit.NewHandler(auditSvc)
 	loyaltySvc := loyalty.NewService(conn)
 	loyaltyHandler := loyalty.NewHandler(loyaltySvc)
+
+	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
+	recaptchaVerifier := recaptcha.New(settingsSvc)
+	formsSvc := forms.NewService(conn, emailSvc, recaptchaVerifier)
+	formsHandler := forms.NewHandler(formsSvc)
 	orderSvc.SetOnOrderPaid(func(ctx context.Context, o *orders.Order) {
 		// Earn rate operates on order subtotal (post-discount, pre-tax/shipping).
 		base := o.Subtotal - o.DiscountAmount
@@ -339,6 +346,9 @@ func main() {
 		// Public settings (storefront config)
 		r.Mount("/settings", settingsHandler.PublicRoutes())
 
+		// Public forms: read form spec, submit form
+		r.Mount("/forms", formsHandler.PublicRoutes())
+
 		// Public coupon validation
 		r.Mount("/pricing", pricingHandler.PublicRoutes())
 
@@ -427,6 +437,9 @@ func main() {
 			// Email templates (P2 #20): admin-editable overrides for the
 			// hardcoded transactional emails
 			r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
+
+			// Contact-form admin (CF7-style) — CRUD + submissions viewer
+			r.Mount("/admin/forms", formsHandler.AdminRoutes())
 
 			// Loyalty (P3 #24): per-customer balance + ledger + manual adjust
 			r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())

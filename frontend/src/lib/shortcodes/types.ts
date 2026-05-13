@@ -12,6 +12,47 @@ export type ShortcodeProductRef = {
   variant: Variant | null;
 };
 
+// FormFieldOption / PublicForm mirror backend/internal/forms types — kept in
+// sync by hand. Update both sides if the field schema changes.
+export type FormFieldOption = { label: string; value: string };
+
+export type FormField = {
+  type:
+    | 'text'
+    | 'email'
+    | 'tel'
+    | 'textarea'
+    | 'select'
+    | 'checkbox'
+    | 'radio'
+    | 'date'
+    | 'submit'
+    | 'hidden';
+  name: string;
+  required?: boolean;
+  label?: string;
+  placeholder?: string;
+  default?: string;
+  id?: string;
+  class?: string;
+  size?: number;
+  maxlength?: number;
+  minlength?: number;
+  min?: string;
+  max?: string;
+  options?: FormFieldOption[];
+};
+
+export type PublicForm = {
+  id: string;
+  slug: string;
+  title: string;
+  fields: FormField[];
+  success_message: string;
+  error_message: string;
+  recaptcha_action: string;
+};
+
 export type ShortcodeRefs = {
   // Card data keyed by product UUID — the canonical lookup the components
   // dispatch into. PRD-N and category slugs both resolve through this map.
@@ -22,15 +63,19 @@ export type ShortcodeRefs = {
   // Slug → ordered UUID list. Order is the natural order returned by the
   // category list endpoint (newest first today).
   productsByCategory: Record<string, string[]>;
+  // Forms keyed by slug — populated by +page.server.ts when the page
+  // embeds one or more `[contact-form id="..."]` shortcodes.
+  forms: Record<string, PublicForm>;
 };
 
 export const EMPTY_REFS: ShortcodeRefs = {
   products: {},
   productsByNumber: {},
-  productsByCategory: {}
+  productsByCategory: {},
+  forms: {}
 };
 
-export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner'] as const;
+export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner', 'contact-form'] as const;
 export type KnownShortcode = (typeof KNOWN_SHORTCODES)[number];
 
 export function isKnownShortcode(name: string): name is KnownShortcode {
