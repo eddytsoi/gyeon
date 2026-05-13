@@ -19,12 +19,43 @@ function parseAttrs(s: string): ShortcodeAttrs {
   return attrs;
 }
 
-// Locate `[/name]` starting at `from`. Returns the index of `[` or -1.
+// Locate the matching `[/name]` for an opener that ended at `from`. Returns
+// the index of `[` or -1. Depth-aware: nested same-name openers between
+// `from` and the candidate closer increment depth, so `[s][s]a[/s][/s]`
+// matches the outer closer, not the inner one.
 function findCloser(src: string, name: string, from: number): number {
-  const needle = `[/${name}]`;
-  // Case-insensitive search done by lowercasing slice on demand.
-  const haystack = src.toLowerCase();
-  return haystack.indexOf(needle.toLowerCase(), from);
+  const lower = src.toLowerCase();
+  const lowerName = name.toLowerCase();
+  const closer = `[/${lowerName}]`;
+  // Same shape as OPEN_RE but pinned to this name so we only count same-name
+  // openers toward the depth count. Fresh regex per call to avoid lastIndex
+  // bleed across recursive parses.
+  const openerRe = new RegExp(
+    `\\[${lowerName}(?:\\s+[a-z][a-z0-9_-]*="[^"]*")*\\s*\\]`,
+    'gi'
+  );
+
+  let depth = 1;
+  let pos = from;
+  while (pos < src.length) {
+    const closeIdx = lower.indexOf(closer, pos);
+    if (closeIdx === -1) return -1;
+
+    openerRe.lastIndex = pos;
+    const openerMatch = openerRe.exec(src);
+    const openIdx =
+      openerMatch && openerMatch.index < closeIdx ? openerMatch.index : -1;
+
+    if (openIdx !== -1) {
+      depth += 1;
+      pos = openIdx + openerMatch![0].length;
+    } else {
+      depth -= 1;
+      if (depth === 0) return closeIdx;
+      pos = closeIdx + closer.length;
+    }
+  }
+  return -1;
 }
 
 // True if the `[` at `idx` is preceded by an odd number of backslashes — in

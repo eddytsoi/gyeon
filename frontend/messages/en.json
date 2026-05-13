@@ -955,6 +955,8 @@
   "admin_cms_page_edit_meta_title_placeholder": "Overrides page title in search results",
   "admin_cms_page_edit_label_meta_desc": "Meta Description",
   "admin_cms_page_edit_meta_desc_placeholder": "Short description shown in search results (max ~160 chars)",
+  "admin_cms_page_edit_label_show_title": "Show title on page",
+  "admin_cms_page_edit_show_title_hint": "When off, the storefront won't render the page <h1> heading (still used in navigation and SEO).",
   "admin_cms_page_edit_create": "Create Page",
   "admin_cms_page_edit_save": "Save Changes",
   "admin_cms_page_edit_cancel": "Cancel",
@@ -993,6 +995,9 @@
   "admin_shortcode_insert_products_categories": "Products by category",
   "admin_shortcode_insert_button": "Button",
   "admin_shortcode_insert_note": "Note",
+  "admin_shortcode_insert_section": "Section",
+  "admin_shortcode_insert_section_hero": "Hero section",
+  "admin_shortcode_insert_section_split": "Split section",
 
   "admin_cms_post_edit_new_heading": "New Post",
   "admin_cms_post_edit_edit_heading": "Edit Post",

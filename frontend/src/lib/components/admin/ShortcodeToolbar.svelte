@@ -13,7 +13,24 @@
     { name: 'products', label: m.admin_shortcode_insert_products, snippet: '[products ids="PRD-1,PRD-2,PRD-3"]' },
     { name: 'products-cat', label: m.admin_shortcode_insert_products_categories, snippet: '[products categories="category-slug-1,category-slug-2"]' },
     { name: 'button', label: m.admin_shortcode_insert_button, snippet: '[button href="/shop" label="Shop now" style="primary"]' },
-    { name: 'note', label: m.admin_shortcode_insert_note, snippet: '[note type="info"]Your message here.[/note]' }
+    { name: 'note', label: m.admin_shortcode_insert_note, snippet: '[note type="info"]Your message here.[/note]' },
+    {
+      name: 'section',
+      label: m.admin_shortcode_insert_section,
+      snippet: '[section bg="paper" padding="md"]\nYour content here.\n[/section]'
+    },
+    {
+      name: 'section-hero',
+      label: m.admin_shortcode_insert_section_hero,
+      snippet:
+        '[section bg="paper" layout="hero" padding="md"]\n# Quality, delivered.\n\nCurated products for everyday life.\n\n[button href="/products" label="Shop now" style="primary"]\n\n---\n\n![Hero](/media/home-hero.jpg)\n[/section]'
+    },
+    {
+      name: 'section-split',
+      label: m.admin_shortcode_insert_section_split,
+      snippet:
+        '[section bg="cream" layout="split" padding="lg"]\n![Visual](/media/feature.jpg)\n\n---\n\n## Our craft\n\nA short paragraph describing the feature.\n\n[button href="/about" label="Learn more" style="secondary"]\n[/section]'
+    }
   ];
 
   function insert(snippet: string) {

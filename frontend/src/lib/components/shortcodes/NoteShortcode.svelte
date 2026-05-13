@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { renderMarkdown } from '$lib/markdown';
-  import type { ShortcodeAttrs } from '$lib/shortcodes/types';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import type { ShortcodeAttrs, ShortcodeRefs } from '$lib/shortcodes/types';
+  import { EMPTY_REFS } from '$lib/shortcodes/types';
 
-  let { attrs, body }: { attrs: ShortcodeAttrs; body: string } = $props();
+  let {
+    attrs,
+    body,
+    refs = EMPTY_REFS
+  }: { attrs: ShortcodeAttrs; body: string; refs?: ShortcodeRefs } = $props();
 
   const type = $derived(
     attrs.type === 'warn' || attrs.type === 'success' ? attrs.type : 'info'
@@ -18,5 +23,5 @@
 </script>
 
 <div class="my-6 rounded-xl border-l-4 px-5 py-4 prose prose-sm max-w-none {tone}">
-  {@html renderMarkdown(body)}
+  <MarkdownContent content={body} {refs} />
 </div>

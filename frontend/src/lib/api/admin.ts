@@ -206,6 +206,7 @@ export interface CmsPage {
   meta_title?: string;
   meta_desc?: string;
   is_published: boolean;
+  show_title: boolean;
   created_at: string;
   updated_at: string;
 }

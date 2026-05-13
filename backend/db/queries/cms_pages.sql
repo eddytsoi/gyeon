@@ -11,13 +11,13 @@ SELECT * FROM cms_pages WHERE id = $1;
 SELECT * FROM cms_pages WHERE slug = $1 AND is_published = TRUE;
 
 -- name: CreatePage :one
-INSERT INTO cms_pages (slug, title, content, meta_title, meta_desc)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO cms_pages (slug, title, content, meta_title, meta_desc, show_title)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdatePage :one
 UPDATE cms_pages
-SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7
+SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7, show_title=$8
 WHERE id = $1
 RETURNING *;
 

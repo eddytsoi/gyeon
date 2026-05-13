@@ -24,6 +24,7 @@ type Page struct {
 	MetaTitle   *string `json:"meta_title,omitempty"`
 	MetaDesc    *string `json:"meta_desc,omitempty"`
 	IsPublished bool    `json:"is_published"`
+	ShowTitle   bool    `json:"show_title"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
 }
@@ -51,6 +52,7 @@ type CreatePageRequest struct {
 	MetaTitle   *string `json:"meta_title"`
 	MetaDesc    *string `json:"meta_desc"`
 	IsPublished bool    `json:"is_published"`
+	ShowTitle   bool    `json:"show_title"`
 }
 
 // UpdatePageRequest is the same as CreatePageRequest (is_published included in both).
@@ -122,13 +124,13 @@ const pageSelect = `
 	       COALESCE(t.content,   p.content)   AS content,
 	       COALESCE(t.meta_title, p.meta_title) AS meta_title,
 	       COALESCE(t.meta_desc,  p.meta_desc)  AS meta_desc,
-	       p.is_published, p.created_at, p.updated_at
+	       p.is_published, p.show_title, p.created_at, p.updated_at
 	FROM cms_pages p` + pageTranslationJoin
 
 func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 	var p Page
 	err := row.Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content,
-		&p.MetaTitle, &p.MetaDesc, &p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+		&p.MetaTitle, &p.MetaDesc, &p.IsPublished, &p.ShowTitle, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -209,12 +211,12 @@ func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, er
 func (s *PageService) Create(ctx context.Context, req CreatePageRequest) (*Page, error) {
 	var p Page
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO cms_pages (slug, title, content, meta_title, meta_desc, is_published)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
-		req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
+		`INSERT INTO cms_pages (slug, title, content, meta_title, meta_desc, is_published, show_title)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, show_title, created_at, updated_at`,
+		req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished, req.ShowTitle).
 		Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
-			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+			&p.IsPublished, &p.ShowTitle, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -232,12 +234,12 @@ func (s *PageService) Update(ctx context.Context, id string, req UpdatePageReque
 	}
 	var p Page
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE cms_pages SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7
+		`UPDATE cms_pages SET slug=$2, title=$3, content=$4, meta_title=$5, meta_desc=$6, is_published=$7, show_title=$8
 		 WHERE id = $1
-		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, created_at, updated_at`,
-		id, req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished).
+		 RETURNING id, number, slug, title, content, meta_title, meta_desc, is_published, show_title, created_at, updated_at`,
+		id, req.Slug, req.Title, req.Content, req.MetaTitle, req.MetaDesc, req.IsPublished, req.ShowTitle).
 		Scan(&p.ID, &p.Number, &p.Slug, &p.Title, &p.Content, &p.MetaTitle, &p.MetaDesc,
-			&p.IsPublished, &p.CreatedAt, &p.UpdatedAt)
+			&p.IsPublished, &p.ShowTitle, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

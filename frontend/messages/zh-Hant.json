@@ -955,6 +955,8 @@
   "admin_cms_page_edit_meta_title_placeholder": "覆寫搜尋結果中顯示的頁面標題",
   "admin_cms_page_edit_label_meta_desc": "Meta 描述",
   "admin_cms_page_edit_meta_desc_placeholder": "搜尋結果中顯示的簡短描述（約 160 字以內）",
+  "admin_cms_page_edit_label_show_title": "在頁面顯示標題",
+  "admin_cms_page_edit_show_title_hint": "關閉後，前台頁首不會 render <h1> 標題（仍會用於導覽列同 SEO）。",
   "admin_cms_page_edit_create": "建立頁面",
   "admin_cms_page_edit_save": "儲存變更",
   "admin_cms_page_edit_cancel": "取消",
@@ -993,6 +995,9 @@
   "admin_shortcode_insert_products_categories": "依分類產品列",
   "admin_shortcode_insert_button": "按鈕",
   "admin_shortcode_insert_note": "提示框",
+  "admin_shortcode_insert_section": "區塊",
+  "admin_shortcode_insert_section_hero": "Hero 區塊",
+  "admin_shortcode_insert_section_split": "雙欄區塊",
 
   "admin_cms_post_edit_new_heading": "新增文章",
   "admin_cms_post_edit_edit_heading": "編輯文章",
