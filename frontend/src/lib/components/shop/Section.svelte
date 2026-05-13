@@ -8,7 +8,8 @@
     type SectionLayout,
     type SectionPadding,
     type SectionWidth,
-    type SectionAlign
+    type SectionAlign,
+    type SectionBleed
   } from '$lib/shortcodes/section';
 
   let {
@@ -17,6 +18,7 @@
     padding = 'md',
     width = 'default',
     align = 'left',
+    bleed = 'full',
     id,
     children
   }: {
@@ -25,6 +27,7 @@
     padding?: SectionPadding;
     width?: SectionWidth;
     align?: SectionAlign;
+    bleed?: SectionBleed;
     id?: string;
     children?: Snippet;
   } = $props();
@@ -33,6 +36,12 @@
   const padClass = $derived(SECTION_PADDING[padding]);
   const widthClass = $derived(SECTION_WIDTH[width]);
   const alignClass = $derived(align === 'center' ? 'text-center' : '');
+  const containerBleed = $derived(bleed === 'container' && width !== 'full');
+  // Escape any constraining ancestor so bleed="full" really reaches the viewport
+  // edge (CMS pages wrap shortcodes in max-w-7xl). No-op on top-level usage.
+  const fullBleedClass = $derived(
+    containerBleed ? '' : 'w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]'
+  );
 
   // Grid classes per layout. Children supply their own col-span / order
   // classes; the shortcode wrapper handles that automatically, the Svelte
@@ -46,7 +55,7 @@
   );
 </script>
 
-<section {id} class={bgClass}>
+<section {id} class="{containerBleed ? '' : bgClass} {fullBleedClass}">
   {#if width === 'full'}
     {#if layout === 'default'}
       <div class={alignClass}>{@render children?.()}</div>
@@ -54,8 +63,8 @@
       <div class="{gridClass} {alignClass}">{@render children?.()}</div>
     {/if}
   {:else if layout === 'default'}
-    <div class="{widthClass} {padClass} {alignClass}">{@render children?.()}</div>
+    <div class="{containerBleed ? bgClass : ''} {widthClass} {padClass} {alignClass}">{@render children?.()}</div>
   {:else}
-    <div class="{widthClass} {padClass} {gridClass} {alignClass}">{@render children?.()}</div>
+    <div class="{containerBleed ? bgClass : ''} {widthClass} {padClass} {gridClass} {alignClass}">{@render children?.()}</div>
   {/if}
 </section>

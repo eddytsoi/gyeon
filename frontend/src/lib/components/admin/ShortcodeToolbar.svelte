@@ -23,13 +23,13 @@
       name: 'section-hero',
       label: m.admin_shortcode_insert_section_hero,
       snippet:
-        '[section bg="paper" layout="hero" padding="md"]\n# Quality, delivered.\n\nCurated products for everyday life.\n\n[button href="/products" label="Shop now" style="primary"]\n\n---\n\n![Hero](/media/home-hero.jpg)\n[/section]'
+        '[section bg="paper" layout="hero" padding="md"]\n# Quality, delivered.\n\nCurated products for everyday life.\n\n[button href="/products" label="Shop now" style="primary"]\n\n---\n\n![Hero](/uploads/your-image.jpg)\n[/section]'
     },
     {
       name: 'section-split',
       label: m.admin_shortcode_insert_section_split,
       snippet:
-        '[section bg="cream" layout="split" padding="lg"]\n![Visual](/media/feature.jpg)\n\n---\n\n## Our craft\n\nA short paragraph describing the feature.\n\n[button href="/about" label="Learn more" style="secondary"]\n[/section]'
+        '[section bg="cream" layout="split" padding="lg"]\n![Visual](/uploads/your-image.jpg)\n\n---\n\n## Our craft\n\nA short paragraph describing the feature.\n\n[button href="/about" label="Learn more" style="secondary"]\n[/section]'
     }
   ];
 
