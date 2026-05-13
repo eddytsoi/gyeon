@@ -3,6 +3,13 @@
   import { isVideo, isStreamingVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+
+  // Grid: 2-up on mobile, 3-up on md, 4-up on xl (see (storefront)/+page.svelte
+  // and /products/+page.svelte). Sizes attribute mirrors that breakdown so the
+  // browser asks for the smallest variant that still covers DPR × column width.
+  const CARD_WIDTHS = [320, 480, 640, 960];
+  const CARD_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw';
 
   let { product, image, variant, loading = 'lazy', fetchpriority = 'auto' }: {
     product: Product;
@@ -41,9 +48,10 @@
             </svg>
           </div>
         {:else}
-          <img src={image.thumbnail_url ?? image.url} alt={image.alt_text ?? product.name}
-               {loading} {fetchpriority} decoding="async"
-               class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
+          <ResponsiveImage src={image.url} alt={image.alt_text ?? product.name}
+                           widths={CARD_WIDTHS} sizes={CARD_SIZES}
+                           {loading} {fetchpriority}
+                           class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
         {/if}
       {:else}
         <div class="w-full h-full flex items-center justify-center text-ink-300">

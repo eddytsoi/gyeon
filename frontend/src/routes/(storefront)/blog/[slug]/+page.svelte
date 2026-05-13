@@ -5,6 +5,14 @@
   import Seo from '$lib/components/Seo.svelte';
   import { siteOrigin, snippet } from '$lib/seo';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+
+  // Blog cover is full-bleed within the article container (max ~960px on lg)
+  // at 16:7 aspect — treat it as the LCP for the post. Widths must come from
+  // backend allowedWidths (resize.go) — 1024 isn't bucketed there so we use
+  // 960 instead.
+  const COVER_WIDTHS = [768, 960, 1280, 1600];
+  const COVER_SIZES = '(min-width: 1024px) 960px, 100vw';
 
   let { data }: { data: PageData } = $props();
   const { post } = data;
@@ -52,8 +60,10 @@
   <!-- Cover image -->
   {#if post.cover_image_url}
     <div class="rounded-2xl overflow-hidden aspect-[16/7] bg-gray-100 mb-10">
-      <img src={post.cover_image_url} alt={post.title}
-           class="w-full h-full object-cover" />
+      <ResponsiveImage src={post.cover_image_url} alt={post.title}
+                       widths={COVER_WIDTHS} sizes={COVER_SIZES}
+                       loading="eager" fetchpriority="high"
+                       class="w-full h-full object-cover" />
     </div>
   {/if}
 
