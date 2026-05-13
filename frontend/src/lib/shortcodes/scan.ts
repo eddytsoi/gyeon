@@ -15,30 +15,38 @@ function splitCsv(s: string | undefined): string[] {
 // Walk parsed chunks and collect every resource the page will need to fetch
 // before render. PRD-N tokens get separated into productNumbers so resolve
 // can do a single bulk list lookup instead of N getProductByID calls.
+// Recurses into shortcode bodies so refs nested inside wrappers like
+// [section]…[product …][/section] still get pre-fetched.
 export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefScan {
   const productIDs = new Set<string>();
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
 
-  const chunks = parseShortcodes(md);
-  for (const c of chunks) {
-    if (c.type !== 'shortcode') continue;
+  function walk(src: string | undefined | null) {
+    const chunks = parseShortcodes(src);
+    for (const c of chunks) {
+      if (c.type !== 'shortcode') continue;
 
-    const tokens: string[] = [];
-    if (c.name === 'product' && c.attrs.id) tokens.push(c.attrs.id);
-    if (c.name === 'products' && c.attrs.ids) tokens.push(...splitCsv(c.attrs.ids));
+      const tokens: string[] = [];
+      if (c.name === 'product' && c.attrs.id) tokens.push(c.attrs.id);
+      if (c.name === 'products' && c.attrs.ids) tokens.push(...splitCsv(c.attrs.ids));
 
-    for (const token of tokens) {
-      const ref = parseProductRef(token);
-      if (!ref) continue;
-      if (ref.kind === 'uuid') productIDs.add(ref.value);
-      else productNumbers.add(ref.value);
-    }
+      for (const token of tokens) {
+        const ref = parseProductRef(token);
+        if (!ref) continue;
+        if (ref.kind === 'uuid') productIDs.add(ref.value);
+        else productNumbers.add(ref.value);
+      }
 
-    if (c.name === 'products' && c.attrs.categories) {
-      for (const slug of splitCsv(c.attrs.categories)) categorySlugs.add(slug);
+      if (c.name === 'products' && c.attrs.categories) {
+        for (const slug of splitCsv(c.attrs.categories)) categorySlugs.add(slug);
+      }
+
+      if (c.body) walk(c.body);
     }
   }
+
+  walk(md);
 
   return {
     productIDs: [...productIDs],

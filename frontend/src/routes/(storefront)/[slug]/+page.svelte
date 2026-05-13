@@ -12,9 +12,11 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 lg:px-8 py-12 sm:py-16">
-  <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-8">
-    {page.title}
-  </h1>
+  {#if page.show_title}
+    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-8">
+      {page.title}
+    </h1>
+  {/if}
 
   <div class="text-gray-700 text-base leading-relaxed">
     <MarkdownContent content={page.content} refs={data.shortcodeRefs} />

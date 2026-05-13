@@ -19,6 +19,9 @@
   let metaTitle = $state(p?.meta_title ?? '');
   let metaDesc = $state(p?.meta_desc ?? '');
   let isPublished = $state(p?.is_published ?? false);
+  // Default true on new pages so the storefront renders the <h1> unless the
+  // author explicitly opts out — matches the migration default.
+  let showTitle = $state(p?.show_title ?? true);
 
   let preview = $state(false);
   let contentTextarea = $state<HTMLTextAreaElement | null>(null);
@@ -101,6 +104,27 @@
                           text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                           focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
           </div>
+        </div>
+
+        <!-- Show title toggle -->
+        <div>
+          <label class="flex items-start gap-3 cursor-pointer select-none">
+            <div class="relative shrink-0 mt-0.5">
+              <input type="checkbox" class="sr-only peer" bind:checked={showTitle} />
+              <input type="hidden" name="show_title" value={showTitle ? 'true' : 'false'} />
+              <div class="w-10 h-6 bg-gray-200 peer-checked:bg-gray-900 rounded-full transition-colors"></div>
+              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow
+                          transition-transform peer-checked:translate-x-4"></div>
+            </div>
+            <div class="space-y-0.5">
+              <div class="text-sm font-medium text-gray-700">
+                {m.admin_cms_page_edit_label_show_title()}
+              </div>
+              <div class="text-xs text-gray-500 leading-relaxed">
+                {m.admin_cms_page_edit_show_title_hint()}
+              </div>
+            </div>
+          </label>
         </div>
 
         <!-- Content -->
