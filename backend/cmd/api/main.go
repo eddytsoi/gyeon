@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -294,9 +295,21 @@ func main() {
 		})
 	})
 
-	// Serve uploaded files — Cloudflare caches these; stale files are purged on delete
+	// Responsive image resize endpoint — handled before the catch-all FileServer
+	// because chi's radix tree prefers specific routes over wildcards.
+	r.Get("/uploads/r/{width:[0-9]+}/{filename}", mediaHandler.ServeResized)
+
+	// Serve uploaded files — Cloudflare caches these; stale files are purged on
+	// delete. Hidden paths (e.g. /uploads/.cache/ used by the resize endpoint)
+	// are blocked so cache contents are only reachable via /uploads/r/...
 	uploadsFS := http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads")))
-	r.Handle("/uploads/*", uploadsFS)
+	r.Handle("/uploads/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.URL.Path, "/.") {
+			http.NotFound(w, req)
+			return
+		}
+		uploadsFS.ServeHTTP(w, req)
+	}))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

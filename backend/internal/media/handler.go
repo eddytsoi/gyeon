@@ -660,6 +660,20 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		}
 		purgeURLs = append(purgeURLs, h.baseURL+"/uploads/"+thumbFilename.String)
 	}
+	// Purge derived resize cache (uploads/.cache/{filename}.w{N}.{ext}) and
+	// enumerate the corresponding /uploads/r/{w}/{filename} URLs so Cloudflare
+	// drops every cached resize variant tied to this source.
+	if !skipOriginal {
+		for _, wPx := range allowedWidths {
+			for _, ext := range []string{".webp", ".jpg", ".png"} {
+				cp := resizeCachePath(filename, wPx, ext)
+				if err := os.Remove(cp); err != nil && !os.IsNotExist(err) {
+					log.Printf("media delete: remove resize cache %q: %v", cp, err)
+				}
+			}
+			purgeURLs = append(purgeURLs, h.baseURL+"/uploads/r/"+strconv.Itoa(wPx)+"/"+filename)
+		}
+	}
 	h.purgeCloudflare(r.Context(), purgeURLs)
 	w.WriteHeader(http.StatusNoContent)
 }
