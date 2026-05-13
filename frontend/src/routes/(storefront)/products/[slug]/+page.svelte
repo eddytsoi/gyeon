@@ -14,7 +14,7 @@
   import StickyAddToCart from '$lib/components/shop/StickyAddToCart.svelte';
   import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
   import { trackViewItem, trackAddToCart } from '$lib/tracker';
-  import { renderMarkdown } from '$lib/markdown';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import { onMount } from 'svelte';
 
   let { data }: { data: PageData } = $props();
@@ -742,14 +742,14 @@
         {#if activeTab === 'content'}
           <div class="max-w-2xl" role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0">
             <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-              {@html renderMarkdown(data.product.description)}
+              <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
             </div>
           </div>
 
         {:else if activeTab === 'howto'}
           <div class="max-w-2xl" role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0">
             <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-              {@html renderMarkdown(data.product.how_to_use)}
+              <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
             </div>
           </div>
 
@@ -795,11 +795,11 @@
               <div id="pdp-acc-{id}" class="pb-5">
                 {#if id === 'content'}
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-                    {@html renderMarkdown(data.product.description)}
+                    <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                   </div>
                 {:else if id === 'howto'}
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-                    {@html renderMarkdown(data.product.how_to_use)}
+                    <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                   </div>
                 {:else if id === 'surfaces'}
                   <div class="grid grid-cols-3 gap-3">

@@ -987,6 +987,12 @@
   "admin_cms_posts_deleted_success": "文章「{title}」已刪除",
   "admin_cms_posts_deleted_failure": "刪除文章「{title}」失敗",
 
+  "admin_shortcode_insert_label": "插入：",
+  "admin_shortcode_insert_product": "單一產品",
+  "admin_shortcode_insert_products": "產品列",
+  "admin_shortcode_insert_button": "按鈕",
+  "admin_shortcode_insert_note": "提示框",
+
   "admin_cms_post_edit_new_heading": "新增文章",
   "admin_cms_post_edit_edit_heading": "編輯文章",
   "admin_cms_post_edit_preview_button": "預覽",

@@ -3,6 +3,8 @@
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -17,6 +19,9 @@
   let metaTitle = $state(p?.meta_title ?? '');
   let metaDesc = $state(p?.meta_desc ?? '');
   let isPublished = $state(p?.is_published ?? false);
+
+  let preview = $state(false);
+  let contentTextarea = $state<HTMLTextAreaElement | null>(null);
 
   // Auto-generate slug from title when creating
   function onTitleInput() {
@@ -41,6 +46,17 @@
       </svg>
     </a>
     <h2 class="text-xl font-bold text-gray-900">{isNew ? m.admin_cms_page_edit_new_heading() : m.admin_cms_page_edit_edit_heading()}</h2>
+
+    <button type="button" onclick={() => preview = !preview}
+            class="ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200
+                   text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.641 0-8.573-3.007-9.964-7.178Z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+      </svg>
+      {preview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+    </button>
   </div>
 
   <form method="POST" action="?/save" class="space-y-6"
@@ -92,12 +108,21 @@
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
             {m.admin_cms_page_edit_label_content()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_page_edit_content_markdown_hint()}</span>
           </label>
-          <textarea name="content" bind:value={content} rows="16"
-                    placeholder={m.admin_cms_page_edit_content_placeholder()}
-                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                           text-gray-900 placeholder-gray-400 font-mono leading-relaxed
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
-                           transition resize-y"></textarea>
+          <ShortcodeToolbar bind:value={content} textarea={contentTextarea} />
+          <div class="{preview ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : ''}">
+            <textarea name="content" bind:value={content} bind:this={contentTextarea} rows="16"
+                      placeholder={m.admin_cms_page_edit_content_placeholder()}
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
+                             text-gray-900 placeholder-gray-400 font-mono leading-relaxed
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
+                             transition resize-y"></textarea>
+            {#if preview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 480px">
+                <MarkdownContent content={content || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
     </div>

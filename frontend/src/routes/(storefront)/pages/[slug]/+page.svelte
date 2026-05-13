@@ -3,7 +3,7 @@
   import { page as appPage } from '$app/state';
   import Seo from '$lib/components/Seo.svelte';
   import { siteOrigin, snippet } from '$lib/seo';
-  import { renderMarkdown } from '$lib/markdown';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 
   let { data }: { data: PageData } = $props();
   const { page } = data;
@@ -24,6 +24,6 @@
   </h1>
 
   <div class="text-gray-700 text-base leading-relaxed">
-    {@html renderMarkdown(page.content)}
+    <MarkdownContent content={page.content} refs={data.shortcodeRefs} />
   </div>
 </div>
