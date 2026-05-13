@@ -7,12 +7,11 @@
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
-  // Blog cover is full-bleed within the article container (max ~960px on lg)
-  // at 16:7 aspect — treat it as the LCP for the post. Widths must come from
-  // backend allowedWidths (resize.go) — 1024 isn't bucketed there so we use
-  // 960 instead.
+  // Blog cover is full-bleed within the article container (max 1472px on lg+,
+  // i.e. max-w-7xl 1536px minus px-8 padding) at 16:7 aspect — treat it as the
+  // LCP for the post. Widths come from backend allowedWidths (resize.go).
   const COVER_WIDTHS = [768, 960, 1280, 1600];
-  const COVER_SIZES = '(min-width: 1024px) 960px, 100vw';
+  const COVER_SIZES = '(min-width: 1024px) 1472px, 100vw';
 
   let { data }: { data: PageData } = $props();
   const { post } = data;
@@ -41,7 +40,7 @@
   jsonLd={blogJsonLd}
 />
 
-<article class="max-w-[1280px] mx-auto px-4 lg:px-8 py-12 sm:py-16">
+<article class="max-w-7xl mx-auto px-4 lg:px-8 py-12 sm:py-16">
   <!-- Breadcrumbs -->
   <nav class="flex flex-wrap gap-2 items-center text-[11px] uppercase tracking-[0.15em] text-gray-400 mb-10">
     <a href="/" class="hover:text-gray-700 transition-colors">{m.common_home()}</a>
