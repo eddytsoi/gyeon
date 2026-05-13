@@ -5,6 +5,7 @@ export type ShortcodeRefScan = {
   productIDs: string[];
   productNumbers: number[];
   categorySlugs: string[];
+  formSlugs: string[];
 };
 
 function splitCsv(s: string | undefined): string[] {
@@ -21,6 +22,7 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
   const productIDs = new Set<string>();
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
+  const formSlugs = new Set<string>();
 
   function walk(src: string | undefined | null) {
     const chunks = parseShortcodes(src);
@@ -42,6 +44,10 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
         for (const slug of splitCsv(c.attrs.categories)) categorySlugs.add(slug);
       }
 
+      if (c.name === 'contact-form' && c.attrs.id) {
+        formSlugs.add(c.attrs.id);
+      }
+
       if (c.body) walk(c.body);
     }
   }
@@ -51,7 +57,8 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
   return {
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
-    categorySlugs: [...categorySlugs]
+    categorySlugs: [...categorySlugs],
+    formSlugs: [...formSlugs]
   };
 }
 
@@ -60,15 +67,18 @@ export function scanShortcodeRefsMany(...mds: (string | undefined | null)[]): Sh
   const productIDs = new Set<string>();
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
+  const formSlugs = new Set<string>();
   for (const md of mds) {
     const s = scanShortcodeRefs(md);
     for (const id of s.productIDs) productIDs.add(id);
     for (const n of s.productNumbers) productNumbers.add(n);
     for (const slug of s.categorySlugs) categorySlugs.add(slug);
+    for (const slug of s.formSlugs) formSlugs.add(slug);
   }
   return {
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
-    categorySlugs: [...categorySlugs]
+    categorySlugs: [...categorySlugs],
+    formSlugs: [...formSlugs]
   };
 }

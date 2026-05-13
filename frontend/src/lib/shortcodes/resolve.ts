@@ -3,9 +3,10 @@ import {
   getProductImages,
   getProductVariants,
   getProducts,
-  getProductsByCategorySlug
+  getProductsByCategorySlug,
+  getPublicForm
 } from '$lib/api';
-import type { ShortcodeRefs, ShortcodeProductRef } from './types';
+import type { ShortcodeRefs, ShortcodeProductRef, PublicForm } from './types';
 import type { ShortcodeRefScan } from './scan';
 
 // Cap how many products a single [products categories="..."] expansion can
@@ -86,5 +87,18 @@ export async function resolveShortcodeRefs(scan: ShortcodeRefScan): Promise<Shor
     if (products[uuid]) productsByNumber[num] = uuid;
   }
 
-  return { products, productsByNumber, productsByCategory };
+  // 6. Resolve form refs in parallel. A missing form (deleted, typo, etc.)
+  //    silently drops out; the shortcode component shows a polite fallback.
+  const forms: Record<string, PublicForm> = {};
+  if (scan.formSlugs.length > 0) {
+    const fetched = await Promise.all(
+      scan.formSlugs.map((slug) => getPublicForm(slug).catch(() => null))
+    );
+    scan.formSlugs.forEach((slug, i) => {
+      const f = fetched[i];
+      if (f) forms[slug] = f;
+    });
+  }
+
+  return { products, productsByNumber, productsByCategory, forms };
 }

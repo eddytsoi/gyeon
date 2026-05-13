@@ -36,6 +36,8 @@ var publicSettingKeys = []string{
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
 	"favicon_url",                // injected into <svelte:head> on storefront + admin
 	"site_notice",                // storefront announcement strip copy
+	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
+	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

@@ -368,6 +368,13 @@ func (s *Service) SendLowStockAlert(ctx context.Context, p LowStockParams) error
 }
 
 func (s *Service) send(cfg Config, to, subject, text, html string) error {
+	return s.sendWithReplyTo(cfg, to, "", subject, text, html)
+}
+
+// sendWithReplyTo is the variant used by contact-form mail where the admin
+// configures a Reply-To header (typically `[your-email]` resolved to the
+// submitter's address) so replying in the inbox goes back to the customer.
+func (s *Service) sendWithReplyTo(cfg Config, to, replyTo, subject, text, html string) error {
 	from := mime.QEncoding.Encode("utf-8", cfg.FromName) + " <" + cfg.FromEmail + ">"
 	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
 
@@ -376,6 +383,9 @@ func (s *Service) send(cfg Config, to, subject, text, html string) error {
 	var msg bytes.Buffer
 	fmt.Fprintf(&msg, "From: %s\r\n", from)
 	fmt.Fprintf(&msg, "To: %s\r\n", to)
+	if replyTo != "" {
+		fmt.Fprintf(&msg, "Reply-To: %s\r\n", replyTo)
+	}
 	fmt.Fprintf(&msg, "Subject: %s\r\n", encodedSubject)
 	fmt.Fprintf(&msg, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)

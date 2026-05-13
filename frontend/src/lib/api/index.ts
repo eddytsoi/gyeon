@@ -229,6 +229,31 @@ export const getBlogCategoryBySlug = (slug: string) =>
 export const getCmsPageBySlug = (slug: string) =>
   request<CmsPage>(`/cms/pages/by-slug/${slug}`);
 
+// Forms (CF7-style). getPublicForm fetches the public form spec (no admin
+// fields like mail templates); submitForm posts the user's data + grecaptcha
+// token to the backend.
+import type { PublicForm } from '$lib/shortcodes/types';
+export const getPublicForm = (slug: string) =>
+  request<PublicForm>(`/forms/${slug}`);
+
+export type FormSubmitResult = { ok: true; message: string };
+export type FormSubmitError = { error: string; fields?: Record<string, string>; code?: string };
+
+export const submitForm = async (
+  slug: string,
+  data: Record<string, string>,
+  recaptchaToken: string
+): Promise<FormSubmitResult | FormSubmitError> => {
+  const res = await fetch(`${base()}/forms/${slug}/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data, recaptcha_token: recaptchaToken })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return body as FormSubmitError;
+  return body as FormSubmitResult;
+};
+
 export const getNavMenu = (handle: string) =>
   request<NavMenu>(`/cms/nav/by-handle/${handle}`);
 

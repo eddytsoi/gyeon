@@ -909,3 +909,107 @@ export const adminGetOrderStatusBreakdown = (token: string, from?: string, to?: 
 
 export const adminGetRefundTotal = (token: string, from?: string, to?: string) =>
   request<{ refunds: number }>(`/admin/analytics/refund-total${rangeQs(from, to)}`, token);
+
+// ── Forms (CF7-style contact forms) ──────────────────────────────────────────
+
+export interface AdminForm {
+  id: string;
+  slug: string;
+  title: string;
+  markup: string;
+  fields: import('$lib/shortcodes/types').FormField[];
+
+  mail_to: string;
+  mail_from: string;
+  mail_subject: string;
+  mail_body: string;
+  mail_reply_to: string;
+
+  reply_enabled: boolean;
+  reply_to_field: string;
+  reply_from: string;
+  reply_subject: string;
+  reply_body: string;
+
+  success_message: string;
+  error_message: string;
+  recaptcha_action: string;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FormParseError {
+  position: number;
+  tag?: string;
+  message: string;
+}
+
+export interface FormSubmissionRow {
+  id: string;
+  form_id: string;
+  data: Record<string, string>;
+  ip?: string;
+  user_agent?: string;
+  recaptcha_score?: number;
+  mail_sent: boolean;
+  mail_error?: string;
+  created_at: string;
+}
+
+export type UpsertFormBody = Omit<AdminForm, 'id' | 'fields' | 'created_at' | 'updated_at'>;
+
+export const adminListForms = (token: string) =>
+  request<AdminForm[]>('/admin/forms', token);
+
+export const adminGetForm = (token: string, id: string) =>
+  request<AdminForm>(`/admin/forms/${id}`, token);
+
+export const adminCreateForm = async (
+  token: string,
+  body: UpsertFormBody
+): Promise<{ ok: true; form: AdminForm } | { ok: false; parseErrors?: FormParseError[]; fields?: Record<string, string>; error?: string }> => {
+  const res = await fetch(`${base()}/admin/forms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, parseErrors: json.parse_errors, fields: json.fields, error: json.error };
+  return { ok: true, form: json as AdminForm };
+};
+
+export const adminUpdateForm = async (
+  token: string,
+  id: string,
+  body: UpsertFormBody
+): Promise<{ ok: true; form: AdminForm } | { ok: false; parseErrors?: FormParseError[]; fields?: Record<string, string>; error?: string }> => {
+  const res = await fetch(`${base()}/admin/forms/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, parseErrors: json.parse_errors, fields: json.fields, error: json.error };
+  return { ok: true, form: json as AdminForm };
+};
+
+export const adminDeleteForm = (token: string, id: string) =>
+  request(`/admin/forms/${id}`, token, { method: 'DELETE' });
+
+export const adminListFormSubmissions = (token: string, id: string, limit = 50, offset = 0) =>
+  request<{ items: FormSubmissionRow[]; total: number }>(
+    `/admin/forms/${id}/submissions?limit=${limit}&offset=${offset}`,
+    token
+  );
+
+export const adminGetFormSubmission = (token: string, sid: string) =>
+  request<FormSubmissionRow>(`/admin/forms/submissions/${sid}`, token);
+
+export const adminDeleteFormSubmission = (token: string, sid: string) =>
+  request(`/admin/forms/submissions/${sid}`, token, { method: 'DELETE' });
+
+// CSV export uses the admin token via Authorization header — the browser
+// can't add custom headers to a plain <a download>, so callers fetch the
+// blob and trigger a download via createObjectURL.
+export const adminFormSubmissionsCsvURL = (id: string) => `/admin/forms/${id}/submissions.csv`;
