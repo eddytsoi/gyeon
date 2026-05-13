@@ -538,6 +538,7 @@
   "admin_products_deleted_failure": "Failed to delete product '{name}'",
   "admin_products_dash": "—",
 
+  "admin_categories_title": "Product Categories — Gyeon Admin",
   "admin_categories_heading": "Product Categories",
   "admin_categories_count_one": "{count} category · drag to reorder",
   "admin_categories_count_many": "{count} categories · drag to reorder",
@@ -594,6 +595,7 @@
   "order_status_cancelled": "Cancelled",
   "order_status_refunded": "Refunded",
 
+  "admin_order_detail_title": "Order '{number}' — Gyeon Admin",
   "admin_order_back": "← Orders",
   "admin_order_card_status": "Status",
   "admin_order_card_total": "Total",
@@ -685,6 +687,8 @@
   "admin_customers_empty": "No customers yet",
   "admin_customers_empty_hint": "Customers will appear here after they register.",
 
+  "admin_customer_detail_title": "Customer '{name}' — Gyeon Admin",
+  "admin_customer_detail_fallback_title": "Customer — Gyeon Admin",
   "admin_customer_back": "← Customers",
   "admin_customer_not_found_heading": "Customer Not Found",
   "admin_customer_not_found_body": "Customer not found.",
@@ -722,8 +726,10 @@
   "admin_pagination_next": "Next",
 
   "admin_product_edit_back": "← Products",
-  "admin_product_edit_new_title": "New Product",
-  "admin_product_edit_edit_title": "Edit Product",
+  "admin_product_edit_new_title": "New Product — Gyeon Admin",
+  "admin_product_edit_edit_title": "Edit Product '{name}' — Gyeon Admin",
+  "admin_product_edit_new_heading": "New Product",
+  "admin_product_edit_edit_heading": "Edit Product",
   "admin_product_edit_section_details": "Product Details",
   "admin_product_edit_label_name": "Name",
   "admin_product_edit_label_slug": "Slug",
@@ -920,6 +926,7 @@
   "admin_product_edit_kind_modal_cancel": "Cancel",
   "admin_product_edit_kind_modal_confirm": "Confirm delete & save",
 
+  "admin_cms_pages_title": "Pages — Gyeon Admin",
   "admin_cms_pages_heading": "Pages",
   "admin_cms_pages_count_one": "{count} page",
   "admin_cms_pages_count_many": "{count} pages",
@@ -941,6 +948,8 @@
   "admin_cms_pages_deleted_success": "Page '{title}' deleted",
   "admin_cms_pages_deleted_failure": "Failed to delete page '{title}'",
 
+  "admin_cms_page_edit_new_title": "New Page — Gyeon Admin",
+  "admin_cms_page_edit_edit_title": "Edit Page '{title}' — Gyeon Admin",
   "admin_cms_page_edit_new_heading": "New Page",
   "admin_cms_page_edit_edit_heading": "Edit Page",
   "admin_cms_page_edit_label_title": "Title",
@@ -965,6 +974,7 @@
   "admin_cms_page_edit_save_success": "Page '{title}' saved",
   "admin_cms_page_edit_save_failure": "Failed to save page '{title}'",
 
+  "admin_cms_posts_title": "Posts — Gyeon Admin",
   "admin_cms_posts_heading": "Posts",
   "admin_cms_posts_count": "{total} total · {published} published",
   "admin_cms_posts_new": "New Post",
@@ -999,6 +1009,8 @@
   "admin_shortcode_insert_section_hero": "Hero section",
   "admin_shortcode_insert_section_split": "Split section",
 
+  "admin_cms_post_edit_new_title": "New Post — Gyeon Admin",
+  "admin_cms_post_edit_edit_title": "Edit Post '{title}' — Gyeon Admin",
   "admin_cms_post_edit_new_heading": "New Post",
   "admin_cms_post_edit_edit_heading": "Edit Post",
   "admin_cms_post_edit_preview_button": "Preview",
@@ -1033,6 +1045,7 @@
   "admin_cms_post_edit_save_success": "Post '{title}' saved",
   "admin_cms_post_edit_save_failure": "Failed to save post '{title}'",
 
+  "admin_cms_post_categories_title": "Post Categories — Gyeon Admin",
   "admin_cms_post_categories_heading": "Post Categories",
   "admin_cms_post_categories_count_one": "{count} category · drag to reorder",
   "admin_cms_post_categories_count_many": "{count} categories · drag to reorder",
@@ -1061,6 +1074,7 @@
   "admin_cms_post_categories_delete_success": "Category '{name}' deleted",
   "admin_cms_post_categories_delete_failure": "Failed to delete category '{name}'",
 
+  "admin_cms_navigation_title": "Navigation — Gyeon Admin",
   "admin_cms_navigation_heading": "Navigation",
   "admin_cms_navigation_subtitle": "Manage header and footer menus",
   "admin_cms_navigation_add_link": "Add Link",
@@ -1157,6 +1171,7 @@
   "admin_media_deleted_success": "{name} deleted",
   "admin_media_deleted_failure": "Failed to delete media",
 
+  "admin_media_edit_title": "Media '{name}' — Gyeon Admin",
   "admin_media_edit_back": "Back to Media",
   "admin_media_edit_save_success": "Changes saved",
   "admin_media_edit_save_failure": "Failed to save changes",
@@ -1524,6 +1539,7 @@
   "admin_import_settings_test_button": "Test connection",
   "admin_import_settings_testing": "Testing…",
   "admin_import_settings_test_disclaimer": "No import will run.",
+  "admin_discounts_title": "Discounts — Gyeon Admin",
   "admin_discounts_heading": "Discounts",
   "admin_discounts_subtitle": "Manage automatic campaigns and customer-entered coupon codes.",
   "admin_discounts_tab_campaigns": "Campaigns",
@@ -1555,8 +1571,12 @@
   "admin_discounts_deleted_campaign_failure": "Failed to delete campaign '{name}'",
   "admin_discounts_deleted_coupon_success": "Coupon '{code}' deleted",
   "admin_discounts_deleted_coupon_failure": "Failed to delete coupon '{code}'",
+  "admin_discounts_campaign_new_title": "New Campaign — Gyeon Admin",
+  "admin_discounts_campaign_edit_title": "Edit Campaign '{name}' — Gyeon Admin",
   "admin_discounts_campaign_new_heading": "New Campaign",
   "admin_discounts_campaign_edit_heading": "Edit Campaign",
+  "admin_discounts_coupon_new_title": "New Coupon — Gyeon Admin",
+  "admin_discounts_coupon_edit_title": "Edit Coupon '{code}' — Gyeon Admin",
   "admin_discounts_coupon_new_heading": "New Coupon",
   "admin_discounts_coupon_edit_heading": "Edit Coupon",
   "admin_discounts_coupon_used_count_label": "Used {used} / {max}",
@@ -1588,6 +1608,7 @@
   "admin_discounts_coupon_save_success": "Coupon '{code}' saved",
   "admin_discounts_coupon_save_failure": "Failed to save coupon '{code}'",
 
+  "admin_redirects_title": "Redirects — Gyeon Admin",
   "admin_redirects_heading": "Redirects",
   "admin_redirects_subtitle": "Send traffic from old URLs to new ones with 301 or 302 redirects.",
   "admin_redirects_new": "New Redirect",
@@ -1599,6 +1620,8 @@
   "admin_redirects_col_status": "Status",
   "admin_redirects_status_active": "Active",
   "admin_redirects_status_inactive": "Inactive",
+  "admin_redirects_new_title": "New Redirect — Gyeon Admin",
+  "admin_redirects_edit_title": "Edit Redirect '{path}' — Gyeon Admin",
   "admin_redirects_new_heading": "New Redirect",
   "admin_redirects_edit_heading": "Edit Redirect",
   "admin_redirects_label_from": "From path",
@@ -1624,6 +1647,7 @@
   "admin_tax_preview_subtotal": "Subtotal",
   "admin_tax_preview_total": "Total",
 
+  "admin_audit_log_title": "Audit Log — Gyeon Admin",
   "admin_audit_log_heading": "Audit Log",
   "admin_audit_log_subtitle": "Every high-sensitivity admin action with the actor and a JSON snapshot of what changed.",
   "admin_audit_log_filter_action": "Action",
@@ -1652,6 +1676,8 @@
   "admin_product_edit_variants_history_col_reason": "Reason",
   "admin_product_edit_variants_history_col_actor": "Actor",
 
+  "admin_email_templates_title": "Email Templates — Gyeon Admin",
+  "admin_email_templates_edit_title": "Edit Email Template '{name}' — Gyeon Admin",
   "admin_email_templates_heading": "Email Templates",
   "admin_email_templates_subtitle": "Override the wording for transactional emails. Reset any time to fall back to the built-in default.",
   "admin_email_templates_col_name": "Template",

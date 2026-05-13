@@ -6,6 +6,8 @@
   let { data }: { data: PageData } = $props();
 </script>
 
+<svelte:head><title>{m.admin_email_templates_title()}</title></svelte:head>
+
 <div class="space-y-6">
   <div>
     <h2 class="text-xl font-bold text-gray-900">{m.admin_email_templates_heading()}</h2>

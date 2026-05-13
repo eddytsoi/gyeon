@@ -38,6 +38,8 @@
   }
 </script>
 
+<svelte:head><title>{m.admin_audit_log_title()}</title></svelte:head>
+
 <div class="space-y-6">
   <!-- Header -->
   <div>

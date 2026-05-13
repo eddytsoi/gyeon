@@ -35,6 +35,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{isNew ? m.admin_discounts_coupon_new_title() : m.admin_discounts_coupon_edit_title({ code: c?.code ?? '' })}</title>
+</svelte:head>
+
 <div class="max-w-3xl mx-auto space-y-6">
   <div class="flex items-center gap-4">
     <a href="/admin/discounts"

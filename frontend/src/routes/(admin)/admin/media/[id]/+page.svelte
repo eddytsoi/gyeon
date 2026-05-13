@@ -69,7 +69,7 @@
   }
 </script>
 
-<svelte:head><title>{file.original_name} — Media — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_media_edit_title({ name: file.original_name })}</title></svelte:head>
 
 <!-- Delete confirmation modal -->
 {#if showDeleteModal}

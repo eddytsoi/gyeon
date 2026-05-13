@@ -33,7 +33,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.customer ? `${data.customer.first_name} ${data.customer.last_name}` : m.admin_customer_fallback()} — Gyeon Admin</title>
+  <title>{data.customer ? m.admin_customer_detail_title({ name: `${data.customer.first_name} ${data.customer.last_name}` }) : m.admin_customer_detail_fallback_title()}</title>
 </svelte:head>
 
 <div class="max-w-4xl">

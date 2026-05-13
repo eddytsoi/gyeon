@@ -39,6 +39,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{isNew ? m.admin_cms_page_edit_new_title() : m.admin_cms_page_edit_edit_title({ title: p?.title ?? '' })}</title>
+</svelte:head>
+
 <div class="max-w-4xl mx-auto space-y-6">
   <!-- Back + header -->
   <div class="flex items-center gap-4">

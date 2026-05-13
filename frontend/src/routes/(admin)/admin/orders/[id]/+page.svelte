@@ -110,7 +110,7 @@
   }
 </script>
 
-<svelte:head><title>{data.order.order_number || `ORD-${data.order.number}`} — Gyeon Admin</title></svelte:head>
+<svelte:head><title>{m.admin_order_detail_title({ number: data.order.order_number || `ORD-${data.order.number}` })}</title></svelte:head>
 
 <div>
   <div class="flex items-center gap-3 mb-8">
