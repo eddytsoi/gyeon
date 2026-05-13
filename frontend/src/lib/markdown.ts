@@ -11,6 +11,8 @@
 // nested <h3>. Now the function returns a complete HTML fragment that
 // callers should render directly via {@html …} with no outer wrapper.
 
+import { buildResponsiveAttrs } from '$lib/image';
+
 const HEADING_CLASSES = [
   'text-2xl font-bold mt-8 mb-3 text-gray-900', // h1
   'text-xl font-bold mt-8 mb-2 text-gray-900',  // h2
@@ -182,5 +184,31 @@ export function renderMarkdown(md: string | undefined | null): string {
   }
   flushParagraph();
   flushList();
-  return out.join('\n').replace(SENTINEL_RE, (_, i) => tokens[+i] ?? '');
+  const html = out.join('\n').replace(SENTINEL_RE, (_, i) => tokens[+i] ?? '');
+  return rewriteResponsiveImages(html);
+}
+
+// CMS-embedded <img> tags pointing at /uploads/ get a srcset + sizes pair
+// injected so admins don't need to author responsive markup by hand. Author-
+// provided srcset/sizes win and are left untouched.
+const CMS_IMG_WIDTHS = [480, 768, 1280];
+const CMS_IMG_SIZES = '(min-width: 768px) 720px, 100vw';
+const IMG_TAG_RE = /<img\b([^>]*?)>/gi;
+const IMG_SRC_RE = /\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i;
+
+function rewriteResponsiveImages(html: string): string {
+  return html.replace(IMG_TAG_RE, (full, attrsStr: string) => {
+    if (/\bsrcset\s*=/i.test(attrsStr)) return full;
+    const srcMatch = attrsStr.match(IMG_SRC_RE);
+    if (!srcMatch) return full;
+    const origSrc = srcMatch[1] ?? srcMatch[2] ?? srcMatch[3];
+    const { src, srcset } = buildResponsiveAttrs(origSrc, CMS_IMG_WIDTHS);
+    if (!srcset) return full;
+    const newAttrs = attrsStr.replace(
+      IMG_SRC_RE,
+      `src="${src}"`
+    );
+    const sizesAttr = /\bsizes\s*=/i.test(attrsStr) ? '' : ` sizes="${CMS_IMG_SIZES}"`;
+    return `<img${newAttrs} srcset="${srcset}"${sizesAttr}>`;
+  });
 }
