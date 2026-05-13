@@ -6,7 +6,14 @@
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import * as m from '$lib/paraglide/messages';
+
+  // Cover preview thumbnail (aspect-video card on the right rail) and the
+  // in-preview cover. coverImageUrl may be external — ResponsiveImage falls
+  // through to a plain <img> for non-/uploads/ paths.
+  const COVER_WIDTHS = [480, 768, 960];
+  const COVER_SIZES = '(min-width: 1024px) 320px, 50vw';
 
   let { data }: { data: PageData } = $props();
 
@@ -202,7 +209,9 @@
                           focus:ring-gray-900 focus:border-transparent transition" />
             {#if coverImageUrl}
               <div class="mt-3 rounded-xl overflow-hidden bg-gray-50 aspect-video">
-                <img src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt_preview()} class="w-full h-full object-cover" />
+                <ResponsiveImage src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt_preview()}
+                                 widths={COVER_WIDTHS} sizes={COVER_SIZES}
+                                 class="w-full h-full object-cover" />
               </div>
             {/if}
           </div>
@@ -218,7 +227,9 @@
           <div class="px-6 py-5 prose prose-sm max-w-none overflow-y-auto" style="max-height: 80vh">
             {#if coverImageUrl}
               <div class="rounded-xl overflow-hidden mb-6 aspect-video bg-gray-50">
-                <img src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt()} class="w-full h-full object-cover" />
+                <ResponsiveImage src={coverImageUrl} alt={m.admin_cms_post_edit_cover_alt()}
+                                 widths={COVER_WIDTHS} sizes={COVER_SIZES}
+                                 class="w-full h-full object-cover" />
               </div>
             {/if}
             <h1 class="text-2xl font-bold text-gray-900 mb-2">{title || m.admin_cms_post_edit_preview_default_title()}</h1>

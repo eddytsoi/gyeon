@@ -2,6 +2,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
@@ -43,7 +44,9 @@
             <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
                class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden block hover:opacity-80 transition-opacity">
               {#if item.image_url}
-                <img src={item.image_url} alt={item.product_name} class="w-full h-full object-cover" />
+                <ResponsiveImage src={item.image_url} alt={item.product_name}
+                                 widths={[160, 320]} sizes="64px"
+                                 class="w-full h-full object-cover" />
               {/if}
             </a>
 

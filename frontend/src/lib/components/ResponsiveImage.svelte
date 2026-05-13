@@ -13,7 +13,9 @@
     loading = 'lazy',
     fetchpriority = 'auto',
     decoding = 'async',
-    class: className = ''
+    class: className = '',
+    onload,
+    onerror
   }: {
     src: string;
     alt?: string;
@@ -23,6 +25,8 @@
     fetchpriority?: 'high' | 'low' | 'auto';
     decoding?: 'async' | 'sync' | 'auto';
     class?: string;
+    onload?: ((e: Event) => void) | null;
+    onerror?: ((e: Event) => void) | null;
   } = $props();
 
   const attrs = $derived(buildResponsiveAttrs(src, widths));
@@ -37,4 +41,6 @@
   {fetchpriority}
   {decoding}
   class={className}
+  {onload}
+  {onerror}
 />

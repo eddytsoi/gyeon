@@ -5,6 +5,7 @@
    * Hidden on lg+ (desktop has the sticky summary column).
    */
   import type { Product, ProductImage, Variant } from '$lib/types';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   let {
     ctaEl,
@@ -50,9 +51,10 @@
   aria-hidden={!visible}
 >
   {#if primaryImage}
-    <img src={primaryImage.thumbnail_url ?? primaryImage.url}
-         alt={primaryImage.alt_text ?? product.name}
-         class="w-12 h-12 rounded-md object-cover bg-paper" />
+    <ResponsiveImage src={primaryImage.url}
+                     alt={primaryImage.alt_text ?? product.name}
+                     widths={[160, 320]} sizes="48px"
+                     class="w-12 h-12 rounded-md object-cover bg-paper" />
   {:else}
     <div class="w-12 h-12 rounded-md bg-paper"></div>
   {/if}

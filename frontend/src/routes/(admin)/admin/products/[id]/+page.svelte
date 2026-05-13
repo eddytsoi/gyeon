@@ -19,6 +19,18 @@
   import { sortable } from '$lib/actions/sortable';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+
+  // Admin product page renders product images at three scales:
+  // - Tiny chips in variant rows (32px square)
+  // - Gallery cards (~160-200px tile)
+  // - Variant edit preview (square crop, max ~220px)
+  const TINY_THUMB_WIDTHS = [160];
+  const TINY_THUMB_SIZES = '32px';
+  const GALLERY_WIDTHS = [160, 320, 480];
+  const GALLERY_SIZES = '(min-width: 1024px) 200px, 33vw';
+  const VARIANT_PREVIEW_WIDTHS = [320, 480];
+  const VARIANT_PREVIEW_SIZES = '220px';
 
   let { data }: { data: PageData } = $props();
 
@@ -741,7 +753,9 @@
                       <video src={pv.image_preview_url} muted playsinline preload="metadata"
                              class="w-8 h-8 rounded object-cover bg-black"></video>
                     {:else}
-                      <img src={pv.image_preview_url} alt="" class="w-8 h-8 rounded object-cover" />
+                      <ResponsiveImage src={pv.image_preview_url} alt=""
+                                       widths={TINY_THUMB_WIDTHS} sizes={TINY_THUMB_SIZES}
+                                       class="w-8 h-8 rounded object-cover" />
                     {/if}
                   {:else}
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
@@ -797,7 +811,9 @@
                       <video src={variant.image_url} muted playsinline preload="metadata"
                              class="w-8 h-8 rounded object-cover bg-black"></video>
                     {:else}
-                      <img src={variant.image_url} alt="" class="w-8 h-8 rounded object-cover" />
+                      <ResponsiveImage src={variant.image_url} alt=""
+                                       widths={TINY_THUMB_WIDTHS} sizes={TINY_THUMB_SIZES}
+                                       class="w-8 h-8 rounded object-cover" />
                     {/if}
                   {:else}
                     <div class="w-8 h-8 rounded bg-gray-100"></div>
@@ -1120,7 +1136,9 @@
                   </span>
                 </span>
               {:else}
-                <img src={pi.preview_url} alt={pi.alt_text ?? ''} class="w-full h-full object-cover" />
+                <ResponsiveImage src={pi.preview_url} alt={pi.alt_text ?? ''}
+                                 widths={GALLERY_WIDTHS} sizes={GALLERY_SIZES}
+                                 class="w-full h-full object-cover" />
               {/if}
               {#if pi.is_primary}
                 <span class="absolute top-2 left-2 p-1.5 rounded-lg bg-amber-400/90 text-white"
@@ -1184,8 +1202,9 @@
             >
               {#if isVideo(image)}
                 {#if isStreamingVideo(image)}
-                  <img src={image.thumbnail_url ?? ''} alt={image.alt_text ?? ''}
-                       class="w-full h-full object-cover pointer-events-none bg-gray-100" />
+                  <ResponsiveImage src={image.thumbnail_url ?? ''} alt={image.alt_text ?? ''}
+                                   widths={GALLERY_WIDTHS} sizes={GALLERY_SIZES}
+                                   class="w-full h-full object-cover pointer-events-none bg-gray-100" />
                 {:else}
                   <video src={image.url} muted loop playsinline preload="metadata"
                          class="w-full h-full object-cover pointer-events-none"></video>
@@ -1199,7 +1218,9 @@
                   </span>
                 </span>
               {:else}
-                <img src={image.url} alt={image.alt_text ?? ''} class="w-full h-full object-cover" />
+                <ResponsiveImage src={image.url} alt={image.alt_text ?? ''}
+                                 widths={GALLERY_WIDTHS} sizes={GALLERY_SIZES}
+                                 class="w-full h-full object-cover" />
               {/if}
 
               {#if image.is_primary}
@@ -1400,7 +1421,9 @@
                                {addVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
                   {#if isVideo(mf)}
                     {#if isStreamingVideo(mf)}
-                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                      <ResponsiveImage src={mf.thumbnail_url ?? ''} alt={mf.original_name}
+                                       widths={[160, 320]} sizes="56px"
+                                       class="w-full h-full object-cover bg-black" />
                     {:else}
                       <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
                     {/if}
@@ -1408,9 +1431,11 @@
                       <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </span>
                   {:else}
-                    <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover"
-                         onload={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = ''; } : null}
-                         onerror={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; } : null} />
+                    <ResponsiveImage src={mf.webp_url ?? mf.url} alt={mf.original_name}
+                                     widths={[160, 320]} sizes="56px"
+                                     class="w-full h-full object-cover"
+                                     onload={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = ''; } : null}
+                                     onerror={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = 'none'; } : null} />
                   {/if}
                 </button>
               {/each}
@@ -1468,7 +1493,9 @@
               <video src={editVariantPreviewUrl} muted loop playsinline preload="metadata"
                      class="w-full h-full object-cover bg-black"></video>
             {:else}
-              <img src={editVariantPreviewUrl} alt="" class="w-full h-full object-cover" />
+              <ResponsiveImage src={editVariantPreviewUrl} alt=""
+                               widths={VARIANT_PREVIEW_WIDTHS} sizes={VARIANT_PREVIEW_SIZES}
+                               class="w-full h-full object-cover" />
             {/if}
             <button type="button"
                     onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
@@ -1581,7 +1608,9 @@
                                {editVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
                   {#if isVideo(mf)}
                     {#if isStreamingVideo(mf)}
-                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                      <ResponsiveImage src={mf.thumbnail_url ?? ''} alt={mf.original_name}
+                                       widths={[160, 320]} sizes="56px"
+                                       class="w-full h-full object-cover bg-black" />
                     {:else}
                       <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
                     {/if}
@@ -1589,9 +1618,11 @@
                       <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </span>
                   {:else}
-                    <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover"
-                         onload={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = ''; } : null}
-                         onerror={mf.mime_type === 'link' ? (e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; } : null} />
+                    <ResponsiveImage src={mf.webp_url ?? mf.url} alt={mf.original_name}
+                                     widths={[160, 320]} sizes="56px"
+                                     class="w-full h-full object-cover"
+                                     onload={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = ''; } : null}
+                                     onerror={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = 'none'; } : null} />
                   {/if}
                 </button>
               {/each}
@@ -1810,7 +1841,9 @@
                                {addImageSelectedId === mf.id ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}">
                   {#if isVideo(mf)}
                     {#if isStreamingVideo(mf)}
-                      <img src={mf.thumbnail_url ?? ''} alt={mf.original_name} class="w-full h-full object-cover bg-black" />
+                      <ResponsiveImage src={mf.thumbnail_url ?? ''} alt={mf.original_name}
+                                       widths={[160, 320]} sizes="56px"
+                                       class="w-full h-full object-cover bg-black" />
                     {:else}
                       <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
                     {/if}
@@ -1820,7 +1853,9 @@
                       </svg>
                     </span>
                   {:else}
-                    <img src={mf.webp_url ?? mf.url} alt={mf.original_name} class="w-full h-full object-cover" />
+                    <ResponsiveImage src={mf.webp_url ?? mf.url} alt={mf.original_name}
+                                     widths={[160, 320, 480]} sizes="120px"
+                                     class="w-full h-full object-cover" />
                   {/if}
                   {#if addImageSelectedId === mf.id}
                     <div class="absolute inset-0 bg-gray-900/20 flex items-center justify-center">

@@ -11,6 +11,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   interface Item extends Product {
     primaryImage: ProductImage | null;
@@ -85,8 +86,10 @@
                        {checked ? 'border-navy-500' : 'border-ink-300/60 hover:border-navy-500'}">
                 <div class="relative aspect-square bg-paper rounded-md overflow-hidden">
                   {#if p.primaryImage}
-                    <img src={p.primaryImage.url} alt={p.primaryImage.alt_text ?? p.name}
-                         class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
+                    <ResponsiveImage src={p.primaryImage.url} alt={p.primaryImage.alt_text ?? p.name}
+                                     widths={[320, 480, 640]}
+                                     sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                                     class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
                   {/if}
                   <span class="absolute top-2 right-2 w-5 h-5 rounded-sm border-2 flex items-center justify-center transition-colors
                                {checked ? 'bg-navy-500 border-navy-500' : 'bg-white border-ink-300'}">
