@@ -990,6 +990,7 @@
   "admin_shortcode_insert_label": "插入：",
   "admin_shortcode_insert_product": "單一產品",
   "admin_shortcode_insert_products": "產品列",
+  "admin_shortcode_insert_products_categories": "依分類產品列",
   "admin_shortcode_insert_button": "按鈕",
   "admin_shortcode_insert_note": "提示框",
 

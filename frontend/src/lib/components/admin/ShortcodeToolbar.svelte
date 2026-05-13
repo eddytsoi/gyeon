@@ -9,8 +9,9 @@
   } = $props();
 
   const templates: { name: string; label: () => string; snippet: string }[] = [
-    { name: 'product', label: m.admin_shortcode_insert_product, snippet: '[product id="PRODUCT_ID"]' },
-    { name: 'products', label: m.admin_shortcode_insert_products, snippet: '[products ids="ID1,ID2,ID3"]' },
+    { name: 'product', label: m.admin_shortcode_insert_product, snippet: '[product id="PRD-1"]' },
+    { name: 'products', label: m.admin_shortcode_insert_products, snippet: '[products ids="PRD-1,PRD-2,PRD-3"]' },
+    { name: 'products-cat', label: m.admin_shortcode_insert_products_categories, snippet: '[products categories="category-slug-1,category-slug-2"]' },
     { name: 'button', label: m.admin_shortcode_insert_button, snippet: '[button href="/shop" label="Shop now" style="primary"]' },
     { name: 'note', label: m.admin_shortcode_insert_note, snippet: '[note type="info"]Your message here.[/note]' }
   ];

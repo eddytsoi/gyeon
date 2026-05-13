@@ -1,10 +1,12 @@
 <script lang="ts">
   import ProductCard from '$lib/components/shop/ProductCard.svelte';
+  import { resolveProductRef } from '$lib/shortcodes/types';
   import type { ShortcodeAttrs, ShortcodeRefs } from '$lib/shortcodes/types';
 
   let { attrs, refs }: { attrs: ShortcodeAttrs; refs: ShortcodeRefs } = $props();
 
-  const ref = $derived(attrs.id ? refs.products[attrs.id] : undefined);
+  const uuid = $derived(attrs.id ? resolveProductRef(attrs.id, refs) : null);
+  const ref = $derived(uuid ? refs.products[uuid] : undefined);
 </script>
 
 {#if ref}
