@@ -15,7 +15,16 @@
   import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
   import { trackViewItem, trackAddToCart } from '$lib/tracker';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { onMount } from 'svelte';
+
+  // PDP main image is sticky on the left in a 3fr/2fr grid on lg+: max column
+  // width ~720px there, full viewport on mobile. Eager + high priority for LCP.
+  const PDP_MAIN_WIDTHS = [480, 640, 960, 1280];
+  const PDP_MAIN_SIZES = '(min-width: 1024px) 720px, 100vw';
+  // Gallery thumbnails are a fixed 64px square strip (w-16 h-16).
+  const PDP_THUMB_WIDTHS = [160, 320];
+  const PDP_THUMB_SIZES = '80px';
 
   let { data }: { data: PageData } = $props();
 
@@ -372,9 +381,13 @@
                     class="w-full h-full {activeImage.video_fit === 'contain' ? 'object-contain' : 'object-cover'} transition-transform duration-700 group-hover:scale-[1.03]"
                   ></video>
                 {:else}
-                  <img
+                  <ResponsiveImage
                     src={activeImage.url}
                     alt={activeImage.alt_text ?? data.product.name}
+                    widths={PDP_MAIN_WIDTHS}
+                    sizes={PDP_MAIN_SIZES}
+                    loading="eager"
+                    fetchpriority="high"
                     class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                   />
                 {/if}
@@ -456,7 +469,9 @@
               >
                 {#if isVideo(img)}
                   {#if img.thumbnail_url}
-                    <img src={img.thumbnail_url} alt={img.alt_text ?? ''} class="w-full h-full object-cover bg-black" />
+                    <ResponsiveImage src={img.thumbnail_url} alt={img.alt_text ?? ''}
+                                     widths={PDP_THUMB_WIDTHS} sizes={PDP_THUMB_SIZES}
+                                     class="w-full h-full object-cover bg-black" />
                   {:else}
                     <div class="w-full h-full bg-black"></div>
                   {/if}
@@ -466,7 +481,9 @@
                     </span>
                   </span>
                 {:else}
-                  <img src={img.url} alt={img.alt_text ?? ''} class="w-full h-full object-cover" />
+                  <ResponsiveImage src={img.url} alt={img.alt_text ?? ''}
+                                   widths={PDP_THUMB_WIDTHS} sizes={PDP_THUMB_SIZES}
+                                   class="w-full h-full object-cover" />
                 {/if}
               </button>
             {/each}

@@ -1,8 +1,13 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   let { data }: { data: PageData } = $props();
+
+  // Mirror blog/+page.svelte: cover widths capped at backend allowedWidths.
+  const CARD_COVER_WIDTHS = [480, 768, 960, 1280];
+  const CARD_COVER_SIZES = '(min-width: 1024px) 1024px, 100vw';
 </script>
 
 <svelte:head>
@@ -32,15 +37,18 @@
     </div>
   {:else}
     <div class="space-y-10">
-      {#each data.posts as post}
+      {#each data.posts as post, i}
         <article class="group">
           <a href="/blog/{post.slug}" class="block">
             <!-- Cover image -->
             {#if post.cover_image_url}
               <div class="rounded-2xl overflow-hidden aspect-[16/7] bg-gray-100 mb-5">
-                <img src={post.cover_image_url} alt={post.title}
-                     class="w-full h-full object-cover transition-transform duration-500
-                            group-hover:scale-105" />
+                <ResponsiveImage src={post.cover_image_url} alt={post.title}
+                                 widths={CARD_COVER_WIDTHS} sizes={CARD_COVER_SIZES}
+                                 loading={i === 0 ? 'eager' : 'lazy'}
+                                 fetchpriority={i === 0 ? 'high' : 'auto'}
+                                 class="w-full h-full object-cover transition-transform duration-500
+                                        group-hover:scale-105" />
               </div>
             {/if}
 
