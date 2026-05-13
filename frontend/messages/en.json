@@ -484,6 +484,7 @@
   "admin_top_shipping": "Shipping",
   "admin_top_audit_log": "Audit Log",
   "admin_top_email_templates": "Email Templates",
+  "admin_top_import": "Import",
   "admin_top_admin": "Admin",
   "admin_event_new_order_title": "New Order Received",
   "admin_event_new_order_body": "New order #{orderNumber} · {customer} · {total}",
@@ -1431,7 +1432,7 @@
   "admin_settings_desc_maintenance_mode": "When true, non-admin visitors are redirected to the maintenance page",
   "admin_settings_desc_mcp_enabled": "Allow AI agents to connect to this store via MCP",
 
-  "admin_import_title": "Import Products — Gyeon Admin",
+  "admin_import_title": "Import — Gyeon Admin",
   "admin_import_tab_products": "Import Products",
   "admin_import_tab_orders": "Import Orders",
   "admin_import_tab_customers": "Import Customers",
