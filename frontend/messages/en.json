@@ -1010,6 +1010,7 @@
   "admin_shortcode_insert_section": "Section",
   "admin_shortcode_insert_section_hero": "Hero section",
   "admin_shortcode_insert_section_split": "Split section",
+  "admin_shortcode_insert_banner": "Banner",
 
   "admin_cms_post_edit_new_title": "New Post — Gyeon Admin",
   "admin_cms_post_edit_edit_title": "Edit Post '{title}' — Gyeon Admin",

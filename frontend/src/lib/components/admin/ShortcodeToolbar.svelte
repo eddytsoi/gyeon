@@ -30,6 +30,12 @@
       label: m.admin_shortcode_insert_section_split,
       snippet:
         '[section bg="cream" layout="split" padding="lg"]\n![Visual](/uploads/your-image.jpg)\n\n---\n\n## Our craft\n\nA short paragraph describing the feature.\n\n[button href="/about" label="Learn more" style="secondary"]\n[/section]'
+    },
+    {
+      name: 'banner',
+      label: m.admin_shortcode_insert_banner,
+      snippet:
+        '[banner image="/uploads/your-banner.jpg" alt="Banner" aspect-ratio="2.5" bleed="full"]'
     }
   ];
 

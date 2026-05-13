@@ -1010,6 +1010,7 @@
   "admin_shortcode_insert_section": "區塊",
   "admin_shortcode_insert_section_hero": "Hero 區塊",
   "admin_shortcode_insert_section_split": "雙欄區塊",
+  "admin_shortcode_insert_banner": "橫額",
 
   "admin_cms_post_edit_new_title": "新增文章 — Gyeon 管理員",
   "admin_cms_post_edit_edit_title": "編輯文章「{title}」 — Gyeon 管理員",

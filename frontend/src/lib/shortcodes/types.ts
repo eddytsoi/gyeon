@@ -30,7 +30,7 @@ export const EMPTY_REFS: ShortcodeRefs = {
   productsByCategory: {}
 };
 
-export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section'] as const;
+export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner'] as const;
 export type KnownShortcode = (typeof KNOWN_SHORTCODES)[number];
 
 export function isKnownShortcode(name: string): name is KnownShortcode {
