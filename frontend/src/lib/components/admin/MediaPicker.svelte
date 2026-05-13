@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { MediaFile } from '$lib/api/admin';
   import * as m from '$lib/paraglide/messages';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   interface Props {
     files: MediaFile[];
@@ -49,7 +50,9 @@
 <div class="flex items-center gap-3">
   <div class="rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden {previewClass}">
     {#if value}
-      <img src={value} alt="" class="w-full h-full object-contain" />
+      <ResponsiveImage src={value} alt=""
+                       widths={[160, 320]} sizes="64px"
+                       class="w-full h-full object-contain" />
     {:else}
       <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -109,8 +112,9 @@
                       class="group relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
                              {value === f.url ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}"
                       title={f.original_name}>
-                <img src={f.thumbnail_url ?? f.url} alt={f.original_name}
-                     class="w-full h-full object-cover bg-gray-50" />
+                <ResponsiveImage src={f.url} alt={f.original_name}
+                                 widths={[160, 320]} sizes="120px"
+                                 class="w-full h-full object-cover bg-gray-50" />
                 <div class="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/60 to-transparent">
                   <p class="text-[10px] text-white truncate text-left">{f.original_name}</p>
                 </div>

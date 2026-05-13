@@ -13,7 +13,13 @@
     type StreamingProvider
   } from '$lib/media';
   import { notify } from '$lib/stores/notifications.svelte';
+  import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import * as m from '$lib/paraglide/messages';
+
+  // Media library is a square thumb grid: ~4-6 cols on desktop, 2-3 on mobile.
+  // The full /uploads/ original gets fetched today; cap at 480w bucket.
+  const GRID_WIDTHS = [160, 320, 480];
+  const GRID_SIZES = '(min-width: 1024px) 200px, (min-width: 640px) 33vw, 50vw';
 
   let { data }: { data: PageData } = $props();
 
@@ -562,7 +568,9 @@
               </div>
 
             {:else}
-              <img src={file.url} alt={file.original_name} class="w-full h-full object-cover" loading="lazy" />
+              <ResponsiveImage src={file.url} alt={file.original_name}
+                               widths={GRID_WIDTHS} sizes={GRID_SIZES} loading="lazy"
+                               class="w-full h-full object-cover" />
             {/if}
 
             <!-- Hover overlay -->
