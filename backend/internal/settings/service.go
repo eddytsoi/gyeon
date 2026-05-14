@@ -36,6 +36,10 @@ var publicSettingKeys = []string{
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
 	"favicon_url",                // injected into <svelte:head> on storefront + admin
 	"site_notice",                // storefront announcement strip copy
+	"site_notice_enabled",        // storefront announcement strip on/off toggle
+	"site_notice_bg_color",       // storefront announcement strip background color
+	"site_notice_text_color",     // storefront announcement strip text color
+	"site_notice_text_size",      // storefront announcement strip font size (px)
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
 }

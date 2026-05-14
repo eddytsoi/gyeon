@@ -109,7 +109,13 @@
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
-  const SITE_NOTICE_KEYS = new Set(['site_notice']);
+  const SITE_NOTICE_KEYS = new Set([
+    'site_notice',
+    'site_notice_enabled',
+    'site_notice_bg_color',
+    'site_notice_text_color',
+    'site_notice_text_size',
+  ]);
   const CURRENCY_KEYS = new Set(['currency']);
   const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
@@ -275,6 +281,11 @@
   // ── reCAPTCHA (spam protection for contact forms) ───────────────
   let recaptchaOn = $state(
     data.settings.find((s) => s.key === 'recaptcha_enabled')?.value === 'true'
+  );
+
+  // ── Site Notice (storefront announcement strip) ─────────────────
+  let siteNoticeOn = $state(
+    (data.settings.find((s) => s.key === 'site_notice_enabled')?.value ?? 'true') !== 'false'
   );
 
   // ── Default Storefront Language ─────────────────────────────────
@@ -633,17 +644,69 @@
 
     <!-- Site Notice (announcement strip) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <div class="flex flex-col gap-1.5">
-        <label for="site_notice" class="text-sm font-semibold text-gray-900">
-          {m.admin_settings_site_notice_heading()}
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex flex-col gap-0.5">
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_site_notice_heading()}</p>
+          <p class="text-xs text-gray-400">{m.admin_settings_site_notice_subtitle()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (siteNoticeOn = !siteNoticeOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {siteNoticeOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={siteNoticeOn}
+                aria-label={m.admin_settings_site_notice_enabled()}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {siteNoticeOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="site_notice_enabled" value={siteNoticeOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="mt-5 flex flex-col gap-1.5">
+        <label for="site_notice" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_site_notice_text_label()}
         </label>
-        <p class="text-xs text-gray-400">
-          {m.admin_settings_site_notice_subtitle()}
-        </p>
         <textarea id="site_notice" name="site_notice" rows="2"
-                  class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                          focus:outline-none focus:ring-2 focus:ring-gray-900"
                   value={settingValue('site_notice') || ''}></textarea>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="site_notice_bg_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_site_notice_bg_color()}
+          </label>
+          <input id="site_notice_bg_color" name="site_notice_bg_color"
+                 type="color"
+                 value={settingValue('site_notice_bg_color') || '#EDE9E1'}
+                 class="h-10 w-full border border-gray-200 rounded-xl p-1 cursor-pointer
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="site_notice_text_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_site_notice_text_color()}
+          </label>
+          <input id="site_notice_text_color" name="site_notice_text_color"
+                 type="color"
+                 value={settingValue('site_notice_text_color') || '#1A1A1A'}
+                 class="h-10 w-full border border-gray-200 rounded-xl p-1 cursor-pointer
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="site_notice_text_size" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_site_notice_text_size()}
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="site_notice_text_size" name="site_notice_text_size"
+                   type="number" min="8" max="48" step="1"
+                   value={settingValue('site_notice_text_size') || '16'}
+                   class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <span class="text-xs text-gray-400">px</span>
+          </div>
+        </div>
       </div>
     </div>
 
