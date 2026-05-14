@@ -6,8 +6,15 @@
 
   let {
     navItems = [],
-    customer = null
-  }: { navItems?: NavItem[]; customer?: Customer | null } = $props();
+    customer = null,
+    companyLogoUrl = '',
+    companyLogoHeight = 40
+  }: {
+    navItems?: NavItem[];
+    customer?: Customer | null;
+    companyLogoUrl?: string;
+    companyLogoHeight?: number;
+  } = $props();
 
   let mobileOpen = $state(false);
   let accountOpen = $state(false);
@@ -58,9 +65,18 @@
       </button>
 
       <!-- Logo (centred on mobile, left on desktop) -->
-      <a href="/" class="font-display text-xl md:text-2xl font-bold tracking-[0.18em] uppercase text-navy-500
-                        absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0">
-        {m.header_logo()}
+      <a href="/"
+         class="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
+         aria-label={m.header_logo()}>
+        {#if companyLogoUrl}
+          <img src={companyLogoUrl} alt={m.header_logo()}
+               style="height: {companyLogoHeight}px; width: auto;"
+               class="object-contain" />
+        {:else}
+          <span class="font-display text-xl md:text-2xl font-bold tracking-[0.18em] uppercase text-navy-500">
+            {m.header_logo()}
+          </span>
+        {/if}
       </a>
 
       <!-- Desktop nav -->
