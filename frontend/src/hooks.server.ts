@@ -180,4 +180,39 @@ const handleRedirect: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-export const handle: Handle = sequence(handleParaglide, handleMaintenance, handleRedirect);
+// Content-Security-Policy: tuned to fit the third-party islands actually in
+// use — GTM/Meta tracker bootstrap, reCAPTCHA v3, Stripe Elements. 'unsafe-
+// inline' on script/style covers SvelteKit's hydration script and inline
+// theme tokens; tightening to nonces is a follow-up.
+const CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://js.stripe.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "connect-src 'self' https://www.google-analytics.com https://api.stripe.com https://www.googletagmanager.com https://www.facebook.com",
+  "frame-src https://js.stripe.com https://www.google.com https://hooks.stripe.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join('; ');
+
+const handleSecurityHeaders: Handle = async ({ event, resolve }) => {
+  const response = await resolve(event);
+  // Apply only to HTML responses — static assets carry their own headers and
+  // don't benefit from CSP. SvelteKit serves the app as text/html.
+  const ct = response.headers.get('content-type') ?? '';
+  if (ct.includes('text/html')) {
+    response.headers.set('Content-Security-Policy', CSP_DIRECTIVES);
+  }
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-Frame-Options', 'DENY');
+  // Browsers ignore HSTS on plain-HTTP responses; behind Cloudflare/TLS this
+  // pins the cert to a 6-month window with includeSubDomains.
+  response.headers.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  return response;
+};
+
+export const handle: Handle = sequence(handleParaglide, handleMaintenance, handleRedirect, handleSecurityHeaders);

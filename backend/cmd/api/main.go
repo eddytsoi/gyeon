@@ -45,6 +45,36 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
+// splitCSV returns the comma-separated values in s, trimmed, with empties
+// dropped. Used to read FRONTEND_ORIGIN.
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// originAllowed reports whether origin matches one of the allowed entries
+// exactly (no wildcard expansion — keep the rule simple and obvious).
+func originAllowed(origin string, allowed []string) bool {
+	if origin == "" {
+		return false
+	}
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+	}
+	return false
+}
+
 // redirectsAuditAdapter bridges redirects.AuditRecorder → audit.Service so the
 // redirects package doesn't need to import the audit package.
 type redirectsAuditAdapter struct{ svc *audit.Service }
@@ -318,10 +348,32 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 
-	// CORS
+	// Baseline security headers applied to every response. Kept here (and not
+	// only on /api responses) so static /uploads/ files inherit them too.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("X-Frame-Options", "DENY")
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	// CORS — allowlist of origins from FRONTEND_ORIGIN (comma-separated).
+	// Empty / unset → wildcard `*`, which excludes credentialed requests by
+	// design (browsers reject "*" + Authorization+SameSite cookies). Setting
+	// the env locks the API down to its known frontends.
+	allowedOrigins := splitCSV(os.Getenv("FRONTEND_ORIGIN"))
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if len(allowedOrigins) == 0 {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if originAllowed(origin, allowedOrigins) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -343,6 +395,14 @@ func main() {
 		if strings.Contains(req.URL.Path, "/.") {
 			http.NotFound(w, req)
 			return
+		}
+		// SVG can carry inline <script>; uploaded by an admin doesn't mean
+		// safe to render top-level. Lock the response down with a strict
+		// per-file CSP so direct navigation can't execute scripts, and force
+		// download for paranoia in case the CSP isn't honored.
+		if strings.HasSuffix(strings.ToLower(req.URL.Path), ".svg") {
+			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data: 'self'")
+			w.Header().Set("Content-Disposition", "inline")
 		}
 		uploadsFS.ServeHTTP(w, req)
 	}))

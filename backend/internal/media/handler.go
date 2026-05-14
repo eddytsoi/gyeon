@@ -296,6 +296,19 @@ type updateMediaRequest struct {
 	VideoFit      *string `json:"video_fit"`
 }
 
+// mediaUpdatableColumns whitelists the columns that the dynamic UPDATE below
+// is allowed to touch. Keys come exclusively from this set — they're never
+// derived from request input — so the fmt.Sprintf into SQL is injection-safe.
+// Any future column must be added here AND in the validation block; addSet
+// panics if a caller deviates, surfacing programming mistakes at first hit.
+var mediaUpdatableColumns = map[string]struct{}{
+	"original_name":  {},
+	"url":            {},
+	"filename":       {},
+	"video_autoplay": {},
+	"video_fit":      {},
+}
+
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req updateMediaRequest
@@ -316,6 +329,14 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	setClauses := make([]string, 0, 3)
 	args := make([]any, 0, 3)
 	n := 1
+	addSet := func(column string, value any) {
+		if _, ok := mediaUpdatableColumns[column]; !ok {
+			panic("media update: column " + column + " not whitelisted")
+		}
+		setClauses = append(setClauses, column+"=$"+strconv.Itoa(n))
+		args = append(args, value)
+		n++
+	}
 
 	if req.OriginalName != nil {
 		name := strings.TrimSpace(*req.OriginalName)
@@ -323,9 +344,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 			respond.BadRequest(w, "original_name cannot be empty")
 			return
 		}
-		setClauses = append(setClauses, fmt.Sprintf("original_name=$%d", n))
-		args = append(args, name)
-		n++
+		addSet("original_name", name)
 	}
 
 	if req.URL != nil && mimeType == "link" {
@@ -334,15 +353,12 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 			respond.BadRequest(w, "url cannot be empty")
 			return
 		}
-		setClauses = append(setClauses, fmt.Sprintf("url=$%d", n), fmt.Sprintf("filename=$%d", n+1))
-		args = append(args, u, u)
-		n += 2
+		addSet("url", u)
+		addSet("filename", u)
 	}
 
 	if req.VideoAutoplay != nil && IsStreamingMime(mimeType) {
-		setClauses = append(setClauses, fmt.Sprintf("video_autoplay=$%d", n))
-		args = append(args, *req.VideoAutoplay)
-		n++
+		addSet("video_autoplay", *req.VideoAutoplay)
 	}
 
 	if req.VideoFit != nil && (IsStreamingMime(mimeType) || strings.HasPrefix(mimeType, "video/")) {
@@ -351,9 +367,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 			respond.BadRequest(w, "video_fit must be 'contain' or 'cover'")
 			return
 		}
-		setClauses = append(setClauses, fmt.Sprintf("video_fit=$%d", n))
-		args = append(args, fit)
-		n++
+		addSet("video_fit", fit)
 	}
 
 	if len(setClauses) == 0 {
@@ -362,9 +376,10 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	args = append(args, id)
-	if _, err := h.db.ExecContext(r.Context(),
-		fmt.Sprintf("UPDATE media_files SET %s WHERE id=$%d", strings.Join(setClauses, ", "), n),
-		args...); err != nil {
+	// SET clauses use only whitelisted column names (see addSet above); the
+	// id placeholder uses n which equals len(args).
+	query := "UPDATE media_files SET " + strings.Join(setClauses, ", ") + " WHERE id=$" + strconv.Itoa(n)
+	if _, err := h.db.ExecContext(r.Context(), query, args...); err != nil {
 		respond.InternalError(w)
 		return
 	}
