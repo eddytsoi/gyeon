@@ -98,8 +98,16 @@
     }, 0) ?? 0
   );
   const discount = $derived(couponResult?.valid ? (couponResult.discount_amount ?? 0) : 0);
-  const shippingFee = $derived(selectedRate?.fee_hkd ?? 0);
-  const total = $derived(subtotal - discount + shippingFee);
+  const total = $derived(subtotal - discount);
+
+  const freeShippingThreshold = $derived(() => {
+    const raw = (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  });
+  const shippingFree = $derived(
+    freeShippingThreshold() > 0 && subtotal >= freeShippingThreshold()
+  );
 
   const customerValid = $derived(
     firstName.trim() !== '' &&
@@ -262,7 +270,7 @@
               }
             : undefined,
         saveAddress: addressMode === 'new' && saveAddress,
-        shippingFee,
+        shippingFee: 0,
         couponCode: couponResult?.valid ? couponCode.trim() : undefined,
         notes: notes.trim() || undefined,
         saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
@@ -770,13 +778,9 @@
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
               <span>{m.checkout_summary_shipping()}</span>
-              {#if selectedRate}
-                <span class="text-gray-900 font-medium">HK${selectedRate.fee_hkd.toFixed(2)}</span>
-              {:else if data.shipanyEnabled && shippingValid}
-                <span class="text-gray-400">{m.checkout_summary_select_delivery()}</span>
-              {:else}
-                <span class="text-green-600">{m.checkout_summary_free_shipping()}</span>
-              {/if}
+              <span class={shippingFree ? 'text-green-600' : 'text-gray-900'}>
+                {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
+              </span>
             </div>
             <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
               <span>{m.checkout_summary_total()}</span>

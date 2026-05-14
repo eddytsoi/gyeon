@@ -169,6 +169,8 @@
   "cart_summary_shipping": "運費",
   "cart_summary_total": "總計",
   "cart_checkout": "結帳",
+  "shipping_sf_free": "順豐速運（免運費）",
+  "shipping_sf_cod": "順豐速運（到付）",
 
   "checkout_title": "結帳 — Gyeon",
   "checkout_heading": "結帳",
