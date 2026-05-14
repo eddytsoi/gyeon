@@ -662,68 +662,6 @@
       </div>
     {/if}
 
-    <!-- reCAPTCHA v3 (spam protection for contact forms) -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_recaptcha_heading()}</p>
-          <p class="text-xs text-gray-400 mt-0.5">
-            {m.admin_settings_recaptcha_subtitle_pre()}<a
-              href="https://www.google.com/recaptcha/admin"
-              target="_blank"
-              rel="noopener"
-              class="underline">{m.admin_settings_recaptcha_subtitle_link()}</a>{m.admin_settings_recaptcha_subtitle_post()}
-          </p>
-        </div>
-        <button type="button"
-                onclick={() => (recaptchaOn = !recaptchaOn)}
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
-                       {recaptchaOn ? 'bg-green-500' : 'bg-gray-200'}"
-                role="switch"
-                aria-checked={recaptchaOn}
-                aria-label={m.admin_settings_recaptcha_enabled()}>
-          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
-                       transition duration-200 {recaptchaOn ? 'translate-x-5' : 'translate-x-0'}"></span>
-        </button>
-        <input type="hidden" name="recaptcha_enabled" value={recaptchaOn ? 'true' : 'false'} />
-      </div>
-
-      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label for="recaptcha_site_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_settings_recaptcha_site_key()}
-          </label>
-          <input id="recaptcha_site_key" name="recaptcha_site_key"
-                 type="text"
-                 value={settingValue('recaptcha_site_key')}
-                 placeholder="6Lc..."
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label for="recaptcha_secret_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_settings_recaptcha_secret_key()}
-          </label>
-          <PasswordInput id="recaptcha_secret_key" name="recaptcha_secret_key"
-                         value={settingValue('recaptcha_secret_key')}
-                         placeholder="6Lc..." />
-        </div>
-      </div>
-
-      <div class="mt-4 flex flex-col gap-1.5">
-        <label for="recaptcha_min_score" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          {m.admin_settings_recaptcha_min_score()}
-        </label>
-        <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_recaptcha_min_score_hint()}</p>
-        <input id="recaptcha_min_score" name="recaptcha_min_score"
-               type="number" step="0.1" min="0" max="1"
-               value={settingValue('recaptcha_min_score') || '0.5'}
-               class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
-      </div>
-    </div>
-
     </div>
 
     <!-- Commerce tab -->
@@ -1097,7 +1035,7 @@
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_shipping_heading()}</h2>
       <p class="text-xs text-gray-400 mb-4">
-        {shippingCountriesSetting?.description ?? m.admin_settings_shipping_subtitle()}
+        {m.admin_settings_shipping_subtitle()}
       </p>
       <MultiSelect
         options={countryOptions}
@@ -1543,6 +1481,68 @@
         </div>
       </div>
     {/if}
+
+    <!-- reCAPTCHA v3 (spam protection for contact forms) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_recaptcha_heading()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {m.admin_settings_recaptcha_subtitle_pre()}<a
+              href="https://www.google.com/recaptcha/admin"
+              target="_blank"
+              rel="noopener"
+              class="underline">{m.admin_settings_recaptcha_subtitle_link()}</a>{m.admin_settings_recaptcha_subtitle_post()}
+          </p>
+        </div>
+        <button type="button"
+                onclick={() => (recaptchaOn = !recaptchaOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {recaptchaOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={recaptchaOn}
+                aria-label={m.admin_settings_recaptcha_enabled()}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {recaptchaOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="recaptcha_enabled" value={recaptchaOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="mt-5 flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="recaptcha_site_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_recaptcha_site_key()}
+          </label>
+          <input id="recaptcha_site_key" name="recaptcha_site_key"
+                 type="text"
+                 value={settingValue('recaptcha_site_key')}
+                 placeholder="6Lc..."
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="recaptcha_secret_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_recaptcha_secret_key()}
+          </label>
+          <PasswordInput id="recaptcha_secret_key" name="recaptcha_secret_key"
+                         value={settingValue('recaptcha_secret_key')}
+                         placeholder="6Lc..." />
+        </div>
+      </div>
+
+      <div class="mt-4 flex flex-col gap-1.5">
+        <label for="recaptcha_min_score" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_recaptcha_min_score()}
+        </label>
+        <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_recaptcha_min_score_hint()}</p>
+        <input id="recaptcha_min_score" name="recaptcha_min_score"
+               type="number" step="0.1" min="0" max="1"
+               value={settingValue('recaptcha_min_score') || '0.5'}
+               class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+      </div>
+    </div>
 
     {#if mediaLimitSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
