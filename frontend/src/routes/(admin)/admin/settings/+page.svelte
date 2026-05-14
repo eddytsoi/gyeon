@@ -109,6 +109,7 @@
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
+  const COMPANY_LOGO_KEYS = new Set(['company_logo_url', 'company_logo_height_px']);
   const SITE_NOTICE_KEYS = new Set([
     'site_notice',
     'site_notice_enabled',
@@ -254,6 +255,7 @@
         !RECAPTCHA_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
+        !COMPANY_LOGO_KEYS.has(s.key) &&
         !SITE_NOTICE_KEYS.has(s.key) &&
         !HOMEPAGE_KEYS.has(s.key) &&
         !TAX_KEYS.has(s.key) &&
@@ -279,6 +281,11 @@
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
+
+  const companyLogoSetting = $derived(data.settings.find((s) => s.key === 'company_logo_url'));
+  let companyLogoUrl = $state(companyLogoSetting?.value ?? '');
+  const companyLogoHeightSetting = $derived(data.settings.find((s) => s.key === 'company_logo_height_px'));
+  let companyLogoHeight = $state(companyLogoHeightSetting?.value ?? '40');
 
   // ── reCAPTCHA (spam protection for contact forms) ───────────────
   let recaptchaOn = $state(
@@ -611,31 +618,6 @@
       </div>
     {/if}
 
-    <!-- WebMCP -->
-    {#if mcpSetting}
-      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_webmcp_heading()}</p>
-            {#if SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}
-              <p class="text-xs text-gray-400 mt-0.5">{SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}</p>
-            {/if}
-          </div>
-          <button type="button"
-                  onclick={() => (mcpOn = !mcpOn)}
-                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
-                         {mcpOn ? 'bg-green-500' : 'bg-gray-200'}"
-                  role="switch"
-                  aria-checked={mcpOn}>
-            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
-                         transition duration-200 {mcpOn ? 'translate-x-5' : 'translate-x-0'}"></span>
-          </button>
-          <input type="hidden" name="mcp_enabled" value={mcpOn ? 'true' : 'false'} />
-        </div>
-      </div>
-    {/if}
-
     <!-- Default Storefront Language -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex flex-col gap-1.5">
@@ -786,6 +768,37 @@
           description={m.admin_settings_favicon_subtitle()}
         />
         <input type="hidden" name="favicon_url" value={faviconUrl} />
+      </div>
+    {/if}
+
+    <!-- Company Logo -->
+    {#if companyLogoSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <MediaPicker
+          files={data.mediaFiles ?? []}
+          value={companyLogoUrl}
+          onChange={(url) => (companyLogoUrl = url)}
+          accept="image"
+          label={m.admin_settings_company_logo_heading()}
+          description={m.admin_settings_company_logo_subtitle()}
+        />
+        <input type="hidden" name="company_logo_url" value={companyLogoUrl} />
+
+        {#if companyLogoHeightSetting}
+          <div class="flex flex-col gap-1.5 mt-4">
+            <label for="company_logo_height_px" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_company_logo_height_label()}
+            </label>
+            <div class="flex items-center gap-2">
+              <input id="company_logo_height_px" name="company_logo_height_px"
+                     type="number" min="16" max="80" step="1"
+                     bind:value={companyLogoHeight}
+                     class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <span class="text-xs text-gray-400">px</span>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
 
@@ -1552,6 +1565,31 @@
 
     <!-- Infrastructure tab -->
     <div class="tab-panel" class:active={activeTab === 'infrastructure'}>
+    <!-- WebMCP -->
+    {#if mcpSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_webmcp_heading()}</p>
+            {#if SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}
+              <p class="text-xs text-gray-400 mt-0.5">{SETTING_DESCS[mcpSetting.key] ?? mcpSetting.description}</p>
+            {/if}
+          </div>
+          <button type="button"
+                  onclick={() => (mcpOn = !mcpOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {mcpOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={mcpOn}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {mcpOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="mcp_enabled" value={mcpOn ? 'true' : 'false'} />
+        </div>
+      </div>
+    {/if}
+
     {#if cacheTTLSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
         <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_cache_ttl()}</h2>

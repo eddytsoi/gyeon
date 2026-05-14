@@ -35,6 +35,8 @@ var publicSettingKeys = []string{
 	"meta_pixel_id",              // P3 #26
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
 	"favicon_url",                // injected into <svelte:head> on storefront + admin
+	"company_logo_url",           // storefront header logo image URL
+	"company_logo_height_px",     // storefront header logo render height (px)
 	"site_notice",                // storefront announcement strip copy
 	"site_notice_enabled",        // storefront announcement strip on/off toggle
 	"site_notice_bg_color",       // storefront announcement strip background color

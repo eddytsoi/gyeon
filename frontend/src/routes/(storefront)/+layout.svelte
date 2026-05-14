@@ -17,6 +17,13 @@
     data.publicSettings?.find((s) => s.key === 'favicon_url')?.value ?? ''
   );
 
+  const companyLogoUrl = $derived(
+    data.publicSettings?.find((s) => s.key === 'company_logo_url')?.value ?? ''
+  );
+  const companyLogoHeight = $derived(
+    Number(data.publicSettings?.find((s) => s.key === 'company_logo_height_px')?.value) || 40
+  );
+
   onMount(async () => {
     initTracker(data.publicSettings ?? []);
     await cartStore.init();
@@ -46,7 +53,12 @@
 
 <div class="min-h-screen flex flex-col bg-white">
   <AnnouncementStrip settings={data.publicSettings ?? []} />
-  <Header navItems={data.headerNav?.items ?? []} customer={data.customer} />
+  <Header
+    navItems={data.headerNav?.items ?? []}
+    customer={data.customer}
+    {companyLogoUrl}
+    {companyLogoHeight}
+  />
   <main id="main-content" tabindex="-1" class="flex-1">
     {@render children()}
   </main>
