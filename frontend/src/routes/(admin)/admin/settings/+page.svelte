@@ -116,6 +116,7 @@
     'site_notice_text_color',
     'site_notice_text_size',
   ]);
+  const HOMEPAGE_KEYS = new Set(['homepage_page_id']);
   const CURRENCY_KEYS = new Set(['currency']);
   const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
@@ -254,6 +255,7 @@
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
         !SITE_NOTICE_KEYS.has(s.key) &&
+        !HOMEPAGE_KEYS.has(s.key) &&
         !TAX_KEYS.has(s.key) &&
         !LOYALTY_KEYS.has(s.key) &&
         !ABANDONED_KEYS.has(s.key) &&
@@ -287,6 +289,20 @@
   let siteNoticeOn = $state(
     (data.settings.find((s) => s.key === 'site_notice_enabled')?.value ?? 'true') !== 'false'
   );
+  let siteNoticeBgColor = $state(
+    data.settings.find((s) => s.key === 'site_notice_bg_color')?.value || '#EDE9E1'
+  );
+  let siteNoticeTextColor = $state(
+    data.settings.find((s) => s.key === 'site_notice_text_color')?.value || '#1A1A1A'
+  );
+  // Sanitize free-text hex input to the canonical "#RRGGBB" form, leaving
+  // partial entries (e.g. "#ED") untouched so the user can keep typing.
+  function normalizeHex(raw: string): string {
+    const trimmed = raw.trim();
+    const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+    if (/^#[0-9a-fA-F]{6}$/.test(withHash)) return withHash.toUpperCase();
+    return withHash;
+  }
 
   // ── Default Storefront Language ─────────────────────────────────
   const STOREFRONT_LANG_OPTIONS = $derived([
@@ -642,6 +658,30 @@
       </div>
     </div>
 
+    <!-- Storefront Homepage -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="homepage_page_id" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_homepage_heading()}
+        </label>
+        <p class="text-xs text-gray-400">
+          {m.admin_settings_homepage_subtitle()}
+        </p>
+        <select id="homepage_page_id" name="homepage_page_id"
+                class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="" selected={!settingValue('homepage_page_id')}>
+            {m.admin_settings_homepage_default_option()}
+          </option>
+          {#each (data.pages ?? []) as p}
+            <option value={p.id} selected={settingValue('homepage_page_id') === p.id}>
+              {p.title} (/{p.slug})
+            </option>
+          {/each}
+        </select>
+      </div>
+    </div>
+
     <!-- Site Notice (announcement strip) -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <div class="flex items-start justify-between gap-4">
@@ -678,21 +718,45 @@
           <label for="site_notice_bg_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_settings_site_notice_bg_color()}
           </label>
-          <input id="site_notice_bg_color" name="site_notice_bg_color"
-                 type="color"
-                 value={settingValue('site_notice_bg_color') || '#EDE9E1'}
-                 class="h-10 w-full border border-gray-200 rounded-xl p-1 cursor-pointer
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <div class="flex items-stretch gap-2">
+            <label for="site_notice_bg_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {siteNoticeBgColor}">
+              <input id="site_notice_bg_color" name="site_notice_bg_color"
+                     type="color"
+                     bind:value={siteNoticeBgColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_site_notice_bg_color()}
+                   value={siteNoticeBgColor}
+                   oninput={(e) => (siteNoticeBgColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="site_notice_text_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_settings_site_notice_text_color()}
           </label>
-          <input id="site_notice_text_color" name="site_notice_text_color"
-                 type="color"
-                 value={settingValue('site_notice_text_color') || '#1A1A1A'}
-                 class="h-10 w-full border border-gray-200 rounded-xl p-1 cursor-pointer
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <div class="flex items-stretch gap-2">
+            <label for="site_notice_text_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {siteNoticeTextColor}">
+              <input id="site_notice_text_color" name="site_notice_text_color"
+                     type="color"
+                     bind:value={siteNoticeTextColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_site_notice_text_color()}
+                   value={siteNoticeTextColor}
+                   oninput={(e) => (siteNoticeTextColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
         </div>
         <div class="flex flex-col gap-1.5">
           <label for="site_notice_text_size" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">

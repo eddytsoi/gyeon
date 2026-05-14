@@ -229,6 +229,9 @@ export const getBlogCategoryBySlug = (slug: string) =>
 export const getCmsPageBySlug = (slug: string) =>
   request<CmsPage>(`/cms/pages/by-slug/${slug}`);
 
+export const getCmsPageByID = (id: string) =>
+  request<CmsPage>(`/cms/pages/by-id/${id}`);
+
 // Forms (CF7-style). getPublicForm fetches the public form spec (no admin
 // fields like mail templates); submitForm posts the user's data + grecaptcha
 // token to the backend.

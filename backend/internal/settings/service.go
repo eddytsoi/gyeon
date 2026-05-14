@@ -42,6 +42,7 @@ var publicSettingKeys = []string{
 	"site_notice_text_size",      // storefront announcement strip font size (px)
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
+	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

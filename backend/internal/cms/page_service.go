@@ -191,6 +191,28 @@ func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page
 	return &p, nil
 }
 
+// GetPublishedByID fetches a published page by ID; locale may be empty for
+// base content. Used by the public storefront when a CMS page is selected as
+// the homepage (site_settings.homepage_page_id) — mirrors GetBySlug's
+// is_published filter so drafts never leak to public.
+func (s *PageService) GetPublishedByID(ctx context.Context, id, locale string) (*Page, error) {
+	key := fmt.Sprintf("cms:pages:pub-id:%s:%s", id, locale)
+	if v, ok := s.cache.Get(key); ok {
+		p := v.(Page)
+		return &p, nil
+	}
+	p, err := scanPage(s.db.QueryRowContext(ctx,
+		pageSelect+` WHERE p.id = $2 AND p.is_published = TRUE`, locale, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, p, s.ttl(ctx))
+	return &p, nil
+}
+
 // GetByID fetches any page by ID; locale may be empty for base content.
 func (s *PageService) GetByID(ctx context.Context, id, locale string) (*Page, error) {
 	key := fmt.Sprintf("cms:pages:id:%s:%s", id, locale)
