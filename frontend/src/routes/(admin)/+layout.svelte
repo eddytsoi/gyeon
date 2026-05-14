@@ -101,7 +101,7 @@
         },
         {
           href: '/admin/forms',
-          label: 'Forms',
+          label: m.admin_nav_forms(),
           icon: 'M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5'
         },
       ]
@@ -455,7 +455,7 @@
           {:else if $page.url.pathname.includes('cms/navigation')}{m.admin_top_cms_navigation()}
           {:else if $page.url.pathname.includes('media')}{m.admin_top_media()}
           {:else if $page.url.pathname.includes('redirects')}{m.admin_top_redirects()}
-          {:else if $page.url.pathname.includes('forms')}Forms
+          {:else if $page.url.pathname.includes('forms')}{m.admin_top_forms()}
           {:else if $page.url.pathname.includes('tax')}{m.admin_top_tax()}
           {:else if $page.url.pathname.includes('shipping')}{m.admin_top_shipping()}
           {:else if $page.url.pathname.includes('audit-log')}{m.admin_top_audit_log()}
