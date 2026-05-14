@@ -33,7 +33,7 @@
     canonical={homeOrigin}
   />
 
-  <div class="max-w-3xl mx-auto px-4 {data.page.content_padded === false ? '' : 'py-12 sm:py-16'}">
+  <div class="max-w-7xl mx-auto px-4 lg:px-8 {data.page.content_padded === false ? '' : 'py-12 sm:py-16'}">
     {#if data.page.show_title}
       <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-8">
         {data.page.title}

@@ -8,6 +8,7 @@
     alt = '',
     href,
     bleed = 'full',
+    bleedLg = undefined,
     aspectRatio = 'auto',
     aspectRatioMobile = 'auto',
     height = 'auto'
@@ -17,6 +18,7 @@
     alt?: string;
     href?: string;
     bleed?: BannerBleed;
+    bleedLg?: BannerBleed;
     aspectRatio?: BannerAspect;
     aspectRatioMobile?: BannerAspect;
     height?: BannerHeight;
@@ -46,8 +48,20 @@
   );
 
   // Same viewport-edge escape Section.svelte uses for bleed="full".
+  // bleed-lg overrides at the Tailwind `lg` breakpoint (≥ 1024px); the
+  // lg:w-auto/lg:ml-0/lg:mr-0 reset neutralizes the negative-margin escape
+  // when bleed="full" is paired with bleed-lg="container".
   const bleedClass = $derived(
-    bleed === 'full' ? 'w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]' : ''
+    (() => {
+      const base =
+        bleed === 'full' ? 'w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]' : '';
+      if (bleedLg === undefined || bleedLg === bleed) return base;
+      const lg =
+        bleedLg === 'full'
+          ? 'lg:w-screen lg:ml-[calc(50%-50vw)] lg:mr-[calc(50%-50vw)]'
+          : 'lg:w-auto lg:ml-0 lg:mr-0';
+      return base ? `${base} ${lg}` : lg;
+    })()
   );
 
   const isExternal = $derived(href ? /^https?:\/\//i.test(href) : false);
