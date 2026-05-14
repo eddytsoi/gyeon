@@ -47,10 +47,10 @@
 
 <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-ink-300/60">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between h-16 md:h-20">
+    <div class="flex items-center justify-between h-16 lg:h-20">
 
       <!-- Mobile hamburger (left) -->
-      <button class="md:hidden p-2 -ml-2 text-ink-900 hover:text-navy-500 transition-colors"
+      <button class="lg:hidden p-2 -ml-2 text-ink-900 hover:text-navy-500 transition-colors"
               onclick={() => mobileOpen = !mobileOpen}
               aria-label={m.header_aria_toggle_menu()}
               aria-expanded={mobileOpen}>
@@ -66,21 +66,21 @@
 
       <!-- Logo (centred on mobile, left on desktop) -->
       <a href="/"
-         class="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
+         class="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 flex items-center"
          aria-label={m.header_logo()}>
         {#if companyLogoUrl}
           <img src={companyLogoUrl} alt={m.header_logo()}
                style="height: {companyLogoHeight}px; width: auto;"
                class="object-contain" />
         {:else}
-          <span class="font-display text-xl md:text-2xl font-bold tracking-[0.18em] uppercase text-navy-500">
+          <span class="font-display text-xl lg:text-2xl font-bold tracking-[0.18em] uppercase text-navy-500">
             {m.header_logo()}
           </span>
         {/if}
       </a>
 
       <!-- Desktop nav -->
-      <nav class="hidden md:flex items-center gap-4 xl:gap-8 ml-10">
+      <nav class="hidden lg:flex items-center gap-4 xl:gap-8 ml-10">
         {#each links as link}
           <a href={link.url} target={link.target}
              class="relative font-display text-sm font-semibold uppercase tracking-[0.12em] text-ink-900
@@ -213,7 +213,7 @@
 
   <!-- Mobile nav -->
   {#if mobileOpen}
-    <nav class="md:hidden border-t border-ink-300/60 bg-paper px-4 py-6 flex flex-col gap-2">
+    <nav class="lg:hidden border-t border-ink-300/60 bg-paper px-4 py-6 flex flex-col gap-2">
       {#each links as link}
         <a href={link.url} target={link.target}
            onclick={() => mobileOpen = false}
