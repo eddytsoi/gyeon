@@ -80,7 +80,7 @@
       </a>
 
       <!-- Desktop nav -->
-      <nav class="hidden md:flex items-center gap-8 ml-10">
+      <nav class="hidden md:flex items-center gap-4 xl:gap-8 ml-10">
         {#each links as link}
           <a href={link.url} target={link.target}
              class="relative font-display text-sm font-semibold uppercase tracking-[0.12em] text-ink-900
