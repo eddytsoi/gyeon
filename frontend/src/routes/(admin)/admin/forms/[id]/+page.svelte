@@ -2,6 +2,8 @@
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import { notify } from '$lib/stores/notifications.svelte';
+  import * as m from '$lib/paraglide/messages';
+  import CF7TagToolbar from '$lib/components/admin/CF7TagToolbar.svelte';
 
   let { data, form: actionData }: { data: PageData; form: ActionData } = $props();
 
@@ -17,6 +19,7 @@
   let title = $state(get('title', initial?.title ?? ''));
   let slug = $state(get('slug', initial?.slug ?? ''));
   let markup = $state(get('markup', initial?.markup ?? defaultMarkup()));
+  let markupTextareaEl = $state<HTMLTextAreaElement | null>(null);
 
   let mailTo = $state(get('mail_to', initial?.mail_to ?? ''));
   let mailFrom = $state(get('mail_from', initial?.mail_from ?? ''));
@@ -89,18 +92,18 @@ Thanks for reaching out — we've received your message and will get back to you
   }
 </script>
 
-<svelte:head><title>{isNew ? 'New form' : `Edit ${initial?.title ?? ''}`} · Admin</title></svelte:head>
+<svelte:head><title>{isNew ? m.admin_forms_new_title() : m.admin_forms_edit_title({ title: initial?.title ?? '' })}</title></svelte:head>
 
 <div class="max-w-4xl mx-auto space-y-6">
   <div class="flex items-center gap-4">
     <a
       href="/admin/forms"
       class="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-      aria-label="Back to forms"
+      aria-label={m.admin_forms_back_aria()}
     >
       ←
     </a>
-    <h2 class="text-xl font-bold text-gray-900">{isNew ? 'New form' : 'Edit form'}</h2>
+    <h2 class="text-xl font-bold text-gray-900">{isNew ? m.admin_forms_new_heading() : m.admin_forms_edit_heading()}</h2>
   </div>
 
   {#if actionData && 'error' in actionData && actionData.error}
@@ -114,8 +117,8 @@ Thanks for reaching out — we've received your message and will get back to you
     action="?/save"
     use:enhance={() => {
       return async ({ result, update }) => {
-        if (result.type === 'redirect') notify.success('Form saved');
-        else if (result.type === 'failure') notify.error('Save failed', 'See errors below');
+        if (result.type === 'redirect') notify.success(m.admin_forms_save_success());
+        else if (result.type === 'failure') notify.error(m.admin_forms_save_failure(), m.admin_forms_save_failure_detail());
         await update();
       };
     }}
@@ -123,10 +126,10 @@ Thanks for reaching out — we've received your message and will get back to you
   >
     <!-- Basic info -->
     <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Form</h3>
+      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_form()}</h3>
 
       <div>
-        <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+        <label for="title" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_title()}</label>
         <input
           id="title"
           name="title"
@@ -141,7 +144,7 @@ Thanks for reaching out — we've received your message and will get back to you
       </div>
 
       <div>
-        <label for="slug" class="block text-sm font-medium text-gray-700">Slug</label>
+        <label for="slug" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_slug()}</label>
         <input
           id="slug"
           name="slug"
@@ -149,28 +152,29 @@ Thanks for reaching out — we've received your message and will get back to you
           bind:value={slug}
           class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
         />
-        <p class="text-xs text-gray-400 mt-1">Embed with <code class="font-mono">[contact-form id="{slug || 'slug'}"]</code></p>
+        <p class="text-xs text-gray-400 mt-1">{m.admin_forms_slug_hint_pre()} <code class="font-mono">[contact-form id="{slug || 'slug'}"]</code></p>
         {#if fieldErrors.slug}
           <p class="text-xs text-red-500 mt-1">{fieldErrors.slug}</p>
         {/if}
       </div>
 
       <div>
-        <label for="markup" class="block text-sm font-medium text-gray-700">Form markup (CF7 syntax)</label>
+        <label for="markup" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_markup()}</label>
+        <div class="mt-1">
+          <CF7TagToolbar bind:value={markup} textarea={markupTextareaEl} />
+        </div>
         <textarea
           id="markup"
           name="markup"
           rows={10}
           bind:value={markup}
-          class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+          bind:this={markupTextareaEl}
+          class="block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
         ></textarea>
-        <p class="text-xs text-gray-400 mt-1">
-          Supports <code>[text*]</code> <code>[email*]</code> <code>[tel]</code> <code>[textarea]</code>
-          <code>[select]</code> <code>[checkbox]</code> <code>[radio]</code> <code>[date]</code> <code>[submit]</code>.
-        </p>
+        <p class="text-xs text-gray-400 mt-1">{m.admin_forms_markup_hint()}</p>
         {#if parseErrors.length > 0}
           <div class="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700 space-y-1">
-            <p class="font-semibold">Parser errors:</p>
+            <p class="font-semibold">{m.admin_forms_parser_errors()}</p>
             <ul class="list-disc ml-5">
               {#each parseErrors as pe}
                 <li>
@@ -185,10 +189,10 @@ Thanks for reaching out — we've received your message and will get back to you
 
     <!-- Admin notification mail -->
     <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Notification mail (to admin)</h3>
+      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_notification()}</h3>
 
       <div>
-        <label for="mail_to" class="block text-sm font-medium text-gray-700">To</label>
+        <label for="mail_to" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_to()}</label>
         <input
           id="mail_to"
           name="mail_to"
@@ -205,18 +209,18 @@ Thanks for reaching out — we've received your message and will get back to you
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label for="mail_from" class="block text-sm font-medium text-gray-700">From <span class="text-gray-400">(optional)</span></label>
+          <label for="mail_from" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_from()} <span class="text-gray-400">{m.admin_forms_label_optional()}</span></label>
           <input
             id="mail_from"
             name="mail_from"
             type="email"
             bind:value={mailFrom}
-            placeholder="defaults to SMTP from_email"
+            placeholder={m.admin_forms_mail_from_placeholder()}
             class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
           />
         </div>
         <div>
-          <label for="mail_reply_to" class="block text-sm font-medium text-gray-700">Reply-To</label>
+          <label for="mail_reply_to" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_reply_to()}</label>
           <input
             id="mail_reply_to"
             name="mail_reply_to"
@@ -228,7 +232,7 @@ Thanks for reaching out — we've received your message and will get back to you
       </div>
 
       <div>
-        <label for="mail_subject" class="block text-sm font-medium text-gray-700">Subject</label>
+        <label for="mail_subject" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_subject()}</label>
         <input
           id="mail_subject"
           name="mail_subject"
@@ -239,7 +243,7 @@ Thanks for reaching out — we've received your message and will get back to you
       </div>
 
       <div>
-        <label for="mail_body" class="block text-sm font-medium text-gray-700">Body</label>
+        <label for="mail_body" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_body()}</label>
         <textarea
           id="mail_body"
           name="mail_body"
@@ -249,7 +253,7 @@ Thanks for reaching out — we've received your message and will get back to you
           class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
         ></textarea>
         <p class="text-xs text-gray-400 mt-1">
-          Use <code>[field-name]</code> to insert submitted values.
+          {m.admin_forms_mail_body_hint()}
         </p>
       </div>
     </section>
@@ -257,7 +261,7 @@ Thanks for reaching out — we've received your message and will get back to you
     <!-- Auto-reply -->
     <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Auto-reply to submitter</h3>
+        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_autoreply()}</h3>
         <label class="inline-flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -266,14 +270,14 @@ Thanks for reaching out — we've received your message and will get back to you
             bind:checked={replyEnabled}
             class="rounded"
           />
-          <span>Enabled</span>
+          <span>{m.admin_forms_reply_enabled()}</span>
         </label>
       </div>
 
       {#if replyEnabled}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label for="reply_to_field" class="block text-sm font-medium text-gray-700">Reply-to field name</label>
+            <label for="reply_to_field" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_reply_field()}</label>
             <input
               id="reply_to_field"
               name="reply_to_field"
@@ -281,22 +285,22 @@ Thanks for reaching out — we've received your message and will get back to you
               placeholder="your-email"
               class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 font-mono text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
             />
-            <p class="text-xs text-gray-400 mt-1">Name of the email field that carries the submitter's address.</p>
+            <p class="text-xs text-gray-400 mt-1">{m.admin_forms_reply_field_hint()}</p>
           </div>
           <div>
-            <label for="reply_from" class="block text-sm font-medium text-gray-700">From <span class="text-gray-400">(optional)</span></label>
+            <label for="reply_from" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_from()} <span class="text-gray-400">{m.admin_forms_label_optional()}</span></label>
             <input
               id="reply_from"
               name="reply_from"
               type="email"
               bind:value={replyFrom}
-              placeholder="defaults to SMTP from_email"
+              placeholder={m.admin_forms_mail_from_placeholder()}
               class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
             />
           </div>
         </div>
         <div>
-          <label for="reply_subject" class="block text-sm font-medium text-gray-700">Subject</label>
+          <label for="reply_subject" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_subject()}</label>
           <input
             id="reply_subject"
             name="reply_subject"
@@ -305,7 +309,7 @@ Thanks for reaching out — we've received your message and will get back to you
           />
         </div>
         <div>
-          <label for="reply_body" class="block text-sm font-medium text-gray-700">Body</label>
+          <label for="reply_body" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_mail_body()}</label>
           <textarea
             id="reply_body"
             name="reply_body"
@@ -319,9 +323,9 @@ Thanks for reaching out — we've received your message and will get back to you
 
     <!-- Messages + recaptcha action -->
     <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Messages</h3>
+      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_messages()}</h3>
       <div>
-        <label for="success_message" class="block text-sm font-medium text-gray-700">Success message</label>
+        <label for="success_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_success_message()}</label>
         <input
           id="success_message"
           name="success_message"
@@ -330,7 +334,7 @@ Thanks for reaching out — we've received your message and will get back to you
         />
       </div>
       <div>
-        <label for="error_message" class="block text-sm font-medium text-gray-700">Error message</label>
+        <label for="error_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_error_message()}</label>
         <input
           id="error_message"
           name="error_message"
@@ -339,7 +343,7 @@ Thanks for reaching out — we've received your message and will get back to you
         />
       </div>
       <div>
-        <label for="recaptcha_action" class="block text-sm font-medium text-gray-700">reCAPTCHA action</label>
+        <label for="recaptcha_action" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_recaptcha_action()}</label>
         <input
           id="recaptcha_action"
           name="recaptcha_action"
@@ -350,9 +354,9 @@ Thanks for reaching out — we've received your message and will get back to you
     </section>
 
     <div class="flex justify-end gap-3 pt-2">
-      <a href="/admin/forms" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</a>
+      <a href="/admin/forms" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">{m.admin_forms_cancel()}</a>
       <button type="submit" class="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800">
-        {isNew ? 'Create form' : 'Save changes'}
+        {isNew ? m.admin_forms_create_button() : m.admin_forms_save_button()}
       </button>
     </div>
   </form>
