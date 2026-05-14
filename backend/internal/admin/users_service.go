@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/util"
 )
 
@@ -16,6 +17,7 @@ var adminUserSearchFields = []string{"email", "name"}
 var ErrUserNotFound = errors.New("admin user not found")
 var ErrEmailTaken = errors.New("email already registered")
 var ErrInvalidCredentials = errors.New("invalid email or password")
+var ErrSelfModification = errors.New("cannot demote, deactivate, or delete yourself")
 
 type AdminUser struct {
 	ID        string `json:"id"`
@@ -175,11 +177,21 @@ func (s *UserService) Create(ctx context.Context, req CreateAdminUserRequest) (*
 }
 
 func (s *UserService) Update(ctx context.Context, id string, req UpdateAdminUserRequest) (*AdminUser, error) {
-	var before *AdminUser
-	if s.audit != nil {
-		if prev, err := s.getByID(ctx, id); err == nil {
-			before = prev
+	prev, prevErr := s.getByID(ctx, id)
+	if errors.Is(prevErr, ErrUserNotFound) {
+		return nil, ErrUserNotFound
+	}
+	// Block the last super_admin from locking themselves out: a super_admin
+	// editing their own row may not demote themselves or flip is_active off.
+	// Touching other fields (name) is fine.
+	if actor, ok := auth.AdminIDFromContext(ctx); ok && actor == id && prev != nil {
+		if !req.IsActive || (req.Role != "" && req.Role != prev.Role) {
+			return nil, ErrSelfModification
 		}
+	}
+	var before *AdminUser
+	if s.audit != nil && prev != nil {
+		before = prev
 	}
 	var u AdminUser
 	err := s.db.QueryRowContext(ctx,
@@ -199,6 +211,9 @@ func (s *UserService) Update(ctx context.Context, id string, req UpdateAdminUser
 }
 
 func (s *UserService) Delete(ctx context.Context, id string) error {
+	if actor, ok := auth.AdminIDFromContext(ctx); ok && actor == id {
+		return ErrSelfModification
+	}
 	var before *AdminUser
 	if s.audit != nil {
 		if prev, err := s.getByID(ctx, id); err == nil {

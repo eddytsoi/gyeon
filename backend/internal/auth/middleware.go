@@ -94,3 +94,35 @@ func AdminIDFromContext(ctx context.Context) (string, bool) {
 	}
 	return id, true
 }
+
+// RequireRole returns middleware that allows the request through only if the
+// admin JWT's role claim matches one of `roles`. Mount strictly inside an
+// AdminMiddleware group — RequireRole re-parses the bearer token but doesn't
+// signal-check the rest of the validity envelope (expiry, signing alg) on its
+// own. The admin secret is required because the role claim is signed.
+func RequireRole(secret string, roles ...string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			header := r.Header.Get("Authorization")
+			if !strings.HasPrefix(header, "Bearer ") {
+				respond.Error(w, http.StatusUnauthorized, "missing or invalid token")
+				return
+			}
+			tokenStr := strings.TrimPrefix(header, "Bearer ")
+			claims, err := ValidateToken(tokenStr, secret)
+			if err != nil {
+				respond.Error(w, http.StatusUnauthorized, "invalid token")
+				return
+			}
+			if _, ok := allowed[claims.Role]; !ok {
+				respond.Error(w, http.StatusForbidden, "insufficient role")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

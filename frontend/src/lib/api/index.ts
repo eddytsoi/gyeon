@@ -260,7 +260,11 @@ export const submitForm = async (
 export const getNavMenu = (handle: string) =>
   request<NavMenu>(`/cms/nav/by-handle/${handle}`);
 
-export const getOrderByID = (id: string) => request<Order>(`/orders/${id}`);
+// Public read of an order, authorized via a Stripe payment_intent returned
+// from the checkout redirect. The backend confirms PI matches the order
+// before returning a redacted summary (no PII). Used by /checkout/success.
+export const getOrderByPaymentIntent = (id: string, paymentIntent: string) =>
+  request<Order>(`/orders/${id}?payment_intent=${encodeURIComponent(paymentIntent)}`);
 
 export type OrderPaymentInfo = {
   order: Order;
@@ -350,6 +354,11 @@ export const getMyOrders = (token: string, limit = 20, offset = 0) =>
 
 export const lookupMyOrder = (token: string, n: string) =>
   request<{ id: string }>(`/customers/me/orders/lookup/${n}`, authed(token));
+
+// Authenticated read of a single order owned by the current customer. The
+// backend 404s if the order belongs to someone else.
+export const getMyOrderByID = (token: string, id: string) =>
+  request<Order>(`/customers/me/orders/${id}`, authed(token));
 
 // --- Order notices (customer) ---
 

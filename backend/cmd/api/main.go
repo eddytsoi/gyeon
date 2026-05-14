@@ -213,7 +213,10 @@ func main() {
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
 	navHandler := cms.NewNavHandler(navSvc)
 	productHandler := shop.NewProductHandler(productSvc)
-	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret)
+	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret,
+		func(ctx context.Context, orderID, customerID string) (any, error) {
+			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
+		})
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
@@ -335,7 +338,7 @@ func main() {
 		r.Mount("/categories", shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs).Routes())
 		r.Mount("/products", productHandler.Routes())
 		r.Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
-		r.Mount("/orders", orders.NewOrderHandler(orderSvc).Routes())
+		r.Mount("/orders", orders.NewOrderHandler(orderSvc).PublicRoutes())
 
 		// Public CMS (published content only)
 		r.Mount("/cms/pages", pageHandler.PublicRoutes())
@@ -418,7 +421,8 @@ func main() {
 			// Customer management
 			r.Mount("/admin/customers", customerHandler.AdminRoutes())
 
-			// Order admin (delete; list/update use the public /orders mount with admin JWT)
+			// Order admin — list / get / status / delete / refund. Public /orders
+			// only exposes checkout + PI-authorized read-back.
 			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
 
 			// Admin-side order notices
@@ -427,8 +431,11 @@ func main() {
 			// ShipAny admin: test connection, create shipment, request pickup
 			r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
 
-			// Admin user management
-			r.Mount("/admin/users", adminUserHandler.AdminRoutes())
+			// Admin user management — super_admin only. Lower-privileged admins
+			// (editor / viewer) must not be able to create new accounts, change
+			// roles, or deactivate others, since that would let them escalate.
+			r.With(auth.RequireRole(jwtSecret, "super_admin")).
+				Mount("/admin/users", adminUserHandler.AdminRoutes())
 
 			// Pricing: campaigns and coupons
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())

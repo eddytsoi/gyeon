@@ -46,7 +46,9 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AdminRoutes — user management (super_admin only ideally, but we keep it simple for now)
+// AdminRoutes — admin user management. The whole subtree must be mounted
+// behind a super_admin role gate (see auth.RequireRole) so editor/viewer
+// admins can't escalate by creating themselves a new account.
 func (h *UserHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
@@ -95,6 +97,10 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		respond.NotFound(w)
 		return
 	}
+	if errors.Is(err, ErrSelfModification) {
+		respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -107,6 +113,10 @@ func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.Delete(r.Context(), id); err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			respond.NotFound(w)
+			return
+		}
+		if errors.Is(err, ErrSelfModification) {
+			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		respond.InternalError(w)
