@@ -778,7 +778,7 @@
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
               <span>{m.checkout_summary_shipping()}</span>
-              <span class={shippingFree ? 'text-green-600' : 'text-gray-900'}>
+              <span class="whitespace-nowrap {shippingFree ? 'text-green-600' : 'text-gray-900'}">
                 {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
               </span>
             </div>
