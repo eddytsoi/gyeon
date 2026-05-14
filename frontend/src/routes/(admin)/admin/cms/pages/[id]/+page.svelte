@@ -3,7 +3,6 @@
   import type { PageData } from './$types';
   import { showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
-  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import ShortcodeToolbar from '$lib/components/admin/ShortcodeToolbar.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -22,8 +21,8 @@
   // Default true on new pages so the storefront renders the <h1> unless the
   // author explicitly opts out — matches the migration default.
   let showTitle = $state(p?.show_title ?? true);
+  let contentPadded = $state(p?.content_padded ?? true);
 
-  let preview = $state(false);
   let contentTextarea = $state<HTMLTextAreaElement | null>(null);
 
   // Auto-generate slug from title when creating
@@ -54,16 +53,20 @@
     </a>
     <h2 class="text-xl font-bold text-gray-900">{isNew ? m.admin_cms_page_edit_new_heading() : m.admin_cms_page_edit_edit_heading()}</h2>
 
-    <button type="button" onclick={() => preview = !preview}
-            class="ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200
-                   text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+    <a href={slug ? `/${slug}` : undefined}
+       target="_blank" rel="noopener"
+       aria-disabled={!slug}
+       tabindex={slug ? 0 : -1}
+       class="ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200
+              text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors
+              {slug ? '' : 'pointer-events-none opacity-50'}">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.641 0-8.573-3.007-9.964-7.178Z"/>
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
       </svg>
-      {preview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
-    </button>
+      {m.admin_cms_post_edit_preview_button()}
+    </a>
   </div>
 
   <form method="POST" action="?/save" class="space-y-6"
@@ -131,26 +134,39 @@
           </label>
         </div>
 
+        <!-- Content padding toggle -->
+        <div>
+          <label class="flex items-start gap-3 cursor-pointer select-none">
+            <div class="relative shrink-0 mt-0.5">
+              <input type="checkbox" class="sr-only peer" bind:checked={contentPadded} />
+              <input type="hidden" name="content_padded" value={contentPadded ? 'true' : 'false'} />
+              <div class="w-10 h-6 bg-gray-200 peer-checked:bg-gray-900 rounded-full transition-colors"></div>
+              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow
+                          transition-transform peer-checked:translate-x-4"></div>
+            </div>
+            <div class="space-y-0.5">
+              <div class="text-sm font-medium text-gray-700">
+                {m.admin_cms_page_edit_label_content_padded()}
+              </div>
+              <div class="text-xs text-gray-500 leading-relaxed">
+                {m.admin_cms_page_edit_content_padded_hint()}
+              </div>
+            </div>
+          </label>
+        </div>
+
         <!-- Content -->
         <div>
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
             {m.admin_cms_page_edit_label_content()} <span class="normal-case font-normal text-gray-400">{m.admin_cms_page_edit_content_markdown_hint()}</span>
           </label>
           <ShortcodeToolbar bind:value={content} textarea={contentTextarea} />
-          <div class="{preview ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : ''}">
-            <textarea name="content" bind:value={content} bind:this={contentTextarea} rows="16"
-                      placeholder={m.admin_cms_page_edit_content_placeholder()}
-                      class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
-                             text-gray-900 placeholder-gray-400 font-mono leading-relaxed
-                             focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
-                             transition resize-y"></textarea>
-            {#if preview}
-              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
-                   style="max-height: 480px">
-                <MarkdownContent content={content || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
-              </div>
-            {/if}
-          </div>
+          <textarea name="content" bind:value={content} bind:this={contentTextarea} rows="16"
+                    placeholder={m.admin_cms_page_edit_content_placeholder()}
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
+                           text-gray-900 placeholder-gray-400 font-mono leading-relaxed
+                           focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent
+                           transition resize-y"></textarea>
         </div>
       </div>
     </div>

@@ -34,7 +34,8 @@ export const actions: Actions = {
       meta_title: (data.get('meta_title') as string) || undefined,
       meta_desc: (data.get('meta_desc') as string) || undefined,
       is_published: data.get('is_published') === 'true',
-      show_title: data.get('show_title') !== 'false'
+      show_title: data.get('show_title') !== 'false',
+      content_padded: data.get('content_padded') !== 'false'
     };
 
     try {
