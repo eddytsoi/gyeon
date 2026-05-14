@@ -160,13 +160,13 @@ export const adminReorderCategories = (token: string, ids: string[]) =>
 
 // Orders
 export const adminGetOrders = (token: string, limit = 50, offset = 0) =>
-  request<Order[]>(`/orders?limit=${limit}&offset=${offset}`, token);
+  request<Order[]>(`/admin/orders?limit=${limit}&offset=${offset}`, token);
 
 export const adminGetOrder = (token: string, id: string) =>
-  request<Order>(`/orders/${id}`, token);
+  request<Order>(`/admin/orders/${id}`, token);
 
 export const adminUpdateOrderStatus = (token: string, id: string, status: string, note?: string) =>
-  request<Order>(`/orders/${id}/status`, token, {
+  request<Order>(`/admin/orders/${id}/status`, token, {
     method: 'POST',
     body: JSON.stringify({ status, note })
   });

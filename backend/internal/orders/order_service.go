@@ -1327,6 +1327,49 @@ func splitName(full string) (string, string) {
 	return parts[0], parts[1]
 }
 
+// GetByIDForCustomer returns the order only if it belongs to the given
+// customer. Returns ErrOrderNotFound on a miss so the caller cannot
+// distinguish "wrong owner" from "non-existent" via the response.
+func (s *OrderService) GetByIDForCustomer(ctx context.Context, orderID, customerID string) (*Order, error) {
+	if customerID == "" {
+		return nil, ErrOrderNotFound
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.CustomerID == nil || *order.CustomerID != customerID {
+		return nil, ErrOrderNotFound
+	}
+	return order, nil
+}
+
+// GetByIDForPaymentIntent returns a redacted order if the supplied
+// payment_intent matches the one stored on the order. Used by the public
+// checkout success page where the visitor isn't necessarily logged in but
+// holds the PI returned by Stripe's redirect. PII (email, phone, address,
+// customer_id, notes) is stripped.
+func (s *OrderService) GetByIDForPaymentIntent(ctx context.Context, orderID, paymentIntent string) (*Order, error) {
+	if paymentIntent == "" {
+		return nil, ErrOrderNotFound
+	}
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentIntentID == nil || *order.PaymentIntentID != paymentIntent {
+		return nil, ErrOrderNotFound
+	}
+	safe := *order
+	safe.CustomerEmail = nil
+	safe.CustomerPhone = nil
+	safe.CustomerID = nil
+	safe.ShippingAddressID = nil
+	safe.ShippingAddress = nil
+	safe.Notes = nil
+	return &safe, nil
+}
+
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	err := s.db.QueryRowContext(ctx,

@@ -58,9 +58,25 @@ func CustomerIDFromContext(ctx context.Context) string {
 	return id
 }
 
+// adminRoles are the role claim values accepted by AdminMiddleware. RequireRole
+// can narrow this down further per route (e.g. super_admin only).
+var adminRoles = map[string]struct{}{
+	"admin":       {}, // legacy single-password token issued by GenerateToken
+	"super_admin": {},
+	"editor":      {},
+	"viewer":      {},
+}
+
 // AdminMiddleware validates the admin JWT and exposes the admin user ID via
 // context. Use AdminIDFromContext to retrieve it inside handlers/services that
 // want to record the actor (audit log, inventory history, etc.).
+//
+// Role check is defense in depth — admin and customer JWTs are signed with
+// different secrets, so a customer token would already fail signature
+// verification. Rejecting unknown roles still hardens against:
+//   - tokens issued with an unexpected role (typo, future migration)
+//   - tokens whose role field was tampered before re-signing under a leaked
+//     admin secret — at least the role envelope must be known
 func AdminMiddleware(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +88,10 @@ func AdminMiddleware(secret string) func(http.Handler) http.Handler {
 			tokenStr := strings.TrimPrefix(header, "Bearer ")
 			claims, err := ValidateToken(tokenStr, secret)
 			if err != nil {
+				respond.Error(w, http.StatusUnauthorized, "invalid token")
+				return
+			}
+			if _, ok := adminRoles[claims.Role]; !ok {
 				respond.Error(w, http.StatusUnauthorized, "invalid token")
 				return
 			}
@@ -93,4 +113,36 @@ func AdminIDFromContext(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return id, true
+}
+
+// RequireRole returns middleware that allows the request through only if the
+// admin JWT's role claim matches one of `roles`. Mount strictly inside an
+// AdminMiddleware group — RequireRole re-parses the bearer token but doesn't
+// signal-check the rest of the validity envelope (expiry, signing alg) on its
+// own. The admin secret is required because the role claim is signed.
+func RequireRole(secret string, roles ...string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			header := r.Header.Get("Authorization")
+			if !strings.HasPrefix(header, "Bearer ") {
+				respond.Error(w, http.StatusUnauthorized, "missing or invalid token")
+				return
+			}
+			tokenStr := strings.TrimPrefix(header, "Bearer ")
+			claims, err := ValidateToken(tokenStr, secret)
+			if err != nil {
+				respond.Error(w, http.StatusUnauthorized, "invalid token")
+				return
+			}
+			if _, ok := allowed[claims.Role]; !ok {
+				respond.Error(w, http.StatusForbidden, "insufficient role")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

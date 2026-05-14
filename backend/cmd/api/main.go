@@ -28,6 +28,7 @@ import (
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/recaptcha"
 	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
@@ -42,6 +43,36 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// splitCSV returns the comma-separated values in s, trimmed, with empties
+// dropped. Used to read FRONTEND_ORIGIN.
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// originAllowed reports whether origin matches one of the allowed entries
+// exactly (no wildcard expansion — keep the rule simple and obvious).
+func originAllowed(origin string, allowed []string) bool {
+	if origin == "" {
+		return false
+	}
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // redirectsAuditAdapter bridges redirects.AuditRecorder → audit.Service so the
@@ -119,10 +150,31 @@ func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) 
 
 func main() {
 	dsn := getenv("DATABASE_URL", "postgres://gyeon:gyeon@localhost:5432/gyeon?sslmode=disable")
-	jwtSecret := getenv("ADMIN_JWT_SECRET", "change-me-in-production")
-	customerJWTSecret := getenv("CUSTOMER_JWT_SECRET", "change-me-customer-secret")
+	jwtSecret := os.Getenv("ADMIN_JWT_SECRET")
+	customerJWTSecret := os.Getenv("CUSTOMER_JWT_SECRET")
+	if jwtSecret == "" || customerJWTSecret == "" {
+		log.Fatal("ADMIN_JWT_SECRET and CUSTOMER_JWT_SECRET must be set; refusing to start with predictable defaults")
+	}
+	// Warn (but don't fail) when the secrets look like the historical
+	// fallback strings — leaving them in place is unsafe in any non-dev env.
+	for _, p := range []struct{ name, val string }{
+		{"ADMIN_JWT_SECRET", jwtSecret},
+		{"CUSTOMER_JWT_SECRET", customerJWTSecret},
+	} {
+		if strings.Contains(strings.ToLower(p.val), "change-me") {
+			log.Printf("warning: %s contains 'change-me' — rotate before exposing this build publicly", p.name)
+		}
+	}
 	adminEmail := getenv("ADMIN_EMAIL", "admin@gyeon.local")
-	adminPassword := getenv("ADMIN_PASSWORD", "admin123")
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		// Empty triggers a fail-closed path: SeedSuperAdmin only runs when
+		// admin_users is empty, so a missing password just means "don't
+		// auto-seed the bootstrap user". Existing admins keep working.
+		log.Printf("info: ADMIN_PASSWORD unset — initial super_admin seed skipped")
+	} else if adminPassword == "admin123" {
+		log.Printf("warning: ADMIN_PASSWORD is the historical default 'admin123' — change it before exposing this build")
+	}
 	baseURL := getenv("BASE_URL", "http://localhost:8080")
 
 	conn, err := db.Connect(dsn)
@@ -163,9 +215,13 @@ func main() {
 	navSvc := cms.NewNavService(conn, cacheStore, navTTL)
 	adminUserSvc := admin.NewUserService(conn)
 
-	// Seed first super_admin from env if table is empty
-	if err := adminUserSvc.SeedSuperAdmin(context.Background(), adminEmail, adminPassword); err != nil {
-		log.Printf("warn: seed super admin: %v", err)
+	// Seed first super_admin from env if the table is empty. Skip when the
+	// password env is unset — bootstrapping is opt-in so misconfigured
+	// deploys don't end up with a guessable account silently created.
+	if adminPassword != "" {
+		if err := adminUserSvc.SeedSuperAdmin(context.Background(), adminEmail, adminPassword); err != nil {
+			log.Printf("warn: seed super admin: %v", err)
+		}
 	}
 
 	// Handlers
@@ -213,7 +269,10 @@ func main() {
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
 	navHandler := cms.NewNavHandler(navSvc)
 	productHandler := shop.NewProductHandler(productSvc)
-	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret)
+	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret,
+		func(ctx context.Context, orderID, customerID string) (any, error) {
+			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
+		})
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
@@ -289,10 +348,32 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 
-	// CORS
+	// Baseline security headers applied to every response. Kept here (and not
+	// only on /api responses) so static /uploads/ files inherit them too.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("X-Frame-Options", "DENY")
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	// CORS — allowlist of origins from FRONTEND_ORIGIN (comma-separated).
+	// Empty / unset → wildcard `*`, which excludes credentialed requests by
+	// design (browsers reject "*" + Authorization+SameSite cookies). Setting
+	// the env locks the API down to its known frontends.
+	allowedOrigins := splitCSV(os.Getenv("FRONTEND_ORIGIN"))
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if len(allowedOrigins) == 0 {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if originAllowed(origin, allowedOrigins) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
@@ -315,6 +396,14 @@ func main() {
 			http.NotFound(w, req)
 			return
 		}
+		// SVG can carry inline <script>; uploaded by an admin doesn't mean
+		// safe to render top-level. Lock the response down with a strict
+		// per-file CSP so direct navigation can't execute scripts, and force
+		// download for paranoia in case the CSP isn't honored.
+		if strings.HasSuffix(strings.ToLower(req.URL.Path), ".svg") {
+			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data: 'self'")
+			w.Header().Set("Content-Disposition", "inline")
+		}
 		uploadsFS.ServeHTTP(w, req)
 	}))
 
@@ -335,7 +424,7 @@ func main() {
 		r.Mount("/categories", shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs).Routes())
 		r.Mount("/products", productHandler.Routes())
 		r.Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
-		r.Mount("/orders", orders.NewOrderHandler(orderSvc).Routes())
+		r.Mount("/orders", orders.NewOrderHandler(orderSvc).PublicRoutes())
 
 		// Public CMS (published content only)
 		r.Mount("/cms/pages", pageHandler.PublicRoutes())
@@ -376,8 +465,11 @@ func main() {
 			r.Mount("/loyalty", loyaltyHandler.CustomerRoutes())
 		})
 
-		// Admin auth (now uses admin_users table)
-		r.Post("/admin/login", adminUserHandler.Login)
+		// Admin auth (now uses admin_users table) — per-IP throttle to slow
+		// down credential stuffing. Tight bucket because the admin pool is
+		// small and lockouts are recoverable via DB reset.
+		adminLoginRL := ratelimit.Middleware(10, 5*time.Minute)
+		r.With(adminLoginRL).Post("/admin/login", adminUserHandler.Login)
 
 		// Admin SSE event stream — auth via ?token= query (EventSource can't set headers)
 		r.Get("/admin/events", adminEventsHandler.Stream)
@@ -418,7 +510,8 @@ func main() {
 			// Customer management
 			r.Mount("/admin/customers", customerHandler.AdminRoutes())
 
-			// Order admin (delete; list/update use the public /orders mount with admin JWT)
+			// Order admin — list / get / status / delete / refund. Public /orders
+			// only exposes checkout + PI-authorized read-back.
 			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
 
 			// Admin-side order notices
@@ -427,8 +520,11 @@ func main() {
 			// ShipAny admin: test connection, create shipment, request pickup
 			r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
 
-			// Admin user management
-			r.Mount("/admin/users", adminUserHandler.AdminRoutes())
+			// Admin user management — super_admin only. Lower-privileged admins
+			// (editor / viewer) must not be able to create new accounts, change
+			// roles, or deactivate others, since that would let them escalate.
+			r.With(auth.RequireRole(jwtSecret, "super_admin")).
+				Mount("/admin/users", adminUserHandler.AdminRoutes())
 
 			// Pricing: campaigns and coupons
 			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())

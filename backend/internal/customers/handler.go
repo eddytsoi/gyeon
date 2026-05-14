@@ -8,30 +8,44 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/email"
+	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/respond"
 )
 
+// OrderFetcherFunc loads a single order if and only if it belongs to the
+// given customer. Wired from main.go to orders.OrderService.GetByIDForCustomer
+// via a closure, so the customers package doesn't take an orders import (which
+// would create a cycle — orders already depends on customers).
+type OrderFetcherFunc func(ctx context.Context, orderID, customerID string) (any, error)
+
 type Handler struct {
-	svc       *Service
-	emailSvc  *email.Service
-	jwtSecret string
+	svc          *Service
+	emailSvc     *email.Service
+	jwtSecret    string
+	fetchOrder   OrderFetcherFunc
 }
 
-func NewHandler(svc *Service, emailSvc *email.Service, jwtSecret string) *Handler {
-	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret}
+func NewHandler(svc *Service, emailSvc *email.Service, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
+	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret, fetchOrder: fetchOrder}
 }
 
 // Routes combines public and authenticated customer routes under one router.
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/register", h.register)
-	r.Post("/login", h.login)
-	r.Post("/setup-password", h.setupPassword)
-	r.Post("/forgot-password", h.forgotPassword)
+	// Per-IP throttles on credential-bearing endpoints. Single limiter shared
+	// across register/login/setup so an attacker can't ping-pong between
+	// them to skirt the budget.
+	authRL := ratelimit.Middleware(10, 5*time.Minute)
+	forgotRL := ratelimit.Middleware(5, 10*time.Minute)
+	r.With(authRL).Post("/register", h.register)
+	r.With(authRL).Post("/login", h.login)
+	r.With(authRL).Post("/setup-password", h.setupPassword)
+	r.With(forgotRL).Post("/forgot-password", h.forgotPassword)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.CustomerMiddleware(h.jwtSecret))
 		r.Get("/me", h.getProfile)
@@ -42,6 +56,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Delete("/me/addresses/{addressID}", h.deleteAddress)
 		r.Get("/me/orders", h.listOrders)
 		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
+		r.Get("/me/orders/{id}", h.getOrder)
 	})
 	return r
 }
@@ -246,6 +261,25 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, orders)
+}
+
+// getOrder returns an order's detail only if it belongs to the authenticated
+// customer. Backed by an OrderFetcherFunc wired from main.go to avoid an
+// orders→customers→orders import cycle.
+func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
+	if h.fetchOrder == nil {
+		respond.NotFound(w)
+		return
+	}
+	customerID := auth.CustomerIDFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	order, err := h.fetchOrder(r.Context(), id, customerID)
+	if err != nil {
+		// Treat any error as "not found" to avoid leaking ownership signals.
+		respond.NotFound(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, order)
 }
 
 // lookupOrder resolves a sequential order display number (e.g. ORD-8 → 8)
