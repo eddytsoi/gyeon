@@ -398,6 +398,11 @@ func main() {
 			// Product admin routes (inventory)
 			r.Mount("/admin/inventory", productHandler.AdminRoutes())
 
+			// Product admin write routes — auth-gated, audited. Mutating
+			// product/variant/image/translation/bundle endpoints. Storefront
+			// GETs remain on /products (no auth, no audit).
+			r.Mount("/admin/products", productHandler.AdminWriteRoutes())
+
 			// CMS admin
 			r.Mount("/admin/cms/pages", pageHandler.AdminRoutes())
 			r.Mount("/admin/cms/posts", postHandler.AdminRoutes())

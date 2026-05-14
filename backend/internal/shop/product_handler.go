@@ -27,13 +27,14 @@ func (h *ProductHandler) AdminRoutes() chi.Router {
 	return r
 }
 
+// Routes registers only public-readable endpoints used by the storefront.
+// All mutating endpoints live in AdminWriteRoutes and must be mounted inside
+// the admin route group — otherwise audit.Record() silently no-ops because no
+// admin ID is in context, and write calls would be unauthenticated.
 func (h *ProductHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
-	r.Post("/", h.create)
 	r.Get("/{id}", h.getByID)
-	r.Put("/{id}", h.update)
-	r.Delete("/{id}", h.delete)
 
 	// Public single-product fetch by slug (storefront product page +
 	// future "private link" sales flows). Bypasses hidden-category
@@ -43,8 +44,23 @@ func (h *ProductHandler) Routes() chi.Router {
 	// Single variant by ID (used by checkout for pricing)
 	r.Get("/variants/{variantID}", h.getVariantByID)
 
-	// Variant sub-routes — literal /reorder before /{variantID} so chi prefers it.
 	r.Get("/{id}/variants", h.listVariants)
+	r.Get("/{id}/images", h.listImages)
+	r.Get("/{id}/translations", h.listTranslations)
+	r.Get("/{id}/bundle-items", h.getBundleItems)
+	return r
+}
+
+// AdminWriteRoutes registers every mutating product/variant/image/translation/
+// bundle endpoint. Mount this under the admin route group at /admin/products
+// so adminMW + auditInfoMW run before each handler.
+func (h *ProductHandler) AdminWriteRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Post("/", h.create)
+	r.Put("/{id}", h.update)
+	r.Delete("/{id}", h.delete)
+
+	// Variant sub-routes — literal /reorder before /{variantID} so chi prefers it.
 	r.Post("/{id}/variants", h.createVariant)
 	r.Patch("/{id}/variants/reorder", h.reorderVariants)
 	r.Put("/{id}/variants/{variantID}", h.updateVariant)
@@ -52,19 +68,13 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Post("/{id}/variants/{variantID}/stock", h.adjustStock)
 	r.Get("/{id}/variants/{variantID}/history", h.variantStockHistory)
 
-	// Image sub-routes
-	r.Get("/{id}/images", h.listImages)
 	r.Post("/{id}/images", h.addImage)
 	r.Put("/{id}/images/{imageID}", h.updateImage)
 	r.Delete("/{id}/images/{imageID}", h.deleteImage)
 
-	// Translation sub-routes (admin-only translation management + public read is via ?lang=)
-	r.Get("/{id}/translations", h.listTranslations)
 	r.Put("/{id}/translations/{locale}", h.upsertTranslation)
 	r.Delete("/{id}/translations/{locale}", h.deleteTranslation)
 
-	// Bundle item sub-routes — GET is public (storefront); PUT is admin-only in practice.
-	r.Get("/{id}/bundle-items", h.getBundleItems)
 	r.Put("/{id}/bundle-items", h.setBundleItems)
 	return r
 }

@@ -226,21 +226,6 @@
     </button>
   </div>
 
-  <!-- Search bar -->
-  <div class="relative mb-8">
-    <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500"
-         aria-hidden="true"
-         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <path stroke-linecap="round" stroke-linejoin="round"
-            d="m21 21-4.34-4.34m0 0A7.5 7.5 0 1 0 6.075 6.075a7.5 7.5 0 0 0 10.585 10.585Z"/>
-    </svg>
-    <input type="search" bind:value={searchInput} oninput={onSearchInput}
-           placeholder={m.products_search_placeholder()}
-           aria-label={m.products_search_aria()}
-           class="w-full pl-10 pr-4 py-3 rounded-md border border-ink-300 bg-white text-sm font-body
-                  focus:outline-none focus:ring-2 focus:ring-navy-300 focus:border-transparent" />
-  </div>
-
   <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-8 lg:gap-12">
     <!-- Filters -->
     <aside id="storefront-product-filters"
@@ -350,6 +335,19 @@
           {/if}
         </ul>
         <div class="flex items-center gap-3">
+          <div class="relative">
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-500"
+                 aria-hidden="true"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m21 21-4.34-4.34m0 0A7.5 7.5 0 1 0 6.075 6.075a7.5 7.5 0 0 0 10.585 10.585Z"/>
+            </svg>
+            <input type="search" bind:value={searchInput} oninput={onSearchInput}
+                   placeholder={m.products_search_placeholder()}
+                   aria-label={m.products_search_aria()}
+                   class="w-44 sm:w-56 pl-8 pr-3 py-1.5 rounded-md border border-ink-300 bg-white text-sm font-body
+                          focus:outline-none focus:ring-2 focus:ring-navy-300 focus:border-transparent" />
+          </div>
           <span class="text-[11px] font-display uppercase tracking-[0.15em] text-ink-500">Sort</span>
           <select value={data.sort ?? 'new'}
                   onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}

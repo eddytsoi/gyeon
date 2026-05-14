@@ -3,6 +3,7 @@
   import type { PageData } from './$types';
   import type { AdminForm } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -21,12 +22,7 @@
           : m.admin_forms_count_other({ n: data.forms.length })}
       </p>
     </div>
-    <a
-      href="/admin/forms/new"
-      class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
-    >
-      {m.admin_forms_new()}
-    </a>
+    <NewButton label={m.admin_forms_new()} href="/admin/forms/new" />
   </div>
 
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
