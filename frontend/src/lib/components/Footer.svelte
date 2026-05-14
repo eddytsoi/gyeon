@@ -3,6 +3,17 @@
   import * as m from '$lib/paraglide/messages';
 
   let { navItems = [] }: { navItems?: NavItem[] } = $props();
+
+  // CMS nav URLs are admin-authored, but we still reject anything that isn't
+  // a same-origin relative path or an http(s) absolute URL. Blocks
+  // javascript:, data:, vbscript:, file: smuggled through a compromised
+  // admin account or stored-XSS into the nav table.
+  function safeNavUrl(url: string): string {
+    if (!url) return '#';
+    if (url.startsWith('/') && !url.startsWith('//')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) return url;
+    return '#';
+  }
 </script>
 
 <footer class="bg-navy-900 text-white/70 mt-24">
@@ -48,8 +59,8 @@
           <ul class="space-y-2.5 text-sm font-body">
             {#each navItems as item}
               <li>
-                <a href={item.url} target={item.target ?? '_self'}
-                   rel={item.target === '_blank' ? 'noopener' : undefined}
+                <a href={safeNavUrl(item.url)} target={item.target ?? '_self'}
+                   rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
                    class="hover:text-white transition-colors">
                   {item.label}
                 </a>

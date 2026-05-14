@@ -10,19 +10,24 @@ import (
 var ErrInvalidToken = errors.New("invalid token")
 
 type Claims struct {
-	Role       string `json:"role"`
-	CustomerID string `json:"customer_id,omitempty"`
+	Role         string `json:"role"`
+	CustomerID   string `json:"customer_id,omitempty"`
+	TokenVersion int    `json:"tv,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken issues a generic admin token (kept for backwards compatibility).
 func GenerateToken(secret string) (string, error) {
-	return GenerateAdminToken(secret, "", "admin")
+	return GenerateAdminToken(secret, "", "admin", 0)
 }
 
-func GenerateAdminToken(secret, userID, role string) (string, error) {
+// GenerateAdminToken issues a JWT for an admin user. `tv` should be the
+// user's current token_version column from admin_users; the middleware
+// rejects tokens whose claim doesn't match the live value.
+func GenerateAdminToken(secret, userID, role string, tv int) (string, error) {
 	claims := Claims{
-		Role: role,
+		Role:         role,
+		TokenVersion: tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
@@ -33,10 +38,11 @@ func GenerateAdminToken(secret, userID, role string) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateCustomerToken(secret, customerID string) (string, error) {
+func GenerateCustomerToken(secret, customerID string, tv int) (string, error) {
 	claims := Claims{
-		Role:       "customer",
-		CustomerID: customerID,
+		Role:         "customer",
+		CustomerID:   customerID,
+		TokenVersion: tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   customerID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),

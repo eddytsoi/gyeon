@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"log"
 	"net/http"
 	"os"
 
@@ -31,6 +32,16 @@ func NewServer(
 		baseURL = "http://localhost:8080"
 	}
 	apiKey := os.Getenv("MCP_API_KEY")
+	// MCP exposure is intentionally configurable: the registered tools
+	// (catalog browse, anonymous cart, checkout) are designed to be safe
+	// for unauthenticated agents, matching the public storefront API. An
+	// API key is opt-in to gate access to known integrations. Surface the
+	// current mode at startup so it's never silent.
+	if apiKey == "" {
+		log.Printf("info: MCP server starting in anonymous mode (MCP_API_KEY unset); enable via site setting `mcp_enabled` to advertise endpoint")
+	} else {
+		log.Printf("info: MCP server starting with bearer-token gate (MCP_API_KEY set)")
+	}
 
 	s := mcpserver.NewMCPServer("Gyeon Storefront", "1.0.0")
 
