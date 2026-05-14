@@ -15,27 +15,31 @@ import (
 var ErrCategoryNotFound = errors.New("category not found")
 
 type Category struct {
-	ID          string  `json:"id"`
-	ParentID    *string `json:"parent_id,omitempty"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	MediaFileID *string `json:"media_file_id,omitempty"`
-	ImageURL    *string `json:"image_url,omitempty"`
-	SortOrder   int     `json:"sort_order"`
-	IsActive    bool    `json:"is_active"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID               string  `json:"id"`
+	ParentID         *string `json:"parent_id,omitempty"`
+	Slug             string  `json:"slug"`
+	Name             string  `json:"name"`
+	Description      *string `json:"description,omitempty"`
+	MediaFileID      *string `json:"media_file_id,omitempty"`
+	ImageURL         *string `json:"image_url,omitempty"`
+	DesktopBannerURL *string `json:"desktop_banner_url,omitempty"`
+	MobileBannerURL  *string `json:"mobile_banner_url,omitempty"`
+	SortOrder        int     `json:"sort_order"`
+	IsActive         bool    `json:"is_active"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
 type CreateCategoryRequest struct {
-	ParentID    *string `json:"parent_id"`
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	MediaFileID *string `json:"media_file_id"`
-	ImageURL    *string `json:"image_url"`
-	SortOrder   int     `json:"sort_order"`
+	ParentID         *string `json:"parent_id"`
+	Slug             string  `json:"slug"`
+	Name             string  `json:"name"`
+	Description      *string `json:"description"`
+	MediaFileID      *string `json:"media_file_id"`
+	ImageURL         *string `json:"image_url"`
+	DesktopBannerURL *string `json:"desktop_banner_url"`
+	MobileBannerURL  *string `json:"mobile_banner_url"`
+	SortOrder        int     `json:"sort_order"`
 }
 
 type UpdateCategoryRequest struct {
@@ -58,7 +62,8 @@ func NewCategoryService(db *sql.DB, c cache.Store, ttl func(context.Context) tim
 func scanCategory(row interface{ Scan(...any) error }) (Category, error) {
 	var c Category
 	err := row.Scan(&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description,
-		&c.MediaFileID, &c.ImageURL, &c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		&c.MediaFileID, &c.ImageURL, &c.DesktopBannerURL, &c.MobileBannerURL,
+		&c.SortOrder, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
@@ -70,6 +75,7 @@ func (s *CategoryService) List(ctx context.Context) ([]Category, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
 		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
+		        c.desktop_banner_url, c.mobile_banner_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -103,6 +109,7 @@ func (s *CategoryService) GetBySlug(ctx context.Context, slug string) (*Category
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
 		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
+		        c.desktop_banner_url, c.mobile_banner_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -126,6 +133,7 @@ func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, er
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`SELECT c.id, c.parent_id, c.slug, c.name, c.description,
 		        c.media_file_id, COALESCE(mf.webp_url, mf.url, c.image_url) AS image_url,
+		        c.desktop_banner_url, c.mobile_banner_url,
 		        c.sort_order, c.is_active, c.created_at, c.updated_at
 		 FROM categories c
 		 LEFT JOIN media_files mf ON mf.id = c.media_file_id
@@ -140,15 +148,18 @@ func (s *CategoryService) GetByID(ctx context.Context, id string) (*Category, er
 func (s *CategoryService) Create(ctx context.Context, req CreateCategoryRequest) (*Category, error) {
 	c, err := scanCategory(s.db.QueryRowContext(ctx,
 		`WITH ins AS (
-		     INSERT INTO categories (parent_id, slug, name, description, media_file_id, image_url, sort_order)
-		     VALUES ($1, $2, $3, $4, $5, $6, $7)
+		     INSERT INTO categories (parent_id, slug, name, description, media_file_id, image_url,
+		                             desktop_banner_url, mobile_banner_url, sort_order)
+		     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		     RETURNING *
 		 )
 		 SELECT ins.id, ins.parent_id, ins.slug, ins.name, ins.description,
 		        ins.media_file_id, COALESCE(mf.webp_url, mf.url, ins.image_url) AS image_url,
+		        ins.desktop_banner_url, ins.mobile_banner_url,
 		        ins.sort_order, ins.is_active, ins.created_at, ins.updated_at
 		 FROM ins LEFT JOIN media_files mf ON mf.id = ins.media_file_id`,
-		req.ParentID, req.Slug, req.Name, req.Description, req.MediaFileID, req.ImageURL, req.SortOrder))
+		req.ParentID, req.Slug, req.Name, req.Description, req.MediaFileID, req.ImageURL,
+		req.DesktopBannerURL, req.MobileBannerURL, req.SortOrder))
 	if err != nil {
 		return nil, err
 	}
@@ -161,16 +172,21 @@ func (s *CategoryService) Update(ctx context.Context, id string, req UpdateCateg
 		`WITH upd AS (
 		     UPDATE categories
 		     SET parent_id=$2, slug=$3, name=$4, description=$5,
-		         media_file_id=$6, image_url=$7, sort_order=$8, is_active=$9
+		         media_file_id=$6, image_url=$7,
+		         desktop_banner_url=$8, mobile_banner_url=$9,
+		         sort_order=$10, is_active=$11
 		     WHERE id = $1
 		     RETURNING *
 		 )
 		 SELECT upd.id, upd.parent_id, upd.slug, upd.name, upd.description,
 		        upd.media_file_id, COALESCE(mf.webp_url, mf.url, upd.image_url) AS image_url,
+		        upd.desktop_banner_url, upd.mobile_banner_url,
 		        upd.sort_order, upd.is_active, upd.created_at, upd.updated_at
 		 FROM upd LEFT JOIN media_files mf ON mf.id = upd.media_file_id`,
 		id, req.ParentID, req.Slug, req.Name, req.Description,
-		req.MediaFileID, req.ImageURL, req.SortOrder, req.IsActive))
+		req.MediaFileID, req.ImageURL,
+		req.DesktopBannerURL, req.MobileBannerURL,
+		req.SortOrder, req.IsActive))
 	if err != nil {
 		return nil, err
 	}

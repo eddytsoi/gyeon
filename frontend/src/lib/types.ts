@@ -6,6 +6,8 @@ export interface Category {
   description?: string;
   media_file_id?: string;
   image_url?: string;
+  desktop_banner_url?: string;
+  mobile_banner_url?: string;
   sort_order: number;
   is_active: boolean;
 }

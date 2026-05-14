@@ -17,20 +17,23 @@ SELECT * FROM categories
 WHERE slug = $1 AND is_active = TRUE;
 
 -- name: CreateCategory :one
-INSERT INTO categories (parent_id, slug, name, description, image_url, sort_order)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO categories (parent_id, slug, name, description, image_url,
+                        desktop_banner_url, mobile_banner_url, sort_order)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpdateCategory :one
 UPDATE categories
 SET
-    parent_id   = $2,
-    slug        = $3,
-    name        = $4,
-    description = $5,
-    image_url   = $6,
-    sort_order  = $7,
-    is_active   = $8
+    parent_id          = $2,
+    slug               = $3,
+    name               = $4,
+    description        = $5,
+    image_url          = $6,
+    desktop_banner_url = $7,
+    mobile_banner_url  = $8,
+    sort_order         = $9,
+    is_active          = $10
 WHERE id = $1
 RETURNING *;
 
