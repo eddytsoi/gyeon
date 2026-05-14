@@ -28,6 +28,7 @@ import (
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/recaptcha"
 	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
@@ -119,10 +120,31 @@ func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) 
 
 func main() {
 	dsn := getenv("DATABASE_URL", "postgres://gyeon:gyeon@localhost:5432/gyeon?sslmode=disable")
-	jwtSecret := getenv("ADMIN_JWT_SECRET", "change-me-in-production")
-	customerJWTSecret := getenv("CUSTOMER_JWT_SECRET", "change-me-customer-secret")
+	jwtSecret := os.Getenv("ADMIN_JWT_SECRET")
+	customerJWTSecret := os.Getenv("CUSTOMER_JWT_SECRET")
+	if jwtSecret == "" || customerJWTSecret == "" {
+		log.Fatal("ADMIN_JWT_SECRET and CUSTOMER_JWT_SECRET must be set; refusing to start with predictable defaults")
+	}
+	// Warn (but don't fail) when the secrets look like the historical
+	// fallback strings — leaving them in place is unsafe in any non-dev env.
+	for _, p := range []struct{ name, val string }{
+		{"ADMIN_JWT_SECRET", jwtSecret},
+		{"CUSTOMER_JWT_SECRET", customerJWTSecret},
+	} {
+		if strings.Contains(strings.ToLower(p.val), "change-me") {
+			log.Printf("warning: %s contains 'change-me' — rotate before exposing this build publicly", p.name)
+		}
+	}
 	adminEmail := getenv("ADMIN_EMAIL", "admin@gyeon.local")
-	adminPassword := getenv("ADMIN_PASSWORD", "admin123")
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		// Empty triggers a fail-closed path: SeedSuperAdmin only runs when
+		// admin_users is empty, so a missing password just means "don't
+		// auto-seed the bootstrap user". Existing admins keep working.
+		log.Printf("info: ADMIN_PASSWORD unset — initial super_admin seed skipped")
+	} else if adminPassword == "admin123" {
+		log.Printf("warning: ADMIN_PASSWORD is the historical default 'admin123' — change it before exposing this build")
+	}
 	baseURL := getenv("BASE_URL", "http://localhost:8080")
 
 	conn, err := db.Connect(dsn)
@@ -163,9 +185,13 @@ func main() {
 	navSvc := cms.NewNavService(conn, cacheStore, navTTL)
 	adminUserSvc := admin.NewUserService(conn)
 
-	// Seed first super_admin from env if table is empty
-	if err := adminUserSvc.SeedSuperAdmin(context.Background(), adminEmail, adminPassword); err != nil {
-		log.Printf("warn: seed super admin: %v", err)
+	// Seed first super_admin from env if the table is empty. Skip when the
+	// password env is unset — bootstrapping is opt-in so misconfigured
+	// deploys don't end up with a guessable account silently created.
+	if adminPassword != "" {
+		if err := adminUserSvc.SeedSuperAdmin(context.Background(), adminEmail, adminPassword); err != nil {
+			log.Printf("warn: seed super admin: %v", err)
+		}
 	}
 
 	// Handlers
@@ -379,8 +405,11 @@ func main() {
 			r.Mount("/loyalty", loyaltyHandler.CustomerRoutes())
 		})
 
-		// Admin auth (now uses admin_users table)
-		r.Post("/admin/login", adminUserHandler.Login)
+		// Admin auth (now uses admin_users table) — per-IP throttle to slow
+		// down credential stuffing. Tight bucket because the admin pool is
+		// small and lockouts are recoverable via DB reset.
+		adminLoginRL := ratelimit.Middleware(10, 5*time.Minute)
+		r.With(adminLoginRL).Post("/admin/login", adminUserHandler.Login)
 
 		// Admin SSE event stream — auth via ?token= query (EventSource can't set headers)
 		r.Get("/admin/events", adminEventsHandler.Stream)

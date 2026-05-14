@@ -5,9 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
+	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/respond"
 )
 
@@ -26,7 +28,10 @@ func NewOrderHandler(svc *OrderService) *OrderHandler {
 // are never enough to enumerate orders.
 func (h *OrderHandler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/checkout", h.checkout)
+	// Checkout is the most expensive public path (Stripe call, DB tx) and a
+	// natural target for card-testing / abuse. Throttle per-IP.
+	checkoutRL := ratelimit.Middleware(10, time.Minute)
+	r.With(checkoutRL).Post("/checkout", h.checkout)
 	r.Get("/{id}", h.getPublic)
 	r.Get("/{id}/payment-info", h.paymentInfo)
 	r.Post("/{id}/setup-token", h.createSetupToken)

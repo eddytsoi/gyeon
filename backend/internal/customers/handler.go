@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/email"
+	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/respond"
 )
 
@@ -35,10 +37,15 @@ func NewHandler(svc *Service, emailSvc *email.Service, jwtSecret string, fetchOr
 // Routes combines public and authenticated customer routes under one router.
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/register", h.register)
-	r.Post("/login", h.login)
-	r.Post("/setup-password", h.setupPassword)
-	r.Post("/forgot-password", h.forgotPassword)
+	// Per-IP throttles on credential-bearing endpoints. Single limiter shared
+	// across register/login/setup so an attacker can't ping-pong between
+	// them to skirt the budget.
+	authRL := ratelimit.Middleware(10, 5*time.Minute)
+	forgotRL := ratelimit.Middleware(5, 10*time.Minute)
+	r.With(authRL).Post("/register", h.register)
+	r.With(authRL).Post("/login", h.login)
+	r.With(authRL).Post("/setup-password", h.setupPassword)
+	r.With(forgotRL).Post("/forgot-password", h.forgotPassword)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.CustomerMiddleware(h.jwtSecret))
 		r.Get("/me", h.getProfile)
