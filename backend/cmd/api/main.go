@@ -148,6 +148,56 @@ func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) 
 	})
 }
 
+// tokenVersionAdapter implements auth.TokenVersionStore by reading the
+// admin_users / customers token_version columns, with a short-TTL cache so
+// the middleware doesn't hit Postgres on every request.
+type tokenVersionAdapter struct {
+	admin    *admin.UserService
+	customer *customers.Service
+	cache    cache.Store
+	ttl      time.Duration
+}
+
+func (a *tokenVersionAdapter) AdminVersion(ctx context.Context, userID string) (int, error) {
+	if userID == "" {
+		return 0, nil
+	}
+	key := "tv:admin:" + userID
+	if v, ok := a.cache.Get(key); ok {
+		return v.(int), nil
+	}
+	tv, err := a.admin.TokenVersion(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	a.cache.Set(key, tv, a.ttl)
+	return tv, nil
+}
+
+func (a *tokenVersionAdapter) CustomerVersion(ctx context.Context, customerID string) (int, error) {
+	if customerID == "" {
+		return 0, nil
+	}
+	key := "tv:customer:" + customerID
+	if v, ok := a.cache.Get(key); ok {
+		return v.(int), nil
+	}
+	tv, err := a.customer.TokenVersion(ctx, customerID)
+	if err != nil {
+		return 0, err
+	}
+	a.cache.Set(key, tv, a.ttl)
+	return tv, nil
+}
+
+func (a *tokenVersionAdapter) InvalidateAdmin(userID string) {
+	a.cache.Delete("tv:admin:" + userID)
+}
+
+func (a *tokenVersionAdapter) InvalidateCustomer(customerID string) {
+	a.cache.Delete("tv:customer:" + customerID)
+}
+
 func main() {
 	dsn := getenv("DATABASE_URL", "postgres://gyeon:gyeon@localhost:5432/gyeon?sslmode=disable")
 	jwtSecret := os.Getenv("ADMIN_JWT_SECRET")
@@ -312,6 +362,18 @@ func main() {
 	postSvc.SetAudit(cmsAuditAdapter{svc: auditSvc})
 	customerSvc.SetAudit(customersAuditAdapter{svc: auditSvc})
 	adminUserSvc.SetAudit(adminUsersAuditAdapter{svc: auditSvc})
+	// JWT revocation: the middleware consults a TokenVersionStore on every
+	// request. Back it with a tiny in-memory cache to keep the per-request
+	// DB cost negligible; sign-out-everywhere endpoints below explicitly
+	// invalidate the cached entry, so revocation propagates immediately on
+	// the calling node and within `tvCacheTTL` on peers.
+	const tvCacheTTL = 15 * time.Second
+	auth.SetVersionStore(&tokenVersionAdapter{
+		admin:    adminUserSvc,
+		customer: customerSvc,
+		cache:    cacheStore,
+		ttl:      tvCacheTTL,
+	})
 	adminMW := auth.AdminMiddleware(jwtSecret)
 	auditInfoMW := audit.RequestInfoMiddleware()
 
@@ -480,6 +542,10 @@ func main() {
 			r.Use(auditInfoMW)
 
 			r.Get("/admin/stats", statsHandler.Get)
+
+			// Sign out everywhere — bumps the calling admin's token_version,
+			// killing every existing JWT for that user.
+			r.Post("/admin/me/sign-out-everywhere", adminUserHandler.SignOutEverywhere)
 
 			// Analytics (P2 #16): time-series + top-N + breakdowns
 			r.Mount("/admin/analytics", analyticsHandler.Routes())

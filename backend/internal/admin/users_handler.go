@@ -35,7 +35,8 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	token, err := auth.GenerateAdminToken(h.jwtSecret, user.ID, user.Role)
+	tv, _ := h.svc.TokenVersion(r.Context(), user.ID)
+	token, err := auth.GenerateAdminToken(h.jwtSecret, user.ID, user.Role, tv)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -56,6 +57,23 @@ func (h *UserHandler) AdminRoutes() chi.Router {
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	return r
+}
+
+// SignOutEverywhere increments the calling admin's token_version, killing
+// every previously issued admin JWT for that user (including the current
+// one). Mounted at /admin/me/sign-out-everywhere inside the admin auth group.
+func (h *UserHandler) SignOutEverywhere(w http.ResponseWriter, r *http.Request) {
+	id, ok := auth.AdminIDFromContext(r.Context())
+	if !ok || id == "" {
+		respond.Error(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	if _, err := h.svc.IncrementTokenVersion(r.Context(), id); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	auth.InvalidateAdminVersion(id)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {

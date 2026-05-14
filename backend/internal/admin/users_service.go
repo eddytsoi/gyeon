@@ -232,6 +232,33 @@ func (s *UserService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// TokenVersion returns the current JWT revocation counter for the admin
+// user. Issued tokens carry this in a `tv` claim; the middleware rejects
+// tokens whose claim doesn't match.
+func (s *UserService) TokenVersion(ctx context.Context, userID string) (int, error) {
+	var tv int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT token_version FROM admin_users WHERE id=$1`, userID).Scan(&tv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrUserNotFound
+	}
+	return tv, err
+}
+
+// IncrementTokenVersion bumps the counter, invalidating all previously
+// issued tokens for this admin. Used by sign-out-everywhere and by
+// account-deactivation flows where existing sessions must drop immediately.
+func (s *UserService) IncrementTokenVersion(ctx context.Context, userID string) (int, error) {
+	var tv int
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE admin_users SET token_version = token_version + 1 WHERE id=$1 RETURNING token_version`,
+		userID).Scan(&tv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrUserNotFound
+	}
+	return tv, err
+}
+
 // SeedSuperAdmin creates the first super_admin if no admin users exist.
 func (s *UserService) SeedSuperAdmin(ctx context.Context, email, password string) error {
 	var count int

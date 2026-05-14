@@ -57,6 +57,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/me/orders", h.listOrders)
 		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
 		r.Get("/me/orders/{id}", h.getOrder)
+		r.Post("/me/sign-out-everywhere", h.signOutEverywhere)
 	})
 	return r
 }
@@ -95,7 +96,8 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID)
+	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -121,7 +123,8 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID)
+	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -261,6 +264,25 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, orders)
+}
+
+// signOutEverywhere increments this customer's token_version, instantly
+// invalidating every previously issued JWT. The current token also stops
+// working; the client is expected to drop its cookie and prompt re-login.
+func (h *Handler) signOutEverywhere(w http.ResponseWriter, r *http.Request) {
+	customerID := auth.CustomerIDFromContext(r.Context())
+	if customerID == "" {
+		respond.Error(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	if _, err := h.svc.IncrementTokenVersion(r.Context(), customerID); err != nil {
+		respond.InternalError(w)
+		return
+	}
+	// Drop the cached tv so the very next request from any node sees the
+	// new value (otherwise revocation has cache-TTL of lag).
+	auth.InvalidateCustomerVersion(customerID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // getOrder returns an order's detail only if it belongs to the authenticated

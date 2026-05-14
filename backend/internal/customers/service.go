@@ -164,6 +164,34 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error
 	return &c, nil
 }
 
+// TokenVersion returns the current JWT revocation counter for the customer.
+// Issued tokens carry this value in a `tv` claim; the middleware rejects
+// tokens whose claim doesn't match the live value here.
+func (s *Service) TokenVersion(ctx context.Context, customerID string) (int, error) {
+	var tv int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT token_version FROM customers WHERE id=$1`, customerID).Scan(&tv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return tv, err
+}
+
+// IncrementTokenVersion bumps the counter, instantly invalidating every
+// previously-issued JWT for this customer. Used by sign-out-everywhere.
+// Returns the new value so the caller can mint a fresh token if it wants
+// to keep the current session alive.
+func (s *Service) IncrementTokenVersion(ctx context.Context, customerID string) (int, error) {
+	var tv int
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE customers SET token_version = token_version + 1 WHERE id=$1 RETURNING token_version`,
+		customerID).Scan(&tv)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return tv, err
+}
+
 func (s *Service) GetByID(ctx context.Context, id string) (*Customer, error) {
 	var c Customer
 	err := s.db.QueryRowContext(ctx,
