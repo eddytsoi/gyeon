@@ -186,11 +186,11 @@ const handleRedirect: Handle = async ({ event, resolve }) => {
 // theme tokens; tightening to nonces is a follow-up.
 const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://js.stripe.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://js.stripe.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://www.google-analytics.com https://api.stripe.com https://www.googletagmanager.com https://www.facebook.com",
+  "connect-src 'self' https://www.google-analytics.com https://api.stripe.com https://www.googletagmanager.com https://www.facebook.com https://cloudflareinsights.com",
   "frame-src https://js.stripe.com https://www.google.com https://hooks.stripe.com",
   "object-src 'none'",
   "base-uri 'self'",
