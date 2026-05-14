@@ -532,7 +532,7 @@
 
 <div class="max-w-3xl">
   <div class="flex items-center justify-between mb-8">
-    <h1 class="text-2xl font-bold text-gray-900">{m.admin_settings_heading()}</h1>
+    <h1 class="text-2xl font-bold text-gray-900">{TABS.find((t) => t.id === activeTab)?.label ?? ''}</h1>
   </div>
 
   <div bind:this={tabsEl}
