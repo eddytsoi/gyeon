@@ -66,6 +66,11 @@
           label: m.admin_nav_orders(),
           icon: 'M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z'
         },
+        {
+          href: '/admin/stock-history',
+          label: m.admin_nav_stock_history(),
+          icon: 'M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z'
+        },
       ]
     },
     {
@@ -459,6 +464,7 @@
           {:else if $page.url.pathname.includes('tax')}{m.admin_top_tax()}
           {:else if $page.url.pathname.includes('shipping')}{m.admin_top_shipping()}
           {:else if $page.url.pathname.includes('audit-log')}{m.admin_top_audit_log()}
+          {:else if $page.url.pathname.includes('stock-history')}{m.admin_top_stock_history()}
           {:else if $page.url.pathname.includes('email-templates')}{m.admin_top_email_templates()}
           {:else if $page.url.pathname.includes('discounts')}{m.admin_top_discounts()}
           {:else if $page.url.pathname.includes('import')}{m.admin_top_import()}

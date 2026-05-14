@@ -561,6 +561,9 @@ func main() {
 			// GETs remain on /products (no auth, no audit).
 			r.Mount("/admin/products", productHandler.AdminWriteRoutes())
 
+			// Cross-product stock movement log (進出記錄).
+			r.Mount("/admin/stock-history", productHandler.AdminStockHistoryRoutes())
+
 			// CMS admin
 			r.Mount("/admin/cms/pages", pageHandler.AdminRoutes())
 			r.Mount("/admin/cms/posts", postHandler.AdminRoutes())

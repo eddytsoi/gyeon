@@ -251,6 +251,72 @@ func (s *OrderService) recordInventoryHistory(ctx context.Context, variantID str
 	}
 }
 
+// restockOrderItemsTx restocks every order_items row for the order inside the
+// caller's transaction and writes one inventory_history row per variant. Used
+// when an order is cancelled or fully refunded so the stock deducted at
+// checkout is returned. Skips rows where variant_id has been NULLed (variant
+// deleted after the order was placed). Caller must ensure restock is only
+// invoked once per order to avoid double-counting.
+func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orderID, reason string, note *string) error {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT variant_id, quantity FROM order_items WHERE order_id = $1 AND variant_id IS NOT NULL`, orderID)
+	if err != nil {
+		return err
+	}
+	type item struct {
+		variantID string
+		quantity  int
+	}
+	var items []item
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.variantID, &it.quantity); err != nil {
+			rows.Close()
+			return err
+		}
+		items = append(items, it)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	var actorIDArg any
+	if id, ok := auth.AdminIDFromContext(ctx); ok {
+		actorIDArg = id
+	}
+	var noteArg any
+	if note != nil && *note != "" {
+		noteArg = *note
+	}
+
+	for _, it := range items {
+		var before int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT stock_qty FROM product_variants WHERE id = $1 FOR UPDATE`, it.variantID).Scan(&before); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue // variant deleted — skip
+			}
+			return err
+		}
+		after := before + it.quantity
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE product_variants SET stock_qty = $1, updated_at = NOW() WHERE id = $2`,
+			after, it.variantID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id, note)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			it.variantID, it.quantity, before, after, reason, actorIDArg, orderID, noteArg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // freeShippingThresholdHKD reads the admin-configured threshold (P3 #29).
 // Returns 0 when disabled or unparseable, which the caller treats as "always
 // charge shipping_fee as quoted".
@@ -1222,6 +1288,14 @@ func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req Refu
 	statusForNotice := newStatus
 	_ = CreateSystemNoticeTx(ctx, tx, orderID, &statusForNotice, noteText)
 
+	// On full refund, restock every order_items line and write one
+	// inventory_history row per variant inside the same tx.
+	if newStatus == StatusRefunded && order.Status != StatusRefunded && order.Status != StatusCancelled {
+		if err := s.restockOrderItemsTx(ctx, tx, orderID, "order.refund", reasonPtr); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -1553,6 +1627,21 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	}
 	status := req.Status
 	_ = CreateSystemNoticeTx(ctx, tx, id, &status, noticeBody)
+
+	// Restock the order's items when transitioning into a terminal "stock
+	// returned" state. Guard with the prior `current` status so a no-op
+	// re-transition can't double-restock (also disallowed by
+	// allowedTransitions, but defensive).
+	if (req.Status == StatusCancelled || req.Status == StatusRefunded) &&
+		current != StatusCancelled && current != StatusRefunded {
+		restockReason := "order.cancel"
+		if req.Status == StatusRefunded {
+			restockReason = "order.refund"
+		}
+		if err := s.restockOrderItemsTx(ctx, tx, id, restockReason, req.Note); err != nil {
+			return nil, err
+		}
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err

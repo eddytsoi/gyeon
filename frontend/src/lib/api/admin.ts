@@ -805,6 +805,51 @@ export const adminListAuditLog = (token: string, f: AuditFilters = {}) => {
   return request<AuditList>(`/admin/audit-log/${suffix}`, token);
 };
 
+// ── Stock movement log (進出記錄) ─────────────────────────────────────────────
+
+export interface StockMovementRow extends VariantHistoryRow {
+  product_id?: string;
+  product_name?: string;
+  variant_sku?: string;
+  order_number?: string;
+}
+
+export interface StockMovementList {
+  items: StockMovementRow[];
+  total: number;
+}
+
+export interface StockMovementFilters {
+  from?: string;
+  to?: string;
+  reason?: string;
+  source?: 'admin' | 'order';
+  product_id?: string;
+  variant_id?: string;
+  q?: string;
+  actor_user_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function stockHistoryQS(f: StockMovementFilters): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v == null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  return qs.toString() ? `?${qs.toString()}` : '';
+}
+
+export const adminListStockHistory = (token: string, f: StockMovementFilters = {}) =>
+  request<StockMovementList>(`/admin/stock-history/${stockHistoryQS(f)}`, token);
+
+export const adminListProductStockHistory = (
+  token: string,
+  productID: string,
+  f: StockMovementFilters = {}
+) => request<StockMovementList>(`/admin/products/${productID}/stock-history${stockHistoryQS(f)}`, token);
+
 // ── Email templates (P2 #20) ──────────────────────────────────────────────────
 
 export interface EmailTemplateListItem {
