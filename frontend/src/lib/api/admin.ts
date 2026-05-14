@@ -40,8 +40,9 @@ export const adminLogin = async (email: string, password: string): Promise<strin
 export const getStats = (token: string) =>
   request<AdminStats>('/admin/stats', token);
 
-// Products — admin list hits a dedicated endpoint that returns all statuses;
-// mutations and detail reads use /products/* (token-protected).
+// Products — admin list hits a dedicated endpoint that returns all statuses.
+// Detail reads (GET) use the public /products/* (open). Mutations use
+// /admin/products/* so they pass through the admin auth + audit middleware.
 //
 // Response wraps the rows in `{items, total}` so the admin UI can render
 // pagination math without a second roundtrip. Each row carries
@@ -62,13 +63,13 @@ export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '', 
 };
 
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
-  request<Product>('/products', token, { method: 'POST', body: JSON.stringify(body) });
+  request<Product>('/admin/products', token, { method: 'POST', body: JSON.stringify(body) });
 
 export const adminUpdateProduct = (token: string, id: string, body: Partial<Product> & { status: string }) =>
-  request<Product>(`/products/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
+  request<Product>(`/admin/products/${id}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
 export const adminDeleteProduct = (token: string, id: string) =>
-  request(`/products/${id}`, token, { method: 'DELETE' });
+  request(`/admin/products/${id}`, token, { method: 'DELETE' });
 
 export const adminGetProduct = (token: string, id: string) =>
   request<Product>(`/products/${id}`, token);
@@ -77,19 +78,19 @@ export const adminGetVariants = (token: string, productID: string) =>
   request<Variant[]>(`/products/${productID}/variants`, token);
 
 export const adminCreateVariant = (token: string, productID: string, body: Partial<Variant>) =>
-  request<Variant>(`/products/${productID}/variants`, token, { method: 'POST', body: JSON.stringify(body) });
+  request<Variant>(`/admin/products/${productID}/variants`, token, { method: 'POST', body: JSON.stringify(body) });
 
 export const adminUpdateVariant = (token: string, productID: string, variantID: string, body: Partial<Variant> & { is_active: boolean }) =>
-  request<Variant>(`/products/${productID}/variants/${variantID}`, token, { method: 'PUT', body: JSON.stringify(body) });
+  request<Variant>(`/admin/products/${productID}/variants/${variantID}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
 export const adminDeleteVariant = (token: string, productID: string, variantID: string) =>
-  request(`/products/${productID}/variants/${variantID}`, token, { method: 'DELETE' });
+  request(`/admin/products/${productID}/variants/${variantID}`, token, { method: 'DELETE' });
 
 export const adminAdjustStock = (token: string, productID: string, variantID: string, delta: number) =>
-  request<Variant>(`/products/${productID}/variants/${variantID}/stock`, token, { method: 'POST', body: JSON.stringify({ delta }) });
+  request<Variant>(`/admin/products/${productID}/variants/${variantID}/stock`, token, { method: 'POST', body: JSON.stringify({ delta }) });
 
 export const adminReorderVariants = (token: string, productID: string, ids: string[]) =>
-  request<void>(`/products/${productID}/variants/reorder`, token, {
+  request<void>(`/admin/products/${productID}/variants/reorder`, token, {
     method: 'PATCH',
     body: JSON.stringify({ ids })
   });
@@ -109,19 +110,19 @@ export interface VariantHistoryRow {
 }
 
 export const adminGetVariantStockHistory = (token: string, productID: string, variantID: string, limit = 50) =>
-  request<VariantHistoryRow[]>(`/products/${productID}/variants/${variantID}/history?limit=${limit}`, token);
+  request<VariantHistoryRow[]>(`/admin/products/${productID}/variants/${variantID}/history?limit=${limit}`, token);
 
 export const adminGetImages = (token: string, productID: string) =>
   request<ProductImage[]>(`/products/${productID}/images`, token);
 
 export const adminAddImage = (token: string, productID: string, body: Partial<ProductImage>) =>
-  request<ProductImage>(`/products/${productID}/images`, token, { method: 'POST', body: JSON.stringify(body) });
+  request<ProductImage>(`/admin/products/${productID}/images`, token, { method: 'POST', body: JSON.stringify(body) });
 
 export const adminUpdateImage = (token: string, productID: string, imageID: string, body: Partial<ProductImage>) =>
-  request<ProductImage>(`/products/${productID}/images/${imageID}`, token, { method: 'PUT', body: JSON.stringify(body) });
+  request<ProductImage>(`/admin/products/${productID}/images/${imageID}`, token, { method: 'PUT', body: JSON.stringify(body) });
 
 export const adminDeleteImage = (token: string, productID: string, imageID: string) =>
-  request(`/products/${productID}/images/${imageID}`, token, { method: 'DELETE' });
+  request(`/admin/products/${productID}/images/${imageID}`, token, { method: 'DELETE' });
 
 // Bundle items
 export const adminGetBundleItems = (token: string, productID: string) =>
@@ -132,7 +133,7 @@ export const adminSetBundleItems = (
   productID: string,
   items: Array<{ component_variant_id: string; quantity: number; sort_order: number; display_name_override?: string }>
 ) =>
-  request<BundleItem[]>(`/products/${productID}/bundle-items`, token, {
+  request<BundleItem[]>(`/admin/products/${productID}/bundle-items`, token, {
     method: 'PUT',
     body: JSON.stringify({ items })
   });
