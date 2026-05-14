@@ -70,11 +70,30 @@ func (h *Handler) ServeResized(w http.ResponseWriter, r *http.Request) {
 
 	srcPath := filepath.Join(uploadsDir, filename)
 	if _, err := os.Stat(srcPath); err != nil {
-		http.NotFound(w, r)
-		return
+		// Virtual .webp fallback: a URL like /uploads/r/{w}/foo.webp may
+		// resolve to a base raster (foo.jpg / foo.jpeg / foo.png) when no
+		// literal .webp sibling is on disk. This pairs with the storefront's
+		// explicit .webp URLs (image.ts::toWebpFilename) so deterministic
+		// WebP URLs work even for legacy uploads that predated automatic
+		// sibling generation.
+		if ext == ".webp" {
+			if alt := webpBaseFallback(filename); alt != "" {
+				srcPath = filepath.Join(uploadsDir, alt)
+			} else {
+				http.NotFound(w, r)
+				return
+			}
+		} else {
+			http.NotFound(w, r)
+			return
+		}
 	}
 
-	wantWebP := strings.Contains(r.Header.Get("Accept"), "image/webp")
+	// .webp URL forces WebP output regardless of Accept — the frontend opts
+	// into explicit WebP URLs precisely because Cloudflare's free plan
+	// ignores Vary: Accept and can serve a single cached variant to all
+	// clients. Honour the URL's intent rather than the request header.
+	wantWebP := ext == ".webp" || strings.Contains(r.Header.Get("Accept"), "image/webp")
 	outExt := chooseResizeExt(ext, wantWebP)
 	cp := resizeCachePath(filename, width, outExt)
 
@@ -95,6 +114,34 @@ func (h *Handler) ServeResized(w http.ResponseWriter, r *http.Request) {
 
 	setResizedHeaders(w, outExt)
 	http.ServeFile(w, r, cp)
+}
+
+// webpBaseFallback finds an on-disk raster source for a .webp filename that
+// has no literal sibling. Two patterns:
+//
+//	foo.jpg.webp → foo.jpg                        (virtual .webp suffix)
+//	foo.webp     → foo.jpg / foo.jpeg / foo.png  (sibling lookup by ext swap)
+//
+// Returns the source filename relative to uploadsDir, or "" if no candidate
+// exists. Callers must validate filename for path traversal beforehand.
+func webpBaseFallback(filename string) string {
+	// Pattern 1: virtual suffix `foo.jpg.webp` → strip `.webp`, expect a
+	// resizable nested extension.
+	base := strings.TrimSuffix(filename, ".webp")
+	if nestedExt := strings.ToLower(filepath.Ext(base)); nestedExt != "" && resizableExt(nestedExt) && nestedExt != ".webp" {
+		if _, err := os.Stat(filepath.Join(uploadsDir, base)); err == nil {
+			return base
+		}
+	}
+	// Pattern 2: sibling lookup `foo.webp` → try foo.jpg / foo.jpeg / foo.png.
+	bare := strings.TrimSuffix(filename, filepath.Ext(filename))
+	for _, candExt := range []string{".jpg", ".jpeg", ".png"} {
+		cand := bare + candExt
+		if _, err := os.Stat(filepath.Join(uploadsDir, cand)); err == nil {
+			return cand
+		}
+	}
+	return ""
 }
 
 // chooseResizeExt: WebP when the browser accepts it; otherwise keep PNG for

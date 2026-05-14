@@ -206,7 +206,7 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
   <div class="flex items-end justify-between gap-4 mb-8 md:mb-10">
     <header>
-      <Eyebrow class="mb-2">Listing</Eyebrow>
+      <Eyebrow class="mb-2">{m.products_listing_eyebrow()}</Eyebrow>
       <h1 class="font-display text-[1.575rem] md:text-[2.1rem] lg:text-[2.625rem] font-bold tracking-tight text-ink-900 leading-none">
         {m.products_heading_all()}
       </h1>
