@@ -1,7 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { adminUploadMedia, adminGetVariants, adminGetVariantStockHistory, type VariantHistoryRow } from '$lib/api/admin';
+  import { adminUploadMedia, adminGetVariants, adminGetVariantStockHistory, adminListProductStockHistory, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
+  import StockMovementTable from '$lib/components/admin/StockMovementTable.svelte';
   import type { PageData } from './$types';
   import type { BundleItem, Variant } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
@@ -119,6 +120,28 @@
   let historyVariant = $state<typeof data.variants[0] | null>(null);
   let historyRows = $state<VariantHistoryRow[]>([]);
   let historyLoading = $state(false);
+
+  // All-variant stock history for this product (Phase 5 of 進出記錄 module).
+  let productHistoryOpen = $state(false);
+  let productHistoryRows = $state<StockMovementRow[]>([]);
+  let productHistoryLoading = $state(false);
+  let productHistoryLoaded = $state(false);
+
+  async function toggleProductHistory() {
+    productHistoryOpen = !productHistoryOpen;
+    if (productHistoryOpen && !productHistoryLoaded && data.product?.id) {
+      productHistoryLoading = true;
+      try {
+        const list = await adminListProductStockHistory(data.token ?? '', data.product.id, { limit: 100 });
+        productHistoryRows = list.items;
+        productHistoryLoaded = true;
+      } catch (e) {
+        notify.error('Failed to load history', e instanceof Error ? e.message : '');
+      } finally {
+        productHistoryLoading = false;
+      }
+    }
+  }
 
   async function openHistory(v: typeof data.variants[0]) {
     historyVariant = v;
@@ -1269,6 +1292,31 @@
       {/if}
     {/if}
   </section>
+
+  {#if !data.isNew && data.product?.id}
+    <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <button type="button" onclick={toggleProductHistory}
+              class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
+        <div>
+          <h3 class="text-base font-bold text-gray-900">{m.admin_product_stock_history_heading()}</h3>
+          <p class="text-xs text-gray-500 mt-0.5">{m.admin_product_stock_history_subtitle()}</p>
+        </div>
+        <svg class="w-5 h-5 text-gray-400 transition-transform" class:rotate-180={productHistoryOpen}
+             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </button>
+      {#if productHistoryOpen}
+        <div class="border-t border-gray-100">
+          {#if productHistoryLoading}
+            <p class="px-6 py-12 text-sm text-gray-400 text-center">{m.admin_product_edit_variants_history_loading()}</p>
+          {:else}
+            <StockMovementTable items={productHistoryRows} hideProduct />
+          {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   <!-- ── Actions ── -->
   <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5

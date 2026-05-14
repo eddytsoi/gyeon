@@ -3,7 +3,9 @@ package shop
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"strings"
 
 	"gyeon/backend/internal/auth"
 )
@@ -21,6 +23,37 @@ type InventoryHistoryRow struct {
 	OrderID    *string `json:"order_id,omitempty"`
 	Note       *string `json:"note,omitempty"`
 	CreatedAt  string  `json:"created_at"`
+}
+
+// StockMovementRow is the wider row returned by the cross-product admin list;
+// includes product/variant/order display fields so the UI can render a single
+// flat table without per-row lookups.
+type StockMovementRow struct {
+	InventoryHistoryRow
+	ProductID   *string `json:"product_id,omitempty"`
+	ProductName *string `json:"product_name,omitempty"`
+	VariantSKU  *string `json:"variant_sku,omitempty"`
+	OrderNumber *string `json:"order_number,omitempty"`
+}
+
+// StockMovementFilters narrows the cross-product stock-history list.
+type StockMovementFilters struct {
+	From         string // RFC3339 / Postgres-parseable timestamp
+	To           string
+	Reason       string // exact match (e.g. "admin.adjust")
+	SourcePrefix string // "admin" or "order" → reason LIKE prefix||'.%'
+	ProductID    string
+	VariantID    string
+	Search       string // ILIKE on product name OR variant SKU
+	ActorUserID  string
+	Limit        int
+	Offset       int
+}
+
+// StockMovementList wraps the paginated response.
+type StockMovementList struct {
+	Items []StockMovementRow `json:"items"`
+	Total int                `json:"total"`
 }
 
 // recordStockChange writes one inventory_history row inside the caller's
@@ -88,6 +121,108 @@ func (s *ProductService) ListVariantHistory(ctx context.Context, variantID strin
 			return nil, err
 		}
 		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ListInventoryHistory returns paginated stock movements across all products.
+// All filter fields are optional; an empty filters struct returns the most
+// recent movements site-wide. limit/offset default to 50/0 if non-positive.
+func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMovementFilters) (StockMovementList, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	var (
+		where []string
+		args  []any
+	)
+	add := func(clause string, val any) {
+		args = append(args, val)
+		where = append(where, fmt.Sprintf(clause, len(args)))
+	}
+	if f.From != "" {
+		add("h.created_at >= $%d", f.From)
+	}
+	if f.To != "" {
+		add("h.created_at <= $%d", f.To)
+	}
+	if f.Reason != "" {
+		add("h.reason = $%d", f.Reason)
+	}
+	if f.SourcePrefix != "" {
+		add("h.reason LIKE $%d", f.SourcePrefix+".%")
+	}
+	if f.ProductID != "" {
+		add("v.product_id = $%d", f.ProductID)
+	}
+	if f.VariantID != "" {
+		add("h.variant_id = $%d", f.VariantID)
+	}
+	if f.ActorUserID != "" {
+		add("h.actor_user_id = $%d", f.ActorUserID)
+	}
+	if f.Search != "" {
+		args = append(args, "%"+f.Search+"%")
+		where = append(where, fmt.Sprintf("(p.name ILIKE $%d OR v.sku ILIKE $%d)", len(args), len(args)))
+	}
+
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	out := StockMovementList{Items: make([]StockMovementRow, 0)}
+
+	countSQL := `
+		SELECT COUNT(*)
+		  FROM inventory_history h
+		  LEFT JOIN product_variants v ON v.id = h.variant_id
+		  LEFT JOIN products         p ON p.id = v.product_id
+		` + whereSQL
+	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&out.Total); err != nil {
+		return out, err
+	}
+
+	listArgs := append([]any{}, args...)
+	listArgs = append(listArgs, limit, offset)
+	listSQL := `
+		SELECT h.id, h.variant_id, h.delta, h.before_qty, h.after_qty, h.reason,
+		       h.actor_user_id, u.email, h.order_id, h.note, h.created_at,
+		       v.product_id, p.name, v.sku, o.order_number
+		  FROM inventory_history h
+		  LEFT JOIN admin_users     u ON u.id = h.actor_user_id
+		  LEFT JOIN product_variants v ON v.id = h.variant_id
+		  LEFT JOIN products         p ON p.id = v.product_id
+		  LEFT JOIN orders           o ON o.id = h.order_id
+		` + whereSQL + fmt.Sprintf(`
+		 ORDER BY h.created_at DESC
+		 LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+
+	rows, err := s.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var r StockMovementRow
+		var orderNumber sql.NullString
+		if err := rows.Scan(&r.ID, &r.VariantID, &r.Delta, &r.BeforeQty, &r.AfterQty, &r.Reason,
+			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.Note, &r.CreatedAt,
+			&r.ProductID, &r.ProductName, &r.VariantSKU, &orderNumber); err != nil {
+			return out, err
+		}
+		if orderNumber.Valid && orderNumber.String != "" {
+			s := orderNumber.String
+			r.OrderNumber = &s
+		}
+		out.Items = append(out.Items, r)
 	}
 	return out, rows.Err()
 }

@@ -27,6 +27,14 @@ func (h *ProductHandler) AdminRoutes() chi.Router {
 	return r
 }
 
+// AdminStockHistoryRoutes registers the cross-product stock movement log.
+// Mount at /admin/stock-history.
+func (h *ProductHandler) AdminStockHistoryRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/", h.stockHistoryList)
+	return r
+}
+
 // Routes registers only public-readable endpoints used by the storefront.
 // All mutating endpoints live in AdminWriteRoutes and must be mounted inside
 // the admin route group — otherwise audit.Record() silently no-ops because no
@@ -67,6 +75,7 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 	r.Delete("/{id}/variants/{variantID}", h.deleteVariant)
 	r.Post("/{id}/variants/{variantID}/stock", h.adjustStock)
 	r.Get("/{id}/variants/{variantID}/history", h.variantStockHistory)
+	r.Get("/{id}/stock-history", h.productStockHistory)
 
 	r.Post("/{id}/images", h.addImage)
 	r.Put("/{id}/images/{imageID}", h.updateImage)
@@ -299,6 +308,58 @@ func (h *ProductHandler) variantStockHistory(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	respond.JSON(w, http.StatusOK, rows)
+}
+
+// parseStockHistoryFilters reads the shared query-param filter set used by
+// both the global and product-scoped stock-history endpoints.
+func parseStockHistoryFilters(r *http.Request) StockMovementFilters {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	src := q.Get("source")
+	if src != "admin" && src != "order" {
+		src = ""
+	}
+	return StockMovementFilters{
+		From:         q.Get("from"),
+		To:           q.Get("to"),
+		Reason:       q.Get("reason"),
+		SourcePrefix: src,
+		ProductID:    q.Get("product_id"),
+		VariantID:    q.Get("variant_id"),
+		Search:       q.Get("q"),
+		ActorUserID:  q.Get("actor_user_id"),
+		Limit:        limit,
+		Offset:       offset,
+	}
+}
+
+// stockHistoryList serves the global cross-product movement log used by the
+// admin /admin/stock-history page.
+func (h *ProductHandler) stockHistoryList(w http.ResponseWriter, r *http.Request) {
+	filters := parseStockHistoryFilters(r)
+	list, err := h.svc.ListInventoryHistory(r.Context(), filters)
+	if err != nil {
+		log.Printf("stockHistoryList: %v", err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, list)
+}
+
+// productStockHistory serves the same shape as stockHistoryList but pinned to
+// one product (all variants). The {id} path param overrides any product_id
+// query param.
+func (h *ProductHandler) productStockHistory(w http.ResponseWriter, r *http.Request) {
+	filters := parseStockHistoryFilters(r)
+	filters.ProductID = chi.URLParam(r, "id")
+	list, err := h.svc.ListInventoryHistory(r.Context(), filters)
+	if err != nil {
+		log.Printf("productStockHistory: %v", err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, list)
 }
 
 func (h *ProductHandler) listImages(w http.ResponseWriter, r *http.Request) {
