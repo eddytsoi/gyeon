@@ -21,18 +21,14 @@
     return Number.isFinite(n) && n > 0 ? n : 0;
   });
 
-  const subtotal = $derived(
-    cartStore.cart?.items?.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0
-  );
-
-  const remaining = $derived(Math.max(0, threshold() - subtotal));
+  const remaining = $derived(Math.max(0, threshold() - cartStore.subtotal));
   const progress = $derived(
-    threshold() === 0 ? 0 : Math.min(100, (subtotal / threshold()) * 100)
+    threshold() === 0 ? 0 : Math.min(100, (cartStore.subtotal / threshold()) * 100)
   );
-  const unlocked = $derived(threshold() > 0 && subtotal >= threshold());
+  const unlocked = $derived(threshold() > 0 && cartStore.subtotal >= threshold());
 </script>
 
-{#if threshold() > 0 && (unlocked ? showUnlocked : subtotal > 0)}
+{#if threshold() > 0 && (unlocked ? showUnlocked : cartStore.subtotal > 0)}
   <div class="rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm" role="status" aria-live="polite">
     {#if unlocked}
       <p class="text-emerald-700 font-medium">

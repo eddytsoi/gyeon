@@ -6,6 +6,9 @@ function createCartStore() {
   let loading = $state(false);
 
   const itemCount = $derived(cart?.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0);
+  const subtotal = $derived(
+    cart?.items?.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0
+  );
 
   function getSessionToken(): string {
     let token = localStorage.getItem('gyeon_session');
@@ -63,6 +66,7 @@ function createCartStore() {
     get cart() { return cart; },
     get loading() { return loading; },
     get itemCount() { return itemCount; },
+    get subtotal() { return subtotal; },
     init,
     add,
     update,

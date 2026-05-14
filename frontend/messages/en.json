@@ -169,6 +169,8 @@
   "cart_summary_shipping": "Shipping",
   "cart_summary_total": "Total",
   "cart_checkout": "Checkout",
+  "shipping_sf_free": "SF Express (free)",
+  "shipping_sf_cod": "SF Express (pay on delivery)",
 
   "checkout_title": "Checkout — Gyeon",
   "checkout_heading": "Checkout",

@@ -8,6 +8,15 @@
 
   // publicSettings flows in from the (storefront) layout load.
   let { data }: { data: PageData } = $props();
+
+  const freeShippingThreshold = $derived(() => {
+    const raw = (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  });
+  const shippingFree = $derived(
+    freeShippingThreshold() > 0 && cartStore.subtotal >= freeShippingThreshold()
+  );
 </script>
 
 <svelte:head>
@@ -94,15 +103,17 @@
 
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_items({ count: cartStore.itemCount })}</span>
-            <span>—</span>
+            <span>HK${cartStore.subtotal.toFixed(2)}</span>
           </div>
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_shipping()}</span>
-            <span class="text-green-600">{m.common_free()}</span>
+            <span class={shippingFree ? 'text-green-600' : 'text-gray-900'}>
+              {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
+            </span>
           </div>
           <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
             <span>{m.cart_summary_total()}</span>
-            <span>—</span>
+            <span>HK${cartStore.subtotal.toFixed(2)}</span>
           </div>
 
           <a
