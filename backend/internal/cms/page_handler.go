@@ -36,6 +36,7 @@ func (h *PageHandler) AdminRoutes() chi.Router {
 func (h *PageHandler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/by-slug/{slug}", h.getBySlug)
+	r.Get("/by-id/{id}", h.getPublishedByID)
 	return r
 }
 
@@ -66,6 +67,20 @@ func (h *PageHandler) getByID(w http.ResponseWriter, r *http.Request) {
 func (h *PageHandler) getBySlug(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	page, err := h.svc.GetBySlug(r.Context(), slug, r.URL.Query().Get("lang"))
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, page)
+}
+
+func (h *PageHandler) getPublishedByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	page, err := h.svc.GetPublishedByID(r.Context(), id, r.URL.Query().Get("lang"))
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
 		return
