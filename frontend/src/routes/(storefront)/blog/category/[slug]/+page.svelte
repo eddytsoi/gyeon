@@ -25,6 +25,23 @@
     <span class="font-semibold text-gray-700">{data.category.name}</span>
   </nav>
 
+  {#if data.category.desktop_banner_url || data.category.mobile_banner_url}
+    <div class="-mx-4 sm:mx-0 mb-10 sm:mb-14 rounded-none sm:rounded-2xl overflow-hidden">
+      {#if data.category.mobile_banner_url}
+        <ResponsiveImage src={data.category.mobile_banner_url} alt={data.category.name}
+                         widths={[480, 768]} sizes="100vw"
+                         loading="eager" fetchpriority="high"
+                         class="w-full sm:hidden" />
+      {/if}
+      {#if data.category.desktop_banner_url}
+        <ResponsiveImage src={data.category.desktop_banner_url} alt={data.category.name}
+                         widths={[960, 1280, 1920]} sizes="100vw"
+                         loading="eager" fetchpriority="high"
+                         class="w-full hidden sm:block" />
+      {/if}
+    </div>
+  {/if}
+
   <!-- Header -->
   <div class="mb-10 sm:mb-14">
     <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">{data.category.name}</h1>

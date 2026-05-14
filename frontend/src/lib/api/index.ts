@@ -222,9 +222,14 @@ export const getBlogPostBySlug = (slug: string) =>
   request<CmsPost>(`/cms/posts/by-slug/${slug}`);
 
 export const getBlogCategoryBySlug = (slug: string) =>
-  request<{ id: string; slug: string; name: string; sort_order: number }>(
-    `/cms/post-categories/by-slug/${slug}`
-  );
+  request<{
+    id: string;
+    slug: string;
+    name: string;
+    desktop_banner_url?: string;
+    mobile_banner_url?: string;
+    sort_order: number;
+  }>(`/cms/post-categories/by-slug/${slug}`);
 
 export const getCmsPageBySlug = (slug: string) =>
   request<CmsPage>(`/cms/pages/by-slug/${slug}`);

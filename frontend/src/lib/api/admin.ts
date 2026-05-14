@@ -277,6 +277,8 @@ export interface PostCategory {
   id: string;
   slug: string;
   name: string;
+  desktop_banner_url?: string;
+  mobile_banner_url?: string;
   sort_order: number;
 }
 

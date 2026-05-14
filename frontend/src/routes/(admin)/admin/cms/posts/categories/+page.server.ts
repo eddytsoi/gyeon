@@ -3,16 +3,27 @@ import {
   adminCreatePostCategory,
   adminUpdatePostCategory,
   adminDeletePostCategory,
-  type PostCategory
+  adminGetMedia,
+  type PostCategory,
+  type MediaFile
 } from '$lib/api/admin';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies }) => {
   const token = cookies.get('admin_token') ?? '';
-  const categories = await adminGetPostCategories(token).catch(() => [] as PostCategory[]);
-  return { categories };
+  const [categories, mediaFiles] = await Promise.all([
+    adminGetPostCategories(token).catch(() => [] as PostCategory[]),
+    adminGetMedia(token).catch(() => [] as MediaFile[])
+  ]);
+  return { categories, mediaFiles };
 };
+
+function bannerFields(data: FormData) {
+  const desktop = (data.get('desktop_banner_url') as string | null)?.trim() || undefined;
+  const mobile = (data.get('mobile_banner_url') as string | null)?.trim() || undefined;
+  return { desktop_banner_url: desktop, mobile_banner_url: mobile };
+}
 
 export const actions: Actions = {
   create: async ({ request, cookies }) => {
@@ -24,6 +35,7 @@ export const actions: Actions = {
       await adminCreatePostCategory(token, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
+        ...bannerFields(data),
         sort_order: existing.length + 1
       });
       return { success: true };
@@ -43,6 +55,7 @@ export const actions: Actions = {
       await adminUpdatePostCategory(token, id, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
+        ...bannerFields(data),
         sort_order: current?.sort_order ?? 0
       });
       return { success: true };

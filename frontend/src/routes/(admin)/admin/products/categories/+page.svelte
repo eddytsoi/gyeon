@@ -9,6 +9,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import { sortable } from '$lib/actions/sortable';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import MediaPicker from '$lib/components/admin/MediaPicker.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -29,11 +30,15 @@
 
   let fName = $state('');
   let fSlug = $state('');
+  let fDesktopBanner = $state('');
+  let fMobileBanner = $state('');
 
   function openNew() {
     editing = null;
     fName = '';
     fSlug = '';
+    fDesktopBanner = '';
+    fMobileBanner = '';
     showForm = true;
   }
 
@@ -41,6 +46,8 @@
     editing = cat;
     fName = cat.name;
     fSlug = cat.slug;
+    fDesktopBanner = cat.desktop_banner_url ?? '';
+    fMobileBanner = cat.mobile_banner_url ?? '';
     showForm = true;
   }
 
@@ -201,6 +208,28 @@
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_categories_label_desktop_banner()}</label>
+          <MediaPicker
+            files={data.mediaFiles ?? []}
+            value={fDesktopBanner}
+            onChange={(url) => (fDesktopBanner = url)}
+            accept="image"
+            previewClass="w-24 h-14" />
+          <input type="hidden" name="desktop_banner_url" value={fDesktopBanner} />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_categories_label_mobile_banner()}</label>
+          <MediaPicker
+            files={data.mediaFiles ?? []}
+            value={fMobileBanner}
+            onChange={(url) => (fMobileBanner = url)}
+            accept="image"
+            previewClass="w-14 h-14" />
+          <input type="hidden" name="mobile_banner_url" value={fMobileBanner} />
         </div>
 
         <div class="flex gap-3 pt-2">
