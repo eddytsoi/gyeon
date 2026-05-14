@@ -11,6 +11,7 @@
 
   type Tab = 'campaigns' | 'coupons';
   let tab = $state<Tab>('campaigns');
+  const tabLabel = $derived(tab === 'campaigns' ? m.admin_discounts_tab_campaigns() : m.admin_discounts_tab_coupons());
 
   let deleteCampaign = $state<Campaign | null>(null);
   let deleteCoupon = $state<Coupon | null>(null);
@@ -44,7 +45,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
-      <h2 class="text-xl font-bold text-gray-900">{m.admin_discounts_heading()}</h2>
+      <h2 class="text-xl font-bold text-gray-900">{tabLabel}</h2>
       <p class="text-sm text-gray-500 mt-0.5">{m.admin_discounts_subtitle()}</p>
     </div>
     {#if tab === 'campaigns'}
