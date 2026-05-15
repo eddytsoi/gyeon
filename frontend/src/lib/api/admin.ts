@@ -732,6 +732,8 @@ export const adminUploadMedia = (
 
 // ── Redirects (P2 #22) ────────────────────────────────────────────────────────
 
+export type RedirectMatchType = 'exact' | 'wildcard';
+
 export interface Redirect {
   id: string;
   from_path: string;
@@ -739,6 +741,7 @@ export interface Redirect {
   code: 301 | 302;
   is_active: boolean;
   note?: string;
+  match_type: RedirectMatchType;
   created_at: string;
   updated_at: string;
 }
@@ -749,6 +752,7 @@ export interface RedirectInput {
   code: 301 | 302;
   is_active: boolean;
   note?: string | null;
+  match_type: RedirectMatchType;
 }
 
 export const adminListRedirects = (token: string, limit = 50, offset = 0) => {

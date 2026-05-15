@@ -145,7 +145,8 @@ func writeServiceErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrInvalidPath),
 		errors.Is(err, ErrSelfRedirect),
 		errors.Is(err, ErrCycle),
-		errors.Is(err, ErrDuplicateFrom):
+		errors.Is(err, ErrDuplicateFrom),
+		errors.Is(err, ErrInvalidWild):
 		respond.Error(w, http.StatusUnprocessableEntity, err.Error())
 	default:
 		respond.InternalError(w)
