@@ -1311,7 +1311,7 @@
           {#if productHistoryLoading}
             <p class="px-6 py-12 text-sm text-gray-400 text-center">{m.admin_product_edit_variants_history_loading()}</p>
           {:else}
-            <StockMovementTable items={productHistoryRows} hideProduct />
+            <StockMovementTable items={productHistoryRows} />
           {/if}
         </div>
       {/if}

@@ -194,7 +194,7 @@ func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMoveme
 	listSQL := `
 		SELECT h.id, h.variant_id, h.delta, h.before_qty, h.after_qty, h.reason,
 		       h.actor_user_id, u.email, h.order_id, h.note, h.created_at,
-		       v.product_id, p.name, v.sku, o.order_number
+		       v.product_id, p.name, v.name, v.sku, o.order_number
 		  FROM inventory_history h
 		  LEFT JOIN admin_users     u ON u.id = h.actor_user_id
 		  LEFT JOIN product_variants v ON v.id = h.variant_id
@@ -212,11 +212,15 @@ func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMoveme
 
 	for rows.Next() {
 		var r StockMovementRow
-		var orderNumber sql.NullString
+		var variantName, orderNumber sql.NullString
 		if err := rows.Scan(&r.ID, &r.VariantID, &r.Delta, &r.BeforeQty, &r.AfterQty, &r.Reason,
 			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.Note, &r.CreatedAt,
-			&r.ProductID, &r.ProductName, &r.VariantSKU, &orderNumber); err != nil {
+			&r.ProductID, &r.ProductName, &variantName, &r.VariantSKU, &orderNumber); err != nil {
 			return out, err
+		}
+		if r.ProductName != nil && variantName.Valid {
+			composed := ProductDisplayName(*r.ProductName, variantName.String)
+			r.ProductName = &composed
 		}
 		if orderNumber.Valid && orderNumber.String != "" {
 			s := orderNumber.String
