@@ -53,20 +53,20 @@
   </div>
 
   <!-- Filters -->
-  <div class="bg-white rounded-2xl border border-gray-100 px-6 py-4 flex flex-wrap items-end gap-4">
-    <div class="min-w-44">
+  <div class="bg-white rounded-2xl border border-gray-100 px-6 py-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+    <div class="w-full sm:w-auto sm:min-w-44">
       <label for="from_filter" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_stock_history_filter_from()}</label>
       <input id="from_filter" type="date" bind:value={fromFilter}
              class="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
     </div>
-    <div class="min-w-44">
+    <div class="w-full sm:w-auto sm:min-w-44">
       <label for="to_filter" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_stock_history_filter_to()}</label>
       <input id="to_filter" type="date" bind:value={toFilter}
              class="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
     </div>
-    <div class="min-w-40">
+    <div class="w-full sm:w-auto sm:min-w-40">
       <label for="source_filter" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_stock_history_filter_source()}</label>
       <select id="source_filter" bind:value={sourceFilter}
               class="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm bg-white
@@ -76,21 +76,23 @@
         <option value="order">{m.admin_stock_history_source_order()}</option>
       </select>
     </div>
-    <div class="flex-1 min-w-48">
+    <div class="w-full sm:flex-1 sm:min-w-48">
       <label for="q_filter" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_stock_history_filter_search()}</label>
       <input id="q_filter" type="text" bind:value={qFilter} placeholder="Product or SKU"
              onkeydown={(e) => { if (e.key === 'Enter') applyFilters(); }}
              class="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm
                     focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
     </div>
-    <button onclick={applyFilters}
-            class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors">
-      {m.admin_stock_history_apply()}
-    </button>
-    <button onclick={resetFilters} type="button"
-            class="px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
-      {m.admin_stock_history_reset()}
-    </button>
+    <div class="flex gap-2 w-full sm:w-auto sm:contents">
+      <button onclick={applyFilters}
+              class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors">
+        {m.admin_stock_history_apply()}
+      </button>
+      <button onclick={resetFilters} type="button"
+              class="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors">
+        {m.admin_stock_history_reset()}
+      </button>
+    </div>
   </div>
 
   <!-- Table -->
