@@ -129,16 +129,17 @@ type CourierSvcPl struct {
 }
 
 type CreateShipmentRequest struct {
-	Carrier       string  // cour_uid
-	Service       string  // cour_svc_pl (optional)
-	QuotUID       string  // optional: lock the quoted price
-	OrderRef      string  // ext_order_ref
-	Origin        Address // sender (also resolvable via merchants/self)
-	Destination   Address // receiver
-	Parcel        Parcel
-	PickupPointID string
-	CustomerNote  string
-	FeeHKD        float64 // cour_ttl_cost.val
+	Carrier        string  // cour_uid
+	Service        string  // cour_svc_pl (optional)
+	QuotUID        string  // optional: lock the quoted price
+	OrderRef       string  // ext_order_ref
+	Origin         Address // sender (also resolvable via merchants/self)
+	Destination    Address // receiver
+	Parcel         Parcel
+	PickupPointID  string
+	CustomerNote   string
+	FeeHKD         float64 // cour_ttl_cost.val
+	PaidByReceiver bool    // emits paid_by_rcvr — recipient pays SF on delivery (COD)
 }
 
 // Shipment is the post-create response. Status mirrors ShipAny's `cur_stat`
@@ -178,7 +179,7 @@ func (c *HTTPClient) Quote(ctx context.Context, req QuoteRequest) ([]RateOption,
 	if err != nil {
 		return nil, err
 	}
-	payload := buildOrderPayload(mchUID, req, "query", "", "", "", 0)
+	payload := buildOrderPayload(mchUID, req, "query", "", "", "", 0, false)
 
 	var resp envelope[orderObject]
 	if _, err := c.do(ctx, http.MethodPost, "couriers-connector/query-rate/", payload, nil, &resp); err != nil {
@@ -249,7 +250,7 @@ func (c *HTTPClient) CreateShipment(ctx context.Context, req CreateShipmentReque
 		return nil, err
 	}
 	qreq := QuoteRequest{Origin: req.Origin, Destination: req.Destination, Parcel: req.Parcel}
-	payload := buildOrderPayload(mchUID, qreq, "create", req.Carrier, req.Service, req.QuotUID, req.FeeHKD)
+	payload := buildOrderPayload(mchUID, qreq, "create", req.Carrier, req.Service, req.QuotUID, req.FeeHKD, req.PaidByReceiver)
 	if req.OrderRef != "" {
 		payload["ext_order_ref"] = req.OrderRef
 	}
@@ -400,7 +401,10 @@ type servicePoint struct {
 // buildOrderPayload mirrors the WC plugin's
 // item_info_to_request_data_shipany() layout for both query-rate and
 // create-order requests. mode = "query" or "create".
-func buildOrderPayload(mchUID string, req QuoteRequest, mode, courUID, courSvcPl, quotUID string, feeHKD float64) map[string]any {
+//
+// paidByReceiver controls who SF bills on delivery. Only meaningful in
+// "create" mode — query rate quoting is paid_by_rcvr-agnostic.
+func buildOrderPayload(mchUID string, req QuoteRequest, mode, courUID, courSvcPl, quotUID string, feeHKD float64, paidByReceiver bool) map[string]any {
 	weightKG := float64(req.Parcel.WeightGrams) / 1000.0
 	if weightKG <= 0 {
 		weightKG = 0.5
@@ -417,18 +421,21 @@ func buildOrderPayload(mchUID string, req QuoteRequest, mode, courUID, courSvcPl
 	}
 
 	payload := map[string]any{
-		"mode":         mode,
-		"mch_uid":      mchUID,
-		"order_from":   strings.ToLower(productPlatform),
-		"cour_uid":     courUID,
-		"cour_svc_pl":  courSvcPl,
-		"wt":           map[string]any{"val": weightKG, "unt": "kg"},
-		"dim":          dim,
+		"mode":          mode,
+		"mch_uid":       mchUID,
+		"order_from":    strings.ToLower(productPlatform),
+		"cour_uid":      courUID,
+		"cour_svc_pl":   courSvcPl,
+		"wt":            map[string]any{"val": weightKG, "unt": "kg"},
+		"dim":           dim,
 		"cour_ttl_cost": cost,
-		"mch_ttl_val":  map[string]any{"val": req.Parcel.ValueHKD, "ccy": "HKD"},
-		"sndr_ctc":     buildContact(req.Origin),
-		"rcvr_ctc":     buildContact(req.Destination),
-		"items":        []any{},
+		"mch_ttl_val":   map[string]any{"val": req.Parcel.ValueHKD, "ccy": "HKD"},
+		"sndr_ctc":      buildContact(req.Origin),
+		"rcvr_ctc":      buildContact(req.Destination),
+		"items":         []any{},
+	}
+	if mode == "create" {
+		payload["paid_by_rcvr"] = paidByReceiver
 	}
 	if quotUID != "" {
 		payload["quot_uid"] = quotUID

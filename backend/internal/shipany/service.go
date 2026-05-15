@@ -192,15 +192,29 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		customerNote = *order.Notes
 	}
 
+	// paid_by_rcvr (SF freight-collect) is computed per order:
+	//   • threshold off → always recipient-pays (matches "順豐速運（到付）" everywhere)
+	//   • threshold on + subtotal ≥ threshold → merchant absorbs shipping
+	//   • threshold on + subtotal < threshold → recipient still pays
+	// The old admin shipany_paid_by_receiver toggle is now UI-display-only; this
+	// decision overrides it.
+	thresholdEnabled := s.read(ctx, "free_shipping_threshold_enabled") == "true"
+	threshold, _ := strconv.ParseFloat(s.read(ctx, "free_shipping_threshold_hkd"), 64)
+	paidByReceiver := true
+	if thresholdEnabled && threshold > 0 && order.Subtotal >= threshold {
+		paidByReceiver = false
+	}
+
 	created, err := s.client.CreateShipment(ctx, CreateShipmentRequest{
-		Carrier:       carrier,
-		Service:       service,
-		OrderRef:      fmt.Sprintf("ORD-%d", order.Number),
-		Origin:        s.originAddress(ctx),
-		Destination:   dest,
-		Parcel:        parcel,
-		PickupPointID: pickupID,
-		CustomerNote:  customerNote,
+		Carrier:        carrier,
+		Service:        service,
+		OrderRef:       fmt.Sprintf("ORD-%d", order.Number),
+		Origin:         s.originAddress(ctx),
+		Destination:    dest,
+		Parcel:         parcel,
+		PickupPointID:  pickupID,
+		CustomerNote:   customerNote,
+		PaidByReceiver: paidByReceiver,
 	})
 	if err != nil {
 		return nil, err

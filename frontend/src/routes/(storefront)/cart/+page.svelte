@@ -9,13 +9,16 @@
   // publicSettings flows in from the (storefront) layout load.
   let { data }: { data: PageData } = $props();
 
+  const freeShippingEnabled = $derived(
+    (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_enabled')?.value === 'true'
+  );
   const freeShippingThreshold = $derived(() => {
     const raw = (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
     const n = raw ? Number(raw) : 0;
     return Number.isFinite(n) && n > 0 ? n : 0;
   });
   const shippingFree = $derived(
-    freeShippingThreshold() > 0 && cartStore.subtotal >= freeShippingThreshold()
+    freeShippingEnabled && freeShippingThreshold() > 0 && cartStore.subtotal >= freeShippingThreshold()
   );
 </script>
 

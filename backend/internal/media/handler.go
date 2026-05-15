@@ -1,10 +1,10 @@
 package media
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"gyeon/backend/internal/cloudflare"
 	"gyeon/backend/internal/respond"
 	"gyeon/backend/internal/settings"
 )
@@ -693,35 +694,24 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// purgeCloudflare wraps cloudflare.PurgeFiles for the media-delete path.
+// Errors are logged but swallowed — a missing CF credential should not
+// block media deletion. Use cloudflare.PurgeAll directly for admin actions
+// that need to surface errors.
 func (h *Handler) purgeCloudflare(ctx context.Context, urls []string) {
-	zoneSt, err := h.settings.Get(ctx, "cloudflare_zone_id")
-	if err != nil || zoneSt.Value == "" {
-		return
+	zone, _ := h.settings.Get(ctx, "cloudflare_zone_id")
+	tok, _ := h.settings.Get(ctx, "cloudflare_api_token")
+	var zoneVal, tokVal string
+	if zone != nil {
+		zoneVal = zone.Value
 	}
-	tokenSt, err := h.settings.Get(ctx, "cloudflare_api_token")
-	if err != nil || tokenSt.Value == "" {
-		return
+	if tok != nil {
+		tokVal = tok.Value
 	}
-
-	body, _ := json.Marshal(map[string][]string{"files": urls})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://api.cloudflare.com/client/v4/zones/"+zoneSt.Value+"/purge_cache",
-		bytes.NewReader(body))
-	if err != nil {
-		log.Printf("cloudflare purge: build request: %v", err)
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+tokenSt.Value)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Printf("cloudflare purge: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("cloudflare purge: unexpected status %d for %v", resp.StatusCode, urls)
+	if err := cloudflare.PurgeFiles(ctx, zoneVal, tokVal, urls); err != nil {
+		if !errors.Is(err, cloudflare.ErrNotConfigured) {
+			log.Printf("cloudflare purge: %v", err)
+		}
 	}
 }
 

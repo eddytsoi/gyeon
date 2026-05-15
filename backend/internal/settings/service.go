@@ -34,6 +34,7 @@ var publicSettingKeys = []string{
 	"ga4_measurement_id",         // P3 #26 — read by storefront tracker
 	"meta_pixel_id",              // P3 #26
 	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
+	"free_shipping_threshold_enabled", // master switch (paired with the amount above)
 	"favicon_url",                // injected into <svelte:head> on storefront + admin
 	"company_logo_url",           // storefront header logo image URL
 	"company_logo_height_px",     // storefront header logo render height (px)
