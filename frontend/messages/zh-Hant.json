@@ -1260,6 +1260,7 @@
   "admin_settings_maintenance_heading": "維護模式",
   "admin_settings_maintenance_warning": "⚠ 網站正處於維護模式 — 非管理員訪客會被重新導向至維護頁面。",
   "admin_settings_webmcp_heading": "WebMCP",
+  "admin_settings_blog_heading": "網誌",
   "admin_settings_favicon_heading": "網站圖示 (Favicon)",
   "admin_settings_favicon_subtitle": "由媒體庫揀張圖。留空就用預設圖示。",
   "admin_settings_company_logo_heading": "公司標誌",
@@ -1479,6 +1480,7 @@
   "admin_settings_desc_upload_max_video_mb": "影片上傳大小上限（MB）",
   "admin_settings_desc_maintenance_mode": "啟用時，非管理員訪客會被重定向至維護頁面",
   "admin_settings_desc_mcp_enabled": "允許 AI 代理透過 MCP 連接此商店",
+  "admin_settings_desc_blog_enabled": "關閉後，/blog 頁面會回傳 404，前台導覽中的網誌連結亦會隱藏。管理員仍可管理文章。",
 
   "admin_import_title": "匯入 — Gyeon 管理員",
   "admin_import_tab_products": "匯入產品",

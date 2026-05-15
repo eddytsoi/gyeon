@@ -53,6 +53,15 @@ Two parallel ways for AI agents to interact with the storefront, both gated by t
 # To be added
 ```
 
+### Local Admin Login
+
+Default super-admin credentials for the local dev database:
+
+- Email: `admin@gyeon.hk`
+- Password: `Gyeon@2026`
+
+These are also the values seeded by `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.claude/launch.json` when bootstrapping a fresh database. Local-only — do not reuse in production.
+
 ### Testing
 
 ```bash

@@ -8,23 +8,27 @@
     navItems = [],
     customer = null,
     companyLogoUrl = '',
-    companyLogoHeight = 40
+    companyLogoHeight = 40,
+    blogEnabled = true
   }: {
     navItems?: NavItem[];
     customer?: Customer | null;
     companyLogoUrl?: string;
     companyLogoHeight?: number;
+    blogEnabled?: boolean;
   } = $props();
 
   let mobileOpen = $state(false);
   let accountOpen = $state(false);
 
   // Fallback hardcoded nav when DB has no items yet
-  const fallbackLinks = $derived([
-    { label: m.common_home(), url: '/', target: '_self' },
-    { label: m.common_products(), url: '/products', target: '_self' },
-    { label: m.common_blog(), url: '/blog', target: '_self' },
-  ]);
+  const fallbackLinks = $derived(
+    [
+      { label: m.common_home(), url: '/', target: '_self' },
+      { label: m.common_products(), url: '/products', target: '_self' },
+      { label: m.common_blog(), url: '/blog', target: '_self' },
+    ].filter((l) => blogEnabled || !l.url.startsWith('/blog'))
+  );
 
   const links = $derived(
     navItems.length > 0

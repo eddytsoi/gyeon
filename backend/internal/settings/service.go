@@ -46,6 +46,7 @@ var publicSettingKeys = []string{
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
 	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
+	"blog_enabled",               // when 'false', storefront /blog routes 404 and nav links to /blog are hidden
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

@@ -1260,6 +1260,7 @@
   "admin_settings_maintenance_heading": "Maintenance Mode",
   "admin_settings_maintenance_warning": "⚠ Site is in maintenance mode — non-admin visitors are redirected to the maintenance page.",
   "admin_settings_webmcp_heading": "WebMCP",
+  "admin_settings_blog_heading": "Blog",
   "admin_settings_favicon_heading": "Favicon",
   "admin_settings_favicon_subtitle": "Pick an image from the Media library. Empty uses the bundled default icon.",
   "admin_settings_company_logo_heading": "Company Logo",
@@ -1479,6 +1480,7 @@
   "admin_settings_desc_upload_max_video_mb": "Maximum video upload size in megabytes",
   "admin_settings_desc_maintenance_mode": "When true, non-admin visitors are redirected to the maintenance page",
   "admin_settings_desc_mcp_enabled": "Allow AI agents to connect to this store via MCP",
+  "admin_settings_desc_blog_enabled": "When off, /blog pages return 404 and blog links are hidden from the storefront. Admin can still manage posts.",
 
   "admin_import_title": "Import — Gyeon Admin",
   "admin_import_tab_products": "Import Products",

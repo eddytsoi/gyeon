@@ -55,7 +55,7 @@
   );
 </script>
 
-<Section {bg} {layout} {padding} {width} {align} {bleed} {id}>
+<Section {bg} {layout} {padding} {width} {align} {bleed} {id} class={attrs.class ?? ''}>
   {#if layout === 'default' || !split}
     <MarkdownContent content={body} {refs} />
   {:else if layout === 'split'}

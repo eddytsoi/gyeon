@@ -47,5 +47,6 @@
     {aspectRatio}
     {aspectRatioMobile}
     {height}
+    class={attrs.class ?? ''}
   />
 {/if}

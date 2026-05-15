@@ -22,6 +22,6 @@
   );
 </script>
 
-<div class="my-6 rounded-xl border-l-4 px-5 py-4 prose prose-sm max-w-none {tone}">
+<div class="my-6 rounded-xl border-l-4 px-5 py-4 prose prose-sm max-w-none {tone} {attrs.class ?? ''}">
   <MarkdownContent content={body} {refs} />
 </div>

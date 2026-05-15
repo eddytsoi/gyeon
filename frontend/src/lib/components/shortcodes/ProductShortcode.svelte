@@ -10,7 +10,7 @@
 </script>
 
 {#if ref}
-  <div class="my-6 max-w-xs">
+  <div class="my-6 max-w-xs {attrs.class ?? ''}">
     <ProductCard product={ref.product} image={ref.image ?? undefined} variant={ref.variant ?? undefined} />
   </div>
 {/if}

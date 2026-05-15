@@ -43,7 +43,7 @@
 </script>
 
 {#if attrs.href && attrs.label}
-  <div class="my-6">
+  <div class="my-6 {attrs.class ?? ''}">
     <Button
       href={attrs.href}
       label={attrs.label}

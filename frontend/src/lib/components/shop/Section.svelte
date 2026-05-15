@@ -20,6 +20,7 @@
     align = 'left',
     bleed = 'full',
     id,
+    class: klass = '',
     children
   }: {
     bg?: SectionBg;
@@ -29,6 +30,7 @@
     align?: SectionAlign;
     bleed?: SectionBleed;
     id?: string;
+    class?: string;
     children?: Snippet;
   } = $props();
 
@@ -55,7 +57,7 @@
   );
 </script>
 
-<section {id} class="{containerBleed ? '' : bgClass} {fullBleedClass}">
+<section {id} class="{containerBleed ? '' : bgClass} {fullBleedClass} {klass}">
   {#if width === 'full'}
     {#if layout === 'default'}
       <div class={alignClass}>{@render children?.()}</div>
