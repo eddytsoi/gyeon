@@ -714,7 +714,7 @@
 
       <!-- Right: Order summary -->
       <div class="lg:w-2/5 flex-shrink-0">
-        <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 sticky top-24">
+        <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 lg:sticky lg:top-24">
           <h2 class="font-semibold text-gray-900">{m.checkout_summary_heading()}</h2>
 
           <div class="flex flex-col gap-3">
@@ -728,7 +728,7 @@
                     <p class="font-medium text-gray-900 truncate">{variant?.product_name ?? variant?.sku ?? item.variant_id.slice(0, 8) + '…'}</p>
                     <p class="text-xs text-gray-400">{m.checkout_summary_qty({ quantity: item.quantity })}</p>
                   </div>
-                  <span class="text-gray-900 font-medium flex-shrink-0">
+                  <span class="text-gray-900 font-medium flex-shrink-0 tabular-nums">
                     {variant ? `HK$${(variant.price * item.quantity).toFixed(2)}` : '—'}
                   </span>
                 </div>
@@ -742,7 +742,7 @@
               <div class="flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-3 py-2">
                 <div>
                   <p class="text-xs font-medium text-green-800">{couponCode.trim()}</p>
-                  <p class="text-[11px] text-green-600">−HK${(couponResult.discount_amount ?? 0).toFixed(2)}</p>
+                  <p class="text-[11px] text-green-600 tabular-nums">−HK${(couponResult.discount_amount ?? 0).toFixed(2)}</p>
                 </div>
                 <button type="button" onclick={removeCoupon} class="text-xs text-green-600 hover:text-green-900">{m.checkout_coupon_remove()}</button>
               </div>
@@ -768,12 +768,12 @@
           <div class="border-t border-gray-100 pt-3 flex flex-col gap-2">
             <div class="flex justify-between text-sm text-gray-600">
               <span>{m.checkout_summary_subtotal()}</span>
-              <span>{loadingVariants ? '—' : `HK$${subtotal.toFixed(2)}`}</span>
+              <span class="tabular-nums">{loadingVariants ? '—' : `HK$${subtotal.toFixed(2)}`}</span>
             </div>
             {#if discount > 0}
               <div class="flex justify-between text-sm text-green-600">
                 <span>{m.checkout_summary_discount()}</span>
-                <span>−HK${discount.toFixed(2)}</span>
+                <span class="tabular-nums">−HK${discount.toFixed(2)}</span>
               </div>
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
@@ -784,7 +784,7 @@
             </div>
             <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
               <span>{m.checkout_summary_total()}</span>
-              <span>{loadingVariants ? '—' : `HK$${total.toFixed(2)}`}</span>
+              <span class="tabular-nums">{loadingVariants ? '—' : `HK$${total.toFixed(2)}`}</span>
             </div>
           </div>
 
