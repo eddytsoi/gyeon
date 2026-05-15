@@ -187,7 +187,10 @@ const handleRedirect: Handle = async ({ event, resolve }) => {
   }
 
   if (hit) {
-    throw redirect(hit.code, hit.to);
+    // encodeURI percent-encodes non-ASCII (so the Location header stays
+    // Latin-1 / SvelteKit doesn't reject it) while preserving URI structure
+    // and existing %xx — safe for both relative paths and absolute URLs.
+    throw redirect(hit.code, encodeURI(hit.to));
   }
   return resolve(event);
 };
