@@ -4,6 +4,7 @@
   import type { AdminForm } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -17,9 +18,9 @@
     <div>
       <h2 class="text-xl font-bold text-gray-900">{m.admin_forms_heading()}</h2>
       <p class="text-sm text-gray-500 mt-0.5">
-        {data.forms.length === 1
+        {data.total === 1
           ? m.admin_forms_count_one()
-          : m.admin_forms_count_other({ n: data.forms.length })}
+          : m.admin_forms_count_other({ n: data.total })}
       </p>
     </div>
     <NewButton label={m.admin_forms_new()} href="/admin/forms/new" />
@@ -78,6 +79,8 @@
       </table>
     {/if}
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
 
 {#if deleteTarget}

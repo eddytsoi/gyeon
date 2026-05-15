@@ -109,12 +109,20 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 // ─────────── admin ───────────
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	forms, err := h.svc.List(r.Context())
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	forms, total, err := h.svc.List(r.Context(), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, forms)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": forms,
+		"total": total,
+	})
 }
 
 func (h *Handler) adminGet(w http.ResponseWriter, r *http.Request) {

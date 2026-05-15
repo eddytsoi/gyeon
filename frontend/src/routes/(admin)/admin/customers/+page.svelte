@@ -4,6 +4,7 @@
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -12,6 +13,7 @@
     const url = new URL(page.url);
     if (q) url.searchParams.set('q', q);
     else url.searchParams.delete('q');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 </script>
@@ -23,9 +25,9 @@
     <h1 class="text-2xl font-bold text-gray-900">{m.admin_customers_heading()}</h1>
     <span class="text-sm text-gray-400">
       {#if data.q}
-        {data.customers.length === 1 ? m.admin_customers_count_match_one({ count: data.customers.length }) : m.admin_customers_count_match_many({ count: data.customers.length })}
+        {data.total === 1 ? m.admin_customers_count_match_one({ count: data.total }) : m.admin_customers_count_match_many({ count: data.total })}
       {:else}
-        {m.admin_customers_count_total({ count: data.customers.length })}
+        {m.admin_customers_count_total({ count: data.total })}
       {/if}
     </span>
   </div>
@@ -92,4 +94,6 @@
       </table>
     {/if}
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>

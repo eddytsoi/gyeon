@@ -4,6 +4,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -28,6 +29,7 @@
   async function applyFilters() {
     const u = new URL($page.url);
     u.searchParams.delete('offset');
+    u.searchParams.delete('page');
     if (actionFilter) u.searchParams.set('action', actionFilter); else u.searchParams.delete('action');
     if (entityFilter) u.searchParams.set('entity_type', entityFilter); else u.searchParams.delete('entity_type');
     await goto(u.pathname + u.search, { keepFocus: true });
@@ -137,4 +139,6 @@
   {#if data.list.total > 0}
     <p class="text-xs text-gray-400">{m.admin_audit_log_total({ total: data.list.total })}</p>
   {/if}
+
+  <Pagination total={data.list.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>

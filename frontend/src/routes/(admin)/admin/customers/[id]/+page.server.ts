@@ -6,12 +6,12 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
-  const [customer, allOrders] = await Promise.all([
+  const [customer, ordersRes] = await Promise.all([
     adminGetCustomer(token, params.id).catch(() => null),
-    adminGetOrders(token, 200, 0).catch(() => [])
+    adminGetOrders(token, 200, 0).catch(() => ({ items: [], total: 0 }))
   ]);
 
-  const orders = allOrders.filter(o => o.customer_id === params.id);
+  const orders = ordersRes.items.filter(o => o.customer_id === params.id);
 
   return { customer, orders };
 };

@@ -104,12 +104,17 @@ func (s *Service) checkCycle(ctx context.Context, toPath string, excludeID strin
 	return nil
 }
 
-func (s *Service) List(ctx context.Context) ([]Redirect, error) {
+func (s *Service) List(ctx context.Context, limit, offset int) ([]Redirect, int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM redirects`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, from_path, to_path, code, is_active, note, created_at, updated_at
-		   FROM redirects ORDER BY created_at DESC`)
+		   FROM redirects ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -117,11 +122,11 @@ func (s *Service) List(ctx context.Context) ([]Redirect, error) {
 	for rows.Next() {
 		var r Redirect
 		if err := rows.Scan(&r.ID, &r.FromPath, &r.ToPath, &r.Code, &r.IsActive, &r.Note, &r.CreatedAt, &r.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*Redirect, error) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
@@ -77,12 +78,20 @@ func (h *UserHandler) SignOutEverywhere(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
-	users, err := h.svc.List(r.Context(), r.URL.Query().Get("q"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	users, total, err := h.svc.List(r.Context(), r.URL.Query().Get("q"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, users)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": users,
+		"total": total,
+	})
 }
 
 func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {

@@ -332,12 +332,15 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	customers, err := h.svc.List(r.Context(), r.URL.Query().Get("q"), limit, offset)
+	customers, total, err := h.svc.List(r.Context(), r.URL.Query().Get("q"), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, customers)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": customers,
+		"total": total,
+	})
 }
 
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {

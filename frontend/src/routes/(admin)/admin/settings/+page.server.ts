@@ -6,13 +6,13 @@ export const load: PageServerLoad = async ({ parent }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
-  const [settings, mediaFiles, categories, allPages] = await Promise.all([
+  const [settings, mediaFiles, categories, pagesRes] = await Promise.all([
     adminGetSettings(token).catch(() => []),
     adminGetMedia(token).catch(() => []),
     adminGetCategories(token).catch(() => []),
-    adminGetPages(token).catch(() => [])
+    adminGetPages(token, 100, 0).catch(() => ({ items: [], total: 0 }))
   ]);
-  const pages = allPages.filter((p) => p.is_published);
+  const pages = pagesRes.items.filter((p) => p.is_published);
   return { settings, mediaFiles, categories, pages };
 };
 

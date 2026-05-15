@@ -41,24 +41,30 @@ func NewService(db *sql.DB, emailSvc EmailSender, rc RecaptchaVerifier) *Service
 
 // ──────────────────────── Admin CRUD ────────────────────────
 
-// List returns every form sorted by creation date (newest first). The
-// markup column is excluded to keep the payload small; the admin detail
-// page re-fetches via GetByID.
-func (s *Service) List(ctx context.Context) ([]Form, error) {
-	rows, err := s.db.QueryContext(ctx, formSelect+` ORDER BY created_at DESC`)
+// List returns a paginated slice of forms sorted by creation date (newest
+// first). The markup column is excluded to keep the payload small; the admin
+// detail page re-fetches via GetByID.
+func (s *Service) List(ctx context.Context, limit, offset int) ([]Form, int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM forms`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		formSelect+` ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	out := make([]Form, 0)
 	for rows.Next() {
 		f, err := scanForm(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, f)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (*Form, error) {

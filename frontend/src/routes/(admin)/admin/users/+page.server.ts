@@ -2,13 +2,24 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { adminGetUsers, adminCreateUser, adminUpdateUser, adminDeleteUser } from '$lib/api/admin';
 
+const PAGE_SIZE = 50;
+
 export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
   const q = url.searchParams.get('q') ?? '';
-  const users = await adminGetUsers(token, q).catch(() => []);
-  return { users, q };
+  const pageNum = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
+  const offset = (pageNum - 1) * PAGE_SIZE;
+
+  const res = await adminGetUsers(token, PAGE_SIZE, offset, q).catch(() => ({ items: [], total: 0 }));
+  return {
+    users: res.items,
+    total: res.total,
+    page: pageNum,
+    pageSize: PAGE_SIZE,
+    q
+  };
 };
 
 export const actions: Actions = {

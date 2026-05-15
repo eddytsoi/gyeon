@@ -136,40 +136,62 @@ func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 	return p, err
 }
 
-// List returns all pages. locale may be empty for base content.
+// pageListResult bundles items + total for cache storage.
+type pageListResult struct {
+	Items []Page
+	Total int
+}
+
+// List returns a paginated slice of pages. locale may be empty for base content.
 // search is an optional case-insensitive substring matched against
 // pageSearchFields; pass "" to disable.
-func (s *PageService) List(ctx context.Context, locale, search string) ([]Page, error) {
-	key := fmt.Sprintf("cms:pages:list:%s:%s", locale, search)
+func (s *PageService) List(ctx context.Context, locale, search string, limit, offset int) ([]Page, int, error) {
+	key := fmt.Sprintf("cms:pages:list:%s:%s:%d:%d", locale, search, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
-		return v.([]Page), nil
+		r := v.(pageListResult)
+		return r.Items, r.Total, nil
+	}
+
+	// Count uses the same WHERE as the list query (no locale join needed —
+	// pageSearchFields all live on `p`).
+	countArgs := []any{}
+	whereSQL := ""
+	if clause, arg := util.BuildSearchClause(search, pageSearchFields, 1); clause != "" {
+		whereSQL = ` WHERE ` + clause
+		countArgs = append(countArgs, arg)
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM cms_pages p`+whereSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
 	}
 
 	args := []any{locale}
-	query := pageSelect + ` ORDER BY p.created_at DESC`
+	query := pageSelect + ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+	args = append(args, limit, offset)
 	if clause, arg := util.BuildSearchClause(search, pageSearchFields, 2); clause != "" {
-		query = pageSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC`
-		args = append(args, arg)
+		args = []any{locale, arg, limit, offset}
+		query = pageSelect + ` WHERE ` + clause + ` ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	pages := make([]Page, 0)
 	for rows.Next() {
 		p, err := scanPage(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		pages = append(pages, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	s.cache.Set(key, pages, s.ttl(ctx))
-	return pages, nil
+	s.cache.Set(key, pageListResult{Items: pages, Total: total}, s.ttl(ctx))
+	return pages, total, nil
 }
 
 // GetBySlug fetches a published page; locale may be empty for base content.

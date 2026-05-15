@@ -5,6 +5,7 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -60,12 +61,12 @@
     <button onclick={() => tab = 'campaigns'}
             class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
                    {tab === 'campaigns' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-700'}">
-      {m.admin_discounts_tab_campaigns()} <span class="ml-1.5 text-xs text-gray-400">({data.campaigns.length})</span>
+      {m.admin_discounts_tab_campaigns()} <span class="ml-1.5 text-xs text-gray-400">({data.campaignsTotal})</span>
     </button>
     <button onclick={() => tab = 'coupons'}
             class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
                    {tab === 'coupons' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-700'}">
-      {m.admin_discounts_tab_coupons()} <span class="ml-1.5 text-xs text-gray-400">({data.coupons.length})</span>
+      {m.admin_discounts_tab_coupons()} <span class="ml-1.5 text-xs text-gray-400">({data.couponsTotal})</span>
     </button>
   </div>
 
@@ -134,6 +135,7 @@
         </table>
       {/if}
     </div>
+    <Pagination total={data.campaignsTotal} pageSize={data.pageSize} currentPage={data.campaignsPage} paramName="cp" />
   {:else}
     <!-- Coupons table -->
     <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
@@ -201,6 +203,7 @@
         </table>
       {/if}
     </div>
+    <Pagination total={data.couponsTotal} pageSize={data.pageSize} currentPage={data.couponsPage} paramName="up" />
   {/if}
 </div>
 

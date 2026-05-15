@@ -160,7 +160,7 @@ export const adminReorderCategories = (token: string, ids: string[]) =>
 
 // Orders
 export const adminGetOrders = (token: string, limit = 50, offset = 0) =>
-  request<Order[]>(`/admin/orders?limit=${limit}&offset=${offset}`, token);
+  request<PagedResponse<Order>>(`/admin/orders?limit=${limit}&offset=${offset}`, token);
 
 export const adminGetOrder = (token: string, id: string) =>
   request<Order>(`/admin/orders/${id}`, token);
@@ -230,9 +230,10 @@ export interface CmsPost {
 }
 
 // Pages
-export const adminGetPages = (token: string, q = '') => {
-  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-  return request<CmsPage[]>(`/admin/cms/pages${qs}`, token);
+export const adminGetPages = (token: string, limit = 50, offset = 0, q = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) qs.set('q', q);
+  return request<PagedResponse<CmsPage>>(`/admin/cms/pages?${qs.toString()}`, token);
 };
 
 export const adminGetPage = (token: string, id: string) =>
@@ -385,7 +386,7 @@ export interface CustomerOrderSummary {
 export const adminGetCustomers = (token: string, limit = 50, offset = 0, q = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
-  return request<Customer[]>(`/admin/customers?${qs.toString()}`, token);
+  return request<PagedResponse<Customer>>(`/admin/customers?${qs.toString()}`, token);
 };
 
 export const adminGetCustomer = (token: string, id: string) =>
@@ -472,8 +473,10 @@ export interface CouponInput {
   is_active?: boolean;
 }
 
-export const adminListCampaigns = (token: string) =>
-  request<Campaign[]>('/admin/pricing/campaigns/', token);
+export const adminListCampaigns = (token: string, limit = 50, offset = 0) => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return request<PagedResponse<Campaign>>(`/admin/pricing/campaigns/?${qs.toString()}`, token);
+};
 
 export const adminGetCampaign = (token: string, id: string) =>
   request<Campaign>(`/admin/pricing/campaigns/${id}`, token);
@@ -493,8 +496,10 @@ export const adminUpdateCampaign = (token: string, id: string, body: CampaignInp
 export const adminDeleteCampaign = (token: string, id: string) =>
   request<void>(`/admin/pricing/campaigns/${id}`, token, { method: 'DELETE' });
 
-export const adminListCoupons = (token: string) =>
-  request<Coupon[]>('/admin/pricing/coupons/', token);
+export const adminListCoupons = (token: string, limit = 50, offset = 0) => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return request<PagedResponse<Coupon>>(`/admin/pricing/coupons/?${qs.toString()}`, token);
+};
 
 export const adminGetCoupon = (token: string, id: string) =>
   request<Coupon>(`/admin/pricing/coupons/${id}`, token);
@@ -587,9 +592,10 @@ export interface AdminUser {
   updated_at: string;
 }
 
-export const adminGetUsers = (token: string, q = '') => {
-  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-  return request<AdminUser[]>(`/admin/users${qs}`, token);
+export const adminGetUsers = (token: string, limit = 50, offset = 0, q = '') => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (q) qs.set('q', q);
+  return request<PagedResponse<AdminUser>>(`/admin/users?${qs.toString()}`, token);
 };
 
 export const adminCreateUser = (token: string, body: { email: string; password: string; name: string; role: string }) =>
@@ -745,8 +751,10 @@ export interface RedirectInput {
   note?: string | null;
 }
 
-export const adminListRedirects = (token: string) =>
-  request<Redirect[]>('/admin/redirects/', token);
+export const adminListRedirects = (token: string, limit = 50, offset = 0) => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return request<PagedResponse<Redirect>>(`/admin/redirects/?${qs.toString()}`, token);
+};
 
 export const adminGetRedirect = (token: string, id: string) =>
   request<Redirect>(`/admin/redirects/${id}`, token);
@@ -1008,8 +1016,10 @@ export interface FormSubmissionRow {
 
 export type UpsertFormBody = Omit<AdminForm, 'id' | 'fields' | 'created_at' | 'updated_at'>;
 
-export const adminListForms = (token: string) =>
-  request<AdminForm[]>('/admin/forms', token);
+export const adminListForms = (token: string, limit = 50, offset = 0) => {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return request<PagedResponse<AdminForm>>(`/admin/forms?${qs.toString()}`, token);
+};
 
 export const adminGetForm = (token: string, id: string) =>
   request<AdminForm>(`/admin/forms/${id}`, token);

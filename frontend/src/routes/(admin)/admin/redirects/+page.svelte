@@ -5,6 +5,7 @@
   import { showResult } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -91,6 +92,8 @@
       </table>
     {/if}
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
 
 <!-- Delete modal -->

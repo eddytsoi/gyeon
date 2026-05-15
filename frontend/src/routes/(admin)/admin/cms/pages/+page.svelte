@@ -8,6 +8,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -18,6 +19,7 @@
     const url = new URL(page.url);
     if (q) url.searchParams.set('q', q);
     else url.searchParams.delete('q');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 </script>
@@ -29,7 +31,7 @@
   <div class="flex items-center justify-between">
     <div>
       <h2 class="text-xl font-bold text-gray-900">{m.admin_cms_pages_heading()}</h2>
-      <p class="text-sm text-gray-500 mt-0.5">{data.pages.length === 1 ? m.admin_cms_pages_count_one({ count: data.pages.length }) : m.admin_cms_pages_count_many({ count: data.pages.length })}</p>
+      <p class="text-sm text-gray-500 mt-0.5">{data.total === 1 ? m.admin_cms_pages_count_one({ count: data.total }) : m.admin_cms_pages_count_many({ count: data.total })}</p>
     </div>
     <NewButton label={m.admin_cms_pages_new()} href="/admin/cms/pages/new" />
   </div>
@@ -152,6 +154,8 @@
       </table>
     {/if}
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
 
 <!-- Delete confirmation modal -->
