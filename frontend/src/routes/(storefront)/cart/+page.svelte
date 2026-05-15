@@ -98,12 +98,12 @@
 
       <!-- Summary -->
       <div class="lg:w-72 flex-shrink-0">
-        <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 sticky top-24">
+        <div class="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col gap-4 lg:sticky lg:top-24">
           <h2 class="font-semibold text-gray-900">{m.cart_summary_heading()}</h2>
 
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_items({ count: cartStore.itemCount })}</span>
-            <span>HK${cartStore.subtotal.toFixed(2)}</span>
+            <span class="tabular-nums">HK${cartStore.subtotal.toFixed(2)}</span>
           </div>
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_shipping()}</span>
@@ -113,7 +113,7 @@
           </div>
           <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
             <span>{m.cart_summary_total()}</span>
-            <span>HK${cartStore.subtotal.toFixed(2)}</span>
+            <span class="tabular-nums">HK${cartStore.subtotal.toFixed(2)}</span>
           </div>
 
           <a
