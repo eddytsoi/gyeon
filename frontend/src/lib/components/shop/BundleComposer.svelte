@@ -5,7 +5,9 @@
    * A row of mini cards that each act as toggleable add-to-cart proposals,
    * with a running total and a single "add all" CTA that batches the
    * selected variants into the cart in one go. Uses each related product's
-   * `default_variant_id` (the cheapest variant, surfaced by the list endpoint).
+   * `default_variant_id` (the lowest-sort_order variant, surfaced by the
+   * list endpoint) so the displayed variant name, price and added-to-cart
+   * SKU all refer to the same row.
    */
   import type { Product, ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
@@ -19,19 +21,39 @@
 
   let { items }: { items: Item[] } = $props();
 
-  // Selected by default = every item with a usable variant + a price > 0.
-  // SvelteMap keeps id keys stable across re-renders.
+  function variantValue(name: string | null | undefined): string {
+    if (!name) return '';
+    return name
+      .split(' / ')
+      .map((p) => {
+        const i = p.indexOf(':');
+        return i >= 0 ? p.slice(i + 1).trim() : p.trim();
+      })
+      .filter(Boolean)
+      .join(' / ');
+  }
+
+  function displayName(p: Item): string {
+    if (p.kind === 'bundle') return p.name;
+    const v = variantValue(p.default_variant_name);
+    return v ? `${p.name} ${v}` : p.name;
+  }
+
   const initial = items.reduce<Record<string, boolean>>((acc, p) => {
-    acc[p.id] = !!(p.default_variant_id && (p.min_price ?? 0) > 0);
+    acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0);
     return acc;
   }, {});
   let selected = $state<Record<string, boolean>>(initial);
 
   const totalSale = $derived(
-    items.reduce((sum, p) => selected[p.id] && p.min_price ? sum + p.min_price : sum, 0)
+    items.reduce((sum, p) => selected[p.id] && p.default_variant_price ? sum + p.default_variant_price : sum, 0)
   );
   const totalRegular = $derived(
-    items.reduce((sum, p) => selected[p.id] && (p.min_compare_at_price ?? p.min_price) ? sum + (p.min_compare_at_price ?? p.min_price ?? 0) : sum, 0)
+    items.reduce((sum, p) => {
+      if (!selected[p.id]) return sum;
+      const regular = p.default_variant_compare_at_price ?? p.default_variant_price ?? 0;
+      return sum + regular;
+    }, 0)
   );
   const saved = $derived(Math.max(0, totalRegular - totalSale));
   const selectedCount = $derived(Object.values(selected).filter(Boolean).length);
@@ -49,7 +71,7 @@
         trackAddToCart({
           id: p.id,
           name: p.name,
-          price: p.min_price ?? 0,
+          price: p.default_variant_price ?? 0,
           quantity: 1
         });
       }
@@ -77,7 +99,7 @@
         <!-- Mini-card row -->
         <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
           {#each items as p (p.id)}
-            {@const enabled = !!(p.default_variant_id && (p.min_price ?? 0) > 0)}
+            {@const enabled = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0)}
             {@const checked = !!selected[p.id]}
             <li>
               <label
@@ -102,11 +124,11 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-display text-sm font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors">
-                    {p.name}
+                    {displayName(p)}
                   </p>
-                  {#if p.min_price != null}
+                  {#if p.default_variant_price != null}
                     <p class="mt-1 font-display text-sm font-bold tabular-nums text-ink-900">
-                      HK${p.min_price.toFixed(2)}
+                      HK${p.default_variant_price.toFixed(2)}
                     </p>
                   {/if}
                 </div>

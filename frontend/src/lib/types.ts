@@ -32,6 +32,10 @@ export interface Product {
   variant_count?: number;
   primary_image_url?: string | null;
   default_variant_id?: string | null;
+  default_variant_price?: number | null;
+  default_variant_compare_at_price?: number | null;
+  default_variant_stock_qty?: number | null;
+  default_variant_name?: string | null;
   min_price?: number | null;
   min_compare_at_price?: number | null;
   min_price_stock_qty?: number | null;

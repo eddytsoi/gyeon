@@ -57,12 +57,16 @@ type Product struct {
 // an N+1 follow-up GET per product.
 type ProductWithMeta struct {
 	Product
-	VariantCount      int      `json:"variant_count"`
-	PrimaryImageURL   *string  `json:"primary_image_url,omitempty"`
-	DefaultVariantID  *string  `json:"default_variant_id,omitempty"`
-	MinPrice          *float64 `json:"min_price,omitempty"`
-	MinPriceCompareAt *float64 `json:"min_compare_at_price,omitempty"`
-	MinPriceStock     *int     `json:"min_price_stock_qty,omitempty"`
+	VariantCount                 int      `json:"variant_count"`
+	PrimaryImageURL              *string  `json:"primary_image_url,omitempty"`
+	DefaultVariantID             *string  `json:"default_variant_id,omitempty"`
+	DefaultVariantPrice          *float64 `json:"default_variant_price,omitempty"`
+	DefaultVariantCompareAtPrice *float64 `json:"default_variant_compare_at_price,omitempty"`
+	DefaultVariantStockQty       *int     `json:"default_variant_stock_qty,omitempty"`
+	DefaultVariantName           *string  `json:"default_variant_name,omitempty"`
+	MinPrice                     *float64 `json:"min_price,omitempty"`
+	MinPriceCompareAt            *float64 `json:"min_compare_at_price,omitempty"`
+	MinPriceStock                *int     `json:"min_price_stock_qty,omitempty"`
 }
 
 // BundleItem represents a component row in a bundle product.
@@ -588,9 +592,11 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		        WHERE pi.product_id = p.id
 		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
 		        LIMIT 1) AS primary_image_url,
-		       (SELECT pv.id FROM product_variants pv
-		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
-		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id,
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name,
 		       cheapest.price AS min_price,
 		       cheapest.compare_at_price AS min_compare_at_price,
 		       cheapest.stock_qty AS min_price_stock_qty,
@@ -603,6 +609,13 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		    ORDER BY pv.price ASC
 		    LIMIT 1
 		) cheapest ON TRUE
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
 		WHERE ` + where + `
 		ORDER BY ` + orderBy + ` LIMIT $2 OFFSET $3`
 
@@ -621,6 +634,8 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
 			&pm.MinPrice, &pm.MinPriceCompareAt, &pm.MinPriceStock,
 			&total,
 		); err != nil {
@@ -628,7 +643,27 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		}
 		products = append(products, pm)
 	}
-	return products, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	s.overrideBundleStock(ctx, products)
+	return products, total, nil
+}
+
+// overrideBundleStock replaces DefaultVariantStockQty for bundle products with
+// the derived stock (min over components/quantity). The list SQL surfaces the
+// bundle's synthetic variant stock which is not kept in sync with components.
+func (s *ProductService) overrideBundleStock(ctx context.Context, products []ProductWithMeta) {
+	for i := range products {
+		if products[i].Kind != "bundle" {
+			continue
+		}
+		derived, err := s.GetDerivedStock(ctx, products[i].ID)
+		if err != nil {
+			continue
+		}
+		products[i].DefaultVariantStockQty = &derived
+	}
 }
 
 // ListEnriched returns active products plus variant_count, primary_image_url
@@ -669,10 +704,19 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		        WHERE pi.product_id = p.id
 		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
 		        LIMIT 1) AS primary_image_url,
-		       (SELECT pv.id FROM product_variants pv
-		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
-		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name
 		FROM products p` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
 		WHERE ` + where + `
 		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 
@@ -690,6 +734,8 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
 		); err != nil {
 			return nil, err
 		}
@@ -698,6 +744,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	s.overrideBundleStock(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
@@ -744,10 +791,19 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		        WHERE pi.product_id = p.id
 		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
 		        LIMIT 1) AS primary_image_url,
-		       (SELECT pv.id FROM product_variants pv
-		        WHERE pv.product_id = p.id AND pv.is_active = TRUE
-		        ORDER BY pv.created_at ASC LIMIT 1) AS default_variant_id
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name
 		FROM products p` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
 		WHERE ` + where + `
 		ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 
@@ -765,6 +821,8 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
 			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
 		); err != nil {
 			return nil, err
 		}
@@ -773,6 +831,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	s.overrideBundleStock(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
