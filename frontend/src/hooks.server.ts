@@ -156,10 +156,22 @@ const handleRedirect: Handle = async ({ event, resolve }) => {
     return resolve(event);
   }
 
-  let hit = cacheGet(pathname);
+  // Decode percent-encoded pathname so non-ASCII (e.g. /中文 arriving on the
+  // wire as /%E4%B8%AD%E6%96%87) is compared against the DB's raw UTF-8
+  // from_path. encodeURIComponent below adds back exactly one layer for the
+  // query string, which Go's query parser strips — net result is the backend
+  // sees /中文 verbatim. Malformed %-sequences fall back to the raw pathname.
+  let lookupPath = pathname;
+  try {
+    lookupPath = decodeURIComponent(pathname);
+  } catch {
+    /* keep raw pathname */
+  }
+
+  let hit = cacheGet(lookupPath);
   if (hit === undefined) {
     try {
-      const url = `${API_BASE}/redirects/match?path=${encodeURIComponent(pathname)}`;
+      const url = `${API_BASE}/redirects/match?path=${encodeURIComponent(lookupPath)}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
       if (res.ok) {
         const body = (await res.json()) as { to: string; code: number };
@@ -171,7 +183,7 @@ const handleRedirect: Handle = async ({ event, resolve }) => {
     } catch {
       hit = null; // fail-open: never block traffic on a redirect lookup
     }
-    cacheSet(pathname, hit);
+    cacheSet(lookupPath, hit);
   }
 
   if (hit) {
