@@ -16,6 +16,7 @@
   let code = $state<301 | 302>(r?.code ?? 301);
   let isActive = $state<boolean>(r?.is_active ?? true);
   let note = $state(r?.note ?? '');
+  let matchType = $state<'exact' | 'wildcard'>(r?.match_type ?? 'exact');
 </script>
 
 <svelte:head>
@@ -51,18 +52,40 @@
     <!-- Paths -->
     <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5 space-y-5">
       <div>
+        <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_redirects_label_match_type()}</span>
+        <input type="hidden" name="match_type" value={matchType} />
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick={() => matchType = 'exact'}
+                  class="px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-colors
+                         {matchType === 'exact' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}">
+            {m.admin_redirects_match_type_exact()}
+          </button>
+          <button type="button" onclick={() => matchType = 'wildcard'}
+                  class="px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-colors
+                         {matchType === 'wildcard' ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}">
+            {m.admin_redirects_match_type_wildcard()}
+          </button>
+        </div>
+      </div>
+      <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_redirects_label_from()}</label>
-        <input type="text" name="from_path" bind:value={fromPath} required placeholder="/old-page"
+        <input type="text" name="from_path" bind:value={fromPath} required
+               placeholder={matchType === 'wildcard' ? '/old-section/*' : '/old-page'}
                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono
                       focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-        <p class="mt-1.5 text-xs text-gray-400">{m.admin_redirects_help_from()}</p>
+        <p class="mt-1.5 text-xs text-gray-400">
+          {matchType === 'wildcard' ? m.admin_redirects_help_from_wildcard() : m.admin_redirects_help_from()}
+        </p>
       </div>
       <div>
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_redirects_label_to()}</label>
-        <input type="text" name="to_path" bind:value={toPath} required placeholder="/new-page"
+        <input type="text" name="to_path" bind:value={toPath} required
+               placeholder={matchType === 'wildcard' ? '/new-section/*' : '/new-page'}
                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono
                       focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
-        <p class="mt-1.5 text-xs text-gray-400">{m.admin_redirects_help_to()}</p>
+        <p class="mt-1.5 text-xs text-gray-400">
+          {matchType === 'wildcard' ? m.admin_redirects_help_to_wildcard() : m.admin_redirects_help_to()}
+        </p>
       </div>
     </div>
 

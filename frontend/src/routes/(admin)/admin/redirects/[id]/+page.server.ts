@@ -28,19 +28,33 @@ export const actions: Actions = {
     const code = (codeRaw === 302 ? 302 : 301) as 301 | 302;
     const isActive = data.get('is_active') === 'true';
     const noteRaw = String(data.get('note') ?? '').trim();
+    const matchTypeRaw = String(data.get('match_type') ?? 'exact');
+    const matchType = (matchTypeRaw === 'wildcard' ? 'wildcard' : 'exact') as 'exact' | 'wildcard';
 
     if (!fromPath || !fromPath.startsWith('/')) {
       return fail(400, { error: 'From path must start with /' });
     }
     if (!toPath) return fail(400, { error: 'To path is required' });
     if (fromPath === toPath) return fail(400, { error: 'From and To must differ' });
+    if (matchType === 'wildcard') {
+      if (!fromPath.endsWith('/*') || (fromPath.match(/\*/g) ?? []).length !== 1) {
+        return fail(400, { error: 'Wildcard from_path must end with /* and contain no other *' });
+      }
+      const toStars = (toPath.match(/\*/g) ?? []).length;
+      if (toStars > 0 && (!toPath.endsWith('/*') || toStars !== 1)) {
+        return fail(400, { error: 'Wildcard to_path may end with /* or contain no *' });
+      }
+    } else if (fromPath.includes('*') || toPath.includes('*')) {
+      return fail(400, { error: 'Exact-match paths cannot contain *' });
+    }
 
     const body: RedirectInput = {
       from_path: fromPath,
       to_path: toPath,
       code,
       is_active: isActive,
-      note: noteRaw || null
+      note: noteRaw || null,
+      match_type: matchType
     };
 
     try {

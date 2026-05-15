@@ -25,6 +25,47 @@
     <NewButton label={m.admin_redirects_new()} href="/admin/redirects/new" />
   </div>
 
+  <!-- Usage instructions -->
+  <details class="rounded-2xl border border-gray-100 bg-white px-5 py-4">
+    <summary class="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none">
+      {m.admin_redirects_help_title()}
+    </summary>
+    <div class="mt-4 space-y-4 text-xs text-gray-600">
+      <div>
+        <p class="font-semibold text-gray-700 mb-1.5">{m.admin_redirects_help_exact_title()}</p>
+        <p class="mb-1.5">{m.admin_redirects_help_exact_body()}</p>
+        <p class="font-mono text-gray-500">
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/old-page</span>
+          <span class="mx-1.5 text-gray-400">→</span>
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/new-page</span>
+        </p>
+      </div>
+      <div>
+        <p class="font-semibold text-gray-700 mb-1.5">{m.admin_redirects_help_wild_preserve_title()}</p>
+        <p class="mb-1.5">{m.admin_redirects_help_wild_preserve_body()}</p>
+        <p class="font-mono text-gray-500">
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/product-category/*</span>
+          <span class="mx-1.5 text-gray-400">→</span>
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/products/category/*</span>
+        </p>
+        <p class="mt-1 text-gray-400">{m.admin_redirects_help_wild_preserve_example()}</p>
+      </div>
+      <div>
+        <p class="font-semibold text-gray-700 mb-1.5">{m.admin_redirects_help_wild_drop_title()}</p>
+        <p class="mb-1.5">{m.admin_redirects_help_wild_drop_body()}</p>
+        <p class="font-mono text-gray-500">
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/old-blog/*</span>
+          <span class="mx-1.5 text-gray-400">→</span>
+          <span class="px-2 py-0.5 rounded-md bg-gray-100">/blog</span>
+        </p>
+      </div>
+      <div>
+        <p class="font-semibold text-gray-700 mb-1.5">{m.admin_redirects_help_codes_title()}</p>
+        <p>{m.admin_redirects_help_codes_body()}</p>
+      </div>
+    </div>
+  </details>
+
   <!-- Table -->
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
        use:spotlight={{ selector: '.js-row' }}>
@@ -50,7 +91,14 @@
           {#each data.items as r}
             <tr class="js-row transition-colors">
               <td class="px-6 py-4">
-                <p class="font-mono text-gray-900 truncate max-w-xs">{r.from_path}</p>
+                <div class="flex items-center gap-2">
+                  <p class="font-mono text-gray-900 truncate max-w-xs">{r.from_path}</p>
+                  {#if r.match_type === 'wildcard'}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-700">
+                      {m.admin_redirects_badge_wildcard()}
+                    </span>
+                  {/if}
+                </div>
                 {#if r.note}
                   <p class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{r.note}</p>
                 {/if}
