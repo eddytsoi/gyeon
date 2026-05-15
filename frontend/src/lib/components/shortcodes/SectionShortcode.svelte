@@ -8,6 +8,7 @@
     resolveWidth,
     resolveAlign,
     resolveBleed,
+    resolveBleedLg,
     splitBodyOnHr
   } from '$lib/shortcodes/section';
   import type { ShortcodeAttrs, ShortcodeRefs } from '$lib/shortcodes/types';
@@ -39,6 +40,7 @@
   const width = $derived(resolveWidth(attrs.width));
   const align = $derived(resolveAlign(attrs.align));
   const bleed = $derived(resolveBleed(attrs.bleed));
+  const bleedLg = $derived(resolveBleedLg(attrs['bleed-lg']));
   const id = $derived(attrs.id || undefined);
 
   $effect(() => {
@@ -48,6 +50,10 @@
     warnIfBad('width', attrs.width, width);
     warnIfBad('align', attrs.align, align);
     warnIfBad('bleed', attrs.bleed, bleed);
+    if (import.meta.env.DEV && attrs['bleed-lg'] !== undefined && attrs['bleed-lg'] !== '' && bleedLg === undefined) {
+      // eslint-disable-next-line no-console
+      console.warn(`[section] invalid bleed-lg="${attrs['bleed-lg']}", ignoring`);
+    }
   });
 
   const split = $derived(
@@ -55,7 +61,7 @@
   );
 </script>
 
-<Section {bg} {layout} {padding} {width} {align} {bleed} {id} class={attrs.class ?? ''}>
+<Section {bg} {layout} {padding} {width} {align} {bleed} {bleedLg} {id} class={attrs.class ?? ''}>
   {#if layout === 'default' || !split}
     <MarkdownContent content={body} {refs} />
   {:else if layout === 'split'}
