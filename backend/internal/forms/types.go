@@ -111,11 +111,15 @@ type Form struct {
 }
 
 // PublicForm is the slim shape returned to the storefront. Mail settings are
-// admin-only and never reach the client.
+// admin-only and never reach the client. `Markup` is the layout template the
+// storefront renders verbatim, substituting each `[type* name ...]` tag with
+// its input element (CF7-style); `Fields` drives state, validation, and the
+// per-field error map.
 type PublicForm struct {
 	ID              string      `json:"id"`
 	Slug            string      `json:"slug"`
 	Title           string      `json:"title"`
+	Markup          string      `json:"markup"`
 	Fields          []FormField `json:"fields"`
 	SuccessMessage  string      `json:"success_message"`
 	ErrorMessage    string      `json:"error_message"`
@@ -127,6 +131,7 @@ func (f Form) Public() PublicForm {
 		ID:              f.ID,
 		Slug:            f.Slug,
 		Title:           f.Title,
+		Markup:          f.Markup,
 		Fields:          f.Fields,
 		SuccessMessage:  f.SuccessMessage,
 		ErrorMessage:    f.ErrorMessage,

@@ -1835,7 +1835,7 @@
   "admin_forms_label_slug": "Slug",
   "admin_forms_slug_hint_pre": "Embed with",
   "admin_forms_label_markup": "Form markup (CF7 syntax)",
-  "admin_forms_markup_hint": "Insert a tag above, or write CF7 syntax manually.",
+  "admin_forms_markup_hint": "HTML is rendered as-is; each [tag] is replaced by its input. Write your own labels and layout around the tags.",
   "admin_forms_parser_errors": "Parser errors:",
   "admin_forms_label_mail_to": "To",
   "admin_forms_label_mail_from": "From",
