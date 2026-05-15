@@ -19,6 +19,7 @@ import (
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/respond"
 	"gyeon/backend/internal/settings"
+	"gyeon/backend/internal/shop"
 )
 
 type Candidate struct {
@@ -104,7 +105,7 @@ func (s *Service) ListCandidates(ctx context.Context) ([]Candidate, error) {
 
 func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.AbandonedCartItem, float64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT COALESCE(p.name, ''), pv.price, ci.quantity
+		SELECT COALESCE(p.name, ''), pv.name, pv.price, ci.quantity, p.kind
 		FROM cart_items ci
 		JOIN product_variants pv ON pv.id = ci.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -119,8 +120,16 @@ func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.Aban
 	var subtotal float64
 	for rows.Next() {
 		var it email.AbandonedCartItem
-		if err := rows.Scan(&it.Name, &it.UnitPrice, &it.Quantity); err != nil {
+		var productName string
+		var variantName sql.NullString
+		var kind string
+		if err := rows.Scan(&productName, &variantName, &it.UnitPrice, &it.Quantity, &kind); err != nil {
 			return nil, 0, err
+		}
+		if kind == "bundle" {
+			it.Name = productName
+		} else {
+			it.Name = shop.ProductDisplayName(productName, variantName.String)
 		}
 		subtotal += it.UnitPrice * float64(it.Quantity)
 		items = append(items, it)
