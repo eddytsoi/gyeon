@@ -44,19 +44,26 @@
 
 {#if totalPages > 1}
   <nav aria-label={m.admin_pagination_aria()}
-       class="flex items-center justify-between gap-3 mt-4 text-sm">
-    <p class="text-gray-500">
+       class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between
+              gap-2 sm:gap-3 mt-4 text-sm">
+    <p class="text-gray-500 text-center sm:text-left">
       {m.admin_pagination_status({ page: safePage, total: totalPages })}
     </p>
 
-    <div class="flex items-center gap-1">
+    <div class="flex items-center justify-center sm:justify-end gap-1">
       <button type="button"
               onclick={() => goTo(safePage - 1)}
               disabled={safePage === 1}
+              aria-label={m.admin_pagination_prev()}
               class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700
                      hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed
-                     transition-colors">
-        {m.admin_pagination_prev()}
+                     transition-colors whitespace-nowrap">
+        <svg class="sm:hidden w-4 h-4" viewBox="0 0 20 20" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 15l-5-5 5-5" />
+        </svg>
+        <span class="hidden sm:inline">{m.admin_pagination_prev()}</span>
       </button>
 
       {#each pages as p}
@@ -67,7 +74,7 @@
                   onclick={() => goTo(p)}
                   aria-current={p === safePage ? 'page' : undefined}
                   class="min-w-[2.25rem] px-3 py-1.5 rounded-lg border text-sm
-                         transition-colors
+                         transition-colors whitespace-nowrap
                          {p === safePage
                            ? 'bg-gray-900 text-white border-gray-900'
                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'}">
@@ -79,10 +86,16 @@
       <button type="button"
               onclick={() => goTo(safePage + 1)}
               disabled={safePage === totalPages}
+              aria-label={m.admin_pagination_next()}
               class="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700
                      hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed
-                     transition-colors">
-        {m.admin_pagination_next()}
+                     transition-colors whitespace-nowrap">
+        <svg class="sm:hidden w-4 h-4" viewBox="0 0 20 20" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 5l5 5-5 5" />
+        </svg>
+        <span class="hidden sm:inline">{m.admin_pagination_next()}</span>
       </button>
     </div>
   </nav>
