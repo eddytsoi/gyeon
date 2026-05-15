@@ -47,6 +47,7 @@ export type PublicForm = {
   id: string;
   slug: string;
   title: string;
+  markup: string;
   fields: FormField[];
   success_message: string;
   error_message: string;

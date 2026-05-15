@@ -1835,7 +1835,7 @@
   "admin_forms_label_slug": "Slug",
   "admin_forms_slug_hint_pre": "嵌入語法：",
   "admin_forms_label_markup": "表單內容（CF7 語法）",
-  "admin_forms_markup_hint": "點上方按鈕插入欄位，或手動輸入 CF7 語法。",
+  "admin_forms_markup_hint": "HTML 會原樣輸出，每個 [tag] 會被替換為對應的 input。自己加 label 同 layout。",
   "admin_forms_parser_errors": "語法錯誤：",
   "admin_forms_label_mail_to": "收件人",
   "admin_forms_label_mail_from": "寄件人",

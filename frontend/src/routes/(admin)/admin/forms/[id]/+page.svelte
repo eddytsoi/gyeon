@@ -65,9 +65,15 @@
   );
 
   function defaultMarkup() {
-    return `[text* your-name placeholder "Your name"]
+    return `<label for="your-name">Your name</label>
+[text* your-name placeholder "Your name"]
+
+<label for="your-email">Your email</label>
 [email* your-email placeholder "you@example.com"]
+
+<label for="your-message">Message</label>
 [textarea* your-message placeholder "How can we help?"]
+
 [submit "Send message"]`;
   }
   function defaultSubject() {
