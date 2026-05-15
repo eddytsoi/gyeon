@@ -15,6 +15,7 @@ import (
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/shop"
 	"gyeon/backend/internal/tax"
 )
 
@@ -499,23 +500,31 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		li.variantID = item.VariantID
 		li.quantity = item.Quantity
 
+		var variantName sql.NullString
 		err := s.db.QueryRowContext(ctx,
-			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, p.kind
+			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, pv.name, p.kind
 			 FROM product_variants pv
 			 JOIN products p ON p.id = pv.product_id
 			 WHERE pv.id = $1`, item.VariantID).
-			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &li.kind)
+			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &variantName, &li.kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("variant %s not found", item.VariantID)
 		}
 		if err != nil {
 			return nil, err
 		}
+		// Bake the variant suffix ("500ml", "L / 紅") into the persisted
+		// product_name so cart/checkout/email/order detail all show the same
+		// combined label without needing a runtime lookup. Bundles have no
+		// meaningful variant of their own — keep them bare.
+		if li.kind != "bundle" {
+			li.productName = shop.ProductDisplayName(li.productName, variantName.String)
+		}
 
 		// For bundle products, load components for later stock decrement and child order items.
 		if li.kind == "bundle" {
 			compRows, err := s.db.QueryContext(ctx,
-				`SELECT bi.component_variant_id, p.name, pv.sku, pv.price, bi.quantity
+				`SELECT bi.component_variant_id, p.name, pv.name, pv.sku, pv.price, bi.quantity
 				 FROM bundle_items bi
 				 JOIN product_variants pv ON pv.id = bi.component_variant_id
 				 JOIN products p ON p.id = pv.product_id
@@ -526,11 +535,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			}
 			for compRows.Next() {
 				var bc bundleComponent
+				var compVariantName sql.NullString
 				var compQty int
-				if err := compRows.Scan(&bc.variantID, &bc.productName, &bc.sku, &bc.price, &compQty); err != nil {
+				if err := compRows.Scan(&bc.variantID, &bc.productName, &compVariantName, &bc.sku, &bc.price, &compQty); err != nil {
 					compRows.Close()
 					return nil, err
 				}
+				bc.productName = shop.ProductDisplayName(bc.productName, compVariantName.String)
 				bc.quantity = compQty * item.Quantity // scale by cart qty
 				li.components = append(li.components, bc)
 			}

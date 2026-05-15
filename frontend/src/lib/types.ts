@@ -98,6 +98,7 @@ export interface CartItem {
   product_name: string;
   product_slug: string;
   sku: string;
+  variant_name?: string | null;
   price: number;
   weight_grams?: number;
   image_url?: string;

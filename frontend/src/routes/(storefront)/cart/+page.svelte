@@ -3,6 +3,7 @@
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+  import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
@@ -65,7 +66,7 @@
             <div class="flex-1 min-w-0">
               <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
                  class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
-                {m.cart_item_label({ name: item.product_name, sku: item.sku })}
+                {productDisplayName(item.product_name, item.variant_name)}
               </a>
               <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
             </div>

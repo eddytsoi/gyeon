@@ -12,6 +12,7 @@
   import type { Product, ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
+  import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
@@ -20,24 +21,6 @@
   }
 
   let { items }: { items: Item[] } = $props();
-
-  function variantValue(name: string | null | undefined): string {
-    if (!name) return '';
-    return name
-      .split(' / ')
-      .map((p) => {
-        const i = p.indexOf(':');
-        return i >= 0 ? p.slice(i + 1).trim() : p.trim();
-      })
-      .filter(Boolean)
-      .join(' / ');
-  }
-
-  function displayName(p: Item): string {
-    if (p.kind === 'bundle') return p.name;
-    const v = variantValue(p.default_variant_name);
-    return v ? `${p.name} ${v}` : p.name;
-  }
 
   const initial = items.reduce<Record<string, boolean>>((acc, p) => {
     acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0);
@@ -124,7 +107,7 @@
                 </div>
                 <div class="min-w-0">
                   <p class="font-display text-sm font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors">
-                    {displayName(p)}
+                    {productDisplayName(p.name, p.default_variant_name, p.kind)}
                   </p>
                   {#if p.default_variant_price != null}
                     <p class="mt-1 font-display text-sm font-bold tabular-nums text-ink-900">
