@@ -52,7 +52,7 @@
 </script>
 
 {#if items.length > 0}
-  <div class="my-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+  <div class="my-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 {attrs.class ?? ''}">
     {#each items as ref (ref.product.id)}
       <ProductCard product={ref.product} image={ref.image ?? undefined} variant={ref.variant ?? undefined} />
     {/each}

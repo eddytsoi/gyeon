@@ -103,15 +103,15 @@
 </script>
 
 {#if !form}
-  <div class="my-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+  <div class="my-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-500 {attrs.class ?? ''}">
     Contact form <span class="font-mono">[contact-form id="{slug || '...'}"]</span> not found.
   </div>
 {:else if submitted}
-  <div class="my-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">
+  <div class="my-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm text-emerald-800 {attrs.class ?? ''}">
     {form.success_message}
   </div>
 {:else}
-  <form class="my-6 space-y-4" onsubmit={onSubmit} novalidate>
+  <form class="my-6 space-y-4 {attrs.class ?? ''}" onsubmit={onSubmit} novalidate>
     {#each form.fields as f (f.name + ':' + f.type)}
       {#if f.type === 'hidden'}
         <input type="hidden" name={f.name} value={values[f.name] ?? f.default ?? ''} />

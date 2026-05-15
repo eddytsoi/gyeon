@@ -11,7 +11,8 @@
     bleedLg = undefined,
     aspectRatio = 'auto',
     aspectRatioMobile = 'auto',
-    height = 'auto'
+    height = 'auto',
+    class: klass = ''
   }: {
     image: string;
     imageMobile?: string;
@@ -22,6 +23,7 @@
     aspectRatio?: BannerAspect;
     aspectRatioMobile?: BannerAspect;
     height?: BannerHeight;
+    class?: string;
   } = $props();
 
   const desktop = $derived(buildResponsiveAttrs(image));
@@ -88,7 +90,7 @@
     {href}
     target={isExternal ? '_blank' : undefined}
     rel={isExternal ? 'noopener noreferrer' : undefined}
-    class="banner my-6 {bleedClass}"
+    class="banner my-6 {bleedClass} {klass}"
     style={cssVars}
     data-natural={natural ? 'true' : undefined}
   >
@@ -96,7 +98,7 @@
   </a>
 {:else}
   <div
-    class="banner my-6 {bleedClass}"
+    class="banner my-6 {bleedClass} {klass}"
     style={cssVars}
     data-natural={natural ? 'true' : undefined}
   >

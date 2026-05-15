@@ -3,7 +3,9 @@ import { error } from '@sveltejs/kit';
 import type { CmsPost } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, parent }) => {
+  const { blogEnabled } = await parent();
+  if (!blogEnabled) throw error(404, 'Not found');
   const category = await getBlogCategoryBySlug(params.slug).catch(() => null);
   if (!category) throw error(404, 'Category not found');
 

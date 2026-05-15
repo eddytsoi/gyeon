@@ -21,18 +21,21 @@ function escapeXml(s: string): string {
 export const GET: RequestHandler = async ({ setHeaders }) => {
   const settings = await getPublicSettings().catch(() => []);
   const origin = siteOrigin(settings);
+  const blogEnabled = settings.find((s) => s.key === 'blog_enabled')?.value !== 'false';
 
   const [products, categories, posts] = await Promise.all([
     getProducts(500, 0).catch(() => []),
     getCategories().catch(() => []),
-    getBlogPosts(500, 0).catch(() => [])
+    blogEnabled ? getBlogPosts(500, 0).catch(() => []) : Promise.resolve([])
   ]);
 
   const urls: Url[] = [
     { loc: `${origin}/`, changefreq: 'weekly', priority: '1.0' },
-    { loc: `${origin}/products`, changefreq: 'daily', priority: '0.9' },
-    { loc: `${origin}/blog`, changefreq: 'weekly', priority: '0.7' }
+    { loc: `${origin}/products`, changefreq: 'daily', priority: '0.9' }
   ];
+  if (blogEnabled) {
+    urls.push({ loc: `${origin}/blog`, changefreq: 'weekly', priority: '0.7' });
+  }
 
   for (const c of categories) {
     if (c.is_active) {

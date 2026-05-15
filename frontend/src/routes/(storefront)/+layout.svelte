@@ -56,6 +56,7 @@
   <Header
     navItems={data.headerNav?.items ?? []}
     customer={data.customer}
+    blogEnabled={data.blogEnabled}
     {companyLogoUrl}
     {companyLogoHeight}
   />
