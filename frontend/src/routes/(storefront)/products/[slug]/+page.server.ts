@@ -22,7 +22,11 @@ export const load: PageServerLoad = async ({ params }) => {
   // hidden products as "related". Shuffle so each PDP load surfaces a
   // different mix from the same primary category.
   const pool = products.filter(
-    (p) => p.id !== product.id && p.category_id === product.category_id && p.status === 'active'
+    (p) =>
+      p.id !== product.id &&
+      p.category_id === product.category_id &&
+      p.status === 'active' &&
+      (p.default_variant_stock_qty ?? 0) > 0
   );
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
