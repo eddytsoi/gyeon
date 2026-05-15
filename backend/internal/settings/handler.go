@@ -3,9 +3,11 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"gyeon/backend/internal/cloudflare"
 	"gyeon/backend/internal/respond"
 )
 
@@ -37,6 +39,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/", h.listAll)
 	r.Put("/", h.bulkSet)
 	r.Post("/test-email", h.testEmail)
+	r.Post("/purge-cloudflare", h.purgeCloudflareAll)
 	r.Get("/{key}", h.get)
 	r.Put("/{key}", h.set)
 	return r
@@ -96,6 +99,29 @@ func (h *Handler) testEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.emailSvc.SendTest(r.Context(), body.To); err != nil {
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]string{})
+}
+
+// purgeCloudflareAll triggers a full-zone Cloudflare cache purge. Surfaces
+// missing-credentials and CF API errors back to the admin UI as 400s.
+func (h *Handler) purgeCloudflareAll(w http.ResponseWriter, r *http.Request) {
+	zone, _ := h.svc.Get(r.Context(), "cloudflare_zone_id")
+	tok, _ := h.svc.Get(r.Context(), "cloudflare_api_token")
+	var zoneVal, tokVal string
+	if zone != nil {
+		zoneVal = zone.Value
+	}
+	if tok != nil {
+		tokVal = tok.Value
+	}
+	if err := cloudflare.PurgeAll(r.Context(), zoneVal, tokVal); err != nil {
+		if errors.Is(err, cloudflare.ErrNotConfigured) {
+			respond.BadRequest(w, "Cloudflare credentials are not configured")
+			return
+		}
 		respond.BadRequest(w, err.Error())
 		return
 	}

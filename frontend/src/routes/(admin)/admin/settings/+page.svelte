@@ -75,6 +75,10 @@
   let testEmailAddress = $state('');
   let testEmailSending = $state(false);
 
+  // ── Cloudflare Purge Modal ───────────────────────────────────────
+  let showPurgeCloudflareModal = $state(false);
+  let purgingCloudflare = $state(false);
+
   const token = $derived(data.token ?? '');
 
   async function sendTestEmail() {
@@ -106,6 +110,34 @@
     }
   }
 
+  async function purgeCloudflareCache() {
+    purgingCloudflare = true;
+    try {
+      const res = await fetch('/api/v1/admin/settings/purge-cloudflare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        notify.success(m.admin_settings_cloudflare_purge_success_title(), m.admin_settings_cloudflare_purge_success_body());
+        showPurgeCloudflareModal = false;
+      } else {
+        let serverMsg = m.admin_settings_cloudflare_purge_failure_default();
+        try {
+          const body = await res.json();
+          if (typeof body?.error === 'string' && body.error) serverMsg = body.error;
+        } catch { /* non-JSON body */ }
+        notify.error(m.admin_settings_cloudflare_purge_failure_title(), serverMsg);
+      }
+    } catch (e) {
+      notify.error(m.admin_settings_cloudflare_purge_failure_title(), e instanceof Error ? e.message : m.admin_settings_test_email_network_error());
+    } finally {
+      purgingCloudflare = false;
+    }
+  }
+
   const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
@@ -119,7 +151,7 @@
   ]);
   const HOMEPAGE_KEYS = new Set(['homepage_page_id']);
   const CURRENCY_KEYS = new Set(['currency']);
-  const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd']);
+  const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd', 'free_shipping_threshold_enabled']);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
   // Managed by the Hidden Products section (Commerce tab). Excluded from
   // textSettings so the generic catch-all loop doesn't render a second
@@ -413,9 +445,21 @@
     }
   }
 
+  // ── Free shipping threshold (master toggle drives paid-by-receiver below) ──
+  let freeShippingEnabled = $state(settingValue('free_shipping_threshold_enabled') === 'true');
+
   // ── ShipAny ─────────────────────────────────────────────────────
   let shipanyOn = $state(settingValue('shipany_enabled') === 'true');
   let shipanyPaidByReceiver = $state(settingValue('shipany_paid_by_receiver') === 'true');
+
+  // Threshold off → always SF freight-collect, so paid-by-receiver snaps on
+  // and is locked. Threshold on → paid-by-receiver is computed per order by
+  // the backend; the admin toggle is greyed (decision is no longer manual).
+  $effect(() => {
+    if (!freeShippingEnabled) {
+      shipanyPaidByReceiver = true;
+    }
+  });
   let shipanySelfDropOff = $state(settingValue('shipany_self_drop_off') === 'true');
   let shipanyShowCourierTracking = $state(settingValue('shipany_show_courier_tracking_number') === 'true');
   let shipanyTestingConnection = $state(false);
@@ -836,136 +880,6 @@
     </div>
 
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-      <div class="flex items-start justify-between gap-4 mb-5">
-        <div>
-          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_heading()}</h2>
-          <p class="text-xs text-gray-400 mt-0.5">
-            {m.admin_settings_payment_subtitle()}
-          </p>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between gap-4 pb-5 border-b border-gray-100">
-        <div>
-          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_mode_heading()}</p>
-          <p class="text-xs text-gray-400 mt-0.5">
-            {stripeLiveMode ? m.admin_settings_payment_mode_live_hint() : m.admin_settings_payment_mode_test_hint()}
-          </p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="text-xs font-medium {stripeLiveMode ? 'text-gray-300' : 'text-gray-700'}">{m.admin_settings_payment_mode_test_label()}</span>
-          <button type="button"
-                  onclick={() => (stripeLiveMode = !stripeLiveMode)}
-                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
-                         {stripeLiveMode ? 'bg-indigo-600' : 'bg-gray-300'}"
-                  role="switch"
-                  aria-checked={stripeLiveMode}>
-            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
-                         transition duration-200 {stripeLiveMode ? 'translate-x-5' : 'translate-x-0'}"></span>
-          </button>
-          <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">{m.admin_settings_payment_mode_live_label()}</span>
-        </div>
-        <input type="hidden" name="stripe_mode" value={stripeLiveMode ? 'live' : 'test'} />
-      </div>
-
-      <div class="pt-5 border-t border-gray-100 mt-5">
-        <div class="flex flex-col gap-1.5">
-          <label for="stripe_country" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_settings_payment_country_heading()}
-          </label>
-          <p class="text-xs text-gray-400 -mt-0.5">
-            {m.admin_settings_payment_country_hint()}
-          </p>
-          <select id="stripe_country" name="stripe_country"
-                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
-                         focus:outline-none focus:ring-2 focus:ring-gray-900">
-            {#each STRIPE_COUNTRY_OPTIONS as opt}
-              <option value={opt.value}
-                      selected={(settingValue('stripe_country') || 'HK') === opt.value}>
-                {opt.label}
-              </option>
-            {/each}
-          </select>
-        </div>
-      </div>
-
-      <div class="pt-5 {stripeLiveMode ? 'opacity-50' : ''}">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          {m.admin_settings_payment_test_keys()} {#if stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
-        </p>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
-            <PasswordInput id="stripe_test_publishable_key" name="stripe_test_publishable_key"
-                           value={settingValue('stripe_test_publishable_key')}
-                           placeholder="pk_test_..." />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
-            <PasswordInput id="stripe_test_secret_key" name="stripe_test_secret_key"
-                           value={settingValue('stripe_test_secret_key')}
-                           placeholder="sk_test_..." />
-          </div>
-        </div>
-      </div>
-
-      <div class="pt-5 mt-5 border-t border-gray-100 {stripeLiveMode ? '' : 'opacity-50'}">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          {m.admin_settings_payment_live_keys()} {#if !stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
-        </p>
-        <div class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
-            <PasswordInput id="stripe_live_publishable_key" name="stripe_live_publishable_key"
-                           value={settingValue('stripe_live_publishable_key')}
-                           placeholder="pk_live_..." />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
-            <PasswordInput id="stripe_live_secret_key" name="stripe_live_secret_key"
-                           value={settingValue('stripe_live_secret_key')}
-                           placeholder="sk_live_..." />
-          </div>
-        </div>
-      </div>
-
-      <div class="pt-5 mt-5 border-t border-gray-100">
-        <div class="flex flex-col gap-1.5">
-          <label for="stripe_webhook_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_settings_payment_webhook_heading()}
-          </label>
-          <p class="text-xs text-gray-400 -mt-0.5">
-            {m.admin_settings_payment_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code>{m.admin_settings_payment_webhook_hint_mid()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code>{m.admin_settings_payment_webhook_hint_post()}
-          </p>
-          <PasswordInput id="stripe_webhook_secret" name="stripe_webhook_secret"
-                         value={settingValue('stripe_webhook_secret')}
-                         placeholder="whsec_..." />
-        </div>
-      </div>
-
-      <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_save_cards_heading()}</p>
-          <p class="text-xs text-gray-400 mt-0.5">
-            {m.admin_settings_payment_save_cards_hint()}
-          </p>
-        </div>
-        <button type="button"
-                onclick={() => (stripeSaveCards = !stripeSaveCards)}
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
-                       {stripeSaveCards ? 'bg-green-500' : 'bg-gray-200'}"
-                role="switch"
-                aria-checked={stripeSaveCards}>
-          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
-                       transition duration-200 {stripeSaveCards ? 'translate-x-5' : 'translate-x-0'}"></span>
-        </button>
-        <input type="hidden" name="stripe_save_cards" value={stripeSaveCards ? 'true' : 'false'} />
-      </div>
-    </div>
-
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_low_stock_heading()}</h2>
       <p class="text-xs text-gray-400 mb-4">{m.admin_settings_low_stock_subtitle()}</p>
 
@@ -1188,18 +1102,41 @@
 
     {#if freeShippingSetting}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
-        <div class="flex flex-col gap-1.5">
-          <label for="free_shipping_threshold_hkd" class="text-sm font-semibold text-gray-900">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_label_free_shipping_threshold_enabled()}</h2>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_free_shipping_threshold_subtitle()}</p>
+          </div>
+          <button type="button"
+                  onclick={() => (freeShippingEnabled = !freeShippingEnabled)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {freeShippingEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={freeShippingEnabled}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {freeShippingEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="free_shipping_threshold_enabled" value={freeShippingEnabled ? 'true' : 'false'} />
+        </div>
+
+        <div class="flex flex-col gap-1.5 {freeShippingEnabled ? '' : 'opacity-50'}">
+          <label for="free_shipping_threshold_hkd" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_settings_label_free_shipping_threshold_hkd()}
           </label>
           {#if SETTING_DESCS['free_shipping_threshold_hkd'] ?? freeShippingSetting.description}
-            <p class="text-xs text-gray-400">{SETTING_DESCS['free_shipping_threshold_hkd'] ?? freeShippingSetting.description}</p>
+            <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS['free_shipping_threshold_hkd'] ?? freeShippingSetting.description}</p>
           {/if}
           <input id="free_shipping_threshold_hkd" name="free_shipping_threshold_hkd" type="text"
                  value={freeShippingSetting.value}
-                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                 disabled={!freeShippingEnabled}
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50 disabled:cursor-not-allowed" />
         </div>
+
+        {#if !freeShippingEnabled}
+          <p class="mt-3 text-xs text-gray-500">{m.admin_settings_free_shipping_threshold_disabled_hint()}</p>
+        {/if}
       </div>
     {/if}
 
@@ -1432,12 +1369,21 @@
           <div class="flex items-center justify-between gap-4">
             <div>
               <p class="text-sm font-semibold text-gray-900">{m.admin_settings_shipany_paid_by_receiver()}</p>
-              <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_shipany_paid_by_receiver_hint()}</p>
+              <p class="text-xs text-gray-400 mt-0.5">
+                {#if !freeShippingEnabled}
+                  {m.admin_settings_shipany_paid_by_receiver_hint_auto_on()}
+                {:else}
+                  {m.admin_settings_shipany_paid_by_receiver_hint_computed()}
+                {/if}
+              </p>
             </div>
             <button type="button"
-                    onclick={() => (shipanyPaidByReceiver = !shipanyPaidByReceiver)}
-                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                    onclick={() => { if (freeShippingEnabled) shipanyPaidByReceiver = !shipanyPaidByReceiver; }}
+                    disabled
+                    aria-disabled="true"
+                    class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent
                            transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                           opacity-60 cursor-not-allowed
                            {shipanyPaidByReceiver ? 'bg-green-500' : 'bg-gray-200'}"
                     role="switch"
                     aria-checked={shipanyPaidByReceiver}>
@@ -1616,6 +1562,136 @@
       </div>
     {/if}
 
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {m.admin_settings_payment_subtitle()}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-4 pb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_mode_heading()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {stripeLiveMode ? m.admin_settings_payment_mode_live_hint() : m.admin_settings_payment_mode_test_hint()}
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-gray-300' : 'text-gray-700'}">{m.admin_settings_payment_mode_test_label()}</span>
+          <button type="button"
+                  onclick={() => (stripeLiveMode = !stripeLiveMode)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {stripeLiveMode ? 'bg-indigo-600' : 'bg-gray-300'}"
+                  role="switch"
+                  aria-checked={stripeLiveMode}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {stripeLiveMode ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <span class="text-xs font-medium {stripeLiveMode ? 'text-indigo-600' : 'text-gray-300'}">{m.admin_settings_payment_mode_live_label()}</span>
+        </div>
+        <input type="hidden" name="stripe_mode" value={stripeLiveMode ? 'live' : 'test'} />
+      </div>
+
+      <div class="pt-5 border-t border-gray-100 mt-5">
+        <div class="flex flex-col gap-1.5">
+          <label for="stripe_country" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_payment_country_heading()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">
+            {m.admin_settings_payment_country_hint()}
+          </p>
+          <select id="stripe_country" name="stripe_country"
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            {#each STRIPE_COUNTRY_OPTIONS as opt}
+              <option value={opt.value}
+                      selected={(settingValue('stripe_country') || 'HK') === opt.value}>
+                {opt.label}
+              </option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <div class="pt-5 {stripeLiveMode ? 'opacity-50' : ''}">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          {m.admin_settings_payment_test_keys()} {#if stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
+        </p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_test_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
+            <PasswordInput id="stripe_test_publishable_key" name="stripe_test_publishable_key"
+                           value={settingValue('stripe_test_publishable_key')}
+                           placeholder="pk_test_..." />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_test_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
+            <PasswordInput id="stripe_test_secret_key" name="stripe_test_secret_key"
+                           value={settingValue('stripe_test_secret_key')}
+                           placeholder="sk_test_..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-5 mt-5 border-t border-gray-100 {stripeLiveMode ? '' : 'opacity-50'}">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          {m.admin_settings_payment_live_keys()} {#if !stripeLiveMode}<span class="font-normal normal-case text-gray-400">{m.admin_settings_payment_keys_inactive()}</span>{/if}
+        </p>
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_live_publishable_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_publishable()}</label>
+            <PasswordInput id="stripe_live_publishable_key" name="stripe_live_publishable_key"
+                           value={settingValue('stripe_live_publishable_key')}
+                           placeholder="pk_live_..." />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="stripe_live_secret_key" class="text-xs font-medium text-gray-600">{m.admin_settings_payment_label_secret()}</label>
+            <PasswordInput id="stripe_live_secret_key" name="stripe_live_secret_key"
+                           value={settingValue('stripe_live_secret_key')}
+                           placeholder="sk_live_..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-5 mt-5 border-t border-gray-100">
+        <div class="flex flex-col gap-1.5">
+          <label for="stripe_webhook_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_payment_webhook_heading()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">
+            {m.admin_settings_payment_webhook_hint_pre()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">POST /api/v1/payments/webhook</code>{m.admin_settings_payment_webhook_hint_mid()}<code class="px-1 py-0.5 bg-gray-50 rounded text-[11px]">whsec_…</code>{m.admin_settings_payment_webhook_hint_post()}
+          </p>
+          <PasswordInput id="stripe_webhook_secret" name="stripe_webhook_secret"
+                         value={settingValue('stripe_webhook_secret')}
+                         placeholder="whsec_..." />
+        </div>
+      </div>
+
+      <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_save_cards_heading()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {m.admin_settings_payment_save_cards_hint()}
+          </p>
+        </div>
+        <button type="button"
+                onclick={() => (stripeSaveCards = !stripeSaveCards)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {stripeSaveCards ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={stripeSaveCards}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {stripeSaveCards ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="stripe_save_cards" value={stripeSaveCards ? 'true' : 'false'} />
+      </div>
+    </div>
+
     {#if cloudflareSettings.length > 0}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
         <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_cloudflare()}</h2>
@@ -1643,6 +1719,15 @@
               {/if}
             </div>
           {/each}
+        </div>
+
+        <div class="pt-5 mt-5 border-t border-gray-100">
+          <button type="button"
+                  onclick={() => (showPurgeCloudflareModal = true)}
+                  class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                         hover:bg-gray-50 transition-colors">
+            {m.admin_settings_cloudflare_purge_button()}
+          </button>
         </div>
       </div>
     {/if}
@@ -1800,6 +1885,32 @@
                 class="flex-1 border border-gray-200 text-sm font-medium rounded-xl py-2.5
                        hover:bg-gray-50 transition-colors">
           {m.admin_settings_test_email_cancel()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showPurgeCloudflareModal}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+         onclick={() => showPurgeCloudflareModal = false}
+         role="button" tabindex="-1" aria-label={m.admin_modal_close()}></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+      <h3 class="font-semibold text-gray-900 mb-1">{m.admin_settings_cloudflare_purge_modal_title()}</h3>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_cloudflare_purge_modal_subtitle()}</p>
+
+      <div class="flex gap-3 mt-5">
+        <button type="button" disabled={purgingCloudflare}
+                onclick={purgeCloudflareCache}
+                class="flex-1 bg-gray-900 text-white text-sm font-medium rounded-xl py-2.5
+                       disabled:opacity-50 hover:bg-gray-700 transition-colors">
+          {purgingCloudflare ? m.admin_settings_cloudflare_purge_pending() : m.admin_settings_cloudflare_purge_confirm()}
+        </button>
+        <button type="button" onclick={() => showPurgeCloudflareModal = false}
+                class="flex-1 border border-gray-200 text-sm font-medium rounded-xl py-2.5
+                       hover:bg-gray-50 transition-colors">
+          {m.admin_settings_cloudflare_purge_cancel()}
         </button>
       </div>
     </div>

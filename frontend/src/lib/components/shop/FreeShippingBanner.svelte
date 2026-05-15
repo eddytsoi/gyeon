@@ -15,6 +15,9 @@
 
   let { settings, showUnlocked = false }: Props = $props();
 
+  const enabled = $derived(
+    settings.find((s) => s.key === 'free_shipping_threshold_enabled')?.value === 'true'
+  );
   const threshold = $derived(() => {
     const raw = settings.find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
     const n = raw ? Number(raw) : 0;
@@ -28,7 +31,7 @@
   const unlocked = $derived(threshold() > 0 && cartStore.subtotal >= threshold());
 </script>
 
-{#if threshold() > 0 && (unlocked ? showUnlocked : cartStore.subtotal > 0)}
+{#if enabled && threshold() > 0 && (unlocked ? showUnlocked : cartStore.subtotal > 0)}
   <div class="rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm" role="status" aria-live="polite">
     {#if unlocked}
       <p class="text-emerald-700 font-medium">
