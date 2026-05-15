@@ -9,6 +9,7 @@
   import NewButton from '$lib/components/admin/NewButton.svelte';
   import AdminModal from '$lib/components/admin/AdminModal.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -22,6 +23,7 @@
     const url = new URL(page.url);
     if (q) url.searchParams.set('q', q);
     else url.searchParams.delete('q');
+    url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
@@ -127,6 +129,8 @@
       </tbody>
     </table>
   </div>
+
+  <Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
 
 <!-- ── Create User Modal ── -->

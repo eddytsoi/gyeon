@@ -247,7 +247,19 @@ var customerSearchFields = []string{
 	"(first_name || ' ' || last_name)",
 }
 
-func (s *Service) List(ctx context.Context, search string, limit, offset int) ([]Customer, error) {
+func (s *Service) List(ctx context.Context, search string, limit, offset int) ([]Customer, int, error) {
+	whereSQL := ""
+	countArgs := []any{}
+	if clause, arg := util.BuildSearchClause(search, customerSearchFields, 1); clause != "" {
+		whereSQL = ` WHERE ` + clause
+		countArgs = append(countArgs, arg)
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM customers`+whereSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	args := []any{limit, offset}
 	query := `SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
 		 FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`
@@ -259,7 +271,7 @@ func (s *Service) List(ctx context.Context, search string, limit, offset int) ([
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -268,11 +280,11 @@ func (s *Service) List(ctx context.Context, search string, limit, offset int) ([
 		var c Customer
 		if err := rows.Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone,
 			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		customers = append(customers, c)
 	}
-	return customers, rows.Err()
+	return customers, total, rows.Err()
 }
 
 func (s *Service) ListAddresses(ctx context.Context, customerID string) ([]Address, error) {

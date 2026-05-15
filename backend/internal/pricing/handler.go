@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/respond"
@@ -50,12 +51,20 @@ func (h *Handler) PublicRoutes() chi.Router {
 // --- Campaigns ---
 
 func (h *Handler) listCampaigns(w http.ResponseWriter, r *http.Request) {
-	campaigns, err := h.svc.ListCampaigns(r.Context())
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	campaigns, total, err := h.svc.ListCampaigns(r.Context(), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, campaigns)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": campaigns,
+		"total": total,
+	})
 }
 
 func (h *Handler) getCampaign(w http.ResponseWriter, r *http.Request) {
@@ -129,12 +138,20 @@ func (h *Handler) deleteCampaign(w http.ResponseWriter, r *http.Request) {
 // --- Coupons ---
 
 func (h *Handler) listCoupons(w http.ResponseWriter, r *http.Request) {
-	coupons, err := h.svc.ListCoupons(r.Context())
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	coupons, total, err := h.svc.ListCoupons(r.Context(), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, coupons)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": coupons,
+		"total": total,
+	})
 }
 
 func (h *Handler) getCoupon(w http.ResponseWriter, r *http.Request) {

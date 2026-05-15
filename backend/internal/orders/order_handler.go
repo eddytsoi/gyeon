@@ -182,12 +182,15 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	orders, err := h.svc.List(r.Context(), limit, offset)
+	orders, total, err := h.svc.List(r.Context(), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, orders)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": orders,
+		"total": total,
+	})
 }
 
 func (h *OrderHandler) get(w http.ResponseWriter, r *http.Request) {

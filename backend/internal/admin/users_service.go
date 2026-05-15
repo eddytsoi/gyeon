@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -116,19 +117,31 @@ func (s *UserService) Login(ctx context.Context, req AdminLoginRequest) (*AdminU
 	return &u, nil
 }
 
-func (s *UserService) List(ctx context.Context, search string) ([]AdminUser, error) {
-	args := []any{}
-	query := `SELECT id, email, name, role, is_active, created_at, updated_at
-		 FROM admin_users ORDER BY created_at ASC`
+func (s *UserService) List(ctx context.Context, search string, limit, offset int) ([]AdminUser, int, error) {
+	whereSQL := ""
+	countArgs := []any{}
+	listArgs := []any{}
 	if clause, arg := util.BuildSearchClause(search, adminUserSearchFields, 1); clause != "" {
-		query = `SELECT id, email, name, role, is_active, created_at, updated_at
-		 FROM admin_users WHERE ` + clause + ` ORDER BY created_at ASC`
-		args = append(args, arg)
+		whereSQL = ` WHERE ` + clause
+		countArgs = append(countArgs, arg)
+		listArgs = append(listArgs, arg)
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	var total int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM admin_users`+whereSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listArgs = append(listArgs, limit, offset)
+	limitIdx := strconv.Itoa(len(listArgs) - 1)
+	offsetIdx := strconv.Itoa(len(listArgs))
+	query := `SELECT id, email, name, role, is_active, created_at, updated_at
+		 FROM admin_users` + whereSQL + ` ORDER BY created_at ASC LIMIT $` + limitIdx + ` OFFSET $` + offsetIdx
+
+	rows, err := s.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -137,11 +150,11 @@ func (s *UserService) List(ctx context.Context, search string) ([]AdminUser, err
 		var u AdminUser
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role,
 			&u.IsActive, &u.CreatedAt, &u.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		users = append(users, u)
 	}
-	return users, rows.Err()
+	return users, total, rows.Err()
 }
 
 func (s *UserService) Create(ctx context.Context, req CreateAdminUserRequest) (*AdminUser, error) {

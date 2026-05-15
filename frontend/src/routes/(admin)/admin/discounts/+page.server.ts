@@ -2,20 +2,33 @@ import {
   adminListCampaigns,
   adminListCoupons,
   adminDeleteCampaign,
-  adminDeleteCoupon,
-  type Campaign,
-  type Coupon
+  adminDeleteCoupon
 } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+const PAGE_SIZE = 50;
+
+export const load: PageServerLoad = async ({ cookies, url }) => {
   const token = cookies.get('admin_token') ?? '';
-  const [campaigns, coupons] = await Promise.all([
-    adminListCampaigns(token).catch(() => [] as Campaign[]),
-    adminListCoupons(token).catch(() => [] as Coupon[])
+
+  // Independent page cursors per tab so navigating one doesn't reset the other.
+  const campaignsPage = Math.max(1, parseInt(url.searchParams.get('cp') ?? '1', 10) || 1);
+  const couponsPage = Math.max(1, parseInt(url.searchParams.get('up') ?? '1', 10) || 1);
+
+  const [campaignsRes, couponsRes] = await Promise.all([
+    adminListCampaigns(token, PAGE_SIZE, (campaignsPage - 1) * PAGE_SIZE).catch(() => ({ items: [], total: 0 })),
+    adminListCoupons(token, PAGE_SIZE, (couponsPage - 1) * PAGE_SIZE).catch(() => ({ items: [], total: 0 }))
   ]);
-  return { campaigns, coupons };
+  return {
+    campaigns: campaignsRes.items,
+    campaignsTotal: campaignsRes.total,
+    campaignsPage,
+    coupons: couponsRes.items,
+    couponsTotal: couponsRes.total,
+    couponsPage,
+    pageSize: PAGE_SIZE
+  };
 };
 
 export const actions: Actions = {

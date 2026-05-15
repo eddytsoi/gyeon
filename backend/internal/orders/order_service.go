@@ -1521,18 +1521,23 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	return &order, nil
 }
 
-func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, error) {
+func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, tax_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
 		 FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	var orders []Order
+	orders := make([]Order, 0)
 	for rows.Next() {
 		var o Order
 		rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status, &o.Subtotal,
@@ -1542,7 +1547,7 @@ func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, er
 			&o.CreatedAt, &o.UpdatedAt)
 		orders = append(orders, o)
 	}
-	return orders, rows.Err()
+	return orders, total, rows.Err()
 }
 
 // GetIDByNumber resolves a sequential display number to its UUID.

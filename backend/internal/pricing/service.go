@@ -122,13 +122,18 @@ func NewService(db *sql.DB) *Service {
 
 // --- Campaign CRUD ---
 
-func (s *Service) ListCampaigns(ctx context.Context) ([]Campaign, error) {
+func (s *Service) ListCampaigns(ctx context.Context, limit, offset int) ([]Campaign, int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM discount_campaigns`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, name, description, discount_type, discount_value, target_type, target_id,
 		        min_order_amount, starts_at, ends_at, is_active, created_at, updated_at
-		 FROM discount_campaigns ORDER BY created_at DESC`)
+		 FROM discount_campaigns ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -138,11 +143,11 @@ func (s *Service) ListCampaigns(ctx context.Context) ([]Campaign, error) {
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
 			&c.TargetType, &c.TargetID, &c.MinOrderAmount, &c.StartsAt, &c.EndsAt,
 			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		campaigns = append(campaigns, c)
 	}
-	return campaigns, rows.Err()
+	return campaigns, total, rows.Err()
 }
 
 func (s *Service) GetCampaign(ctx context.Context, id string) (*Campaign, error) {
@@ -208,13 +213,18 @@ func (s *Service) DeleteCampaign(ctx context.Context, id string) error {
 
 // --- Coupon CRUD ---
 
-func (s *Service) ListCoupons(ctx context.Context) ([]Coupon, error) {
+func (s *Service) ListCoupons(ctx context.Context, limit, offset int) ([]Coupon, int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_codes`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, code, description, discount_type, discount_value, min_order_amount,
 		        max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at
-		 FROM coupon_codes ORDER BY created_at DESC`)
+		 FROM coupon_codes ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -224,11 +234,11 @@ func (s *Service) ListCoupons(ctx context.Context) ([]Coupon, error) {
 		if err := rows.Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
 			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
 			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		coupons = append(coupons, c)
 	}
-	return coupons, rows.Err()
+	return coupons, total, rows.Err()
 }
 
 func (s *Service) GetCoupon(ctx context.Context, id string) (*Coupon, error) {

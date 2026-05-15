@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/respond"
@@ -36,12 +37,20 @@ func (h *Handler) PublicRoutes() chi.Router {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	out, err := h.svc.List(r.Context())
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	out, total, err := h.svc.List(r.Context(), limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, out)
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"items": out,
+		"total": total,
+	})
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {

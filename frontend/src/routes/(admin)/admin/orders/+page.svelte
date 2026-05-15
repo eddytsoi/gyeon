@@ -5,6 +5,7 @@
   import type { Order } from '$lib/types';
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
+  import Pagination from '$lib/components/admin/Pagination.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
 
@@ -119,6 +120,8 @@
     </tbody>
   </table>
 </div>
+
+<Pagination total={data.total} pageSize={data.pageSize} currentPage={data.page} />
 
 <!-- Delete confirmation modal -->
 {#if deleteTarget}
