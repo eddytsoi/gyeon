@@ -120,6 +120,7 @@ Editorial layout block — full-bleed background, configurable layout, container
 | `width` | no | `default` \| `narrow` \| `full` | `default` |
 | `align` | no | `left` \| `center` | `left` |
 | `bleed` | no | `full` \| `container` | `full` |
+| `bleed-lg` | no | `full` \| `container` (overrides at ≥1024px) | _(inherits `bleed`)_ |
 | `id` | no | any string (rendered as HTML `id`) | — |
 | `class` | no | any string | — |
 
@@ -137,7 +138,13 @@ Copy on the left.
 
 ![right hero](/uploads/hero.jpg)
 [/section]
+
+[section bg="cream" bleed="full" bleed-lg="container"]
+Mobile/tablet stretches edge-to-edge; desktop sits inside the page container.
+[/section]
 ```
+
+`bleed-lg` only swaps the outer `<section>`'s width/margin at the `lg` breakpoint (same logic as `[banner]`'s `bleed-lg`); the background colour follows the base `bleed`. If you want the bg to extend to the viewport edge on desktop too, set `bleed="full"` as the base.
 
 Width/padding/bg/bleed maps live in `frontend/src/lib/shortcodes/section.ts`.
 

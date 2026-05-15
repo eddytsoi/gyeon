@@ -52,6 +52,14 @@ export function resolveBleed(v: unknown): SectionBleed {
   return v === 'full' || v === 'container' ? v : 'full';
 }
 
+// Optional responsive override applied at the Tailwind `lg` breakpoint
+// (≥ 1024px). Returns undefined when unset/empty/invalid so the consumer
+// can fall back to plain `bleed`.
+export function resolveBleedLg(v: unknown): SectionBleed | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  return v === 'full' || v === 'container' ? v : undefined;
+}
+
 // Split body on a markdown horizontal rule (`---` on its own line). Returns
 // [first, second]. If no HR is found the second half is empty — the wrapping
 // layout decides what to do with that.
