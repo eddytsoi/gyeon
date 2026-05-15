@@ -13,6 +13,8 @@
   const isLoginPage = $derived($page.url.pathname === '/admin/login');
   const faviconUrl = $derived(data.faviconUrl ?? '');
   let drawerOpen = $state(false);
+  let hoveredParent = $state<string | null>(null);
+  let canHover = $state(false);
 
   onMount(() => {
     if (!data.token || isLoginPage) return;
@@ -38,6 +40,14 @@
       }
     });
     return () => es.close();
+  });
+
+  onMount(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    canHover = mq.matches;
+    const handler = (e: MediaQueryListEvent) => { canHover = e.matches; };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   });
 
   type NavChild = { href: string; label: string };
@@ -163,7 +173,9 @@
   function isGroupExpanded(link: NavLink) {
     const pathname = $page.url.pathname;
     if (pathname.startsWith(link.href)) return true;
-    return (link.children ?? []).some((c) => pathname.startsWith(c.href));
+    if ((link.children ?? []).some((c) => pathname.startsWith(c.href))) return true;
+    if (canHover && hoveredParent === link.href) return true;
+    return false;
   }
 
   function isNavigatingTo(href: string) {
@@ -303,6 +315,7 @@
                   <div>
                     <a href={link.href}
                        onclick={() => drawerOpen = false}
+                       onmouseenter={() => { if (canHover) hoveredParent = link.href; }}
                        class="js-nav-item relative z-10 flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
                               transition-colors duration-150 group
                               {parentActive
