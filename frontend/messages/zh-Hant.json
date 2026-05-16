@@ -1449,6 +1449,7 @@
   "admin_settings_cloudflare_purge_failure_title": "清除 Cloudflare 快取失敗",
   "admin_settings_cloudflare_purge_failure_default": "請先檢查並儲存 Cloudflare 憑證。",
   "admin_settings_section_media": "媒體",
+  "admin_settings_section_forms": "表單",
   "admin_settings_media_image_limit": "圖片上傳上限（MB）",
   "admin_settings_media_video_limit": "影片上傳上限（MB）",
   "admin_settings_media_unit_mb": "MB",
