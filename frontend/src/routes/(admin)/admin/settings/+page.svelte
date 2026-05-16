@@ -160,6 +160,7 @@
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
+  const FORM_UPLOAD_KEYS = new Set(['form_upload_hard_cap_mb']);
   const ORDER_NUMBER_KEYS = new Set(['order_number_prefix']);
   const LOW_STOCK_KEYS = new Set(['low_stock_threshold_default', 'low_stock_alert_enabled']);
   const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
@@ -286,6 +287,7 @@
         !CACHE_TTL_KEYS.has(s.key) &&
         !CLOUDFLARE_KEYS.has(s.key) &&
         !MEDIA_LIMIT_KEYS.has(s.key) &&
+        !FORM_UPLOAD_KEYS.has(s.key) &&
         !PAYMENT_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
@@ -312,6 +314,7 @@
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
   const cloudflareSettings = $derived(data.settings.filter((s) => CLOUDFLARE_KEYS.has(s.key)));
   const mediaLimitSettings = $derived(data.settings.filter((s) => MEDIA_LIMIT_KEYS.has(s.key)));
+  const formUploadSettings = $derived(data.settings.filter((s) => FORM_UPLOAD_KEYS.has(s.key)));
   const maintenanceSetting = $derived(data.settings.find((s) => s.key === 'maintenance_mode'));
   let maintenanceOn = $state(maintenanceSetting?.value === 'true');
 
@@ -1918,6 +1921,32 @@
               <label for={setting.key}
                      class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {MEDIA_LIMIT_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
+              </label>
+              {#if SETTING_DESCS[setting.key] ?? setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
+              {/if}
+              <div class="flex items-center gap-2">
+                <input id={setting.key} name={setting.key} type="number" min="1"
+                       value={setting.value}
+                       class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                <span class="text-xs text-gray-400">{m.admin_settings_media_unit_mb()}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if formUploadSettings.length > 0}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_forms()}</h2>
+        <div class="flex flex-col gap-5">
+          {#each formUploadSettings as setting}
+            <div class="flex flex-col gap-1.5">
+              <label for={setting.key}
+                     class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {TEXT_SETTING_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
               </label>
               {#if SETTING_DESCS[setting.key] ?? setting.description}
                 <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>

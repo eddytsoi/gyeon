@@ -1449,6 +1449,7 @@
   "admin_settings_cloudflare_purge_failure_title": "Failed to purge Cloudflare cache",
   "admin_settings_cloudflare_purge_failure_default": "Check your Cloudflare credentials and save them first.",
   "admin_settings_section_media": "Media",
+  "admin_settings_section_forms": "Forms",
   "admin_settings_media_image_limit": "Image Upload Limit (MB)",
   "admin_settings_media_video_limit": "Video Upload Limit (MB)",
   "admin_settings_media_unit_mb": "MB",
