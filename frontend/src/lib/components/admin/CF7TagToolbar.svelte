@@ -16,6 +16,7 @@
     { name: 'select',   label: m.admin_forms_tag_select,   snippet: '[select your-choice "Option 1" "Option 2|value-2"]' },
     { name: 'checkbox', label: m.admin_forms_tag_checkbox, snippet: '[checkbox your-options "Yes|yes" "No|no"]' },
     { name: 'radio',    label: m.admin_forms_tag_radio,    snippet: '[radio your-choice "Option A|a" "Option B|b"]' },
+    { name: 'file',     label: m.admin_forms_tag_file,     snippet: '[file your-file filetypes:pdf|jpg|png limit:2mb]' },
     { name: 'date',     label: m.admin_forms_tag_date,     snippet: '[date your-date]' },
     { name: 'submit',   label: m.admin_forms_tag_submit,   snippet: '[submit "Send message"]' }
   ];
