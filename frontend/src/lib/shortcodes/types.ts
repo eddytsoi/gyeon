@@ -26,6 +26,7 @@ export type FormField = {
     | 'checkbox'
     | 'radio'
     | 'date'
+    | 'file'
     | 'submit'
     | 'hidden';
   name: string;
@@ -41,6 +42,11 @@ export type FormField = {
   min?: string;
   max?: string;
   options?: FormFieldOption[];
+  // File-field-only: server-side limit + allowed extensions (lowercase, no
+  // dot). Mirrors FormField.MaxBytes / Filetypes on the Go side. `max_bytes`
+  // of 0 means use the server default cap.
+  max_bytes?: number;
+  filetypes?: string[];
 };
 
 export type PublicForm = {

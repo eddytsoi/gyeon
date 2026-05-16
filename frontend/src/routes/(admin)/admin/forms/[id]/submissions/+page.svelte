@@ -2,12 +2,61 @@
   import { enhance } from '$app/forms';
   import { browser } from '$app/environment';
   import type { PageData } from './$types';
-  import type { FormSubmissionRow } from '$lib/api/admin';
+  import type { FormSubmissionRow, SubmissionFileRow } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
   let viewing = $state<FormSubmissionRow | null>(null);
+
+  // The list endpoint omits `files` to keep the table view lean. When the
+  // admin opens the detail modal we lazily fetch the full row through a
+  // SvelteKit proxy route — admin_token is httpOnly, so the proxy is what
+  // reads the cookie and attaches the Bearer header to the backend call.
+  $effect(() => {
+    if (!viewing || viewing.files !== undefined) return;
+    const sid = viewing.id;
+    const formID = data.form.id;
+    (async () => {
+      const res = await fetch(`/admin/forms/${formID}/submissions/${sid}`);
+      if (!res.ok) return;
+      const full = (await res.json()) as FormSubmissionRow;
+      // Guard against the user clicking another row before this resolves.
+      if (viewing && viewing.id === sid) viewing = full;
+    })();
+  });
+
+  function filesForField(name: string): SubmissionFileRow[] {
+    return (viewing?.files ?? []).filter((f) => f.field_name === name);
+  }
+
+  function humanSize(n: number): string {
+    if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${n} B`;
+  }
+
+  // The download endpoint is admin-auth via the same SvelteKit proxy so the
+  // httpOnly admin_token cookie can be attached server-side. Fetch the blob
+  // and trigger a download via an anchor click — a plain <a href> wouldn't
+  // carry the cookie cross-origin equivalents.
+  async function downloadAttachment(submissionID: string, file: SubmissionFileRow) {
+    const formID = data.form.id;
+    const res = await fetch(`/admin/forms/${formID}/submissions/${submissionID}/files/${file.id}`);
+    if (!res.ok) {
+      notify.error('Download failed');
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.original_name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   // Build the export URL: the admin token lives in a cookie so a same-origin
   // fetch picks it up automatically when wrapped with credentials, but the
@@ -149,6 +198,17 @@
           <div>
             <dt class="text-xs uppercase tracking-wide text-gray-400">{k}</dt>
             <dd class="text-sm text-gray-900 whitespace-pre-wrap">{v}</dd>
+            {#each filesForField(k) as f (f.id)}
+              <button
+                type="button"
+                onclick={() => downloadAttachment(viewing!.id, f)}
+                class="mt-1 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                <span aria-hidden="true">⬇</span>
+                <span>{f.original_name}</span>
+                <span class="text-gray-400">({humanSize(f.size_bytes)})</span>
+              </button>
+            {/each}
           </div>
         {/each}
       </dl>

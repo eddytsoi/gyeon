@@ -262,6 +262,41 @@ export const submitForm = async (
   return body as FormSubmitResult;
 };
 
+// submitFormMultipart is the upload-aware sibling of submitForm. The browser
+// sets the multipart boundary automatically; we use XHR (not fetch) so the
+// caller can render a real upload progress bar — fetch() doesn't expose
+// upload progress without ReadableStream hacks. `onProgress` is called with
+// a 0–1 value whenever a progress event fires.
+export const submitFormMultipart = (
+  slug: string,
+  formData: FormData,
+  onProgress?: (fraction: number) => void
+): Promise<FormSubmitResult | FormSubmitError> =>
+  new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${base()}/forms/${slug}/submit`);
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+    }
+    xhr.onload = () => {
+      let body: unknown = {};
+      try {
+        body = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        body = {};
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as FormSubmitResult);
+      } else {
+        resolve(body as FormSubmitError);
+      }
+    };
+    xhr.onerror = () => resolve({ error: 'Network error' });
+    xhr.send(formData);
+  });
+
 export const getNavMenu = (handle: string) =>
   request<NavMenu>(`/cms/nav/by-handle/${handle}`);
 

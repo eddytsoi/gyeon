@@ -110,6 +110,55 @@ func TestParseForm_DefaultValue(t *testing.T) {
 	}
 }
 
+func TestParseForm_FileFieldConstraints(t *testing.T) {
+	fields, errs := ParseForm(`[file* receipt filetypes:pdf|jpg|PNG limit:2mb]`)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected parse errors: %+v", errs)
+	}
+	if len(fields) != 1 {
+		t.Fatalf("expected 1 field, got %d", len(fields))
+	}
+	f := fields[0]
+	if f.Type != FieldFile {
+		t.Errorf("type = %s want %s", f.Type, FieldFile)
+	}
+	if !f.Required {
+		t.Errorf("required flag dropped on [file*]")
+	}
+	if f.Name != "receipt" {
+		t.Errorf("name = %q want %q", f.Name, "receipt")
+	}
+	wantBytes := int64(2 << 20)
+	if f.MaxBytes != wantBytes {
+		t.Errorf("max_bytes = %d want %d", f.MaxBytes, wantBytes)
+	}
+	if !reflect.DeepEqual(f.Filetypes, []string{"pdf", "jpg", "png"}) {
+		t.Errorf("filetypes = %+v want [pdf jpg png]", f.Filetypes)
+	}
+}
+
+func TestParseSizeLimit(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int64
+		ok   bool
+	}{
+		{"5mb", 5 << 20, true},
+		{"500kb", 500 << 10, true},
+		{"1gb", 1 << 30, true},
+		{"2048", 2048, true},
+		{"", 0, false},
+		{"junk", 0, false},
+		{"-1mb", 0, false},
+	}
+	for _, c := range cases {
+		got, ok := parseSizeLimit(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("parseSizeLimit(%q) = (%d, %v) want (%d, %v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
 func TestParseForm_Errors(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -120,7 +169,6 @@ func TestParseForm_Errors(t *testing.T) {
 		{"missing name", `[text]`, "field name is required"},
 		{"duplicate name", "[text a]\n[text a]", `duplicate field name "a"`},
 		{"unterminated quote", `[text a placeholder "unterminated]`, "unterminated quoted string"},
-		{"file unsupported (phase 1)", `[file* upload]`, `unsupported field type "file"`},
 		{"invalid name", `[text 1bad]`, `invalid field name "1bad"`},
 	}
 	for _, tc := range cases {

@@ -1007,6 +1007,15 @@ export interface FormParseError {
   message: string;
 }
 
+export interface SubmissionFileRow {
+  id: string;
+  field_name: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface FormSubmissionRow {
   id: string;
   form_id: string;
@@ -1016,6 +1025,7 @@ export interface FormSubmissionRow {
   recaptcha_score?: number;
   mail_sent: boolean;
   mail_error?: string;
+  files?: SubmissionFileRow[];
   created_at: string;
 }
 
