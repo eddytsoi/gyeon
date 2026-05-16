@@ -196,8 +196,15 @@ func SampleParamsFor(key string) any {
 			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD",
-			Subtotal: 100, ShippingFee: 30, DiscountAmount: 0, Total: 135,
-			Items: []OrderEmailItem{{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100}},
+			Subtotal: 389, ShippingFee: 30, DiscountAmount: 0, Total: 419,
+			Items: []OrderEmailItem{
+				{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
+				{Name: "內籠基本清潔套裝", SKU: "BUNDLE-001", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
+					{Name: "Q²M INTERIORDETAILER - 500ML", SKU: "Q2M-ID-500", Quantity: 1},
+					{Name: "Q²M SCRUBPAD EVO", SKU: "Q2M-SP-EVO", Quantity: 1},
+					{Name: "Q²M INTERIORWIPE EVO 2-PACK", SKU: "Q2M-IW-2PK", Quantity: 1},
+				}},
+			},
 		}
 	case "order_shipped":
 		return ShippedEmailParams{
@@ -215,7 +222,15 @@ func SampleParamsFor(key string) any {
 		return PaymentLinkParams{
 			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
-			PaymentURL: "https://example.com/pay/00000000", Total: 135, Currency: "HKD",
+			PaymentURL: "https://example.com/pay/00000000", Total: 419, Currency: "HKD",
+			Items: []OrderEmailItem{
+				{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
+				{Name: "內籠基本清潔套裝", SKU: "BUNDLE-001", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
+					{Name: "Q²M INTERIORDETAILER - 500ML", Quantity: 1},
+					{Name: "Q²M SCRUBPAD EVO", Quantity: 1},
+					{Name: "Q²M INTERIORWIPE EVO 2-PACK", Quantity: 1},
+				}},
+			},
 		}
 	case "password_reset":
 		return PasswordResetParams{
@@ -234,8 +249,15 @@ func SampleParamsFor(key string) any {
 		return AbandonedCartParams{
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD",
-			Items: []AbandonedCartItem{{Name: "Sample Product", Quantity: 1, UnitPrice: 100}},
-			Subtotal: 100, ResumeURL: "https://example.com/cart",
+			Items: []AbandonedCartItem{
+				{Name: "Sample Product", Quantity: 1, UnitPrice: 100},
+				{Name: "內籠基本清潔套裝", Quantity: 1, UnitPrice: 289, Children: []AbandonedCartItem{
+					{Name: "Q²M INTERIORDETAILER - 500ML", Quantity: 1},
+					{Name: "Q²M SCRUBPAD EVO", Quantity: 1},
+					{Name: "Q²M INTERIORWIPE EVO 2-PACK", Quantity: 1},
+				}},
+			},
+			Subtotal: 389, ResumeURL: "https://example.com/cart",
 		}
 	case "low_stock_alert":
 		return LowStockParams{

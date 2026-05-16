@@ -9,6 +9,19 @@
   const order = $derived(data.order);
   const notices = $derived(data.notices ?? []);
 
+  // Group order items by parent_item_id so bundle component rows appear
+  // indented under their bundle parent line.
+  const parentItems = $derived((order.items ?? []).filter((it) => !it.parent_item_id));
+  const childrenByParent = $derived.by(() => {
+    const map: Record<string, typeof order.items> = {};
+    for (const it of order.items ?? []) {
+      if (it.parent_item_id) {
+        (map[it.parent_item_id] ??= []).push(it);
+      }
+    }
+    return map;
+  });
+
   let sending = $state(false);
   let messageBody = $state('');
 
@@ -82,13 +95,25 @@
   <div class="bg-white rounded-2xl border border-gray-100 p-6">
     <h2 class="font-semibold text-gray-900 mb-4">{m.account_order_items()}</h2>
     <div class="flex flex-col divide-y divide-gray-50">
-      {#each order.items ?? [] as item}
-        <div class="flex items-center justify-between py-3">
-          <div class="flex-1">
-            <p class="text-sm font-medium text-gray-900">{item.product_name}</p>
-            <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ sku: item.variant_sku, quantity: item.quantity })}</p>
+      {#each parentItems as item}
+        <div class="py-3">
+          <div class="flex items-center justify-between">
+            <div class="flex-1">
+              <p class="text-sm font-medium text-gray-900">{item.product_name}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ sku: item.variant_sku, quantity: item.quantity })}</p>
+            </div>
+            <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
           </div>
-          <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
+          {#if childrenByParent[item.id]?.length}
+            <ul class="mt-2 pl-4 border-l border-gray-100 flex flex-col gap-1">
+              {#each childrenByParent[item.id] as child}
+                <li class="flex items-center justify-between text-xs text-gray-500">
+                  <span class="truncate">↳ {child.product_name}</span>
+                  <span class="flex-shrink-0 tabular-nums">× {child.quantity}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </div>
       {/each}
     </div>

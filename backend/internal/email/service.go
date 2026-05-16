@@ -91,6 +91,9 @@ type OrderEmailItem struct {
 	Quantity  int
 	UnitPrice float64
 	LineTotal float64
+	// Children is set for bundle parent rows so templates can render
+	// the bundle's components indented underneath the parent.
+	Children []OrderEmailItem
 }
 
 type OrderEmailParams struct {
@@ -169,6 +172,9 @@ type AbandonedCartItem struct {
 	Name      string
 	Quantity  int
 	UnitPrice float64
+	// Children is set for bundle parent rows so the abandoned-cart email
+	// shows what's inside the bundle.
+	Children []AbandonedCartItem
 }
 
 type AbandonedCartParams struct {
@@ -644,7 +650,8 @@ const paymentLinkText = `您好 {{.CustomerName}}，
 
 ──────── 訂單明細 ────────
 {{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" .LineTotal}}
-{{end}}
+{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{end}}{{end}}
 總額：{{.Currency}} {{printf "%.2f" .Total}}
 
 此付款連結將於 24 小時後失效。付款成功後您會收到正式訂單確認電郵。
@@ -665,7 +672,7 @@ const paymentLinkHTML = `<!doctype html>
       <p style="text-align:center;margin:0 0 24px;color:#9ca3af;font-size:12px">此連結將於 24 小時後失效</p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">訂單明細</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:8px 0 0;font-weight:600">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{printf "%.2f" .Total}}</td></tr>
@@ -685,7 +692,8 @@ const abandonedCartText = `{{if .CustomerName}}您好 {{.CustomerName}}，{{else
 您之前選購的商品仍在購物車中。為您保留如下：
 
 {{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" (mul .UnitPrice .Quantity)}}
-{{end}}
+{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{end}}{{end}}
 小計：{{.Currency}} {{printf "%.2f" .Subtotal}}
 
 {{if .ResumeURL}}點此繼續結帳：
@@ -704,7 +712,7 @@ const abandonedCartHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">{{if .CustomerName}}您好 {{.CustomerName | esc}}，{{else}}您好，{{end}} 我們為您保留了以下商品。</p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">購物車內容</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" (mul .UnitPrice .Quantity)}}</td></tr>{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" (mul .UnitPrice .Quantity)}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:8px 0 0;font-weight:600">小計</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
@@ -729,7 +737,8 @@ const orderConfirmationText = `您好 {{.CustomerName}}，
 
 ──────── 訂單明細 ────────
 {{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" .LineTotal}}
-{{end}}
+{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{end}}{{end}}
 小計：     {{.Currency}} {{printf "%.2f" .Subtotal}}
 {{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{printf "%.2f" .DiscountAmount}}
 {{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{printf "%.2f" .TaxAmount}}
@@ -761,7 +770,7 @@ const orderConfirmationHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 {{.CustomerName | esc}}，我們已收到您的付款。訂單編號 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong></p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">訂單明細</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>

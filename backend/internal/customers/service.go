@@ -559,7 +559,8 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 		`SELECT o.id, o.number, o.status, o.total, o.created_at,
 		        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
 		   FROM orders o
-		   LEFT JOIN order_items oi ON oi.order_id = o.id
+		   LEFT JOIN order_items oi
+		     ON oi.order_id = o.id AND oi.parent_item_id IS NULL
 		  WHERE o.customer_id=$1
 		  GROUP BY o.id
 		  ORDER BY o.created_at DESC

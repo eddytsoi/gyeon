@@ -94,6 +94,37 @@ func TestOrderConfirmationFields(t *testing.T) {
 	}
 }
 
+// TestOrderConfirmationBundleChildren verifies that bundle component rows
+// are rendered indented under their bundle parent in both HTML and text.
+func TestOrderConfirmationBundleChildren(t *testing.T) {
+	def := defaultsFor("order_confirmation")
+	p := OrderEmailParams{
+		OrderNumber:  "ORD-0001",
+		CustomerName: "Bundle Buyer",
+		Currency:     "HKD",
+		Subtotal:     289,
+		Total:        289,
+		Items: []OrderEmailItem{
+			{Name: "內籠基本清潔套裝", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
+				{Name: "Q²M INTERIORDETAILER", Quantity: 1},
+				{Name: "Q²M SCRUBPAD EVO", Quantity: 2},
+			}},
+		},
+	}
+
+	html, _ := executeTemplate("html", def.html, p)
+	text, _ := executeTemplate("text", def.text, p)
+
+	for _, want := range []string{"內籠基本清潔套裝", "↳ Q²M INTERIORDETAILER", "↳ Q²M SCRUBPAD EVO", "× 2"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("html missing %q", want)
+		}
+		if !strings.Contains(text, want) {
+			t.Errorf("text missing %q", want)
+		}
+	}
+}
+
 // TestOrderConfirmationConditionals verifies that optional rows (discount,
 // tax, shipping address, setup URL) appear only when their fields are set.
 func TestOrderConfirmationConditionals(t *testing.T) {

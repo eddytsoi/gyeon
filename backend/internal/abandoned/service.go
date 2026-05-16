@@ -105,7 +105,7 @@ func (s *Service) ListCandidates(ctx context.Context) ([]Candidate, error) {
 
 func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.AbandonedCartItem, float64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT COALESCE(p.name, ''), pv.name, pv.price, ci.quantity, p.kind
+		SELECT ci.id, COALESCE(p.name, ''), pv.name, pv.price, ci.quantity, p.kind, p.id
 		FROM cart_items ci
 		JOIN product_variants pv ON pv.id = ci.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -116,25 +116,73 @@ func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.Aban
 	}
 	defer rows.Close()
 
+	type bundleRef struct {
+		idx       int
+		productID string
+		parentQty int
+	}
 	items := []email.AbandonedCartItem{}
+	var bundleRefs []bundleRef
 	var subtotal float64
 	for rows.Next() {
 		var it email.AbandonedCartItem
-		var productName string
+		var cartItemID, productName, productID, kind string
 		var variantName sql.NullString
-		var kind string
-		if err := rows.Scan(&productName, &variantName, &it.UnitPrice, &it.Quantity, &kind); err != nil {
+		if err := rows.Scan(&cartItemID, &productName, &variantName, &it.UnitPrice, &it.Quantity, &kind, &productID); err != nil {
 			return nil, 0, err
 		}
 		if kind == "bundle" {
 			it.Name = productName
+			bundleRefs = append(bundleRefs, bundleRef{idx: len(items), productID: productID, parentQty: it.Quantity})
 		} else {
 			it.Name = shop.ProductDisplayName(productName, variantName.String)
 		}
 		subtotal += it.UnitPrice * float64(it.Quantity)
 		items = append(items, it)
 	}
-	return items, subtotal, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	for _, ref := range bundleRefs {
+		children, err := s.bundleChildren(ctx, ref.productID, ref.parentQty)
+		if err != nil {
+			return nil, 0, err
+		}
+		items[ref.idx].Children = children
+	}
+	return items, subtotal, nil
+}
+
+// bundleChildren returns the bundle's component lines (name + scaled qty)
+// for inclusion under the parent row in the abandoned-cart email.
+func (s *Service) bundleChildren(ctx context.Context, bundleProductID string, parentQty int) ([]email.AbandonedCartItem, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT COALESCE(p.name, ''), pv.name, pv.price, bi.quantity
+		FROM bundle_items bi
+		JOIN product_variants pv ON pv.id = bi.component_variant_id
+		JOIN products p ON p.id = pv.product_id
+		WHERE bi.bundle_product_id = $1
+		ORDER BY bi.sort_order ASC, bi.created_at ASC`, bundleProductID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []email.AbandonedCartItem{}
+	for rows.Next() {
+		var c email.AbandonedCartItem
+		var productName string
+		var variantName sql.NullString
+		var perBundleQty int
+		if err := rows.Scan(&productName, &variantName, &c.UnitPrice, &perBundleQty); err != nil {
+			return nil, err
+		}
+		c.Name = shop.ProductDisplayName(productName, variantName.String)
+		c.Quantity = perBundleQty * parentQty
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // Run scans for candidates and sends one reminder per cart. Returns how many
