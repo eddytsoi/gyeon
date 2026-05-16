@@ -6,6 +6,7 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter(),
+    serviceWorker: { register: false },
     alias: {
       $components: './src/lib/components',
       $stores: './src/lib/stores',

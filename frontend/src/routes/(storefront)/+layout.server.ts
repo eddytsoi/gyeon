@@ -11,6 +11,8 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
   const mcpEnabled = settings.find((s) => s.key === 'mcp_enabled')?.value === 'true';
   // Default to true so uninitialised installs (no setting row yet) keep the blog visible.
   const blogEnabled = settings.find((s) => s.key === 'blog_enabled')?.value !== 'false';
+  // Default ON: an uninitialised install (no row, or fetch failure) keeps PWA active.
+  const pwaEnabled = settings.find((s) => s.key === 'pwa_enabled')?.value !== 'false';
 
   const stripBlogLinks = (menu: NavMenu | null): NavMenu | null => {
     if (!menu || blogEnabled) return menu;
@@ -29,6 +31,7 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
     footerNav: stripBlogLinks(footerNav),
     mcpEnabled,
     blogEnabled,
+    pwaEnabled,
     customer,
     publicSettings: settings
   };

@@ -26,6 +26,18 @@
 
   onMount(async () => {
     initTracker(data.publicSettings ?? []);
+    if ('serviceWorker' in navigator) {
+      if (data.pwaEnabled) {
+        try {
+          await navigator.serviceWorker.register('/service-worker.js', { type: 'module' });
+        } catch (e) {
+          console.warn('Service worker registration failed', e);
+        }
+      } else {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+    }
     await cartStore.init();
     await wishlistStore.init(!!data.customer);
     await registerStorefrontTools(data.mcpEnabled);
@@ -36,6 +48,17 @@
   {#if faviconUrl}
     <link rel="icon" href={faviconUrl} />
     <link rel="apple-touch-icon" href={faviconUrl} />
+  {/if}
+  {#if data.pwaEnabled}
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Gyeon" />
+    {#if !faviconUrl}
+      <link rel="apple-touch-icon" href="/icon.svg" />
+    {/if}
   {/if}
 </svelte:head>
 
