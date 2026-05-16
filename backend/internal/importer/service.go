@@ -559,9 +559,15 @@ func (s *Service) importBundleProduct(
 	for _, bi := range prod.BundledItems {
 		variantID, ok := s.resolveBundleComponent(ctx, bi)
 		if !ok {
-			p.Errors = append(p.Errors, fmt.Sprintf(
-				"bundle %q: component WC product %d not found in Gyeon (run Products import first)",
-				prod.Slug, bi.ProductID))
+			if bi.VariationID != 0 {
+				p.Errors = append(p.Errors, fmt.Sprintf(
+					"bundle %q: variation %d (product %d) not found — run Products import first or check SKU suffix",
+					prod.Slug, bi.VariationID, bi.ProductID))
+			} else {
+				p.Errors = append(p.Errors, fmt.Sprintf(
+					"bundle %q: component WC product %d not found in Gyeon (run Products import first)",
+					prod.Slug, bi.ProductID))
+			}
 			continue
 		}
 		qty := bi.QuantityDefault
@@ -617,17 +623,20 @@ func (s *Service) importBundleProduct(
 }
 
 // resolveBundleComponent maps a WC bundled_item to a Gyeon variant ID.
-// Prefers an exact wc_variation_id match (when the bundle pins a specific
-// variation); otherwise falls back to the component product's first active
-// variant — deterministic and easy for the admin to retarget later.
+// When the bundle pins a specific variation, the match must be exact —
+// either the SKU suffix "{slug}-{wcVariationID}" or the wc_variation_id
+// column. Falling back to the product's first active variant would
+// silently produce wrong bundle contents, so we refuse instead. The
+// fallback is reserved for unpinned items (simple-product components).
 func (s *Service) resolveBundleComponent(ctx context.Context, bi wcBundledItem) (string, bool) {
-	if bi.VariationID != 0 {
-		if id, err := s.productSvc.GetVariantIDByWCVariationID(ctx, bi.VariationID); err == nil {
-			return id, true
-		}
-	}
 	productID, err := s.productSvc.GetIDByWCProductID(ctx, bi.ProductID)
 	if err != nil {
+		return "", false
+	}
+	if bi.VariationID != 0 {
+		if id, err := s.productSvc.GetVariantIDByBundleRef(ctx, productID, bi.VariationID); err == nil {
+			return id, true
+		}
 		return "", false
 	}
 	if id, err := s.productSvc.FindFirstActiveVariantID(ctx, productID); err == nil {
