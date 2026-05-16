@@ -559,10 +559,10 @@ func (s *Service) importBundleProduct(
 	for _, bi := range prod.BundledItems {
 		variantID, ok := s.resolveBundleComponent(ctx, bi)
 		if !ok {
-			if bi.VariationID != 0 {
+			if bi.OverrideVariations && len(bi.AllowedVariations) > 0 {
 				p.Errors = append(p.Errors, fmt.Sprintf(
 					"bundle %q: variation %d (product %d) not found — run Products import first or check SKU suffix",
-					prod.Slug, bi.VariationID, bi.ProductID))
+					prod.Slug, bi.AllowedVariations[0], bi.ProductID))
 			} else {
 				p.Errors = append(p.Errors, fmt.Sprintf(
 					"bundle %q: component WC product %d not found in Gyeon (run Products import first)",
@@ -623,18 +623,21 @@ func (s *Service) importBundleProduct(
 }
 
 // resolveBundleComponent maps a WC bundled_item to a Gyeon variant ID.
-// When the bundle pins a specific variation, the match must be exact —
-// either the SKU suffix "{slug}-{wcVariationID}" or the wc_variation_id
-// column. Falling back to the product's first active variant would
-// silently produce wrong bundle contents, so we refuse instead. The
-// fallback is reserved for unpinned items (simple-product components).
+// When override_variations is set and allowed_variations is non-empty,
+// the bundle restricts the component to a specific subset of variations;
+// we pin to the first allowed entry (Gyeon's bundle model holds one
+// variant per slot — admin can retarget if WC allows multiple). The match
+// must be exact (SKU suffix "{slug}-{wcVariationID}" or wc_variation_id
+// column) — never silently fall through to a different variant. The
+// "first active variant" path is only used for unrestricted components
+// (typically simple products).
 func (s *Service) resolveBundleComponent(ctx context.Context, bi wcBundledItem) (string, bool) {
 	productID, err := s.productSvc.GetIDByWCProductID(ctx, bi.ProductID)
 	if err != nil {
 		return "", false
 	}
-	if bi.VariationID != 0 {
-		if id, err := s.productSvc.GetVariantIDByBundleRef(ctx, productID, bi.VariationID); err == nil {
+	if bi.OverrideVariations && len(bi.AllowedVariations) > 0 {
+		if id, err := s.productSvc.GetVariantIDByBundleRef(ctx, productID, bi.AllowedVariations[0]); err == nil {
 			return id, true
 		}
 		return "", false
