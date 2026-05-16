@@ -4,11 +4,13 @@
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
   import CF7TagToolbar from '$lib/components/admin/CF7TagToolbar.svelte';
+  import SaveButton from '$lib/components/admin/SaveButton.svelte';
 
   let { data, form: actionData }: { data: PageData; form: ActionData } = $props();
 
   const isNew = !data.form;
   const initial = data.form;
+  let saving = $state(false);
 
   // Restore the values the admin just submitted if validation failed; otherwise
   // hydrate from the DB row (edit) or defaults (new).
@@ -122,10 +124,13 @@ Thanks for reaching out — we've received your message and will get back to you
     method="POST"
     action="?/save"
     use:enhance={() => {
+      if (saving) return;
+      saving = true;
       return async ({ result, update }) => {
         if (result.type === 'redirect') notify.success(m.admin_forms_save_success());
         else if (result.type === 'failure') notify.error(m.admin_forms_save_failure(), m.admin_forms_save_failure_detail());
         await update();
+        saving = false;
       };
     }}
     class="space-y-6"
@@ -361,9 +366,11 @@ Thanks for reaching out — we've received your message and will get back to you
 
     <div class="flex justify-end gap-3 pt-2">
       <a href="/admin/forms" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">{m.admin_forms_cancel()}</a>
-      <button type="submit" class="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-800">
+      <SaveButton loading={saving}
+              class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900
+                     text-white text-sm font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
         {isNew ? m.admin_forms_create_button() : m.admin_forms_save_button()}
-      </button>
+      </SaveButton>
     </div>
   </form>
 </div>
