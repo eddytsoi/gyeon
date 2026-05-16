@@ -1867,6 +1867,7 @@
   "admin_forms_tag_select": "select",
   "admin_forms_tag_checkbox": "checkbox",
   "admin_forms_tag_radio": "radio",
+  "admin_forms_tag_file": "file",
   "admin_forms_tag_date": "date",
   "admin_forms_tag_submit": "submit",
   "admin_forms_submissions_title": "Submissions · {title}",

@@ -1867,6 +1867,7 @@
   "admin_forms_tag_select": "下拉選單",
   "admin_forms_tag_checkbox": "核取方塊",
   "admin_forms_tag_radio": "單選",
+  "admin_forms_tag_file": "檔案",
   "admin_forms_tag_date": "日期",
   "admin_forms_tag_submit": "送出按鈕",
   "admin_forms_submissions_title": "投稿紀錄 · {title}",
