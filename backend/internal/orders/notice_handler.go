@@ -16,13 +16,19 @@ import (
 	"gyeon/backend/internal/respond"
 )
 
+// NoticeEmailSender is the slice of email.Service the notice handler needs.
+type NoticeEmailSender interface {
+	PublicBaseURL(ctx context.Context) string
+	SendAdminMessageNotification(ctx context.Context, p email.AdminMessageParams) error
+}
+
 type NoticeHandler struct {
 	svc       *NoticeService
-	emailSvc  *email.Service
+	emailSvc  NoticeEmailSender
 	jwtSecret string // admin JWT secret — used to extract admin user id (token Subject)
 }
 
-func NewNoticeHandler(svc *NoticeService, emailSvc *email.Service, adminJWTSecret string) *NoticeHandler {
+func NewNoticeHandler(svc *NoticeService, emailSvc NoticeEmailSender, adminJWTSecret string) *NoticeHandler {
 	return &NoticeHandler{svc: svc, emailSvc: emailSvc, jwtSecret: adminJWTSecret}
 }
 

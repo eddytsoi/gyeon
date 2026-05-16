@@ -820,6 +820,109 @@ export const adminListAuditLog = (token: string, f: AuditFilters = {}) => {
   return request<AuditList>(`/admin/audit-log/${suffix}`, token);
 };
 
+// ── SMTP log (v0.9.136) ───────────────────────────────────────────────────────
+
+export interface SmtpLogRow {
+  id: string;
+  queue_job_id?: string;
+  template_key?: string;
+  trigger_condition: string;
+  related_entity_type?: string;
+  related_entity_id?: string;
+  recipient: string;
+  from_email: string;
+  from_name?: string;
+  reply_to?: string;
+  subject: string;
+  body_html: string;
+  body_text: string;
+  status: 'sent' | 'failed';
+  failure_reason?: string;
+  attempt_number: number;
+  resent_from_id?: string;
+  created_at: string;
+}
+
+export interface SmtpLogList {
+  items: SmtpLogRow[];
+  total: number;
+}
+
+export interface SmtpLogFilters {
+  status?: string;
+  template_key?: string;
+  trigger_condition?: string;
+  recipient?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const adminListSmtpLog = (token: string, f: SmtpLogFilters = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v == null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<SmtpLogList>(`/admin/smtp-log/${suffix}`, token);
+};
+
+export const adminGetSmtpLog = (token: string, id: string) =>
+  request<SmtpLogRow>(`/admin/smtp-log/${id}`, token);
+
+export const adminResendSmtpLog = (token: string, id: string) =>
+  request<{ queue_job_id: string; smtp_log_id: string }>(
+    `/admin/smtp-log/${id}/resend`, token, { method: 'POST' }
+  );
+
+// ── Queue jobs (v0.9.136) ─────────────────────────────────────────────────────
+
+export interface QueueJobRow {
+  id: string;
+  type: string;
+  payload: string;
+  status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'dead';
+  attempts: number;
+  max_attempts: number;
+  last_error?: string;
+  run_after: string;
+  scheduled_at: string;
+  locked_at?: string;
+  locked_by?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+}
+
+export interface QueueJobList {
+  items: QueueJobRow[];
+  total: number;
+}
+
+export interface QueueJobFilters {
+  status?: string;
+  type?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export const adminListQueueJobs = (token: string, f: QueueJobFilters = {}) => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v == null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<QueueJobList>(`/admin/queue-jobs/${suffix}`, token);
+};
+
+export const adminRetryQueueJob = (token: string, id: string) =>
+  request<{ id: string }>(`/admin/queue-jobs/${id}/retry`, token, { method: 'POST' });
+
 // ── Stock movement log (進出記錄) ─────────────────────────────────────────────
 
 export interface StockMovementRow extends VariantHistoryRow {

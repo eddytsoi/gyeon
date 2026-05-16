@@ -184,13 +184,25 @@ type AuditEntry struct {
 	After      any
 }
 
+// EmailSender is the slice of email.Service the orders package needs.
+// Both *email.Service and *email.QueueEnqueuer satisfy this so callers can
+// pick the sync or queued implementation without changing this file.
+type EmailSender interface {
+	PublicBaseURL(ctx context.Context) string
+	SendPaymentLink(ctx context.Context, p email.PaymentLinkParams) error
+	SendOrderConfirmation(ctx context.Context, p email.OrderEmailParams) error
+	SendOrderShipped(ctx context.Context, p email.ShippedEmailParams) error
+	SendOrderRefunded(ctx context.Context, p email.RefundEmailParams) error
+	SendLowStockAlert(ctx context.Context, p email.LowStockParams) error
+}
+
 type OrderService struct {
 	db          *sql.DB
 	cartSvc     *CartService
 	pricingSvc  *pricing.Service
 	customerSvc *customers.Service
 	paymentSvc  *payment.Service
-	emailSvc    *email.Service
+	emailSvc    EmailSender
 	taxSvc      *tax.Service
 	audit       AuditRecorder
 	onCreated   func(ctx context.Context, order *Order)
@@ -358,7 +370,7 @@ func NewOrderService(
 	pricingSvc *pricing.Service,
 	customerSvc *customers.Service,
 	paymentSvc *payment.Service,
-	emailSvc *email.Service,
+	emailSvc EmailSender,
 ) *OrderService {
 	return &OrderService{
 		db:          db,

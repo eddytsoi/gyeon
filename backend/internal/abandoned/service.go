@@ -32,13 +32,19 @@ type Candidate struct {
 	Items         []email.AbandonedCartItem `json:"items"`
 }
 
+// EmailSender is the slice of email.Service the abandoned-cart service uses.
+type EmailSender interface {
+	PublicBaseURL(ctx context.Context) string
+	SendAbandonedCart(ctx context.Context, p email.AbandonedCartParams) error
+}
+
 type Service struct {
 	db       *sql.DB
-	emailSvc *email.Service
+	emailSvc EmailSender
 	settings *settings.Service
 }
 
-func NewService(db *sql.DB, emailSvc *email.Service, s *settings.Service) *Service {
+func NewService(db *sql.DB, emailSvc EmailSender, s *settings.Service) *Service {
 	return &Service{db: db, emailSvc: emailSvc, settings: s}
 }
 

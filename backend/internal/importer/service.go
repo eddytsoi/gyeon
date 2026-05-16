@@ -81,6 +81,13 @@ type ProgressUpdate struct {
 	Errors            []string `json:"errors"`
 }
 
+// EmailSender is the slice of email.Service the importer uses for the
+// setup-password email path.
+type EmailSender interface {
+	PublicBaseURL(ctx context.Context) string
+	SendPasswordResetEmail(ctx context.Context, p email.PasswordResetParams) error
+}
+
 // Service orchestrates the WooCommerce → Gyeon product / customers / orders
 // import. customerSvc / emailSvc are used only by the customers import to
 // optionally send setup-password emails to newly-inserted customers.
@@ -91,13 +98,13 @@ type Service struct {
 	mediaSvc    *media.Service
 	settingsSvc *settings.Service
 	customerSvc *customers.Service
-	emailSvc    *email.Service
+	emailSvc    EmailSender
 }
 
 // NewService creates an import Service. The *sql.DB is used by the
 // customers / orders import paths for direct upserts; the products path
 // goes through productSvc and never touches db directly.
-func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service, customerSvc *customers.Service, emailSvc *email.Service) *Service {
+func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.ProductService, mediaSvc *media.Service, settingsSvc *settings.Service, customerSvc *customers.Service, emailSvc EmailSender) *Service {
 	return &Service{
 		db:          db,
 		categorySvc: categorySvc,
