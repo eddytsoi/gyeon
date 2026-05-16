@@ -1527,14 +1527,29 @@ func (s *ProductService) DeleteSimpleWCVariant(ctx context.Context, productID st
 	return err
 }
 
-// GetVariantIDByWCVariationID resolves a WC variation ID to its Gyeon
-// variant UUID. Used by the bundle importer to link bundled_items that
-// pin a specific variation. Returns sql.ErrNoRows if no variant matches —
-// caller falls back to FindFirstActiveVariantID.
-func (s *ProductService) GetVariantIDByWCVariationID(ctx context.Context, wcVariationID int) (string, error) {
+// GetVariantIDByBundleRef resolves a WC bundled_item to a Gyeon variant
+// using SKU suffix as the primary signal (importer writes
+// "{product_slug}-{wcVariationID}") and wc_variation_id column as backup
+// for legacy rows where the column is NULL. Scoped to one product so a
+// stray same-suffix SKU on another product can't cross-match.
+func (s *ProductService) GetVariantIDByBundleRef(
+	ctx context.Context,
+	productID string,
+	wcVariationID int,
+) (string, error) {
 	var id string
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id FROM product_variants WHERE wc_variation_id = $1`, wcVariationID).Scan(&id)
+	err := s.db.QueryRowContext(ctx, `
+		SELECT pv.id
+		  FROM product_variants pv
+		  JOIN products p ON p.id = pv.product_id
+		 WHERE pv.product_id = $1
+		   AND (
+		       pv.sku = p.slug || '-' || $2::text
+		       OR pv.wc_variation_id = $2
+		   )
+		 ORDER BY (pv.sku = p.slug || '-' || $2::text) DESC
+		 LIMIT 1`,
+		productID, wcVariationID).Scan(&id)
 	return id, err
 }
 
