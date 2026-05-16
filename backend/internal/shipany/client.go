@@ -132,14 +132,30 @@ type CreateShipmentRequest struct {
 	Carrier        string  // cour_uid
 	Service        string  // cour_svc_pl (optional)
 	QuotUID        string  // optional: lock the quoted price
-	OrderRef       string  // ext_order_ref
+	OrderRef       string  // ext_order_ref (human label, e.g. ORD-1042)
+	ExtOrderID     string  // ext_order_id (stable external id, usually the UUID)
 	Origin         Address // sender (also resolvable via merchants/self)
 	Destination    Address // receiver
 	Parcel         Parcel
+	Items          []ShipanyItem
 	PickupPointID  string
 	CustomerNote   string
 	FeeHKD         float64 // cour_ttl_cost.val
 	PaidByReceiver bool    // emits paid_by_rcvr — recipient pays SF on delivery (COD)
+}
+
+// ShipanyItem is one line on the create-shipment request. Weight/dimensions
+// fall back to the parcel-level values when zero; SKU + name + unit price +
+// quantity come directly from the order row.
+type ShipanyItem struct {
+	SKU          string
+	Name         string
+	UnitPriceHKD float64
+	Quantity     int
+	WeightGrams  int
+	LengthCM     float64
+	WidthCM      float64
+	HeightCM     float64
 }
 
 // Shipment is the post-create response. Status mirrors ShipAny's `cur_stat`
@@ -254,12 +270,30 @@ func (c *HTTPClient) CreateShipment(ctx context.Context, req CreateShipmentReque
 	if req.OrderRef != "" {
 		payload["ext_order_ref"] = req.OrderRef
 	}
+	if req.ExtOrderID != "" {
+		payload["ext_order_id"] = req.ExtOrderID
+	}
 	if req.PickupPointID != "" {
 		payload["pickup_point_uid"] = req.PickupPointID
 	}
 	if req.CustomerNote != "" {
 		payload["mch_notes"] = []string{req.CustomerNote}
 	}
+
+	// Required-by-doc scalars that buildOrderPayload doesn't emit. Match the
+	// WC plugin's create-mode body shape (see .claude/doc/shipany_api_guid_simple.md §5).
+	payload["self_drop_off"] = false
+	payload["stg"] = "Normal"
+	payload["incoterms"] = "DAP"
+	payload["cod"] = false
+	payload["cod_amount"] = 0
+	payload["woocommerce_default_create"] = false
+	payload["add-ons"] = []any{}
+	payload["pltf_inst_id"] = "00000000-0000-0000-0000-000000000000"
+
+	// Populated items array — buildOrderPayload leaves it empty for the
+	// shared query-rate path. ShipAny's create endpoint expects real rows.
+	payload["items"] = buildItems(req.Items, req.Parcel)
 
 	var resp envelope[orderObject]
 	status, err := c.do(ctx, http.MethodPost, "orders/", payload, nil, &resp)
@@ -441,6 +475,47 @@ func buildOrderPayload(mchUID string, req QuoteRequest, mode, courUID, courSvcPl
 		payload["quot_uid"] = quotUID
 	}
 	return payload
+}
+
+// buildItems converts service-layer line items to ShipAny's items[] shape.
+// Per-line weight/dimensions fall back to the parcel-level totals when zero
+// so the API still gets a non-zero number for each row.
+func buildItems(items []ShipanyItem, parcel Parcel) []any {
+	if len(items) == 0 {
+		return []any{}
+	}
+	parcelWeightKG := float64(parcel.WeightGrams) / 1000.0
+	if parcelWeightKG <= 0 {
+		parcelWeightKG = 0.5
+	}
+	out := make([]any, 0, len(items))
+	for _, it := range items {
+		wKG := float64(it.WeightGrams) / 1000.0
+		if wKG <= 0 {
+			wKG = parcelWeightKG
+		}
+		l, w, h := it.LengthCM, it.WidthCM, it.HeightCM
+		if l <= 0 {
+			l = defaultFloat(parcel.LengthCM, 1)
+		}
+		if w <= 0 {
+			w = defaultFloat(parcel.WidthCM, 1)
+		}
+		if h <= 0 {
+			h = defaultFloat(parcel.HeightCM, 1)
+		}
+		out = append(out, map[string]any{
+			"sku":       it.SKU,
+			"name":      it.Name,
+			"descr":     "",
+			"unt_price": map[string]any{"val": it.UnitPriceHKD, "ccy": "HKD"},
+			"qty":       it.Quantity,
+			"wt":        map[string]any{"val": wKG, "unt": "kg"},
+			"dim":       map[string]any{"len": l, "wid": w, "hgt": h, "unt": "cm"},
+			"stg":       "Normal",
+		})
+	}
+	return out
 }
 
 func buildContact(a Address) map[string]any {
