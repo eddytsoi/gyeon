@@ -86,12 +86,18 @@ func (m wcMeta) String() string {
 // Product Bundles plugin. We deliberately read only the fields needed to
 // resolve the component variant in Gyeon — discount / stock_status / etc.
 // are ignored on first-pass import.
+//
+// Variation pinning is expressed as (override_variations, allowed_variations):
+// when override is true and the list is non-empty, the bundle restricts the
+// component to those WC variation IDs. WC's REST does NOT emit a single
+// `variation_id` field on bundled items.
 type wcBundledItem struct {
-	BundledItemID   int `json:"bundled_item_id"`
-	ProductID       int `json:"product_id"`
-	VariationID     int `json:"variation_id"`
-	MenuOrder       int `json:"menu_order"`
-	QuantityDefault int `json:"quantity_default"`
+	BundledItemID      int   `json:"bundled_item_id"`
+	ProductID          int   `json:"product_id"`
+	OverrideVariations bool  `json:"override_variations"`
+	AllowedVariations  []int `json:"allowed_variations"`
+	MenuOrder          int   `json:"menu_order"`
+	QuantityDefault    int   `json:"quantity_default"`
 }
 
 type wcVariation struct {
