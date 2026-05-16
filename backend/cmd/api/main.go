@@ -148,6 +148,19 @@ func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) 
 	})
 }
 
+// formsSettingsAdapter bridges settings.Service → forms.SettingsReader so
+// the forms package doesn't import the settings package directly. Only the
+// `Get` shape is needed (upload cap + public base URL lookups).
+type formsSettingsAdapter struct{ svc *settings.Service }
+
+func (a formsSettingsAdapter) Get(ctx context.Context, key string) (*forms.SettingValue, error) {
+	st, err := a.svc.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &forms.SettingValue{Value: st.Value}, nil
+}
+
 // tokenVersionAdapter implements auth.TokenVersionStore by reading the
 // admin_users / customers token_version columns, with a short-TTL cache so
 // the middleware doesn't hit Postgres on every request.
@@ -339,7 +352,7 @@ func main() {
 
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
 	recaptchaVerifier := recaptcha.New(settingsSvc)
-	formsSvc := forms.NewService(conn, emailSvc, recaptchaVerifier)
+	formsSvc := forms.NewService(conn, emailSvc, recaptchaVerifier, formsSettingsAdapter{svc: settingsSvc})
 	formsHandler := forms.NewHandler(formsSvc)
 	orderSvc.SetOnOrderPaid(func(ctx context.Context, o *orders.Order) {
 		// Earn rate operates on order subtotal (post-discount, pre-tax/shipping).

@@ -20,6 +20,7 @@ const KNOWN_TYPES = new Set([
   'checkbox',
   'radio',
   'date',
+  'file',
   'submit',
   'hidden'
 ]);

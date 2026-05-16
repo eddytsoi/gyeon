@@ -14,6 +14,11 @@ import (
 // the admin-configured form definition; FormTitle and Fields drive
 // substitution and a default-rendered HTML fallback when the body itself is
 // plain text.
+//
+// Files / AdminURL are populated when the submission included [file]
+// uploads. Files is a pre-formatted list of "<filename> (NN KB)" strings;
+// AdminURL is the admin deep-link to the submission detail page and is
+// blank for auto-reply (submitter) emails since they have no admin auth.
 type ContactFormParams struct {
 	FormTitle string
 	To        string
@@ -22,6 +27,8 @@ type ContactFormParams struct {
 	Subject   string // CF7 [field-name] placeholders allowed
 	Body      string // CF7 [field-name] placeholders allowed; plain text
 	Fields    map[string]string
+	Files     []string
+	AdminURL  string
 }
 
 // SendContactFormNotification renders + sends the per-form admin
@@ -56,6 +63,7 @@ func (s *Service) sendContactFormMail(ctx context.Context, p ContactFormParams) 
 	if err != nil {
 		return fmt.Errorf("contact form body: %w", err)
 	}
+	text = appendAttachmentsSection(text, p.Files, p.AdminURL)
 	html, err := renderContactFormHTML(p.FormTitle, text)
 	if err != nil {
 		return fmt.Errorf("contact form html: %w", err)
@@ -113,6 +121,30 @@ var contactFormHTMLTemplate = htmltmpl.Must(htmltmpl.New("cf-html").Parse(`<!doc
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon</p>
   </div>
 </body></html>`))
+
+// appendAttachmentsSection adds a plain-text "Attachments:" block to the
+// rendered email body when the submission carried uploaded files. The
+// admin URL (when provided) is appended as a single deep-link line so the
+// recipient can jump straight to the submissions admin view to download.
+func appendAttachmentsSection(body string, files []string, adminURL string) string {
+	if len(files) == 0 {
+		return body
+	}
+	var sb strings.Builder
+	sb.WriteString(strings.TrimRight(body, "\n"))
+	sb.WriteString("\n\nAttachments:\n")
+	for _, f := range files {
+		sb.WriteString("  • ")
+		sb.WriteString(f)
+		sb.WriteByte('\n')
+	}
+	if adminURL != "" {
+		sb.WriteString("\nView submission: ")
+		sb.WriteString(adminURL)
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
 
 func renderContactFormHTML(title, body string) (string, error) {
 	var sb strings.Builder

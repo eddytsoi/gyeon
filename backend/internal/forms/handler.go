@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,6 +45,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/{id}/submissions.csv", h.exportSubmissionsCSV)
 	r.Get("/submissions/{sid}", h.getSubmission)
 	r.Delete("/submissions/{sid}", h.deleteSubmission)
+	r.Get("/submissions/{sid}/files/{fid}", h.downloadSubmissionFile)
 	return r
 }
 
@@ -63,15 +67,44 @@ func (h *Handler) publicGet(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
-	var req SubmitRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.BadRequest(w, "invalid request body")
-		return
+
+	var (
+		req   SubmitRequest
+		files []UploadedFile
+	)
+
+	ct := r.Header.Get("Content-Type")
+	switch {
+	case strings.HasPrefix(ct, "multipart/form-data"):
+		// Cap the whole request at hard_cap × 8 — a generous ceiling that
+		// catches obvious abuse without needing per-field accounting at
+		// the HTTP layer (the per-field check happens inside the service).
+		maxBody := h.svc.uploadHardCapBytes(r.Context()) * 8
+		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		// 10 MB in memory; anything bigger spills to a tmpfile under os.TempDir.
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			respond.BadRequest(w, "could not parse multipart form")
+			return
+		}
+		req.RecaptchaToken = r.FormValue("recaptcha_token")
+		req.Data = collectMultipartValues(r.MultipartForm.Value)
+		files = collectMultipartFiles(r.MultipartForm.File)
+		defer func() {
+			if r.MultipartForm != nil {
+				_ = r.MultipartForm.RemoveAll()
+			}
+		}()
+	default:
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respond.BadRequest(w, "invalid request body")
+			return
+		}
 	}
+
 	if req.Data == nil {
 		req.Data = map[string]string{}
 	}
-	sub, form, err := h.svc.Submit(r.Context(), slug, clientIP(r), r.UserAgent(), req)
+	sub, form, err := h.svc.SubmitWithFiles(r.Context(), slug, clientIP(r), r.UserAgent(), req, files)
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
 		return
@@ -320,6 +353,36 @@ func (h *Handler) deleteSubmission(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// downloadSubmissionFile streams a stored upload to the admin. Auth is the
+// admin middleware already wrapped around AdminRoutes(); the URL itself
+// requires both submission id and file id to match, so even a leaked URL
+// can't cross-reference into another submission's files.
+func (h *Handler) downloadSubmissionFile(w http.ResponseWriter, r *http.Request) {
+	sid := chi.URLParam(r, "sid")
+	fid := chi.URLParam(r, "fid")
+	blob, err := h.svc.LoadSubmissionFile(r.Context(), sid, fid)
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	file, err := os.Open(blob.DiskPath)
+	if err != nil {
+		respond.NotFound(w)
+		return
+	}
+	defer file.Close()
+
+	w.Header().Set("Content-Type", blob.MimeType)
+	w.Header().Set("Content-Length", strconv.FormatInt(blob.SizeBytes, 10))
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf(`attachment; filename=%s`, strconv.Quote(blob.OriginalName)))
+	_, _ = io.Copy(w, file)
+}
+
 // ─────────── helpers ───────────
 
 func clientIP(r *http.Request) string {
@@ -340,4 +403,32 @@ func containsString(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// collectMultipartValues flattens multipart form values (each key can have
+// multiple values when the same name is submitted by checkboxes /
+// multi-selects) into the comma-joined string map the service expects.
+// Matches the join the storefront does on the JSON path.
+func collectMultipartValues(values map[string][]string) map[string]string {
+	out := make(map[string]string, len(values))
+	for k, vs := range values {
+		if k == "recaptcha_token" {
+			continue
+		}
+		out[k] = strings.Join(vs, ",")
+	}
+	return out
+}
+
+// collectMultipartFiles unwraps the multipart File map into the flat slice
+// the service consumes. Single-file-per-field is the CF7 default, but the
+// loop tolerates multiples in case a browser ever submits them.
+func collectMultipartFiles(files map[string][]*multipart.FileHeader) []UploadedFile {
+	var out []UploadedFile
+	for name, headers := range files {
+		for _, h := range headers {
+			out = append(out, UploadedFile{FieldName: name, Header: h})
+		}
+	}
+	return out
 }

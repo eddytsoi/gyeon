@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/mail"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/lib/pq"
@@ -29,14 +30,63 @@ type RecaptchaVerifier interface {
 	Enabled(ctx context.Context) bool
 }
 
+// SettingsReader is the slice of settings.Service we need to look up the
+// global upload cap and the public base URL (for admin deep-links in
+// notification emails). Matches settings.Service.Get; defined as an
+// interface so tests can stub without an in-memory DB.
+type SettingsReader interface {
+	Get(ctx context.Context, key string) (*SettingValue, error)
+}
+
+// SettingValue is the minimal shape callers consume — just the raw string
+// value. Mirrors a subset of settings.Setting so we don't pull that type
+// into the forms package.
+type SettingValue struct {
+	Value string
+}
+
 type Service struct {
 	db        *sql.DB
 	emailSvc  EmailSender
 	recaptcha RecaptchaVerifier
+	settings  SettingsReader
 }
 
-func NewService(db *sql.DB, emailSvc EmailSender, rc RecaptchaVerifier) *Service {
-	return &Service{db: db, emailSvc: emailSvc, recaptcha: rc}
+func NewService(db *sql.DB, emailSvc EmailSender, rc RecaptchaVerifier, st SettingsReader) *Service {
+	return &Service{db: db, emailSvc: emailSvc, recaptcha: rc, settings: st}
+}
+
+// DefaultUploadHardCapMB is the fallback ceiling when the site setting is
+// missing/unparseable. Mirrors the value seeded by migration 077.
+const DefaultUploadHardCapMB = 25
+
+// uploadHardCapBytes reads form_upload_hard_cap_mb and converts to bytes.
+// Returns the default cap on any settings/parse failure so the path never
+// silently lets through unbounded uploads.
+func (s *Service) uploadHardCapBytes(ctx context.Context) int64 {
+	mb := int64(DefaultUploadHardCapMB)
+	if s.settings != nil {
+		if st, err := s.settings.Get(ctx, "form_upload_hard_cap_mb"); err == nil && st != nil {
+			if n, perr := strconv.ParseInt(strings.TrimSpace(st.Value), 10, 64); perr == nil && n > 0 {
+				mb = n
+			}
+		}
+	}
+	return mb << 20
+}
+
+// publicBaseURL returns the absolute URL the storefront/admin is served at,
+// used to build admin deep-links in notification emails. Falls back to a
+// localhost value so missing config doesn't break submission flow.
+func (s *Service) publicBaseURL(ctx context.Context) string {
+	if s.settings != nil {
+		if st, err := s.settings.Get(ctx, "public_base_url"); err == nil && st != nil {
+			if v := strings.TrimRight(strings.TrimSpace(st.Value), "/"); v != "" {
+				return v
+			}
+		}
+	}
+	return "http://localhost:5173"
 }
 
 // ──────────────────────── Admin CRUD ────────────────────────
@@ -203,18 +253,44 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 
 // ──────────────────────── Submission flow ────────────────────────
 
-// Submit validates the payload against the form spec, verifies reCAPTCHA,
-// stores the submission, and dispatches admin notification + optional
-// auto-reply emails. Email failures are recorded on the submission row but
-// don't fail the whole operation — matches the pattern used elsewhere in
-// the codebase (orders, low-stock, etc.).
+// Submit is the JSON-only entry point (no file uploads). Delegates to
+// SubmitWithFiles with an empty file slice so the heavy lifting lives in
+// one place.
 func (s *Service) Submit(ctx context.Context, slug, ip, userAgent string, req SubmitRequest) (*Submission, *Form, error) {
+	return s.SubmitWithFiles(ctx, slug, ip, userAgent, req, nil)
+}
+
+// SubmitWithFiles validates the payload + uploaded files, verifies reCAPTCHA,
+// stores the submission + file rows in a single transaction, copies the
+// uploads to disk, and dispatches admin notification + optional auto-reply
+// emails. Email failures don't fail the whole operation — matches the
+// pattern used elsewhere (orders, low-stock).
+//
+// On any failure after the submission row is inserted, the transaction
+// rolls back and the per-submission upload directory is unlinked so we
+// don't leave orphan bytes on disk.
+func (s *Service) SubmitWithFiles(ctx context.Context, slug, ip, userAgent string, req SubmitRequest, files []UploadedFile) (*Submission, *Form, error) {
 	form, err := s.GetBySlug(ctx, slug)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if verrs := validatePayload(form.Fields, req.Data); verrs != nil {
+	if req.Data == nil {
+		req.Data = map[string]string{}
+	}
+
+	// Validate text first (unknown-key check stays accurate even when file
+	// fields are present), then merge file-specific errors.
+	verrs := validatePayloadAllowingFiles(form.Fields, req.Data)
+	if fileErrs := validateFiles(form.Fields, files, s.uploadHardCapBytes(ctx)); fileErrs != nil {
+		if verrs == nil {
+			verrs = ValidationErrors{}
+		}
+		for k, v := range fileErrs {
+			verrs[k] = v
+		}
+	}
+	if len(verrs) > 0 {
 		return nil, form, verrs
 	}
 
@@ -229,24 +305,76 @@ func (s *Service) Submit(ctx context.Context, slug, ip, userAgent string, req Su
 		}
 	}
 
-	// Persist submission first so we have a record even if email fails.
+	// Reflect each uploaded file's original filename into req.Data so the
+	// existing email body / CSV export machinery picks it up under the
+	// field name without any plumbing changes.
+	for _, f := range files {
+		req.Data[f.FieldName] = f.Header.Filename
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, form, fmt.Errorf("begin tx: %w", err)
+	}
+	// Rollback is a no-op after a successful commit, so this is safe to
+	// always-defer.
+	defer tx.Rollback()
+
 	dataJSON, _ := json.Marshal(req.Data)
 	sub := Submission{FormID: form.ID, Data: req.Data, IP: ip, UserAgent: userAgent, RecaptchaScore: scorePtr}
 	var ipArg any
 	if ip != "" {
 		ipArg = ip
 	}
-	err = s.db.QueryRowContext(ctx, `
+	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO form_submissions (form_id, data, ip, user_agent, recaptcha_score)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at`,
 		form.ID, dataJSON, ipArg, userAgent, scorePtr,
-	).Scan(&sub.ID, &sub.CreatedAt)
-	if err != nil {
+	).Scan(&sub.ID, &sub.CreatedAt); err != nil {
 		return nil, form, fmt.Errorf("insert submission: %w", err)
 	}
 
-	mailErr := s.dispatchEmails(ctx, form, req.Data)
+	// Write files to ./uploads/forms/<sid>/... and record rows. On any
+	// error here we abort: rollback discards the submission row, and we
+	// recursively unlink the on-disk folder so no orphan bytes remain.
+	var stored []storedFile
+	for _, u := range files {
+		sf, saveErr := saveSubmissionFile(sub.ID, u)
+		if saveErr != nil {
+			_ = removeSubmissionDir(sub.ID)
+			return nil, form, fmt.Errorf("save upload: %w", saveErr)
+		}
+		stored = append(stored, *sf)
+		var fileID string
+		var createdAt = sub.CreatedAt
+		err := tx.QueryRowContext(ctx, `
+			INSERT INTO form_submission_files
+				(submission_id, field_name, original_name, stored_filename, mime_type, size_bytes)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id, created_at`,
+			sub.ID, sf.FieldName, sf.OriginalName, sf.StoredName, sf.MimeType, sf.Size,
+		).Scan(&fileID, &createdAt)
+		if err != nil {
+			_ = removeSubmissionDir(sub.ID)
+			return nil, form, fmt.Errorf("insert submission file: %w", err)
+		}
+		sub.Files = append(sub.Files, SubmissionFile{
+			ID:           fileID,
+			FieldName:    sf.FieldName,
+			OriginalName: sf.OriginalName,
+			MimeType:     sf.MimeType,
+			SizeBytes:    sf.Size,
+			CreatedAt:    createdAt,
+		})
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = removeSubmissionDir(sub.ID)
+		return nil, form, fmt.Errorf("commit submission: %w", err)
+	}
+
+	mailErr := s.dispatchEmails(ctx, form, req.Data, sub.ID, sub.Files)
 	if mailErr != nil {
 		log.Printf("forms: submit %s: mail dispatch failed: %v", form.Slug, mailErr)
 		sub.MailError = mailErr.Error()
@@ -262,9 +390,17 @@ func (s *Service) Submit(ctx context.Context, slug, ip, userAgent string, req Su
 	return &sub, form, nil
 }
 
-func (s *Service) dispatchEmails(ctx context.Context, form *Form, data map[string]string) error {
+func (s *Service) dispatchEmails(ctx context.Context, form *Form, data map[string]string, submissionID string, files []SubmissionFile) error {
 	if s.emailSvc == nil {
 		return errors.New("email service not configured")
+	}
+
+	// Build the attachment summary lines once — only the admin notification
+	// gets the deep-link, since downloads require admin auth. Auto-reply
+	// (to the submitter) doesn't need it.
+	adminURL := ""
+	if len(files) > 0 {
+		adminURL = fmt.Sprintf("%s/admin/forms/%s/submissions", s.publicBaseURL(ctx), form.ID)
 	}
 
 	// Admin notification — always sent.
@@ -276,6 +412,8 @@ func (s *Service) dispatchEmails(ctx context.Context, form *Form, data map[strin
 		Subject:   form.MailSubject,
 		Body:      form.MailBody,
 		Fields:    data,
+		Files:     attachmentSummary(files),
+		AdminURL:  adminURL,
 	}
 	if !looksLikeEmail(notif.To) {
 		return fmt.Errorf("notification recipient is not a valid email: %q", notif.To)
@@ -302,8 +440,35 @@ func (s *Service) dispatchEmails(ctx context.Context, form *Form, data map[strin
 		Subject:   form.ReplySubject,
 		Body:      form.ReplyBody,
 		Fields:    data,
+		Files:     attachmentSummary(files), // submitter sees filenames, no admin URL
 	}
 	return s.emailSvc.SendContactFormAutoReply(ctx, reply)
+}
+
+// attachmentSummary turns a SubmissionFile slice into the lines the email
+// template renders as a bulleted list. Returns nil for empty input so the
+// template knows to skip the section entirely.
+func attachmentSummary(files []SubmissionFile) []string {
+	if len(files) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(files))
+	for _, f := range files {
+		out = append(out, fmt.Sprintf("%s (%s)", f.OriginalName, humanSize(f.SizeBytes)))
+	}
+	return out
+}
+
+// humanSize formats a byte count as "N B" / "N.N KB" / "N.N MB".
+func humanSize(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/float64(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(n)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }
 
 // ──────────────────────── Submissions admin ────────────────────────
@@ -366,7 +531,69 @@ func (s *Service) GetSubmission(ctx context.Context, id string) (*Submission, er
 		return nil, err
 	}
 	_ = json.Unmarshal(dataJSON, &sub.Data)
+
+	files, err := s.listSubmissionFiles(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	sub.Files = files
 	return &sub, nil
+}
+
+func (s *Service) listSubmissionFiles(ctx context.Context, submissionID string) ([]SubmissionFile, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, field_name, original_name, mime_type, size_bytes, created_at
+		FROM form_submission_files
+		WHERE submission_id = $1
+		ORDER BY created_at ASC, id ASC`, submissionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []SubmissionFile
+	for rows.Next() {
+		var f SubmissionFile
+		if err := rows.Scan(&f.ID, &f.FieldName, &f.OriginalName, &f.MimeType, &f.SizeBytes, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+// LoadSubmissionFile resolves a submission-file row and returns the on-disk
+// path the admin handler streams to the client. Returns ErrNotFound if the
+// file id doesn't belong to the given submission id (cheap auth: the URL
+// carries both, the row must match both).
+type SubmissionFileBlob struct {
+	OriginalName string
+	MimeType     string
+	SizeBytes    int64
+	DiskPath     string
+}
+
+func (s *Service) LoadSubmissionFile(ctx context.Context, submissionID, fileID string) (*SubmissionFileBlob, error) {
+	var f SubmissionFileBlob
+	var stored string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT original_name, mime_type, size_bytes, stored_filename
+		FROM form_submission_files
+		WHERE submission_id = $1 AND id = $2`,
+		submissionID, fileID).
+		Scan(&f.OriginalName, &f.MimeType, &f.SizeBytes, &stored)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	f.DiskPath = filepathJoinUploads(submissionID, stored)
+	return &f, nil
+}
+
+// filepathJoinUploads is split out so test code can swap uploadsRoot.
+func filepathJoinUploads(submissionID, storedName string) string {
+	return uploadsRoot + "/" + submissionID + "/" + storedName
 }
 
 func (s *Service) DeleteSubmission(ctx context.Context, id string) error {
@@ -376,6 +603,12 @@ func (s *Service) DeleteSubmission(ctx context.Context, id string) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
+	}
+	// DB rows cascade away; reclaim the on-disk folder. Errors here are
+	// logged but don't fail the delete — the user's intent (remove the
+	// record) succeeded.
+	if rmErr := removeSubmissionDir(id); rmErr != nil {
+		log.Printf("forms: delete submission %s: cleanup of uploads dir failed: %v", id, rmErr)
 	}
 	return nil
 }
@@ -450,6 +683,13 @@ func validateCreateUpdate(req UpsertFormRequest) error {
 // Submit-only and hidden fields are skipped (hidden values come from the
 // form definition's `default`, not the user). Returns nil on success.
 func validatePayload(fields []FormField, data map[string]string) ValidationErrors {
+	return validatePayloadAllowingFiles(fields, data)
+}
+
+// validatePayloadAllowingFiles is the multipart-aware variant: file fields
+// don't carry their value in `data` (the multipart bytes do), so we skip
+// the required-non-empty check for them here — validateFiles handles it.
+func validatePayloadAllowingFiles(fields []FormField, data map[string]string) ValidationErrors {
 	errs := ValidationErrors{}
 	allowed := make(map[string]FormField, len(fields))
 	for _, f := range fields {
@@ -467,6 +707,10 @@ func validatePayload(fields []FormField, data map[string]string) ValidationError
 	}
 
 	for name, f := range allowed {
+		// File fields skip the data-map checks; validateFiles owns them.
+		if f.Type == FieldFile {
+			continue
+		}
 		raw := strings.TrimSpace(data[name])
 		if f.Required && raw == "" {
 			errs[name] = "this field is required"
@@ -506,6 +750,81 @@ func validatePayload(fields []FormField, data map[string]string) ValidationError
 			}
 		}
 	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
+// validateFiles enforces required-ness, allowed extensions, and the size
+// cap (per-field MaxBytes, never higher than the server-wide hardCap) for
+// every uploaded file. Unknown field names are rejected so a tampered
+// payload can't drop a file under an arbitrary key. Returns nil when
+// everything passes.
+func validateFiles(fields []FormField, files []UploadedFile, hardCap int64) ValidationErrors {
+	errs := ValidationErrors{}
+
+	fileFields := make(map[string]FormField)
+	for _, f := range fields {
+		if f.Type == FieldFile {
+			fileFields[f.Name] = f
+		}
+	}
+
+	// Group uploads by field — defensively take only the first one per
+	// field since [file] is single-file in CF7. Extras are silently ignored.
+	seen := make(map[string]bool)
+	for _, u := range files {
+		f, ok := fileFields[u.FieldName]
+		if !ok {
+			errs[u.FieldName] = "unknown file field"
+			continue
+		}
+		if seen[u.FieldName] {
+			continue
+		}
+		seen[u.FieldName] = true
+
+		if u.Header == nil || u.Header.Size == 0 || strings.TrimSpace(u.Header.Filename) == "" {
+			if f.Required {
+				errs[u.FieldName] = "file is required"
+			}
+			continue
+		}
+
+		ext := extensionOf(u.Header.Filename)
+		if len(f.Filetypes) > 0 {
+			allowed := false
+			for _, want := range f.Filetypes {
+				if ext == want {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				errs[u.FieldName] = "file type not allowed"
+				continue
+			}
+		}
+
+		cap := f.MaxBytes
+		if cap <= 0 || cap > hardCap {
+			cap = hardCap
+		}
+		if u.Header.Size > cap {
+			errs[u.FieldName] = fmt.Sprintf("file too large (max %s)", humanSize(cap))
+			continue
+		}
+	}
+
+	// Required file fields that received no upload at all.
+	for name, f := range fileFields {
+		if !f.Required || seen[name] {
+			continue
+		}
+		errs[name] = "file is required"
+	}
+
 	if len(errs) == 0 {
 		return nil
 	}

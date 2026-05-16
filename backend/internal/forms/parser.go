@@ -311,7 +311,63 @@ func applyKV(f *FormField, key, value string) {
 		f.Min = value
 	case "max":
 		f.Max = value
+	case "limit":
+		if n, ok := parseSizeLimit(value); ok {
+			f.MaxBytes = n
+		}
+	case "filetypes":
+		f.Filetypes = parseFiletypes(value)
 	}
+}
+
+// parseSizeLimit accepts CF7-style size tokens like `5mb`, `500kb`, `1gb`,
+// or a bare byte count. Returns 0 / false on parse failure so the field
+// falls back to the server-side cap.
+func parseSizeLimit(s string) (int64, bool) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, false
+	}
+	mul := int64(1)
+	switch {
+	case strings.HasSuffix(s, "kb"):
+		mul = 1 << 10
+		s = strings.TrimSuffix(s, "kb")
+	case strings.HasSuffix(s, "mb"):
+		mul = 1 << 20
+		s = strings.TrimSuffix(s, "mb")
+	case strings.HasSuffix(s, "gb"):
+		mul = 1 << 30
+		s = strings.TrimSuffix(s, "gb")
+	case strings.HasSuffix(s, "b"):
+		s = strings.TrimSuffix(s, "b")
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n * mul, true
+}
+
+// parseFiletypes splits `pdf|jpg|png` into a deduplicated, lowercased list
+// of extensions without leading dots. Whitespace and empty tokens are
+// dropped.
+func parseFiletypes(s string) []string {
+	seen := make(map[string]bool)
+	out := make([]string, 0, 4)
+	for _, raw := range strings.Split(s, "|") {
+		ext := strings.TrimSpace(strings.ToLower(raw))
+		ext = strings.TrimPrefix(ext, ".")
+		if ext == "" || seen[ext] {
+			continue
+		}
+		seen[ext] = true
+		out = append(out, ext)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func isValidFieldName(s string) bool {
