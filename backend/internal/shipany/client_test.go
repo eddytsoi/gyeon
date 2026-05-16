@@ -91,6 +91,29 @@ func TestBuildItems(t *testing.T) {
 	}
 }
 
+// TestNormalizePhoneNumber covers the formats operators paste into the
+// origin-phone setting and the formats customers type at checkout.
+func TestNormalizePhoneNumber(t *testing.T) {
+	cases := []struct {
+		raw, country, want string
+	}{
+		{"98765432", "HK", "98765432"},
+		{"+852 9876 5432", "HK", "98765432"},
+		{"(852) 9876-5432", "HK", "98765432"},
+		{"85298765432", "HK", "98765432"},
+		{"+886 912-345-678", "TW", "912345678"},
+		{"+65 6123 4567", "SG", "61234567"},
+		{"", "HK", ""},
+		{"+852", "HK", ""}, // dial code only → empty (better surfaced upstream than masked)
+	}
+	for _, c := range cases {
+		got := normalizePhoneNumber(c.raw, c.country)
+		if got != c.want {
+			t.Errorf("normalizePhoneNumber(%q, %q) = %q, want %q", c.raw, c.country, got, c.want)
+		}
+	}
+}
+
 // TestBuildOrderPayloadCreateMode verifies that buildOrderPayload populates
 // the create-specific fields (paid_by_rcvr) and shared scalars in the
 // expected shape. The additional doc-required scalars (self_drop_off, stg,
