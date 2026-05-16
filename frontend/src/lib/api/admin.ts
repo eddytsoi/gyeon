@@ -55,10 +55,11 @@ export interface PagedResponse<T> {
   items: T[];
   total: number;
 }
-export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '') => {
+export const adminGetProducts = (token: string, limit = 50, offset = 0, q = '', categorySlug = '', kind = '') => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
   if (categorySlug) qs.set('category', categorySlug);
+  if (kind) qs.set('kind', kind);
   return request<PagedResponse<AdminProductRow>>(`/admin/inventory/?${qs.toString()}`, token);
 };
 
