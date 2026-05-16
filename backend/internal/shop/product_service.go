@@ -71,19 +71,22 @@ type ProductWithMeta struct {
 
 // BundleItem represents a component row in a bundle product.
 type BundleItem struct {
-	ID                   string  `json:"id"`
-	BundleProductID      string  `json:"bundle_product_id"`
-	ComponentVariantID   string  `json:"component_variant_id"`
-	Quantity             int     `json:"quantity"`
-	SortOrder            int     `json:"sort_order"`
-	DisplayNameOverride  *string `json:"display_name_override,omitempty"`
+	ID                  string  `json:"id"`
+	BundleProductID     string  `json:"bundle_product_id"`
+	ComponentVariantID  string  `json:"component_variant_id"`
+	Quantity            int     `json:"quantity"`
+	SortOrder           int     `json:"sort_order"`
+	DisplayNameOverride *string `json:"display_name_override,omitempty"`
 	// Derived from joined tables
-	ComponentProductName string  `json:"component_product_name"`
-	ComponentVariantName *string `json:"component_variant_name,omitempty"`
-	ComponentSKU         string  `json:"component_sku"`
-	ComponentStockQty    int     `json:"component_stock_qty"`
-	ComponentPrice       float64 `json:"component_price"`
-	CreatedAt            string  `json:"created_at"`
+	ComponentProductName     string  `json:"component_product_name"`
+	ComponentProductSlug     *string `json:"component_product_slug,omitempty"`
+	ComponentProductSubtitle *string `json:"component_product_subtitle,omitempty"`
+	ComponentVariantName     *string `json:"component_variant_name,omitempty"`
+	ComponentSKU             string  `json:"component_sku"`
+	ComponentStockQty        int     `json:"component_stock_qty"`
+	ComponentPrice           float64 `json:"component_price"`
+	ComponentPrimaryImageURL *string `json:"component_primary_image_url,omitempty"`
+	CreatedAt                string  `json:"created_at"`
 }
 
 // BundleItemInput is used when setting bundle items via SetBundleItems.
@@ -2087,15 +2090,24 @@ func (s *ProductService) GetBundleItems(ctx context.Context, productID string) (
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT bi.id, bi.bundle_product_id, bi.component_variant_id, bi.quantity,
 		        bi.sort_order, bi.display_name_override,
-		        p.name  AS component_product_name,
-		        pv.name AS component_variant_name,
-		        pv.sku  AS component_sku,
+		        p.name     AS component_product_name,
+		        p.slug     AS component_product_slug,
+		        p.subtitle AS component_product_subtitle,
+		        pv.name    AS component_variant_name,
+		        pv.sku     AS component_sku,
 		        pv.stock_qty AS component_stock_qty,
 		        pv.price     AS component_price,
+		        pi.url       AS component_primary_image_url,
 		        bi.created_at
 		 FROM bundle_items bi
 		 JOIN product_variants pv ON pv.id = bi.component_variant_id
 		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN LATERAL (
+		   SELECT url FROM product_images
+		    WHERE product_id = p.id
+		    ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+		    LIMIT 1
+		 ) pi ON TRUE
 		 WHERE bi.bundle_product_id = $1
 		 ORDER BY bi.sort_order ASC, bi.created_at ASC`, productID)
 	if err != nil {
@@ -2109,8 +2121,10 @@ func (s *ProductService) GetBundleItems(ctx context.Context, productID string) (
 		if err := rows.Scan(
 			&bi.ID, &bi.BundleProductID, &bi.ComponentVariantID, &bi.Quantity,
 			&bi.SortOrder, &bi.DisplayNameOverride,
-			&bi.ComponentProductName, &bi.ComponentVariantName, &bi.ComponentSKU,
-			&bi.ComponentStockQty, &bi.ComponentPrice, &bi.CreatedAt,
+			&bi.ComponentProductName, &bi.ComponentProductSlug, &bi.ComponentProductSubtitle,
+			&bi.ComponentVariantName, &bi.ComponentSKU,
+			&bi.ComponentStockQty, &bi.ComponentPrice, &bi.ComponentPrimaryImageURL,
+			&bi.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2162,15 +2176,26 @@ func (s *ProductService) AddBundleItem(ctx context.Context, productID string, in
 	err = s.db.QueryRowContext(ctx,
 		`SELECT bi.id, bi.bundle_product_id, bi.component_variant_id, bi.quantity,
 		        bi.sort_order, bi.display_name_override,
-		        p.name, pv.name, pv.sku, pv.stock_qty, pv.price, bi.created_at
+		        p.name, p.slug, p.subtitle,
+		        pv.name, pv.sku, pv.stock_qty, pv.price,
+		        pi.url,
+		        bi.created_at
 		 FROM bundle_items bi
 		 JOIN product_variants pv ON pv.id = bi.component_variant_id
 		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN LATERAL (
+		   SELECT url FROM product_images
+		    WHERE product_id = p.id
+		    ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+		    LIMIT 1
+		 ) pi ON TRUE
 		 WHERE bi.id = $1`, id).Scan(
 		&bi.ID, &bi.BundleProductID, &bi.ComponentVariantID, &bi.Quantity,
 		&bi.SortOrder, &bi.DisplayNameOverride,
-		&bi.ComponentProductName, &bi.ComponentVariantName, &bi.ComponentSKU,
-		&bi.ComponentStockQty, &bi.ComponentPrice, &bi.CreatedAt,
+		&bi.ComponentProductName, &bi.ComponentProductSlug, &bi.ComponentProductSubtitle,
+		&bi.ComponentVariantName, &bi.ComponentSKU,
+		&bi.ComponentStockQty, &bi.ComponentPrice, &bi.ComponentPrimaryImageURL,
+		&bi.CreatedAt,
 	)
 	if err != nil {
 		return nil, err

@@ -50,10 +50,13 @@ export interface BundleItem {
   display_name_override?: string;
   // joined fields
   component_product_name?: string;
+  component_product_slug?: string;
+  component_product_subtitle?: string;
   component_sku?: string;
   component_variant_name?: string;
   component_price?: number;
   component_stock_qty?: number;
+  component_primary_image_url?: string;
 }
 
 export interface Variant {

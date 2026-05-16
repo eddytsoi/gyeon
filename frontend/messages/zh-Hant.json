@@ -127,7 +127,7 @@
   "product_detail_trust_shipping": "滿 HK$500 免運費",
   "product_detail_trust_returns": "30 日退貨保證",
   "product_detail_bundle_kicker": "一次擁有所需",
-  "product_detail_bundle_heading": "套裝內容",
+  "product_detail_bundle_heading": "套裝連同以下產品：",
   "product_detail_bundle_qty": "× {quantity}",
   "product_detail_specs_variants": "規格",
   "product_detail_specs_availability": "供應狀況",
