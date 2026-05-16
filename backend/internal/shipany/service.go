@@ -468,12 +468,14 @@ func (s *Service) originAddress(ctx context.Context) Address {
 	return Address{
 		Name:       s.read(ctx, "shipany_origin_name"),
 		Phone:      s.read(ctx, "shipany_origin_phone"),
+		Email:      s.read(ctx, "shipany_origin_email"),
 		Line1:      s.read(ctx, "shipany_origin_line1"),
 		Line2:      s.read(ctx, "shipany_origin_line2"),
 		District:   s.read(ctx, "shipany_origin_district"),
 		City:       s.read(ctx, "shipany_origin_city"),
 		PostalCode: s.read(ctx, "shipany_origin_postal"),
 		Country:    "HK",
+		AddrType:   s.read(ctx, "shipany_origin_addr_type"),
 	}
 }
 

@@ -205,8 +205,10 @@
   const SHIPANY_KEYS = new Set([
     'shipany_enabled', 'shipany_user_id', 'shipany_api_key',
     'shipany_region', 'shipany_origin_name',
-    'shipany_origin_phone', 'shipany_origin_line1', 'shipany_origin_line2',
+    'shipany_origin_phone', 'shipany_origin_email',
+    'shipany_origin_line1', 'shipany_origin_line2',
     'shipany_origin_district', 'shipany_origin_city', 'shipany_origin_postal',
+    'shipany_origin_addr_type',
     'shipany_default_weight_grams', 'shipany_default_courier',
     'shipany_default_service', 'shipany_default_storage_type',
     'shipany_paid_by_receiver', 'shipany_self_drop_off',
@@ -1229,6 +1231,24 @@
                      placeholder={m.admin_settings_shipany_pickup_contact_phone_placeholder()}
                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_email" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_contact_email()}</label>
+              <input id="shipany_origin_email" name="shipany_origin_email" type="email"
+                     value={settingValue('shipany_origin_email')}
+                     placeholder={m.admin_settings_shipany_pickup_contact_email_placeholder()}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="shipany_origin_addr_type" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_addr_type()}</label>
+              <select id="shipany_origin_addr_type" name="shipany_origin_addr_type"
+                      value={settingValue('shipany_origin_addr_type')}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                             focus:outline-none focus:ring-2 focus:ring-gray-900">
+                <option value="Commercial" selected={settingValue('shipany_origin_addr_type') !== 'Residential'}>{m.admin_settings_shipany_pickup_addr_type_commercial()}</option>
+                <option value="Residential" selected={settingValue('shipany_origin_addr_type') === 'Residential'}>{m.admin_settings_shipany_pickup_addr_type_residential()}</option>
+              </select>
             </div>
             <div class="flex flex-col gap-1.5 col-span-2">
               <label for="shipany_origin_line1" class="text-xs font-medium text-gray-600">{m.admin_settings_shipany_pickup_line1()}</label>

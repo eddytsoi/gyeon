@@ -70,12 +70,14 @@ func NewHTTPClient(s *settings.Service, baseOverride string) *HTTPClient {
 type Address struct {
 	Name       string `json:"name,omitempty"`
 	Phone      string `json:"phone,omitempty"`
+	Email      string `json:"email,omitempty"`
 	Line1      string `json:"line1"`
 	Line2      string `json:"line2,omitempty"`
 	District   string `json:"district,omitempty"`
 	City       string `json:"city,omitempty"`
 	PostalCode string `json:"postal_code,omitempty"`
-	Country    string `json:"country"` // ISO 3166-1 alpha-2, "HK" for v1
+	Country    string `json:"country"`  // ISO 3166-1 alpha-2, "HK" for v1
+	AddrType   string `json:"addr_type,omitempty"` // "Residential" / "Commercial" — sent as addr.typ
 }
 
 type Parcel struct {
@@ -533,18 +535,26 @@ func buildContact(a Address) map[string]any {
 	if strings.EqualFold(a.Country, "HK") {
 		city = "Hong Kong S.A.R."
 	}
+	addrType := a.AddrType
+	if addrType == "" {
+		addrType = "Residential"
+	}
+	ctc := map[string]any{
+		"f_name": first,
+		"l_name": last,
+		"phs": []map[string]any{{
+			"typ":       "Mobile",
+			"cnty_code": phoneCountryCode(a.Country),
+			"num":       normalizePhoneNumber(a.Phone, a.Country),
+		}},
+	}
+	if a.Email != "" {
+		ctc["email"] = a.Email
+	}
 	return map[string]any{
-		"ctc": map[string]any{
-			"f_name": first,
-			"l_name": last,
-			"phs": []map[string]any{{
-				"typ":       "Mobile",
-				"cnty_code": phoneCountryCode(a.Country),
-				"num":       normalizePhoneNumber(a.Phone, a.Country),
-			}},
-		},
+		"ctc": ctc,
 		"addr": map[string]any{
-			"typ":   "Residential",
+			"typ":   addrType,
 			"ln":    a.Line1,
 			"ln2":   a.Line2,
 			"distr": district,
