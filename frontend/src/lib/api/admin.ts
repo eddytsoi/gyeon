@@ -14,7 +14,27 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
     },
     ...init
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  if (!res.ok) {
+    // Pull the body so the actual upstream/server error reaches the admin UI
+    // instead of just "API 502: /path". SvelteKit form actions forward
+    // Error.message into {form.error}.
+    let detail = '';
+    try {
+      const text = await res.text();
+      if (text) {
+        try {
+          const obj = JSON.parse(text);
+          detail = obj?.message ?? obj?.error ?? text;
+        } catch {
+          detail = text;
+        }
+      }
+    } catch {
+      // ignore — fall through to status-only message
+    }
+    if (detail.length > 500) detail = detail.slice(0, 500) + '…';
+    throw new Error(`API ${res.status} ${path}${detail ? `: ${detail}` : ''}`);
+  }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }

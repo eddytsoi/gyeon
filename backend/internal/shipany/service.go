@@ -205,19 +205,34 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		paidByReceiver = false
 	}
 
+	items := s.orderItemsForShipment(ctx, orderID, order)
+
 	created, err := s.client.CreateShipment(ctx, CreateShipmentRequest{
 		Carrier:        carrier,
 		Service:        service,
 		OrderRef:       fmt.Sprintf("ORD-%d", order.Number),
+		ExtOrderID:     orderID,
 		Origin:         s.originAddress(ctx),
 		Destination:    dest,
 		Parcel:         parcel,
+		Items:          items,
 		PickupPointID:  pickupID,
 		CustomerNote:   customerNote,
 		PaidByReceiver: paidByReceiver,
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Backfill carrier/service onto the order when the operator supplied an
+	// override for a legacy order — otherwise the page would keep showing
+	// the "no carrier selected" UI even though we already shipped.
+	if override != nil {
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE orders SET selected_carrier = $1, selected_service = $2 WHERE id = $3`,
+			carrier, service, orderID); err != nil {
+			log.Printf("shipany createForOrder: persist override on %s: %v", orderID, err)
+		}
 	}
 
 	row := &DBShipment{
@@ -491,6 +506,74 @@ func orderStatusFor(shipStatus string) orders.OrderStatus {
 		return orders.StatusDelivered
 	}
 	return ""
+}
+
+// orderItemsForShipment builds the per-line shipany items slice from the
+// order's items, attaching per-variant weight/dimensions when available.
+// Bundle component rows (parent_item_id != null) are skipped to avoid
+// double-counting — the parent line already represents the saleable unit.
+func (s *Service) orderItemsForShipment(ctx context.Context, orderID string, order *orders.Order) []ShipanyItem {
+	type dims struct{ w, l, wd, h int } // weight_g + length/width/height_mm
+	dimMap := map[string]dims{}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT pv.id, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm
+		   FROM product_variants pv
+		  WHERE pv.id IN (SELECT variant_id FROM order_items WHERE order_id = $1 AND variant_id IS NOT NULL)`,
+		orderID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			var w, l, wd, h sql.NullInt64
+			if err := rows.Scan(&id, &w, &l, &wd, &h); err != nil {
+				continue
+			}
+			dimMap[id] = dims{
+				w:  int(w.Int64),
+				l:  int(l.Int64),
+				wd: int(wd.Int64),
+				h:  int(h.Int64),
+			}
+		}
+	}
+
+	fallback := s.defaultWeight(ctx)
+	out := make([]ShipanyItem, 0, len(order.Items))
+	for _, it := range order.Items {
+		if it.ParentItemID != nil && *it.ParentItemID != "" {
+			continue // bundle child — skip
+		}
+		w := fallback
+		var l, wd, h float64
+		if it.VariantID != nil {
+			if d, ok := dimMap[*it.VariantID]; ok {
+				if d.w > 0 {
+					w = d.w
+				}
+				l = float64(d.l) / 10
+				wd = float64(d.wd) / 10
+				h = float64(d.h) / 10
+			}
+		}
+		out = append(out, ShipanyItem{
+			SKU:          coalesceStr(it.VariantSKU, "ITEM"),
+			Name:         coalesceStr(it.ProductName, "Item"),
+			UnitPriceHKD: it.UnitPrice,
+			Quantity:     it.Quantity,
+			WeightGrams:  w,
+			LengthCM:     l,
+			WidthCM:      wd,
+			HeightCM:     h,
+		})
+	}
+	return out
+}
+
+func coalesceStr(s, fallback string) string {
+	if strings.TrimSpace(s) == "" {
+		return fallback
+	}
+	return s
 }
 
 func getOrderCarrier(ctx context.Context, db *sql.DB, orderID string) (sql.NullString, error) {
