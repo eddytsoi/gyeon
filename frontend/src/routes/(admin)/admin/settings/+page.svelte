@@ -224,7 +224,8 @@
     'email_enabled',
     'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
     'smtp_from_email', 'smtp_from_name', 'public_base_url',
-    'admin_alert_email'
+    'admin_alert_email',
+    'smtp_log_retention_days'
   ]);
   const WC_KEYS = new Set(['wc_consumer_key', 'wc_consumer_secret', 'wc_url']);
 
@@ -1572,6 +1573,26 @@
                   hover:bg-gray-50 transition-colors">
           {m.admin_nav_queue_jobs()}
         </a>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-5">
+        {m.admin_settings_email_smtp_log_retention_heading()}
+      </h2>
+      <div class="flex flex-col gap-1.5">
+        <label for="smtp_log_retention_days"
+               class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_email_smtp_log_retention_days()}
+        </label>
+        <p class="text-xs text-gray-400 -mt-0.5">
+          {m.admin_settings_email_smtp_log_retention_days_hint()}
+        </p>
+        <input id="smtp_log_retention_days" name="smtp_log_retention_days"
+               type="number" min="0"
+               value={settingValue('smtp_log_retention_days') || '90'}
+               class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
 
