@@ -894,8 +894,8 @@ type adminListPage struct {
 	Total int
 }
 
-func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug string, limit, offset int) ([]ProductWithMeta, int, error) {
-	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%d:%d", locale, search, categorySlug, limit, offset)
+func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug, kind string, limit, offset int) ([]ProductWithMeta, int, error) {
+	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%s:%d:%d", locale, search, categorySlug, kind, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		page := v.(adminListPage)
 		return page.Items, page.Total, nil
@@ -914,6 +914,10 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	if clause, arg := util.BuildSearchClause(search, productSearchFields, len(args)+1); clause != "" {
 		args = append(args, arg)
 		wheres = append(wheres, clause)
+	}
+	if kind != "" {
+		args = append(args, kind)
+		wheres = append(wheres, fmt.Sprintf("p.kind = $%d", len(args)))
 	}
 	where := ""
 	if len(wheres) > 0 {

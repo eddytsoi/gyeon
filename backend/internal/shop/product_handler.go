@@ -131,14 +131,17 @@ func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 20
+	} else if limit > 200 {
+		limit = 200
 	}
 
 	products, total, err := h.svc.ListAll(r.Context(),
 		r.URL.Query().Get("lang"),
 		r.URL.Query().Get("q"),
 		r.URL.Query().Get("category"),
+		r.URL.Query().Get("kind"),
 		limit, offset)
 	if err != nil {
 		respond.InternalError(w)

@@ -42,7 +42,7 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const needsAllProducts = isNew || isBundle;
   const [bundleItems, allProductsRes] = await Promise.all([
     isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
-    needsAllProducts ? adminGetProducts(token, 200, 0).catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
+    needsAllProducts ? adminGetProducts(token, 200, 0, '', '', 'simple').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
   ]);
   const allProducts = allProductsRes.items;
 
