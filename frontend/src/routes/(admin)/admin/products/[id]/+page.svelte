@@ -478,6 +478,15 @@
     }
   }
 
+  function onReorderBundleItems(orderedIds: string[]) {
+    const byLocalId = new Map(bundleItems.map(bi => [bi._localId, bi]));
+    const reordered = orderedIds
+      .map(lid => byLocalId.get(lid))
+      .filter((bi): bi is typeof bundleItems[number] => !!bi);
+    if (reordered.length !== bundleItems.length) return;
+    bundleItems = reordered.map((bi, idx) => ({ ...bi, sort_order: idx }));
+  }
+
   function onReorderImages(orderedIds: string[]) {
     const byId = new Map(images.map(img => [img.id, img]));
     const reordered = orderedIds
@@ -1012,6 +1021,7 @@
         <table class="w-full text-sm">
           <thead class="bg-gray-50 border-b border-gray-100">
             <tr>
+              <th class="px-2 py-3"></th>
               <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_bundle_contents_col_product()}</th>
               <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_bundle_contents_col_sku()}</th>
               <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_product_edit_bundle_contents_col_qty()}</th>
@@ -1019,9 +1029,15 @@
               <th class="px-5 py-3"></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-50">
+          <tbody class="divide-y divide-gray-50"
+                 use:sortable={{ onReorder: onReorderBundleItems, handle: '[data-drag-handle]' }}>
             {#each bundleItems as bi, idx (bi._localId)}
-              <tr>
+              <tr data-id={bi._localId}>
+                <td class="px-2 py-3 text-gray-300 cursor-grab active:cursor-grabbing select-none" data-drag-handle aria-hidden="true">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/>
+                  </svg>
+                </td>
                 <td class="px-5 py-3 font-medium text-gray-900">{bi.component_product_name ?? m.admin_product_edit_variants_dash()}</td>
                 <td class="px-5 py-3 font-mono text-xs text-gray-600">{bi.component_sku ?? m.admin_product_edit_variants_dash()}</td>
                 <td class="px-5 py-3">
