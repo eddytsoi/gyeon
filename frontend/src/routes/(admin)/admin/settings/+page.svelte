@@ -213,7 +213,8 @@
     'shipany_default_service', 'shipany_default_storage_type',
     'shipany_paid_by_receiver', 'shipany_self_drop_off',
     'shipany_order_ref_suffix', 'shipany_show_courier_tracking_number',
-    'shipany_webhook_secret'
+    'shipany_webhook_secret',
+    'auto_shipany_on_paid_enabled'
   ]);
   const RECAPTCHA_KEYS = new Set([
     'recaptcha_enabled', 'recaptcha_site_key', 'recaptcha_secret_key', 'recaptcha_min_score'
@@ -251,7 +252,8 @@
     loyalty_points_per_hkd: m.admin_settings_label_loyalty_points_per_hkd(),
     loyalty_redeem_rate_hkd: m.admin_settings_label_loyalty_redeem_rate_hkd(),
     meta_pixel_id: m.admin_settings_label_meta_pixel_id(),
-    site_name: m.admin_settings_label_site_name()
+    site_name: m.admin_settings_label_site_name(),
+    form_upload_hard_cap_mb: m.admin_settings_label_form_upload_hard_cap_mb()
   });
   const SETTING_DESCS = $derived<Record<string, string>>({
     maintenance_mode: m.admin_settings_desc_maintenance_mode(),
@@ -272,7 +274,8 @@
     loyalty_points_per_hkd: m.admin_settings_desc_loyalty_points_per_hkd(),
     loyalty_redeem_rate_hkd: m.admin_settings_desc_loyalty_redeem_rate_hkd(),
     meta_pixel_id: m.admin_settings_desc_meta_pixel_id(),
-    site_name: m.admin_settings_desc_site_name()
+    site_name: m.admin_settings_desc_site_name(),
+    form_upload_hard_cap_mb: m.admin_settings_desc_form_upload_hard_cap_mb()
   });
 
   const textSettings = $derived(
