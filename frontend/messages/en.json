@@ -123,6 +123,7 @@
   "product_detail_added": "✓ Added to Cart",
   "product_detail_out_of_stock": "Out of Stock",
   "product_detail_units_in_stock": "{count} units in stock",
+  "product_detail_sets_in_stock": "{count} sets in stock",
   "product_detail_trust_genuine": "Genuine GYEON product",
   "product_detail_trust_shipping": "Free shipping HK$500+",
   "product_detail_trust_returns": "30-day returns",

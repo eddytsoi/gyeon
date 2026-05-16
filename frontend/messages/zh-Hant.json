@@ -123,6 +123,7 @@
   "product_detail_added": "✓ 已加入購物車",
   "product_detail_out_of_stock": "已售完",
   "product_detail_units_in_stock": "尚餘 {count} 件",
+  "product_detail_sets_in_stock": "尚餘 {count} 套",
   "product_detail_trust_genuine": "GYEON 正貨保證",
   "product_detail_trust_shipping": "滿 HK$500 免運費",
   "product_detail_trust_returns": "30 日退貨保證",
