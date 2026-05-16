@@ -53,49 +53,72 @@
       <!-- Items -->
       <div class="flex-1 flex flex-col gap-4">
         {#each cartStore.cart.items as item}
-          <div class="flex items-center gap-4 bg-white rounded-2xl p-4 border border-gray-100">
-            <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
-               class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden block hover:opacity-80 transition-opacity">
-              {#if item.image_url}
-                <ResponsiveImage src={item.image_url} alt={item.product_name}
-                                 widths={[160, 320]} sizes="64px"
-                                 class="w-full h-full object-cover" />
-              {/if}
-            </a>
-
-            <div class="flex-1 min-w-0">
+          <div class="bg-white rounded-2xl p-4 border border-gray-100">
+            <div class="flex items-center gap-4">
               <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
-                 class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
-                {productDisplayName(item.product_name, item.variant_name)}
+                 class="w-16 h-16 rounded-lg bg-gray-50 flex-shrink-0 overflow-hidden block hover:opacity-80 transition-opacity">
+                {#if item.image_url}
+                  <ResponsiveImage src={item.image_url} alt={item.product_name}
+                                   widths={[160, 320]} sizes="64px"
+                                   class="w-full h-full object-cover" />
+                {/if}
               </a>
-              <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
+
+              <div class="flex-1 min-w-0">
+                <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
+                   class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
+                  {productDisplayName(item.product_name, item.variant_name)}
+                </a>
+                <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
+              </div>
+
+              <!-- Qty controls -->
+              <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onclick={() => cartStore.update(item.id, item.quantity - 1)}
+                  aria-label={m.common_aria_decrease_quantity()}
+                  disabled={item.quantity <= 1}
+                  class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">−</button>
+                <span class="w-8 text-center text-sm">{item.quantity}</span>
+                <button
+                  type="button"
+                  onclick={() => cartStore.update(item.id, item.quantity + 1)}
+                  aria-label={m.common_aria_increase_quantity()}
+                  class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50">+</button>
+              </div>
+
+              <button
+                onclick={() => cartStore.remove(item.id)}
+                class="p-2 text-gray-300 hover:text-red-400 transition-colors"
+                aria-label={m.cart_aria_remove()}>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
             </div>
 
-            <!-- Qty controls -->
-            <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onclick={() => cartStore.update(item.id, item.quantity - 1)}
-                aria-label={m.common_aria_decrease_quantity()}
-                disabled={item.quantity <= 1}
-                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">−</button>
-              <span class="w-8 text-center text-sm">{item.quantity}</span>
-              <button
-                type="button"
-                onclick={() => cartStore.update(item.id, item.quantity + 1)}
-                aria-label={m.common_aria_increase_quantity()}
-                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50">+</button>
-            </div>
-
-            <button
-              onclick={() => cartStore.remove(item.id)}
-              class="p-2 text-gray-300 hover:text-red-400 transition-colors"
-              aria-label={m.cart_aria_remove()}>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
+            {#if item.children?.length}
+              <div class="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2 pl-20">
+                {#each item.children as child}
+                  <a href="/products/{child.product_slug}?variant={encodeURIComponent(child.sku)}"
+                     class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <div class="w-10 h-10 rounded-md bg-gray-50 flex-shrink-0 overflow-hidden">
+                      {#if child.image_url}
+                        <ResponsiveImage src={child.image_url} alt={child.product_name}
+                                         widths={[80, 160]} sizes="40px"
+                                         class="w-full h-full object-cover" />
+                      {/if}
+                    </div>
+                    <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">
+                      {productDisplayName(child.product_name, child.variant_name)}
+                    </p>
+                    <span class="text-xs text-gray-400 tabular-nums">× {child.quantity}</span>
+                  </a>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>

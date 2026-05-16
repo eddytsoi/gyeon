@@ -105,6 +105,17 @@ export interface CartItem {
   price: number;
   weight_grams?: number;
   image_url?: string;
+  kind?: 'simple' | 'bundle';
+  children?: CartItemChild[];
+}
+
+export interface CartItemChild {
+  product_name: string;
+  product_slug: string;
+  sku: string;
+  variant_name?: string | null;
+  quantity: number;
+  image_url?: string;
 }
 
 export interface Cart {
@@ -118,6 +129,7 @@ export interface OrderItem {
   id: string;
   order_id: string;
   variant_id?: string;
+  parent_item_id?: string | null;
   product_name: string;
   variant_sku: string;
   variant_attrs?: Record<string, string>;

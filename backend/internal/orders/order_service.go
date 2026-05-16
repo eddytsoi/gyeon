@@ -728,7 +728,9 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			if cerr != nil {
 				return nil, cerr
 			}
-			child.ParentItemID = &item.ID
+			parentID := item.ID
+			child.ParentItemID = &parentID
+			order.Items = append(order.Items, child)
 		}
 	}
 
@@ -834,6 +836,39 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	return result, nil
 }
 
+// buildOrderEmailItems converts an order's flat OrderItem slice into the
+// nested OrderEmailItem shape, attaching bundle child rows under their
+// parent so email templates can render the bundle's contents indented.
+func buildOrderEmailItems(items []OrderItem) []email.OrderEmailItem {
+	toEmailItem := func(it OrderItem) email.OrderEmailItem {
+		return email.OrderEmailItem{
+			Name:      it.ProductName,
+			SKU:       it.VariantSKU,
+			Quantity:  it.Quantity,
+			UnitPrice: it.UnitPrice,
+			LineTotal: it.LineTotal,
+		}
+	}
+	// Index parents by ID so we can attach children by parent_item_id.
+	parentIdx := map[string]int{}
+	out := make([]email.OrderEmailItem, 0, len(items))
+	for _, it := range items {
+		if it.ParentItemID == nil {
+			parentIdx[it.ID] = len(out)
+			out = append(out, toEmailItem(it))
+		}
+	}
+	for _, it := range items {
+		if it.ParentItemID == nil {
+			continue
+		}
+		if idx, ok := parentIdx[*it.ParentItemID]; ok {
+			out[idx].Children = append(out[idx].Children, toEmailItem(it))
+		}
+	}
+	return out
+}
+
 // sendPaymentLinkEmail emails the customer a magic link to complete the
 // Stripe payment for an MCP-initiated pending order. Best-effort.
 func (s *OrderService) sendPaymentLinkEmail(ctx context.Context, order *Order, clientSecret string) {
@@ -843,16 +878,7 @@ func (s *OrderService) sendPaymentLinkEmail(ctx context.Context, order *Order, c
 	base := s.emailSvc.PublicBaseURL(ctx)
 	paymentURL := fmt.Sprintf("%s/pay/%s?cs=%s", base, order.ID, url.QueryEscape(clientSecret))
 
-	items := make([]email.OrderEmailItem, len(order.Items))
-	for i, it := range order.Items {
-		items[i] = email.OrderEmailItem{
-			Name:      it.ProductName,
-			SKU:       it.VariantSKU,
-			Quantity:  it.Quantity,
-			UnitPrice: it.UnitPrice,
-			LineTotal: it.LineTotal,
-		}
-	}
+	items := buildOrderEmailItems(order.Items)
 	name := ""
 	if order.CustomerName != nil {
 		name = *order.CustomerName
@@ -1067,16 +1093,7 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 			Scan(&line1, &line2, &city, &state, &postal, &country)
 	}
 
-	items := make([]email.OrderEmailItem, len(order.Items))
-	for i, it := range order.Items {
-		items[i] = email.OrderEmailItem{
-			Name:      it.ProductName,
-			SKU:       it.VariantSKU,
-			Quantity:  it.Quantity,
-			UnitPrice: it.UnitPrice,
-			LineTotal: it.LineTotal,
-		}
-	}
+	items := buildOrderEmailItems(order.Items)
 
 	setupURL := ""
 	if order.CustomerID != nil && s.customerSvc != nil {
@@ -1482,15 +1499,16 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total
-		 FROM order_items WHERE order_id = $1`, id)
+		`SELECT id, order_id, variant_id, parent_item_id, product_name, variant_sku, unit_price, quantity, line_total
+		 FROM order_items WHERE order_id = $1
+		 ORDER BY parent_item_id NULLS FIRST, id`, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var item OrderItem
-		rows.Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ProductName,
+		rows.Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ParentItemID, &item.ProductName,
 			&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
 		order.Items = append(order.Items, item)
 	}

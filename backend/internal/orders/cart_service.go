@@ -31,6 +31,22 @@ type CartItem struct {
 	WidthMM    *int    `json:"width_mm,omitempty"`
 	HeightMM   *int    `json:"height_mm,omitempty"`
 	ImageURL    *string `json:"image_url,omitempty"`
+	// Kind is the product type for this line ("simple" | "bundle"). The
+	// frontend uses it to decide whether to render the Children block.
+	Kind     string           `json:"kind,omitempty"`
+	Children []CartItemChild  `json:"children,omitempty"`
+}
+
+// CartItemChild is a component of a bundle line item, hydrated for display
+// on cart / checkout / abandoned-cart-email. No price field — bundles price
+// is set on the bundle itself; children show only what's inside.
+type CartItemChild struct {
+	ProductName string  `json:"product_name"`
+	ProductSlug string  `json:"product_slug"`
+	SKU         string  `json:"sku"`
+	VariantName *string `json:"variant_name,omitempty"`
+	Quantity    int     `json:"quantity"`
+	ImageURL    *string `json:"image_url,omitempty"`
 }
 
 type AddItemRequest struct {
@@ -111,7 +127,8 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 		            vmf.webp_url, vmf.url, vi.url,
 		            CASE WHEN pmf.mime_type LIKE 'video/%' THEN pmf.thumbnail_url END,
 		            pmf.webp_url, pmf.url, pi.url
-		        ) AS image_url
+		        ) AS image_url,
+		        p.kind, p.id
 		 FROM cart_items ci
 		 JOIN product_variants pv ON pv.id = ci.variant_id
 		 JOIN products p ON p.id = pv.product_id
@@ -128,16 +145,88 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 	defer rows.Close()
 
 	items := []CartItem{}
+	// Track parent productID per item index so we can hydrate bundle
+	// children in one follow-up batch (one query per bundle item — keeps
+	// the SQL simple and there are typically few bundle lines per cart).
+	type bundleRef struct {
+		idx       int
+		productID string
+		parentQty int
+	}
+	var bundleRefs []bundleRef
 	for rows.Next() {
 		var item CartItem
+		var productID string
 		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,
 			&item.ProductName, &item.ProductSlug, &item.SKU, &item.VariantName, &item.Price, &item.WeightGrams,
-			&item.LengthMM, &item.WidthMM, &item.HeightMM, &item.ImageURL); err != nil {
+			&item.LengthMM, &item.WidthMM, &item.HeightMM, &item.ImageURL, &item.Kind, &productID); err != nil {
 			return nil, err
+		}
+		if item.Kind == "bundle" {
+			bundleRefs = append(bundleRefs, bundleRef{idx: len(items), productID: productID, parentQty: item.Quantity})
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, ref := range bundleRefs {
+		children, err := s.bundleChildren(ctx, ref.productID, ref.parentQty)
+		if err != nil {
+			return nil, err
+		}
+		items[ref.idx].Children = children
+	}
+	return items, nil
+}
+
+// bundleChildren fetches the components of a bundle product, scaled by the
+// parent line's quantity, with the same image-coalesce fallback used for
+// main cart rows. Used by listItems and (via Cart) by the abandoned-cart
+// email so customers see what's inside the box.
+func (s *CartService) bundleChildren(ctx context.Context, bundleProductID string, parentQty int) ([]CartItemChild, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT p.name, p.slug, pv.sku, pv.name, bi.quantity,
+		        COALESCE(
+		            CASE WHEN vmf.mime_type LIKE 'video/%' THEN vmf.thumbnail_url END,
+		            vmf.webp_url, vmf.url, vi.url,
+		            CASE WHEN pmf.mime_type LIKE 'video/%' THEN pmf.thumbnail_url END,
+		            pmf.webp_url, pmf.url, pi.url
+		        ) AS image_url
+		 FROM bundle_items bi
+		 JOIN product_variants pv ON pv.id = bi.component_variant_id
+		 JOIN products p ON p.id = pv.product_id
+		 LEFT JOIN product_images vi ON vi.variant_id = bi.component_variant_id
+		 LEFT JOIN media_files vmf ON vmf.id = vi.media_file_id
+		 LEFT JOIN product_images pi
+		     ON pi.product_id = pv.product_id AND pi.is_primary = TRUE
+		 LEFT JOIN media_files pmf ON pmf.id = pi.media_file_id
+		 WHERE bi.bundle_product_id = $1
+		 ORDER BY bi.sort_order ASC, bi.created_at ASC`, bundleProductID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []CartItemChild{}
+	for rows.Next() {
+		var c CartItemChild
+		var perBundleQty int
+		if err := rows.Scan(&c.ProductName, &c.ProductSlug, &c.SKU, &c.VariantName, &perBundleQty, &c.ImageURL); err != nil {
+			return nil, err
+		}
+		c.Quantity = perBundleQty * parentQty
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// ChildrenForCart hydrates bundle children for a known cart ID. Exposed so
+// adjacent packages (e.g. abandoned-cart email) can reuse the same shape
+// without duplicating the SQL.
+func (s *CartService) ChildrenForCart(ctx context.Context, cartID string) ([]CartItem, error) {
+	return s.listItems(ctx, cartID)
 }
 
 func (s *CartService) AddItem(ctx context.Context, cartID string, req AddItemRequest) (*CartItem, error) {
