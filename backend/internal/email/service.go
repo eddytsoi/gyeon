@@ -377,6 +377,142 @@ func (s *Service) send(cfg Config, to, subject, text, html string) error {
 	return s.sendWithReplyTo(cfg, to, "", subject, text, html)
 }
 
+// SendRendered loads SMTP config (respecting email_enabled) and dispatches a
+// pre-rendered message to `to`. Used by the queue worker's send_email_raw
+// handler to replay a captured SMTP-log payload verbatim, and by the
+// templated-send handler after rendering.
+func (s *Service) SendRendered(ctx context.Context, to, replyTo, subject, text, html string) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	return s.sendWithReplyTo(cfg, to, replyTo, subject, text, html)
+}
+
+// FromConfig returns the configured From email and name (with the same
+// fallback the SMTP path uses). Used by the queue worker to populate the
+// smtp_log audit row.
+func (s *Service) FromConfig(ctx context.Context) (fromEmail, fromName string, err error) {
+	cfg, err := s.loadSMTPConfig(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return cfg.FromEmail, cfg.FromName, nil
+}
+
+// RenderTemplate executes the template registered for `key` against `params`
+// and returns the rendered subject, plain-text, and HTML bodies. DB
+// overrides are honored; on miss or parse failure the compiled-in default
+// fires. Returns an error only for unknown keys.
+func (s *Service) RenderTemplate(ctx context.Context, key string, params any) (subject, text, html string, err error) {
+	switch key {
+	case "order_confirmation":
+		p, ok := params.(OrderEmailParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render order_confirmation: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "order_confirmation", p, func() (string, string, string) {
+			return renderDefault("subject:order_confirmation", orderConfirmationSubject, p),
+				renderDefault("html:order_confirmation", orderConfirmationHTML, p),
+				renderDefault("text:order_confirmation", orderConfirmationText, p)
+		})
+		return subject, text, html, nil
+	case "order_shipped":
+		p, ok := params.(ShippedEmailParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render order_shipped: bad params type %T", params)
+		}
+		subject, html, text = s.applyTemplate(ctx, "order_shipped", p, func() (string, string, string) {
+			return renderDefault("subject:order_shipped", orderShippedSubject, p),
+				renderDefault("html:order_shipped", orderShippedHTML, p),
+				renderDefault("text:order_shipped", orderShippedText, p)
+		})
+		return subject, text, html, nil
+	case "order_refunded":
+		p, ok := params.(RefundEmailParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render order_refunded: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "order_refunded", p, func() (string, string, string) {
+			return renderDefault("subject:order_refunded", orderRefundedSubject, p),
+				renderDefault("html:order_refunded", orderRefundedHTML, p),
+				renderDefault("text:order_refunded", orderRefundedText, p)
+		})
+		return subject, text, html, nil
+	case "payment_link":
+		p, ok := params.(PaymentLinkParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render payment_link: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "payment_link", p, func() (string, string, string) {
+			return renderDefault("subject:payment_link", paymentLinkSubject, p),
+				renderDefault("html:payment_link", paymentLinkHTML, p),
+				renderDefault("text:payment_link", paymentLinkText, p)
+		})
+		return subject, text, html, nil
+	case "password_reset":
+		p, ok := params.(PasswordResetParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render password_reset: bad params type %T", params)
+		}
+		if p.ExpiryHours == 0 {
+			p.ExpiryHours = 24
+		}
+		subject, html, text = s.applyTemplate(ctx, "password_reset", p, func() (string, string, string) {
+			return renderDefault("subject:password_reset", passwordResetSubject, p),
+				renderDefault("html:password_reset", passwordResetHTML, p),
+				renderDefault("text:password_reset", passwordResetText, p)
+		})
+		return subject, text, html, nil
+	case "admin_message":
+		p, ok := params.(AdminMessageParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render admin_message: bad params type %T", params)
+		}
+		subject, html, text = s.applyTemplate(ctx, "admin_message", p, func() (string, string, string) {
+			return renderDefault("subject:admin_message", adminMessageSubject, p),
+				renderDefault("html:admin_message", adminMessageHTML, p),
+				renderDefault("text:admin_message", adminMessageText, p)
+		})
+		return subject, text, html, nil
+	case "abandoned_cart":
+		p, ok := params.(AbandonedCartParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render abandoned_cart: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "abandoned_cart", p, func() (string, string, string) {
+			return renderDefault("subject:abandoned_cart", abandonedCartSubject, p),
+				renderDefault("html:abandoned_cart", abandonedCartHTML, p),
+				renderDefault("text:abandoned_cart", abandonedCartText, p)
+		})
+		return subject, text, html, nil
+	case "low_stock_alert":
+		p, ok := params.(LowStockParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render low_stock_alert: bad params type %T", params)
+		}
+		subject, html, text = s.applyTemplate(ctx, "low_stock_alert", p, func() (string, string, string) {
+			return renderDefault("subject:low_stock_alert", lowStockAlertSubject, p),
+				renderDefault("html:low_stock_alert", lowStockAlertHTML, p),
+				renderDefault("text:low_stock_alert", lowStockAlertText, p)
+		})
+		return subject, text, html, nil
+	}
+	return "", "", "", fmt.Errorf("email: render: unknown template key %q", key)
+}
+
 // sendWithReplyTo is the variant used by contact-form mail where the admin
 // configures a Reply-To header (typically `[your-email]` resolved to the
 // submitter's address) so replying in the inbox goes back to the customer.

@@ -23,14 +23,20 @@ import (
 // would create a cycle — orders already depends on customers).
 type OrderFetcherFunc func(ctx context.Context, orderID, customerID string) (any, error)
 
+// EmailSender is the slice of email.Service the customers handler needs.
+type EmailSender interface {
+	PublicBaseURL(ctx context.Context) string
+	SendPasswordResetEmail(ctx context.Context, p email.PasswordResetParams) error
+}
+
 type Handler struct {
 	svc          *Service
-	emailSvc     *email.Service
+	emailSvc     EmailSender
 	jwtSecret    string
 	fetchOrder   OrderFetcherFunc
 }
 
-func NewHandler(svc *Service, emailSvc *email.Service, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
+func NewHandler(svc *Service, emailSvc EmailSender, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
 	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret, fetchOrder: fetchOrder}
 }
 

@@ -459,6 +459,9 @@
   // ── ShipAny ─────────────────────────────────────────────────────
   let shipanyOn = $state(settingValue('shipany_enabled') === 'true');
   let shipanyPaidByReceiver = $state(settingValue('shipany_paid_by_receiver') === 'true');
+  // Auto-create Shipany shipment when an order flips to paid. Queued via
+  // the in-process worker so the Stripe webhook never blocks on ShipAny.
+  let autoShipanyOnPaid = $state(settingValue('auto_shipany_on_paid_enabled') === 'true');
 
   // Threshold off → always SF freight-collect, so paid-by-receiver snaps on
   // and is locked. Threshold on → paid-by-receiver is computed per order by
@@ -1451,6 +1454,27 @@
           {/if}
         </div>
       </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-2">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_automation_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_automation_subtitle()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (autoShipanyOnPaid = !autoShipanyOnPaid)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {autoShipanyOnPaid ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={autoShipanyOnPaid}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {autoShipanyOnPaid ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="auto_shipany_on_paid_enabled" value={autoShipanyOnPaid ? 'true' : 'false'} />
+      </div>
+      <p class="text-xs text-gray-500 mt-3">{m.admin_settings_automation_auto_shipany_hint()}</p>
     </div>
 
     </div>

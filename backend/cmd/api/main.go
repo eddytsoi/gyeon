@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,12 +31,14 @@ import (
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/queue"
 	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/recaptcha"
 	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shipany"
 	"gyeon/backend/internal/shop"
+	"gyeon/backend/internal/smtplog"
 	"gyeon/backend/internal/tax"
 	"gyeon/backend/internal/wishlist"
 )
@@ -265,13 +270,20 @@ func main() {
 	emailTemplateStore := email.NewStore(conn)
 	emailSvc.SetTemplateStore(emailTemplateStore)
 	emailTemplateHandler := email.NewTemplateHandler(emailTemplateStore, emailSvc)
+	queueSvc := queue.NewService(conn)
+	smtpLogStore := smtplog.NewStore(conn)
+	// emailEnqueuer wraps emailSvc so every transactional send goes through
+	// the queue. emailSvc itself is still kept for SendTest (which expects a
+	// synchronous pass/fail response in the admin UI).
+	emailEnqueuer := email.NewQueueEnqueuer(emailSvc, queueSvc, smtpLogStore)
 	taxSvc := tax.NewService(settingsSvc)
-	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailSvc)
+	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailEnqueuer)
 	orderSvc.SetTaxService(taxSvc)
 	noticeSvc := orders.NewNoticeService(conn)
-	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailSvc, jwtSecret)
+	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailEnqueuer, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
 	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc)
+	shipanyJobs := shipany.NewQueueHandler(shipanySvc, noticeSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)
@@ -332,7 +344,7 @@ func main() {
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
 	navHandler := cms.NewNavHandler(navSvc)
 	productHandler := shop.NewProductHandler(productSvc)
-	customerHandler := customers.NewHandler(customerSvc, emailSvc, customerJWTSecret,
+	customerHandler := customers.NewHandler(customerSvc, emailEnqueuer, customerJWTSecret,
 		func(ctx context.Context, orderID, customerID string) (any, error) {
 			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
 		})
@@ -341,7 +353,7 @@ func main() {
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
 	productSvc.SetThumbnailEnsurer(mediaHandler)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
-	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc, customerSvc, emailSvc))
+	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc, customerSvc, emailEnqueuer))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	redirectsSvc := redirects.NewService(conn)
 	redirectsHandler := redirects.NewHandler(redirectsSvc)
@@ -352,7 +364,7 @@ func main() {
 
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
 	recaptchaVerifier := recaptcha.New(settingsSvc)
-	formsSvc := forms.NewService(conn, emailSvc, recaptchaVerifier, formsSettingsAdapter{svc: settingsSvc})
+	formsSvc := forms.NewService(conn, emailEnqueuer, recaptchaVerifier, formsSettingsAdapter{svc: settingsSvc})
 	formsHandler := forms.NewHandler(formsSvc)
 	orderSvc.SetOnOrderPaid(func(ctx context.Context, o *orders.Order) {
 		// Earn rate operates on order subtotal (post-discount, pre-tax/shipping).
@@ -360,11 +372,21 @@ func main() {
 		if base < 0 {
 			base = 0
 		}
-		if o.CustomerID == nil || *o.CustomerID == "" {
-			return // guest checkout — no customer to credit
+		if o.CustomerID != nil && *o.CustomerID != "" {
+			if err := loyaltySvc.EarnFromOrder(ctx, *o.CustomerID, o.ID, base); err != nil {
+				log.Printf("loyalty: earn order %s: %v", o.ID, err)
+			}
 		}
-		if err := loyaltySvc.EarnFromOrder(ctx, *o.CustomerID, o.ID, base); err != nil {
-			log.Printf("loyalty: earn order %s: %v", o.ID, err)
+
+		// Auto-create Shipany shipment on paid (gated by setting). The
+		// enqueue itself is cheap; the actual API call happens later in the
+		// worker so the Stripe webhook never blocks on ShipAny availability.
+		autoShipany, _ := settingsSvc.Get(ctx, "auto_shipany_on_paid_enabled")
+		if autoShipany != nil && strings.EqualFold(strings.TrimSpace(autoShipany.Value), "true") {
+			payload, _ := json.Marshal(shipany.CreateShipanyShipmentJob{OrderID: o.ID})
+			if _, err := queueSvc.Enqueue(ctx, queue.JobTypeCreateShipanyShipment, payload); err != nil {
+				log.Printf("queue: enqueue shipany for order %s: %v", o.ID, err)
+			}
 		}
 	})
 	redirectsSvc.SetAudit(redirectsAuditAdapter{svc: auditSvc})
@@ -617,6 +639,12 @@ func main() {
 			// Audit log (P2 #17): list-only — entries are inserted by services
 			r.Mount("/admin/audit-log", auditHandler.AdminRoutes())
 
+			// SMTP log (v0.9.136): every outbound email attempt with rendered body + resend
+			r.Mount("/admin/smtp-log", smtplog.NewHandler(smtpLogStore, queueSvc).AdminRoutes())
+
+			// Queue jobs viewer (v0.9.136): debug pending/dead jobs and retry
+			r.Mount("/admin/queue-jobs", queue.NewHandler(queueSvc).AdminRoutes())
+
 			// Email templates (P2 #20): admin-editable overrides for the
 			// hardcoded transactional emails
 			r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
@@ -628,7 +656,7 @@ func main() {
 			r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())
 
 			// Abandoned cart recovery (list + manual run; external cron may also POST run)
-			abandonedSvc := abandoned.NewService(conn, emailSvc, settingsSvc)
+			abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
 			r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
 
 			// WooCommerce import
@@ -647,9 +675,33 @@ func main() {
 	mcpServer := mcpsrv.NewServer(categorySvc, productSvc, cartSvc, orderSvc, pricingSvc)
 	r.With(mcpGate).Mount("/mcp", mcpServer.Handler())
 
+	// Queue worker — drains send_email / send_email_raw / create_shipany_shipment
+	// jobs in the same process. Bound by rootCtx so SIGTERM stops accepting
+	// new claims; Stop() blocks until in-flight handlers return.
+	rootCtx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+	worker := queue.NewWorker(queueSvc, 2, 2*time.Second)
+	worker.Register(queue.JobTypeSendEmail, emailEnqueuer.HandleSendEmail)
+	worker.Register(queue.JobTypeSendEmailRaw, emailEnqueuer.HandleSendEmailRaw)
+	worker.Register(queue.JobTypeCreateShipanyShipment, shipanyJobs.Handle)
+	worker.SetTimeout(queue.JobTypeCreateShipanyShipment, 5*time.Minute)
+	worker.Start(rootCtx)
+
 	addr := ":" + getenv("PORT", "8080")
 	log.Println("API server listening on", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{Addr: addr, Handler: r}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+	<-rootCtx.Done()
+	log.Println("shutdown: stopping http + queue worker")
+	shutCtx, cancelShut := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelShut()
+	if err := srv.Shutdown(shutCtx); err != nil {
+		log.Printf("shutdown: http: %v", err)
 	}
+	worker.Stop()
+	log.Println("shutdown: complete")
 }
