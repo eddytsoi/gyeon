@@ -577,7 +577,7 @@
         <!-- Bundle contents (above qty + CTA) -->
         {#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
           <div class="rounded-xl border border-ink-200 p-5">
-            <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-4">
+            <p class="text-sm font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-4">
               {m.product_detail_bundle_heading()}
             </p>
             <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
@@ -667,7 +667,9 @@
         {#if inStock && selectedVariant}
           <p class="text-xs font-body text-ink-500 -mt-2">
             <span class="text-success font-semibold">●</span>
-            {m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}
+            {data.product.kind === 'bundle'
+              ? m.product_detail_sets_in_stock({ count: selectedVariant.stock_qty })
+              : m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}
           </p>
         {/if}
 
