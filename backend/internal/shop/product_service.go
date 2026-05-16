@@ -1538,6 +1538,10 @@ func (s *ProductService) GetVariantIDByBundleRef(
 	wcVariationID int,
 ) (string, error) {
 	var id string
+	// Cast both $2 usages: lib/pq announces one type per parameter, so a
+	// mix of `$2::text` and bare `$2` against an int column would fail with
+	// `operator does not exist: integer = text`. Explicit casts on both
+	// sides let the driver choose any type.
 	err := s.db.QueryRowContext(ctx, `
 		SELECT pv.id
 		  FROM product_variants pv
@@ -1545,7 +1549,7 @@ func (s *ProductService) GetVariantIDByBundleRef(
 		 WHERE pv.product_id = $1
 		   AND (
 		       pv.sku = p.slug || '-' || $2::text
-		       OR pv.wc_variation_id = $2
+		       OR pv.wc_variation_id = $2::int
 		   )
 		 ORDER BY (pv.sku = p.slug || '-' || $2::text) DESC
 		 LIMIT 1`,
