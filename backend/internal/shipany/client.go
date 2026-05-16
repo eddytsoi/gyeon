@@ -284,12 +284,17 @@ func (c *HTTPClient) CreateShipment(ctx context.Context, req CreateShipmentReque
 	// WC plugin's create-mode body shape (see .claude/doc/shipany_api_guid_simple.md §5).
 	payload["self_drop_off"] = false
 	payload["stg"] = "Normal"
-	payload["incoterms"] = "DAP"
 	payload["cod"] = false
 	payload["cod_amount"] = 0
 	payload["woocommerce_default_create"] = false
 	payload["add-ons"] = []any{}
 	payload["pltf_inst_id"] = "00000000-0000-0000-0000-000000000000"
+	// Incoterms only apply to cross-border shipments. Sending "DAP" on a
+	// HK→HK domestic order trips ShipAny's validator with
+	// "Invalid incoterms, input DAP".
+	if !strings.EqualFold(req.Origin.Country, req.Destination.Country) {
+		payload["incoterms"] = "DAP"
+	}
 
 	// Populated items array — buildOrderPayload leaves it empty for the
 	// shared query-rate path. ShipAny's create endpoint expects real rows.
