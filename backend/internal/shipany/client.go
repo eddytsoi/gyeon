@@ -535,7 +535,7 @@ func buildContact(a Address) map[string]any {
 			"phs": []map[string]any{{
 				"typ":       "Mobile",
 				"cnty_code": phoneCountryCode(a.Country),
-				"num":       a.Phone,
+				"num":       normalizePhoneNumber(a.Phone, a.Country),
 			}},
 		},
 		"addr": map[string]any{
@@ -575,6 +575,23 @@ func countryAlpha3(alpha2 string) string {
 		return "SGP"
 	}
 	return strings.ToUpper(alpha2)
+}
+
+// normalizePhoneNumber strips non-digits from the phone and removes a
+// leading country dial code so the value matches ShipAny's expected
+// format (local digits only — `cnty_code` carries the country part).
+// Tolerates "+852 9876 5432", "(852) 9876-5432", "85298765432", etc.
+func normalizePhoneNumber(raw, country string) string {
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, raw)
+	if code := phoneCountryCode(country); code != "" && strings.HasPrefix(digits, code) {
+		digits = strings.TrimPrefix(digits, code)
+	}
+	return digits
 }
 
 func phoneCountryCode(alpha2 string) string {
