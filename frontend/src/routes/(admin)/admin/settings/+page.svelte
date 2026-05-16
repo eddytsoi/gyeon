@@ -138,7 +138,7 @@
     }
   }
 
-  const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled', 'blog_enabled']);
+  const TOGGLE_KEYS = new Set(['maintenance_mode', 'mcp_enabled', 'blog_enabled', 'pwa_enabled']);
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
   const COMPANY_LOGO_KEYS = new Set(['company_logo_url', 'company_logo_height_px']);
@@ -255,6 +255,7 @@
     maintenance_mode: m.admin_settings_desc_maintenance_mode(),
     mcp_enabled: m.admin_settings_desc_mcp_enabled(),
     blog_enabled: m.admin_settings_desc_blog_enabled(),
+    pwa_enabled: m.admin_settings_desc_pwa_enabled(),
     cache_ttl_shop: m.admin_settings_desc_cache_ttl_shop(),
     cache_ttl_cms: m.admin_settings_desc_cache_ttl_cms(),
     cache_ttl_nav: m.admin_settings_desc_cache_ttl_nav(),
@@ -314,6 +315,9 @@
 
   const blogSetting = $derived(data.settings.find((s) => s.key === 'blog_enabled'));
   let blogOn = $state(blogSetting?.value === 'true');
+
+  const pwaSetting = $derived(data.settings.find((s) => s.key === 'pwa_enabled'));
+  let pwaOn = $state(pwaSetting?.value !== 'false');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1561,6 +1565,31 @@
                          transition duration-200 {blogOn ? 'translate-x-5' : 'translate-x-0'}"></span>
           </button>
           <input type="hidden" name="blog_enabled" value={blogOn ? 'true' : 'false'} />
+        </div>
+      </div>
+    {/if}
+
+    <!-- Progressive Web App -->
+    {#if pwaSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_pwa_heading()}</p>
+            {#if SETTING_DESCS[pwaSetting.key] ?? pwaSetting.description}
+              <p class="text-xs text-gray-400 mt-0.5">{SETTING_DESCS[pwaSetting.key] ?? pwaSetting.description}</p>
+            {/if}
+          </div>
+          <button type="button"
+                  onclick={() => (pwaOn = !pwaOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {pwaOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={pwaOn}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {pwaOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="pwa_enabled" value={pwaOn ? 'true' : 'false'} />
         </div>
       </div>
     {/if}
