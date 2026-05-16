@@ -580,7 +580,7 @@
             <p class="text-sm font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-4">
               {m.product_detail_bundle_heading()}
             </p>
-            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+            <ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-5">
               {#each data.bundleItems as item}
                 <li class="flex items-start gap-3">
                   {#if item.component_primary_image_url}
