@@ -1529,13 +1529,23 @@
           </div>
         {/each}
       </div>
-      <div class="pt-5 mt-5 border-t border-gray-100">
+      <div class="pt-5 mt-5 border-t border-gray-100 flex flex-wrap items-center gap-2">
         <button type="button"
                 onclick={() => { showTestEmailModal = true; testEmailAddress = ''; }}
                 class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
                        hover:bg-gray-50 transition-colors">
           {m.admin_settings_email_test_button()}
         </button>
+        <a href="/admin/smtp-log"
+           class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                  hover:bg-gray-50 transition-colors">
+          {m.admin_nav_smtp_log()}
+        </a>
+        <a href="/admin/queue-jobs"
+           class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                  hover:bg-gray-50 transition-colors">
+          {m.admin_nav_queue_jobs()}
+        </a>
       </div>
     </div>
 
