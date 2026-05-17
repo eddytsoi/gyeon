@@ -206,7 +206,7 @@ const CSP_DIRECTIVES = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://www.google-analytics.com https://api.stripe.com https://www.googletagmanager.com https://www.facebook.com https://cloudflareinsights.com",
-  "frame-src https://js.stripe.com https://www.google.com https://hooks.stripe.com",
+  "frame-src https://js.stripe.com https://www.google.com https://hooks.stripe.com https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://fast.wistia.net",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'"
