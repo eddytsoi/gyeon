@@ -46,6 +46,30 @@ type Product struct {
 	Description        *string  `json:"description,omitempty"`
 	HowToUse           *string  `json:"how_to_use,omitempty"`
 	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	// Hero video + banner / media strip slots. Video is a YouTube ID
+	// (rendered as an embed). Banner / media slots point at media_files
+	// rows; the Banner*URL / Media*URL fields are hydrated only by
+	// single-product reads (GetBySlug / GetByID) — they stay nil on list
+	// queries so we don't pay 6 LEFT JOINs per row.
+	VideoID            *string  `json:"video_id,omitempty"`
+	Banner1MediaID     *string  `json:"banner_1_media_id,omitempty"`
+	Banner2MediaID     *string  `json:"banner_2_media_id,omitempty"`
+	Media1MediaID      *string  `json:"media_1_media_id,omitempty"`
+	Media2MediaID      *string  `json:"media_2_media_id,omitempty"`
+	Media3MediaID      *string  `json:"media_3_media_id,omitempty"`
+	Media4MediaID      *string  `json:"media_4_media_id,omitempty"`
+	Banner1URL         *string  `json:"banner_1_url,omitempty"`
+	Banner1WebpURL     *string  `json:"banner_1_webp_url,omitempty"`
+	Banner2URL         *string  `json:"banner_2_url,omitempty"`
+	Banner2WebpURL     *string  `json:"banner_2_webp_url,omitempty"`
+	Media1URL          *string  `json:"media_1_url,omitempty"`
+	Media1WebpURL      *string  `json:"media_1_webp_url,omitempty"`
+	Media2URL          *string  `json:"media_2_url,omitempty"`
+	Media2WebpURL      *string  `json:"media_2_webp_url,omitempty"`
+	Media3URL          *string  `json:"media_3_url,omitempty"`
+	Media3WebpURL      *string  `json:"media_3_webp_url,omitempty"`
+	Media4URL          *string  `json:"media_4_url,omitempty"`
+	Media4WebpURL      *string  `json:"media_4_webp_url,omitempty"`
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"
 	CreatedAt          string   `json:"created_at"`
@@ -165,6 +189,13 @@ type CreateProductRequest struct {
 	Description        *string  `json:"description"`
 	HowToUse           *string  `json:"how_to_use"`
 	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	VideoID            *string  `json:"video_id"`
+	Banner1MediaID     *string  `json:"banner_1_media_id"`
+	Banner2MediaID     *string  `json:"banner_2_media_id"`
+	Media1MediaID      *string  `json:"media_1_media_id"`
+	Media2MediaID      *string  `json:"media_2_media_id"`
+	Media3MediaID      *string  `json:"media_3_media_id"`
+	Media4MediaID      *string  `json:"media_4_media_id"`
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"; defaults to "simple"
 }
@@ -232,6 +263,9 @@ const productSelect = `
 	       p.excerpt,
 	       COALESCE(t.description, p.description) AS description,
 	       p.how_to_use, p.compatible_surfaces,
+	       p.video_id,
+	       p.banner_1_media_id, p.banner_2_media_id,
+	       p.media_1_media_id, p.media_2_media_id, p.media_3_media_id, p.media_4_media_id,
 	       p.status, p.kind, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
@@ -239,8 +273,72 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 	var p Product
 	err := row.Scan(&p.ID, &p.Number, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle,
 		&p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
+		&p.VideoID,
+		&p.Banner1MediaID, &p.Banner2MediaID,
+		&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
 		&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
+}
+
+// hydrateMediaURLs fills in the Banner*URL / Media*URL fields by looking
+// up the referenced media_files rows in one query. No-op when every slot
+// is nil. Errors are non-fatal — leaving the URL fields nil just means
+// the storefront skips rendering that slot.
+func (s *ProductService) hydrateMediaURLs(ctx context.Context, p *Product) {
+	type slot struct {
+		id   *string
+		url  **string
+		webp **string
+	}
+	slots := []slot{
+		{p.Banner1MediaID, &p.Banner1URL, &p.Banner1WebpURL},
+		{p.Banner2MediaID, &p.Banner2URL, &p.Banner2WebpURL},
+		{p.Media1MediaID, &p.Media1URL, &p.Media1WebpURL},
+		{p.Media2MediaID, &p.Media2URL, &p.Media2WebpURL},
+		{p.Media3MediaID, &p.Media3URL, &p.Media3WebpURL},
+		{p.Media4MediaID, &p.Media4URL, &p.Media4WebpURL},
+	}
+	ids := make([]string, 0, len(slots))
+	for _, sl := range slots {
+		if sl.id != nil {
+			ids = append(ids, *sl.id)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, url, webp_url FROM media_files WHERE id = ANY($1::uuid[])`,
+		pq.Array(ids))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	urls := make(map[string]struct {
+		url  string
+		webp *string
+	}, len(ids))
+	for rows.Next() {
+		var id, url string
+		var webp *string
+		if err := rows.Scan(&id, &url, &webp); err != nil {
+			continue
+		}
+		urls[id] = struct {
+			url  string
+			webp *string
+		}{url, webp}
+	}
+	for _, sl := range slots {
+		if sl.id == nil {
+			continue
+		}
+		if entry, ok := urls[*sl.id]; ok {
+			u := entry.url
+			*sl.url = &u
+			*sl.webp = entry.webp
+		}
+	}
 }
 
 const productPrefix = "shop:products:"
@@ -996,6 +1094,7 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
 		p.CategoryIDs = ids
 	}
+	s.hydrateMediaURLs(ctx, &p)
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
@@ -1015,6 +1114,7 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
 		p.CategoryIDs = ids
 	}
+	s.hydrateMediaURLs(ctx, &p)
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
@@ -1038,11 +1138,23 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 
 	var p Product
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
-		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces), req.Status, kind).
-		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
+		                       video_id, banner_1_media_id, banner_2_media_id,
+		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
+		                       status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
+		           video_id, banner_1_media_id, banner_2_media_id,
+		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
+		           status, kind, created_at, updated_at`,
+		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces),
+		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
+		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
+		req.Status, kind).
+		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
+			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
+			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
+			&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1132,13 +1244,25 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	var p Product
 	if err := tx.QueryRowContext(ctx,
 		`UPDATE products SET category_id=$2, slug=$3, name=$4, subtitle=$5, excerpt=$6, description=$7,
-		                     how_to_use=$8, compatible_surfaces=$9, status=$10, kind=$11
+		                     how_to_use=$8, compatible_surfaces=$9,
+		                     video_id=$10, banner_1_media_id=$11, banner_2_media_id=$12,
+		                     media_1_media_id=$13, media_2_media_id=$14, media_3_media_id=$15, media_4_media_id=$16,
+		                     status=$17, kind=$18
 		 WHERE id=$1
-		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces, status, kind, created_at, updated_at`,
+		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
+		           video_id, banner_1_media_id, banner_2_media_id,
+		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
+		           status, kind, created_at, updated_at`,
 		id, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description,
-		req.HowToUse, pq.Array(surfaces), req.Status, kind).
+		req.HowToUse, pq.Array(surfaces),
+		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
+		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
+		req.Status, kind).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description,
-			&p.HowToUse, pq.Array(&p.CompatibleSurfaces), &p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.HowToUse, pq.Array(&p.CompatibleSurfaces),
+			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
+			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
+			&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1206,17 +1330,24 @@ func (s *ProductService) GetIDByWCProductID(ctx context.Context, wcID int) (stri
 // additive (INSERT ... ON CONFLICT DO NOTHING) so admin-added extras and
 // previously-imported categories that are no longer in WC are preserved.
 type UpsertWCProductRequest struct {
-	WCProductID int
-	CategoryID  *string
-	CategoryIDs []string
-	Slug        string
-	Name        string
-	Subtitle    *string
-	Excerpt     *string
-	Description *string
-	HowToUse    *string
-	Status      string
-	Kind        string
+	WCProductID    int
+	CategoryID     *string
+	CategoryIDs    []string
+	Slug           string
+	Name           string
+	Subtitle       *string
+	Excerpt        *string
+	Description    *string
+	HowToUse       *string
+	VideoID        *string
+	Banner1MediaID *string
+	Banner2MediaID *string
+	Media1MediaID  *string
+	Media2MediaID  *string
+	Media3MediaID  *string
+	Media4MediaID  *string
+	Status         string
+	Kind           string
 }
 
 // CreateWCProduct does a plain INSERT for a brand-new WC import row. The
@@ -1245,10 +1376,16 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 
 	var id string
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (wc_product_id, category_id, slug, name, subtitle, excerpt, description, how_to_use, status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`INSERT INTO products (wc_product_id, category_id, slug, name, subtitle, excerpt, description, how_to_use,
+		                       video_id, banner_1_media_id, banner_2_media_id,
+		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
+		                       status, kind)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		 RETURNING id`,
-		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, req.Status, kind).Scan(&id); err != nil {
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse,
+		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
+		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
+		req.Status, kind).Scan(&id); err != nil {
 		return "", err
 	}
 
@@ -1333,18 +1470,28 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE products
-		    SET category_id = $2,
-		        slug        = $3,
-		        name        = $4,
-		        subtitle    = $5,
-		        excerpt     = $6,
-		        description = $7,
-		        how_to_use  = $8,
-		        status      = $9,
-		        kind        = $10,
-		        updated_at  = NOW()
+		    SET category_id        = $2,
+		        slug               = $3,
+		        name               = $4,
+		        subtitle           = $5,
+		        excerpt            = $6,
+		        description        = $7,
+		        how_to_use         = $8,
+		        video_id           = $9,
+		        banner_1_media_id  = $10,
+		        banner_2_media_id  = $11,
+		        media_1_media_id   = $12,
+		        media_2_media_id   = $13,
+		        media_3_media_id   = $14,
+		        media_4_media_id   = $15,
+		        status             = $16,
+		        kind               = $17,
+		        updated_at         = NOW()
 		  WHERE id = $1`,
-		productID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, req.Status, kind); err != nil {
+		productID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse,
+		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
+		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
+		req.Status, kind); err != nil {
 		return err
 	}
 

@@ -67,6 +67,13 @@ export const actions: Actions = {
       description: form.get('description')?.toString() || undefined,
       how_to_use: form.get('how_to_use')?.toString() || undefined,
       compatible_surfaces: form.getAll('compatible_surfaces').map((v) => v.toString()),
+      video_id: form.get('video_id')?.toString() || undefined,
+      banner_1_media_id: form.get('banner_1_media_id')?.toString() || undefined,
+      banner_2_media_id: form.get('banner_2_media_id')?.toString() || undefined,
+      media_1_media_id: form.get('media_1_media_id')?.toString() || undefined,
+      media_2_media_id: form.get('media_2_media_id')?.toString() || undefined,
+      media_3_media_id: form.get('media_3_media_id')?.toString() || undefined,
+      media_4_media_id: form.get('media_4_media_id')?.toString() || undefined,
       status: form.get('status')?.toString() ?? 'active',
       kind
     };

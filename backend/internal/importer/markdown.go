@@ -47,6 +47,25 @@ func metaStringPtr(meta []wcMeta, key string) *string {
 	return &v
 }
 
+// wcMediaSlugs collects the six product-level image slugs WC stores in
+// product meta (banner_1, banner_2, media_1..media_4). Each one points
+// at a WP attachment that the importer resolves and downloads.
+type wcMediaSlugs struct {
+	Banner1, Banner2               string
+	Media1, Media2, Media3, Media4 string
+}
+
+func extractMediaSlugs(prod wcProduct) wcMediaSlugs {
+	return wcMediaSlugs{
+		Banner1: strings.TrimSpace(metaString(prod.MetaData, "banner_1")),
+		Banner2: strings.TrimSpace(metaString(prod.MetaData, "banner_2")),
+		Media1:  strings.TrimSpace(metaString(prod.MetaData, "media_1")),
+		Media2:  strings.TrimSpace(metaString(prod.MetaData, "media_2")),
+		Media3:  strings.TrimSpace(metaString(prod.MetaData, "media_3")),
+		Media4:  strings.TrimSpace(metaString(prod.MetaData, "media_4")),
+	}
+}
+
 // buildContentFromMeta maps a WC product's ACF custom fields onto the
 // (description, how_to_use, excerpt) trio Gyeon stores. Layout:
 //

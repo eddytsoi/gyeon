@@ -24,6 +24,28 @@ export interface Product {
   description?: string;
   how_to_use?: string;
   compatible_surfaces?: string[];
+  // Hero video + 6 banner / media slot IDs. URL projections (banner_1_url,
+  // banner_1_webp_url, …) are populated only on single-product detail reads
+  // (GetBySlug / GetByID); list views leave them nil.
+  video_id?: string | null;
+  banner_1_media_id?: string | null;
+  banner_2_media_id?: string | null;
+  media_1_media_id?: string | null;
+  media_2_media_id?: string | null;
+  media_3_media_id?: string | null;
+  media_4_media_id?: string | null;
+  banner_1_url?: string | null;
+  banner_1_webp_url?: string | null;
+  banner_2_url?: string | null;
+  banner_2_webp_url?: string | null;
+  media_1_url?: string | null;
+  media_1_webp_url?: string | null;
+  media_2_url?: string | null;
+  media_2_webp_url?: string | null;
+  media_3_url?: string | null;
+  media_3_webp_url?: string | null;
+  media_4_url?: string | null;
+  media_4_webp_url?: string | null;
   status: string;
   kind?: string; // 'simple' | 'bundle'
   created_at: string;
