@@ -951,12 +951,14 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         {#each mediaStrip as m}
-          <img
-            src={m.webp ?? m.url}
-            alt=""
-            class="w-full h-auto rounded-lg"
-            loading="lazy"
-          />
+          <div class="aspect-square overflow-hidden rounded-lg bg-ink-300/10">
+            <img
+              src={m.webp ?? m.url}
+              alt=""
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
         {/each}
       </div>
     </div>
