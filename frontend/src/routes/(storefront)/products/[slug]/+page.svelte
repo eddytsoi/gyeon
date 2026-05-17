@@ -65,6 +65,9 @@
   })();
   let activeTab = $state<TabId>(availableTabs[0] ?? 'content');
   let tabButtons: Partial<Record<TabId, HTMLButtonElement>> = $state({});
+  let mobileOpen = $state<Record<TabId, boolean>>(
+    Object.fromEntries(availableTabs.map((t) => [t, true])) as Record<TabId, boolean>
+  );
 
   // 4-cell strip between tabs section and BundleComposer. Empty slots
   // (no media_N_url) are dropped so e.g. a product with only 2 images
@@ -878,11 +881,11 @@
       <!-- MOBILE: accordion (one panel open at a time, controlled by activeTab) -->
       <div class="md:hidden divide-y divide-ink-300/60 border-y border-ink-300/60">
         {#each availableTabs as id}
-          {@const expanded = activeTab === id}
+          {@const expanded = mobileOpen[id]}
           <div>
             <button
               type="button"
-              onclick={() => (activeTab = expanded ? (availableTabs.find(t => t !== id) ?? id) : id)}
+              onclick={() => (mobileOpen[id] = !mobileOpen[id])}
               aria-expanded={expanded}
               aria-controls="pdp-acc-{id}"
               class="w-full flex items-center justify-between gap-3 py-4 text-left"
