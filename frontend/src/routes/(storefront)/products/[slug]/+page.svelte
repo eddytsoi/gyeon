@@ -757,7 +757,7 @@
 {#if data.product.video_id}
   <div class="bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
-      <div class="relative aspect-video overflow-hidden rounded-lg shadow-md bg-navy-900">
+      <div class="relative aspect-video max-w-5xl mx-auto overflow-hidden rounded-lg shadow-md bg-navy-900">
         <iframe
           src="https://www.youtube-nocookie.com/embed/{data.product.video_id}?rel=0"
           title={data.product.name}
