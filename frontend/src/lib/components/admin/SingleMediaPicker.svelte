@@ -12,6 +12,7 @@
     label?: string;
     description?: string;
     name?: string;
+    form?: string;
     previewClass?: string;
   }
 
@@ -24,6 +25,7 @@
     label,
     description,
     name,
+    form,
     previewClass = 'aspect-[4/3] w-full'
   }: Props = $props();
 
@@ -121,7 +123,7 @@
   {/if}
 
   {#if name}
-    <input type="hidden" {name} value={value ?? ''} />
+    <input type="hidden" {name} {form} value={value ?? ''} />
   {/if}
 </div>
 
