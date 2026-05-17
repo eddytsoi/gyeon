@@ -548,29 +548,30 @@
     </h1>
   </div>
 
-  <!-- ── Product Details ── -->
-  <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
-    <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_details()}</h2>
-    <form id="product-form" method="POST" action="?/saveProduct"
-          use:enhance={({ cancel }) => {
-            // Gate destructive bundle→simple change behind a confirm dialog.
-            if (isBundleToSimplePending && !kindChangeConfirmed) {
-              cancel();
-              confirmKindChange = true;
-              return;
-            }
-            if (saving) return;
-            saving = true;
-            const productName = name;
-            return async ({ result, update }) => {
-              showResult(result,
-                data.isNew ? m.admin_product_edit_save_create_success({ name: productName }) : m.admin_product_edit_save_save_success({ name: productName }),
-                data.isNew ? m.admin_product_edit_save_create_failure({ name: productName }) : m.admin_product_edit_save_save_failure({ name: productName }));
-              await update({ reset: false });
-              saving = false;
-              kindChangeConfirmed = false;
-            };
-          }}>
+  <form id="product-form" method="POST" action="?/saveProduct"
+        use:enhance={({ cancel }) => {
+          // Gate destructive bundle→simple change behind a confirm dialog.
+          if (isBundleToSimplePending && !kindChangeConfirmed) {
+            cancel();
+            confirmKindChange = true;
+            return;
+          }
+          if (saving) return;
+          saving = true;
+          const productName = name;
+          return async ({ result, update }) => {
+            showResult(result,
+              data.isNew ? m.admin_product_edit_save_create_success({ name: productName }) : m.admin_product_edit_save_save_success({ name: productName }),
+              data.isNew ? m.admin_product_edit_save_create_failure({ name: productName }) : m.admin_product_edit_save_save_failure({ name: productName }));
+            await update({ reset: false });
+            saving = false;
+            kindChangeConfirmed = false;
+          };
+        }}>
+
+    <!-- ── Product Details ── -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_details()}</h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1.5">
           <label for="name" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_name()} {m.admin_product_edit_required_marker()}</label>
@@ -643,174 +644,190 @@
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.excerpt ?? ''}</textarea>
         </div>
-        <div class="flex flex-col gap-3 sm:col-span-2 p-4 rounded-xl border border-gray-100 bg-gray-50/40">
-          <SingleMediaPicker
-            files={bannerLibrary}
-            value={banner1MediaId}
-            token={data.token ?? null}
-            label={m.admin_product_edit_label_banner_1()}
-            description={m.admin_product_edit_help_banner_1()}
-            name="banner_1_media_id"
-            onChange={(id) => (banner1MediaId = id)}
-            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            previewClass="aspect-[16/9] w-full max-w-md"
-          />
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-center justify-between">
-              <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {m.admin_product_edit_label_content()}
-                <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-              </label>
-              <button type="button" onclick={() => descriptionPreview = !descriptionPreview}
-                      class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
-                {descriptionPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
-              </button>
-            </div>
-            <ShortcodeToolbar bind:value={description} textarea={descriptionTextarea} />
-            <div class="{descriptionPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
-              <textarea id="description" name="description" rows="10" bind:value={description} bind:this={descriptionTextarea}
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                               focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
-              {#if descriptionPreview}
-                <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
-                     style="max-height: 360px">
-                  <MarkdownContent content={description || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
-                </div>
-              {/if}
-            </div>
-          </div>
-        </div>
-        <div class="flex flex-col gap-3 sm:col-span-2 p-4 rounded-xl border border-gray-100 bg-gray-50/40">
-          <SingleMediaPicker
-            files={bannerLibrary}
-            value={banner2MediaId}
-            token={data.token ?? null}
-            label={m.admin_product_edit_label_banner_2()}
-            description={m.admin_product_edit_help_banner_2()}
-            name="banner_2_media_id"
-            onChange={(id) => (banner2MediaId = id)}
-            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            previewClass="aspect-[16/9] w-full max-w-md"
-          />
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-center justify-between">
-              <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {m.admin_product_edit_label_how_to_use()}
-                <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-              </label>
-              <button type="button" onclick={() => howToUsePreview = !howToUsePreview}
-                      class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
-                {howToUsePreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
-              </button>
-            </div>
-            <ShortcodeToolbar bind:value={howToUse} textarea={howToUseTextarea} />
-            <div class="{howToUsePreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
-              <textarea id="how_to_use" name="how_to_use" rows="10" bind:value={howToUse} bind:this={howToUseTextarea}
-                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                               focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
-              {#if howToUsePreview}
-                <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
-                     style="max-height: 360px">
-                  <MarkdownContent content={howToUse || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
-                </div>
-              {/if}
-            </div>
-          </div>
-        </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_label_compatible_surfaces()}
-          </span>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {#each SURFACE_KEYS as key}
-              <label class="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm cursor-pointer
-                            hover:bg-gray-50 transition-colors">
-                <input type="checkbox" name="compatible_surfaces" value={key}
-                       checked={selectedSurfaces.has(key)}
-                       onchange={() => toggleSurface(key)}
-                       class="rounded border-gray-300 focus:ring-gray-900" />
-                <span>{surfaceLabels[key]()}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
+      </div>
+    </section>
 
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="video_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_label_video_id()}
-          </label>
-          <input id="video_id" name="video_id" type="text" maxlength="32"
-                 placeholder="IuUvIgc_9UA"
-                 bind:value={videoId}
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
-          <p class="text-xs text-gray-500">{m.admin_product_edit_help_video_id()}</p>
-        </div>
-
-        <div class="flex flex-col gap-2 sm:col-span-2">
-          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {m.admin_product_edit_section_media_strip()}
-          </span>
-          <p class="text-xs text-gray-500">{m.admin_product_edit_help_media_strip()}</p>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <SingleMediaPicker
-              files={bannerLibrary}
-              value={media1MediaId}
-              token={data.token ?? null}
-              name="media_1_media_id"
-              onChange={(id) => (media1MediaId = id)}
-              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            />
-            <SingleMediaPicker
-              files={bannerLibrary}
-              value={media2MediaId}
-              token={data.token ?? null}
-              name="media_2_media_id"
-              onChange={(id) => (media2MediaId = id)}
-              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            />
-            <SingleMediaPicker
-              files={bannerLibrary}
-              value={media3MediaId}
-              token={data.token ?? null}
-              name="media_3_media_id"
-              onChange={(id) => (media3MediaId = id)}
-              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            />
-            <SingleMediaPicker
-              files={bannerLibrary}
-              value={media4MediaId}
-              token={data.token ?? null}
-              name="media_4_media_id"
-              onChange={(id) => (media4MediaId = id)}
-              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
-            />
+    <!-- ── 內容 ── -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_content()}</h2>
+      <div class="flex flex-col gap-3">
+        <SingleMediaPicker
+          files={bannerLibrary}
+          value={banner1MediaId}
+          token={data.token ?? null}
+          label={m.admin_product_edit_label_banner_1()}
+          description={m.admin_product_edit_help_banner_1()}
+          name="banner_1_media_id"
+          onChange={(id) => (banner1MediaId = id)}
+          onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          previewClass="aspect-[16/9] w-full max-w-md"
+        />
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_content()}
+              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+            </label>
+            <button type="button" onclick={() => descriptionPreview = !descriptionPreview}
+                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+              {descriptionPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+            </button>
+          </div>
+          <ShortcodeToolbar bind:value={description} textarea={descriptionTextarea} />
+          <div class="{descriptionPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+            <textarea id="description" name="description" rows="10" bind:value={description} bind:this={descriptionTextarea}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+            {#if descriptionPreview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 360px">
+                <MarkdownContent content={description || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
           </div>
         </div>
       </div>
-      {#if data.isNew}
-        <input type="hidden" name="pending_variants" value={pendingVariantsJson} />
-        <input type="hidden" name="pending_images"   value={pendingImagesJson} />
-        {#if kind === 'bundle'}
-          <input type="hidden" name="pending_bundle_price"            value={pendingBundlePrice} />
-          <input type="hidden" name="pending_bundle_compare_at_price" value={pendingBundleCompareAtPrice} />
-          <input type="hidden" name="pending_bundle_weight_grams"     value={pendingBundleWeightGrams} />
-          <input type="hidden" name="pending_bundle_length_mm"        value={pendingBundleLengthMM} />
-          <input type="hidden" name="pending_bundle_width_mm"         value={pendingBundleWidthMM} />
-          <input type="hidden" name="pending_bundle_height_mm"        value={pendingBundleHeightMM} />
-          <input type="hidden" name="pending_bundle_items"            value={bundleItemsJson} />
-        {/if}
-      {:else if kind === 'bundle'}
-        <input type="hidden" name="bundle_items_json"            value={bundleItemsJson} />
-        <input type="hidden" name="bundle_price"                 value={pendingBundlePrice} />
-        <input type="hidden" name="bundle_compare_at_price"      value={pendingBundleCompareAtPrice} />
-        <input type="hidden" name="bundle_weight_grams"          value={pendingBundleWeightGrams} />
-        <input type="hidden" name="bundle_length_mm"             value={pendingBundleLengthMM} />
-        <input type="hidden" name="bundle_width_mm"              value={pendingBundleWidthMM} />
-        <input type="hidden" name="bundle_height_mm"             value={pendingBundleHeightMM} />
+    </section>
+
+    <!-- ── 使用方法 ── -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_how_to_use()}</h2>
+      <div class="flex flex-col gap-3">
+        <SingleMediaPicker
+          files={bannerLibrary}
+          value={banner2MediaId}
+          token={data.token ?? null}
+          label={m.admin_product_edit_label_banner_2()}
+          description={m.admin_product_edit_help_banner_2()}
+          name="banner_2_media_id"
+          onChange={(id) => (banner2MediaId = id)}
+          onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          previewClass="aspect-[16/9] w-full max-w-md"
+        />
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_how_to_use()}
+              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+            </label>
+            <button type="button" onclick={() => howToUsePreview = !howToUsePreview}
+                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+              {howToUsePreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+            </button>
+          </div>
+          <ShortcodeToolbar bind:value={howToUse} textarea={howToUseTextarea} />
+          <div class="{howToUsePreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+            <textarea id="how_to_use" name="how_to_use" rows="10" bind:value={howToUse} bind:this={howToUseTextarea}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+            {#if howToUsePreview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 360px">
+                <MarkdownContent content={howToUse || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 適用表面 ── -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_compatible_surfaces()}</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {#each SURFACE_KEYS as key}
+          <label class="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-sm cursor-pointer
+                        hover:bg-gray-50 transition-colors">
+            <input type="checkbox" name="compatible_surfaces" value={key}
+                   checked={selectedSurfaces.has(key)}
+                   onchange={() => toggleSurface(key)}
+                   class="rounded border-gray-300 focus:ring-gray-900" />
+            <span>{surfaceLabels[key]()}</span>
+          </label>
+        {/each}
+      </div>
+    </section>
+
+    <!-- ── 影片與媒體 ── -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_section_video_and_media()}</h2>
+
+      <div class="flex flex-col gap-1.5">
+        <label for="video_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_product_edit_label_video_id()}
+        </label>
+        <input id="video_id" name="video_id" type="text" maxlength="32"
+               placeholder="IuUvIgc_9UA"
+               bind:value={videoId}
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        <p class="text-xs text-gray-500">{m.admin_product_edit_help_video_id()}</p>
+      </div>
+
+      <div class="flex flex-col gap-2 mt-6">
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_product_edit_section_media_strip()}
+        </span>
+        <p class="text-xs text-gray-500">{m.admin_product_edit_help_media_strip()}</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={media1MediaId}
+            token={data.token ?? null}
+            name="media_1_media_id"
+            onChange={(id) => (media1MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          />
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={media2MediaId}
+            token={data.token ?? null}
+            name="media_2_media_id"
+            onChange={(id) => (media2MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          />
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={media3MediaId}
+            token={data.token ?? null}
+            name="media_3_media_id"
+            onChange={(id) => (media3MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          />
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={media4MediaId}
+            token={data.token ?? null}
+            name="media_4_media_id"
+            onChange={(id) => (media4MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          />
+        </div>
+      </div>
+    </section>
+
+    {#if data.isNew}
+      <input type="hidden" name="pending_variants" value={pendingVariantsJson} />
+      <input type="hidden" name="pending_images"   value={pendingImagesJson} />
+      {#if kind === 'bundle'}
+        <input type="hidden" name="pending_bundle_price"            value={pendingBundlePrice} />
+        <input type="hidden" name="pending_bundle_compare_at_price" value={pendingBundleCompareAtPrice} />
+        <input type="hidden" name="pending_bundle_weight_grams"     value={pendingBundleWeightGrams} />
+        <input type="hidden" name="pending_bundle_length_mm"        value={pendingBundleLengthMM} />
+        <input type="hidden" name="pending_bundle_width_mm"         value={pendingBundleWidthMM} />
+        <input type="hidden" name="pending_bundle_height_mm"        value={pendingBundleHeightMM} />
+        <input type="hidden" name="pending_bundle_items"            value={bundleItemsJson} />
       {/if}
-    </form>
-  </section>
+    {:else if kind === 'bundle'}
+      <input type="hidden" name="bundle_items_json"            value={bundleItemsJson} />
+      <input type="hidden" name="bundle_price"                 value={pendingBundlePrice} />
+      <input type="hidden" name="bundle_compare_at_price"      value={pendingBundleCompareAtPrice} />
+      <input type="hidden" name="bundle_weight_grams"          value={pendingBundleWeightGrams} />
+      <input type="hidden" name="bundle_length_mm"             value={pendingBundleLengthMM} />
+      <input type="hidden" name="bundle_width_mm"              value={pendingBundleWidthMM} />
+      <input type="hidden" name="bundle_height_mm"             value={pendingBundleHeightMM} />
+    {/if}
+  </form>
 
   <!-- ── bundle → simple destructive change warning ── -->
   {#if isBundleToSimplePending}
