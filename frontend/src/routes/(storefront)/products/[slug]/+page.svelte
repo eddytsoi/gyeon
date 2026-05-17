@@ -66,6 +66,18 @@
   let activeTab = $state<TabId>(availableTabs[0] ?? 'content');
   let tabButtons: Partial<Record<TabId, HTMLButtonElement>> = $state({});
 
+  // 4-cell strip between tabs section and BundleComposer. Empty slots
+  // (no media_N_url) are dropped so e.g. a product with only 2 images
+  // still renders a clean row instead of two ghost cells.
+  const mediaStrip = $derived(
+    [
+      { url: data.product.media_1_url, webp: data.product.media_1_webp_url },
+      { url: data.product.media_2_url, webp: data.product.media_2_webp_url },
+      { url: data.product.media_3_url, webp: data.product.media_3_webp_url },
+      { url: data.product.media_4_url, webp: data.product.media_4_webp_url }
+    ].filter((m): m is { url: string; webp?: string | null } => !!m.url)
+  );
+
   function onTabKeydown(e: KeyboardEvent) {
     if (availableTabs.length < 2) return;
     let nextIdx: number | null = null;
@@ -738,6 +750,25 @@
   </div>
 </div>
 
+<!-- ── HERO VIDEO (between specs strip and tabs) ──────────────── -->
+{#if data.product.video_id}
+  <div class="bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+      <div class="relative aspect-video overflow-hidden rounded-lg shadow-md bg-navy-900">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/{data.product.video_id}?rel=0"
+          title={data.product.name}
+          class="absolute inset-0 h-full w-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+          referrerpolicy="strict-origin-when-cross-origin"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- ── TABS (md+) / ACCORDION (mobile) — gyeon-project-design-system §4.6 -->
 {#if availableTabs.length > 0}
   {@const tabLabels: Record<TabId, string> = {
@@ -784,17 +815,47 @@
         </div>
 
         {#if activeTab === 'content'}
-          <div class="max-w-2xl" role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0">
-            <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-              <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
-            </div>
+          <div role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0"
+               class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
+            {#if data.product.banner_1_url}
+              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
+                <img
+                  src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
+                  alt=""
+                  class="w-full h-auto rounded-lg"
+                  loading="lazy"
+                />
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
+                </div>
+              </div>
+            {:else}
+              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
+              </div>
+            {/if}
           </div>
 
         {:else if activeTab === 'howto'}
-          <div class="max-w-2xl" role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0">
-            <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
-              <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
-            </div>
+          <div role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0"
+               class={data.product.banner_2_url ? '' : 'max-w-2xl'}>
+            {#if data.product.banner_2_url}
+              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
+                <img
+                  src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
+                  alt=""
+                  class="w-full h-auto rounded-lg"
+                  loading="lazy"
+                />
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
+                </div>
+              </div>
+            {:else}
+              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
+              </div>
+            {/if}
           </div>
 
         {:else if activeTab === 'surfaces'}
@@ -838,10 +899,26 @@
             {#if expanded}
               <div id="pdp-acc-{id}" class="pb-5">
                 {#if id === 'content'}
+                  {#if data.product.banner_1_url}
+                    <img
+                      src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
+                      alt=""
+                      class="w-full h-auto rounded-lg mb-4"
+                      loading="lazy"
+                    />
+                  {/if}
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
                     <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                   </div>
                 {:else if id === 'howto'}
+                  {#if data.product.banner_2_url}
+                    <img
+                      src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
+                      alt=""
+                      class="w-full h-auto rounded-lg mb-4"
+                      loading="lazy"
+                    />
+                  {/if}
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
                     <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                   </div>
@@ -862,6 +939,24 @@
               </div>
             {/if}
           </div>
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ── MEDIA STRIP (4-cell row above BundleComposer) ──────────── -->
+{#if mediaStrip.length > 0}
+  <div class="bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {#each mediaStrip as m}
+          <img
+            src={m.webp ?? m.url}
+            alt=""
+            class="w-full h-auto rounded-lg"
+            loading="lazy"
+          />
         {/each}
       </div>
     </div>

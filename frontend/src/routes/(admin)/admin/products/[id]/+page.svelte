@@ -8,6 +8,7 @@
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import SingleMediaPicker from '$lib/components/admin/SingleMediaPicker.svelte';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import {
     isVideo,
@@ -50,6 +51,22 @@
   // at the cursor. (Was previously plain textareas with default values.)
   let description = $state(data.product?.description ?? '');
   let howToUse = $state(data.product?.how_to_use ?? '');
+
+  // Hero video + banner / media slots. Imported from WooCommerce as ACF
+  // meta (video / banner_1 / banner_2 / media_1..4) and editable here.
+  // Storefront renders the video iframe between specs grid and tabs;
+  // banner_1 / banner_2 sit alongside the content / how-to-use tabs;
+  // media_1..4 form a 4-cell strip above BundleComposer.
+  let videoId = $state(data.product?.video_id ?? '');
+  let banner1MediaId = $state<string | null>(data.product?.banner_1_media_id ?? null);
+  let banner2MediaId = $state<string | null>(data.product?.banner_2_media_id ?? null);
+  let media1MediaId = $state<string | null>(data.product?.media_1_media_id ?? null);
+  let media2MediaId = $state<string | null>(data.product?.media_2_media_id ?? null);
+  let media3MediaId = $state<string | null>(data.product?.media_3_media_id ?? null);
+  let media4MediaId = $state<string | null>(data.product?.media_4_media_id ?? null);
+  // Track files uploaded from a picker so the library tab in the same
+  // session sees them without needing a page reload.
+  let uploadedMedia = $state<import('$lib/api/admin').MediaFile[]>([]);
   let descriptionTextarea = $state<HTMLTextAreaElement | null>(null);
   let howToUseTextarea = $state<HTMLTextAreaElement | null>(null);
   let descriptionPreview = $state(false);
@@ -178,6 +195,9 @@
 
   // Variant media picker state (allows both image and video media)
   const imageMedia = $derived((data.mediaFiles ?? []).filter(isUsableMedia));
+  // Banner / media slot pickers can also upload directly. The uploaded
+  // entries get prepended so the library tab reflects them without a reload.
+  const bannerLibrary = $derived([...uploadedMedia, ...imageMedia]);
   let addVariantImageId = $state<string | null>(null);
   let editVariantImageId = $state<string | null>(null);
   let editVariantOldImageId = $state<string | null>(null);
@@ -623,52 +643,78 @@
                            focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
                     >{data.product?.excerpt ?? ''}</textarea>
         </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <div class="flex items-center justify-between">
-            <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {m.admin_product_edit_label_content()}
-              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-            </label>
-            <button type="button" onclick={() => descriptionPreview = !descriptionPreview}
-                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
-              {descriptionPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
-            </button>
-          </div>
-          <ShortcodeToolbar bind:value={description} textarea={descriptionTextarea} />
-          <div class="{descriptionPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
-            <textarea id="description" name="description" rows="10" bind:value={description} bind:this={descriptionTextarea}
-                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
-            {#if descriptionPreview}
-              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
-                   style="max-height: 360px">
-                <MarkdownContent content={description || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
-              </div>
-            {/if}
+        <div class="flex flex-col gap-3 sm:col-span-2 p-4 rounded-xl border border-gray-100 bg-gray-50/40">
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={banner1MediaId}
+            token={data.token ?? null}
+            label={m.admin_product_edit_label_banner_1()}
+            description={m.admin_product_edit_help_banner_1()}
+            name="banner_1_media_id"
+            onChange={(id) => (banner1MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            previewClass="aspect-[16/9] w-full max-w-md"
+          />
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <label for="description" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {m.admin_product_edit_label_content()}
+                <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+              </label>
+              <button type="button" onclick={() => descriptionPreview = !descriptionPreview}
+                      class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+                {descriptionPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+              </button>
+            </div>
+            <ShortcodeToolbar bind:value={description} textarea={descriptionTextarea} />
+            <div class="{descriptionPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+              <textarea id="description" name="description" rows="10" bind:value={description} bind:this={descriptionTextarea}
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                               focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+              {#if descriptionPreview}
+                <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                     style="max-height: 360px">
+                  <MarkdownContent content={description || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <div class="flex items-center justify-between">
-            <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {m.admin_product_edit_label_how_to_use()}
-              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
-            </label>
-            <button type="button" onclick={() => howToUsePreview = !howToUsePreview}
-                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
-              {howToUsePreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
-            </button>
-          </div>
-          <ShortcodeToolbar bind:value={howToUse} textarea={howToUseTextarea} />
-          <div class="{howToUsePreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
-            <textarea id="how_to_use" name="how_to_use" rows="10" bind:value={howToUse} bind:this={howToUseTextarea}
-                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
-                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
-            {#if howToUsePreview}
-              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
-                   style="max-height: 360px">
-                <MarkdownContent content={howToUse || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
-              </div>
-            {/if}
+        <div class="flex flex-col gap-3 sm:col-span-2 p-4 rounded-xl border border-gray-100 bg-gray-50/40">
+          <SingleMediaPicker
+            files={bannerLibrary}
+            value={banner2MediaId}
+            token={data.token ?? null}
+            label={m.admin_product_edit_label_banner_2()}
+            description={m.admin_product_edit_help_banner_2()}
+            name="banner_2_media_id"
+            onChange={(id) => (banner2MediaId = id)}
+            onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            previewClass="aspect-[16/9] w-full max-w-md"
+          />
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <label for="how_to_use" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {m.admin_product_edit_label_how_to_use()}
+                <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+              </label>
+              <button type="button" onclick={() => howToUsePreview = !howToUsePreview}
+                      class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+                {howToUsePreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+              </button>
+            </div>
+            <ShortcodeToolbar bind:value={howToUse} textarea={howToUseTextarea} />
+            <div class="{howToUsePreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+              <textarea id="how_to_use" name="how_to_use" rows="10" bind:value={howToUse} bind:this={howToUseTextarea}
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                               focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+              {#if howToUsePreview}
+                <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                     style="max-height: 360px">
+                  <MarkdownContent content={howToUse || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
@@ -686,6 +732,59 @@
                 <span>{surfaceLabels[key]()}</span>
               </label>
             {/each}
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5 sm:col-span-2">
+          <label for="video_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_product_edit_label_video_id()}
+          </label>
+          <input id="video_id" name="video_id" type="text" maxlength="32"
+                 placeholder="IuUvIgc_9UA"
+                 bind:value={videoId}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          <p class="text-xs text-gray-500">{m.admin_product_edit_help_video_id()}</p>
+        </div>
+
+        <div class="flex flex-col gap-2 sm:col-span-2">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_product_edit_section_media_strip()}
+          </span>
+          <p class="text-xs text-gray-500">{m.admin_product_edit_help_media_strip()}</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <SingleMediaPicker
+              files={bannerLibrary}
+              value={media1MediaId}
+              token={data.token ?? null}
+              name="media_1_media_id"
+              onChange={(id) => (media1MediaId = id)}
+              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            />
+            <SingleMediaPicker
+              files={bannerLibrary}
+              value={media2MediaId}
+              token={data.token ?? null}
+              name="media_2_media_id"
+              onChange={(id) => (media2MediaId = id)}
+              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            />
+            <SingleMediaPicker
+              files={bannerLibrary}
+              value={media3MediaId}
+              token={data.token ?? null}
+              name="media_3_media_id"
+              onChange={(id) => (media3MediaId = id)}
+              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            />
+            <SingleMediaPicker
+              files={bannerLibrary}
+              value={media4MediaId}
+              token={data.token ?? null}
+              name="media_4_media_id"
+              onChange={(id) => (media4MediaId = id)}
+              onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+            />
           </div>
         </div>
       </div>

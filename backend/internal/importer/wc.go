@@ -2,11 +2,17 @@ package importer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 )
+
+// errMediaSlugNotFound is returned by resolveMediaSlug when WP's media
+// endpoint returns an empty array for the slug — caller logs + skips.
+var errMediaSlugNotFound = errors.New("wp media slug not found")
 
 type wcCategory struct {
 	ID   int    `json:"id"`
@@ -184,15 +190,79 @@ type wcClient struct {
 	key        string
 	secret     string
 	httpClient *http.Client
+	// mediaSlugCache memoises slug → wpMediaItem lookups for the lifetime
+	// of one import run. WC products often reuse the same media slug
+	// across SKUs; without this we'd burn one HTTP round-trip per occurrence.
+	mediaSlugMu    sync.Mutex
+	mediaSlugCache map[string]wpMediaItem
 }
 
 func newWCClient(baseURL, key, secret string) *wcClient {
 	return &wcClient{
-		baseURL:    baseURL,
-		key:        key,
-		secret:     secret,
-		httpClient: &http.Client{},
+		baseURL:        baseURL,
+		key:            key,
+		secret:         secret,
+		httpClient:     &http.Client{},
+		mediaSlugCache: make(map[string]wpMediaItem),
 	}
+}
+
+// wpMediaItem is the subset of WP's /wp-json/wp/v2/media response we use
+// to resolve a slug to its public source URL when downloading
+// banner/media images referenced by product ACF meta.
+type wpMediaItem struct {
+	ID        int    `json:"id"`
+	Slug      string `json:"slug"`
+	SourceURL string `json:"source_url"`
+	AltText   string `json:"alt_text"`
+	MimeType  string `json:"mime_type"`
+}
+
+// resolveMediaSlug looks up a WP media attachment by its slug and returns
+// the matched item. WP's media endpoint is public-readable, so no auth
+// is sent — sending WC consumer key/secret here would fail with 401
+// because WP REST treats them as a WP user login attempt.
+//
+// Results are memoised per-client (one import run). errMediaSlugNotFound
+// is returned when WP returns an empty list.
+func (c *wcClient) resolveMediaSlug(slug string) (wpMediaItem, error) {
+	if slug == "" {
+		return wpMediaItem{}, errMediaSlugNotFound
+	}
+	c.mediaSlugMu.Lock()
+	if hit, ok := c.mediaSlugCache[slug]; ok {
+		c.mediaSlugMu.Unlock()
+		return hit, nil
+	}
+	c.mediaSlugMu.Unlock()
+
+	u := c.baseURL + "/wp-json/wp/v2/media?slug=" + url.QueryEscape(slug)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return wpMediaItem{}, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return wpMediaItem{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return wpMediaItem{}, fmt.Errorf("wp media lookup %q: status %d", slug, resp.StatusCode)
+	}
+	var items []wpMediaItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		return wpMediaItem{}, fmt.Errorf("wp media lookup %q: decode: %w", slug, err)
+	}
+	if len(items) == 0 {
+		return wpMediaItem{}, errMediaSlugNotFound
+	}
+	// WP can return multiple matches when an attachment slug collides with
+	// another's numeric suffix; first match wins (newest on default order).
+	item := items[0]
+	c.mediaSlugMu.Lock()
+	c.mediaSlugCache[slug] = item
+	c.mediaSlugMu.Unlock()
+	return item, nil
 }
 
 func (c *wcClient) get(path string, params url.Values, out interface{}) error {

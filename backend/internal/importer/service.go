@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -277,7 +278,7 @@ pages:
 			send(p)
 			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
 			if gyeonKind == "bundle" {
-				s.importBundleProduct(ctx, prod, categoryMap, &p)
+				s.importBundleProduct(ctx, wc, prod, categoryMap, &p)
 			} else {
 				s.importProduct(ctx, wc, prod, categoryMap, &p)
 			}
@@ -341,6 +342,51 @@ func (s *Service) syncCategories(ctx context.Context, wc *wcClient, p *ProgressU
 // the primary first, dedup preserved by order). Slugs absent from the map
 // are silently skipped — the caller has already created missing categories
 // in syncCategories before iterating products.
+// resolveProductMediaSlots fills the VideoID + 6 *MediaID fields on an
+// UpsertWCProductRequest by extracting the product-level ACF meta and
+// resolving each banner/media slug into a media_files row (downloading
+// if not already cached). Errors are appended to p.Errors but don't
+// fail the import — a missing slug just leaves that slot nil.
+func (s *Service) resolveProductMediaSlots(
+	ctx context.Context,
+	wc *wcClient,
+	prod wcProduct,
+	req *shop.UpsertWCProductRequest,
+	p *ProgressUpdate,
+) {
+	req.VideoID = metaStringPtr(prod.MetaData, "video")
+
+	slugs := extractMediaSlugs(prod)
+	resolve := func(slug string) *string {
+		if slug == "" {
+			return nil
+		}
+		item, err := wc.resolveMediaSlug(slug)
+		if err != nil {
+			if !errors.Is(err, errMediaSlugNotFound) {
+				p.Errors = append(p.Errors, fmt.Sprintf("resolve media slug %q for %q: %v", slug, prod.Slug, err))
+			}
+			return nil
+		}
+		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, item.SourceURL); ok {
+			return &id
+		}
+		id, err := s.mediaSvc.DownloadAndStore(ctx, item.SourceURL, item.AltText)
+		if err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("download media %q for %q: %v", slug, prod.Slug, err))
+			return nil
+		}
+		return &id
+	}
+
+	req.Banner1MediaID = resolve(slugs.Banner1)
+	req.Banner2MediaID = resolve(slugs.Banner2)
+	req.Media1MediaID = resolve(slugs.Media1)
+	req.Media2MediaID = resolve(slugs.Media2)
+	req.Media3MediaID = resolve(slugs.Media3)
+	req.Media4MediaID = resolve(slugs.Media4)
+}
+
 func resolveWCCategoryIDs(prod wcProduct, categoryMap map[string]string) (primary *string, all []string) {
 	for _, c := range prod.Categories {
 		id, ok := categoryMap[c.Slug]
@@ -387,6 +433,11 @@ func (s *Service) importProduct(
 		Status:      mapStatus(prod.Status),
 		Kind:        "simple",
 	}
+	// Resolve the 7 hero/banner/media slots from product meta BEFORE the
+	// upsert: UpsertWCProductRequest is passed by value, so the request
+	// must be fully populated when Create/Update fires.
+	s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+
 	var productID string
 	var err error
 	if existedBefore {
@@ -507,6 +558,7 @@ func (s *Service) importProduct(
 // before "Bundle Products" so all components exist.
 func (s *Service) importBundleProduct(
 	ctx context.Context,
+	wc *wcClient,
 	prod wcProduct,
 	categoryMap map[string]string,
 	p *ProgressUpdate,
@@ -531,6 +583,11 @@ func (s *Service) importBundleProduct(
 		Status:      mapStatus(prod.Status),
 		Kind:        "bundle",
 	}
+	// Resolve hero video + 6 banner/media slots before upsert. Bundle
+	// products share the same ACF layout as simple/variable, so the meta
+	// keys (video, banner_1/2, media_1..4) appear here too.
+	s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+
 	var productID string
 	var err error
 	if existedBefore {
