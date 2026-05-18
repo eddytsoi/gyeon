@@ -17,6 +17,9 @@ services:
   backend:
     image: ghcr.io/eddytsoi/gyeon-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # 35s > the 30s srv.Shutdown(ctx) timeout in cmd/api/main.go so docker
+    # never SIGKILLs a backend that's still draining in-flight HTTP.
+    stop_grace_period: 35s
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,6 +32,15 @@ services:
       BASE_URL:              ${BASE_URL}
     volumes:
       - uploads:/app/uploads
+    # `wget --spider` from busybox (built into the alpine base) is enough
+    # to probe /health (defined in cmd/api/main.go); avoids adding curl to
+    # the image. start_period covers boot: env load + DB connect + routing.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   frontend:
     image: ghcr.io/eddytsoi/gyeon-frontend:${IMAGE_TAG:-latest}
@@ -48,9 +60,14 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/nginx/certs:/etc/nginx/certs:ro
+    # Wait for backend to actually answer /health before bringing nginx up.
+    # Eliminates the cold-start 502 window on fresh VM boots where nginx
+    # was up before the backend had finished initialising.
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
 
 volumes:
   postgres_data:

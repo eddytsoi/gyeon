@@ -5,10 +5,26 @@ const base = () =>
     ? (process.env.API_BASE ?? 'http://localhost:8080/api/v1')
     : '/api/v1';
 
+// SSR fetches go intra-Docker to the backend; 8s is a generous ceiling that
+// still keeps `+page.server.ts` Promise.all fan-outs under SvelteKit's request
+// budget. Browser-side: 15s is past mobile-user patience but covers the
+// occasional cold-DB or restart-window blip without showing a 500.
+// Without this, the .catch(() => null) idiom used throughout load functions
+// is useless: a hung fetch never rejects, so the page hangs indefinitely.
+const DEFAULT_TIMEOUT_MS = typeof window === 'undefined' ? 8000 : 15000;
+
+function withTimeout(init?: RequestInit): RequestInit {
+  const t = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+  return {
+    ...init,
+    signal: init?.signal ? AbortSignal.any([init.signal, t]) : t
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base()}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init
+    ...withTimeout(init),
+    headers: { 'Content-Type': 'application/json', ...init?.headers }
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
   return res.json() as Promise<T>;
@@ -54,8 +70,8 @@ export const getProductsListPage = async (
   init?: RequestInit
 ): Promise<{ items: Product[]; total: number }> => {
   const res = await fetch(`${base()}/products?${buildProductQuery(filters).toString()}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init
+    ...withTimeout(init),
+    headers: { 'Content-Type': 'application/json', ...init?.headers }
   });
   if (!res.ok) throw new Error(`API ${res.status}: /products`);
   const items = (await res.json()) as Product[];

@@ -708,7 +708,20 @@ func main() {
 
 	addr := ":" + getenv("PORT", "8080")
 	log.Println("API server listening on", addr)
-	srv := &http.Server{Addr: addr, Handler: r}
+	// Timeouts are deliberately asymmetric: WriteTimeout MUST stay 0 because
+	// the admin SSE stream and the three WooCommerce importer streams write
+	// for minutes. The other timeouts bound headers + request body + idle
+	// keep-alive, which is what prevents slow/dropped mobile clients from
+	// accumulating goroutines indefinitely. Handler-level defense comes from
+	// chi middleware.Recoverer (already mounted above).
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      0,
+		IdleTimeout:       120 * time.Second,
+	}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)

@@ -30,7 +30,16 @@
     <p class="mt-3 text-sm text-gray-600">
       請稍後再試，或返回首頁。<br />Please try again, or return to the homepage.
     </p>
-    <div class="mt-6">
+    <div class="mt-6 flex justify-center gap-3">
+      <button
+        type="button"
+        onclick={() => location.reload()}
+        class="inline-flex items-center rounded-lg border border-gray-900 px-5 py-2.5 text-sm
+               font-semibold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2
+               focus:ring-gray-900 focus:ring-offset-2"
+      >
+        重試 / Retry
+      </button>
       <a
         href="/"
         class="inline-flex items-center rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold
