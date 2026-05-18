@@ -108,7 +108,7 @@
       {/if}
       <div class="flex justify-between text-sm text-gray-600">
         <span>{m.checkout_success_shipping()}</span>
-        <span>{data.order.shipping_fee > 0 ? `$${data.order.shipping_fee.toFixed(2)}` : m.common_free()}</span>
+        <span>{data.order.shipping_free ? m.shipping_sf_free() : m.shipping_sf_cod()}</span>
       </div>
       <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900">
         <span>{m.checkout_success_total()}</span>
