@@ -1,5 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { slide, fade } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
@@ -216,9 +218,9 @@
           </svg>
         </button>
 
-        <!-- Account -->
+        <!-- Account (desktop only — mobile uses hamburger menu) -->
         {#if customer}
-          <div class="relative" data-account-menu>
+          <div class="relative hidden lg:block" data-account-menu>
             <button
               type="button"
               onclick={(e) => { e.stopPropagation(); accountOpen = !accountOpen; }}
@@ -284,7 +286,7 @@
         {:else}
           <a
             href="/account/login"
-            class="p-2 text-ink-900 hover:text-navy-500 transition-colors"
+            class="hidden lg:inline-flex p-2 text-ink-900 hover:text-navy-500 transition-colors"
             aria-label={m.header_aria_sign_in()}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
@@ -295,8 +297,8 @@
           </a>
         {/if}
 
-        <!-- Wishlist -->
-        <a href="/wishlist" class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.wishlist_heading()}>
+        <!-- Wishlist (desktop only — mobile uses hamburger menu) -->
+        <a href="/wishlist" class="relative hidden lg:inline-flex p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.wishlist_heading()}>
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -342,13 +344,40 @@
           {link.label}
         </a>
       {/each}
+
+      <div class="mt-2 pt-4 border-t border-ink-300/60 flex flex-col gap-2">
+        <a href={customer ? '/account' : '/account/login'}
+           onclick={() => mobileOpen = false}
+           class="flex items-center gap-3 py-2 font-display text-base font-semibold uppercase tracking-[0.12em] text-ink-900 hover:text-navy-500 transition-colors">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+          </svg>
+          {customer ? m.header_menu_overview() : m.header_aria_sign_in()}
+        </a>
+        <a href="/wishlist"
+           onclick={() => mobileOpen = false}
+           class="relative flex items-center gap-3 py-2 font-display text-base font-semibold uppercase tracking-[0.12em] text-ink-900 hover:text-navy-500 transition-colors">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+          </svg>
+          <span>{m.wishlist_heading()}</span>
+          {#if wishlistStore.ids.length > 0}
+            <span class="ml-1 inline-flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-display font-bold text-white tabular-nums">
+              {wishlistStore.ids.length}
+            </span>
+          {/if}
+        </a>
+      </div>
     </nav>
   {/if}
 
   <!-- Search slide-down panel -->
   {#if searchOpen}
     <div data-search-panel
-         class="border-t border-ink-300/60 bg-white shadow-card-hover">
+         transition:slide={{ duration: 280, easing: cubicOut }}
+         class="border-t border-ink-300/60 bg-white shadow-card-hover overflow-hidden">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <form onsubmit={onSearchSubmit} class="flex items-center gap-3 border-b border-ink-300/60 pb-3">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 text-ink-500" fill="none"
@@ -374,7 +403,8 @@
         </form>
 
         {#if searchQuery.trim().length >= 2}
-          <div class="mt-2 max-h-[60vh] overflow-y-auto">
+          <div in:fade={{ duration: 180, easing: cubicOut }}
+               class="mt-2 max-h-[60vh] overflow-y-auto">
             {#if searchLoading && searchResults.length === 0}
               <p class="py-6 text-center font-body text-sm text-ink-500">{m.header_search_loading()}</p>
             {:else if searchResults.length === 0}
