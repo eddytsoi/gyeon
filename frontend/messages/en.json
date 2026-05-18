@@ -339,6 +339,7 @@
   "account_order_placed_on": "Placed {date}",
   "account_order_items": "Items",
   "account_order_item_meta": "SKU: {sku} · Qty: {quantity}",
+  "order_item_included_in_bundle": "Included in bundle",
   "account_order_summary": "Summary",
   "account_order_subtotal": "Subtotal",
   "account_order_discount": "Discount",

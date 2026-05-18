@@ -45,6 +45,7 @@ type Order struct {
 	ShippingAddress   *ShippingAddress `json:"shipping_address,omitempty"`
 	Subtotal          float64          `json:"subtotal"`
 	ShippingFee       float64          `json:"shipping_fee"`
+	ShippingFree      bool             `json:"shipping_free"`
 	DiscountAmount    float64          `json:"discount_amount"`
 	TaxAmount         float64          `json:"tax_amount"`
 	Total             float64          `json:"total"`
@@ -351,6 +352,38 @@ func (s *OrderService) freeShippingThresholdHKD(ctx context.Context) float64 {
 	return v
 }
 
+// shippingFreeFor mirrors the shipany free/COD decision: the merchant
+// absorbs SF Express shipping only when the threshold feature is enabled,
+// the configured threshold is > 0, and the post-discount subtotal meets it.
+// Used at checkout to freeze the outcome onto orders.shipping_free.
+func (s *OrderService) shippingFreeFor(ctx context.Context, subtotalAfterDiscount float64) bool {
+	var enabledRaw string
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT value FROM site_settings WHERE key = 'free_shipping_threshold_enabled'`,
+	).Scan(&enabledRaw)
+	if strings.TrimSpace(enabledRaw) != "true" {
+		return false
+	}
+	threshold := s.freeShippingThresholdHKD(ctx)
+	return threshold > 0 && subtotalAfterDiscount >= threshold
+}
+
+// ShippingLabel renders the SF carrier label for an order based on the
+// frozen-at-checkout shipping_free flag. Locale "zh-Hant" returns the
+// Traditional Chinese label; everything else returns English.
+func ShippingLabel(o *Order, locale string) string {
+	if locale == "zh-Hant" {
+		if o.ShippingFree {
+			return "順豐速運（免運費）"
+		}
+		return "順豐速運（到付）"
+	}
+	if o.ShippingFree {
+		return "SF Express (free)"
+	}
+	return "SF Express (pay on delivery)"
+}
+
 func (s *OrderService) SetTaxService(t *tax.Service) {
 	s.taxSvc = t
 }
@@ -609,9 +642,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	// P3 #29 — free shipping threshold. Server-side enforcement so a tampered
 	// client can't bypass it (and so the value stays correct even if the
-	// storefront fee preview is slightly stale).
+	// storefront fee preview is slightly stale). We also freeze the outcome
+	// onto the order so the receipt / account page / email can render the
+	// correct SF carrier label months later even if the threshold settings
+	// change in the meantime.
+	shippingFree := s.shippingFreeFor(ctx, subtotal-discountAmount)
 	shippingFee := req.ShippingFee
-	if threshold := s.freeShippingThresholdHKD(ctx); threshold > 0 && subtotal-discountAmount >= threshold {
+	if shippingFree {
 		shippingFee = 0
 	}
 
@@ -683,19 +720,19 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
+		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'requires_payment_method', $12, $13, $14, $15, $16)
-		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'requires_payment_method', $13, $14, $15, $16, $17)
+		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, subtotal, shippingFee, discountAmount, taxAmount, total, req.Notes,
+		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
 		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
@@ -1145,6 +1182,7 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 		Items:           items,
 		Subtotal:        order.Subtotal,
 		ShippingFee:     order.ShippingFee,
+		ShippingLabel:   ShippingLabel(order, "zh-Hant"),
 		DiscountAmount:  order.DiscountAmount,
 		TaxAmount:       order.TaxAmount,
 		TaxLabel:        taxLabel,
@@ -1492,7 +1530,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		        subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
+		        subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        card_brand, card_last4,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
@@ -1500,7 +1538,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.CardBrand, &order.CardLast4,
@@ -1610,7 +1648,7 @@ func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset in
 	listArgs := append(append([]any{}, args...), limit, offset)
 	limitIdx := len(args) + 1
 	offsetIdx := len(args) + 2
-	query := `SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, tax_amount, total,
+	query := `SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
 		 FROM orders` + whereSQL + fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
@@ -1625,7 +1663,7 @@ func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset in
 	for rows.Next() {
 		var o Order
 		rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status, &o.Subtotal,
-			&o.ShippingFee, &o.DiscountAmount, &o.TaxAmount, &o.Total,
+			&o.ShippingFee, &o.ShippingFree, &o.DiscountAmount, &o.TaxAmount, &o.Total,
 			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName,
 			&o.PaymentIntentID, &o.PaymentStatus,
 			&o.CreatedAt, &o.UpdatedAt)
@@ -1699,13 +1737,13 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 	err = tx.QueryRowContext(ctx,
 		`UPDATE orders SET status = $2 WHERE id = $1
 		 RETURNING id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		           subtotal, shipping_fee, discount_amount, tax_amount, total, notes,
+		           subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		id, req.Status).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.DiscountAmount, &order.TaxAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,

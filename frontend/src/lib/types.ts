@@ -182,6 +182,7 @@ export interface Order {
   shipping_address?: ShippingAddress;
   subtotal: number;
   shipping_fee: number;
+  shipping_free?: boolean;
   discount_amount: number;
   tax_amount?: number;
   total: number;

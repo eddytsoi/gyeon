@@ -7,6 +7,21 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
+  // Group order items by parent_item_id so bundle component rows appear
+  // indented under their bundle parent line. Mirrors the storefront/account
+  // page and PDF receipt — without this, components appear as flat sibling
+  // rows with their own line_total, which double-reads against the parent.
+  const parentItems = $derived((data.order.items ?? []).filter((it) => !it.parent_item_id));
+  const childrenByParent = $derived.by(() => {
+    const map: Record<string, typeof data.order.items> = {};
+    for (const it of data.order.items ?? []) {
+      if (it.parent_item_id) {
+        (map[it.parent_item_id] ??= []).push(it);
+      }
+    }
+    return map;
+  });
+
   const statusColour: Record<string, string> = {
     pending:    'bg-amber-50 text-amber-700',
     paid:       'bg-blue-50 text-blue-700',
@@ -238,7 +253,7 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
-        {#each data.order.items ?? [] as item}
+        {#each parentItems as item}
           <tr>
             <td class="px-5 py-3">
               <p class="font-medium text-gray-900">{item.product_name}</p>
@@ -249,6 +264,18 @@
               HK${item.line_total.toFixed(2)}
             </td>
           </tr>
+          {#each childrenByParent[item.id] ?? [] as child}
+            <tr class="bg-gray-50/50">
+              <td class="px-5 py-2 pl-10">
+                <p class="text-sm text-gray-600">↳ {child.product_name}</p>
+                <p class="text-xs text-gray-400">{m.admin_order_items_sku({ sku: child.variant_sku })}</p>
+              </td>
+              <td class="px-5 py-2 text-right text-gray-500">{child.quantity}</td>
+              <td class="px-5 py-2 text-right text-gray-400 text-xs">
+                {m.order_item_included_in_bundle()}
+              </td>
+            </tr>
+          {/each}
         {:else}
           <tr><td colspan="3" class="px-5 py-6 text-center text-gray-400">{m.admin_order_items_empty()}</td></tr>
         {/each}
@@ -272,7 +299,7 @@
         {/if}
         <tr>
           <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_shipping()}</td>
-          <td class="px-5 py-3 text-right font-medium text-gray-900">HK${data.order.shipping_fee.toFixed(2)}</td>
+          <td class="px-5 py-3 text-right font-medium text-gray-900">{data.order.shipping_free ? m.shipping_sf_free() : m.shipping_sf_cod()}</td>
         </tr>
         <tr>
           <td colspan="2" class="px-5 py-3 text-right text-sm font-bold text-gray-900">{m.admin_order_items_total()}</td>
