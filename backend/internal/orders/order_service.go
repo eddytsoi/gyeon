@@ -9,6 +9,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/lib/pq"
 
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/customers"
@@ -17,6 +20,7 @@ import (
 	"gyeon/backend/internal/pricing"
 	"gyeon/backend/internal/shop"
 	"gyeon/backend/internal/tax"
+	"gyeon/backend/internal/util"
 )
 
 type OrderStatus string
@@ -1551,17 +1555,67 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	return &order, nil
 }
 
-func (s *OrderService) List(ctx context.Context, limit, offset int) ([]Order, int, error) {
+// ListFilters narrows the admin order list. All fields are optional; the zero
+// value of each is treated as "no filter on this dimension".
+type ListFilters struct {
+	Search    string        // substring match across order_number / customer_*
+	Statuses  []OrderStatus // OR — only orders whose status is in the slice
+	From      *time.Time    // inclusive lower bound on created_at
+	To        *time.Time    // exclusive upper bound on created_at (caller passes start-of-day-after to make a calendar-day range inclusive)
+	HasUnread bool          // only orders with at least one unread customer notice
+}
+
+var orderSearchFields = []string{"COALESCE(order_number, '')", "COALESCE(customer_name, '')", "COALESCE(customer_email, '')", "COALESCE(customer_phone, '')"}
+
+func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset int) ([]Order, int, error) {
+	conds := []string{}
+	args := []any{}
+
+	if clause, arg := util.BuildSearchClause(f.Search, orderSearchFields, len(args)+1); clause != "" {
+		conds = append(conds, clause)
+		args = append(args, arg)
+	}
+	if len(f.Statuses) > 0 {
+		raw := make([]string, len(f.Statuses))
+		for i, st := range f.Statuses {
+			raw[i] = string(st)
+		}
+		conds = append(conds, fmt.Sprintf("status = ANY($%d::order_status[])", len(args)+1))
+		args = append(args, pq.Array(raw))
+	}
+	if f.From != nil {
+		conds = append(conds, fmt.Sprintf("created_at >= $%d", len(args)+1))
+		args = append(args, *f.From)
+	}
+	if f.To != nil {
+		conds = append(conds, fmt.Sprintf("created_at < $%d", len(args)+1))
+		args = append(args, *f.To)
+	}
+	if f.HasUnread {
+		// Mirrors UnreadCountsForAdmin: only customer-authored notices count
+		// as "unread admin attention required".
+		conds = append(conds, `EXISTS (SELECT 1 FROM order_notices n WHERE n.order_id = orders.id AND n.role = 'customer' AND n.read_at IS NULL)`)
+	}
+
+	whereSQL := ""
+	if len(conds) > 0 {
+		whereSQL = " WHERE " + strings.Join(conds, " AND ")
+	}
+
 	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders`).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders`+whereSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, tax_amount, total,
+	listArgs := append(append([]any{}, args...), limit, offset)
+	limitIdx := len(args) + 1
+	offsetIdx := len(args) + 2
+	query := `SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, discount_amount, tax_amount, total,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
 		        created_at, updated_at
-		 FROM orders ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+		 FROM orders` + whereSQL + fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
+
+	rows, err := s.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
