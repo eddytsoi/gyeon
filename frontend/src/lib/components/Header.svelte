@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { tick } from 'svelte';
+  import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
-  import type { NavItem, Customer } from '$lib/types';
+  import { getProducts } from '$lib/api';
+  import type { NavItem, Customer, Product } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
   let {
@@ -20,6 +23,15 @@
 
   let mobileOpen = $state(false);
   let accountOpen = $state(false);
+
+  // Search state
+  let searchOpen = $state(false);
+  let searchQuery = $state('');
+  let searchResults = $state<Product[]>([]);
+  let searchLoading = $state(false);
+  let searchInputEl: HTMLInputElement | undefined = $state();
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchReqId = 0;
 
   // Fallback hardcoded nav when DB has no items yet
   const fallbackLinks = $derived(
@@ -47,6 +59,95 @@
       return () => document.removeEventListener('click', closeAccount);
     }
   });
+
+  async function openSearch() {
+    accountOpen = false;
+    mobileOpen = false;
+    searchOpen = true;
+    await tick();
+    searchInputEl?.focus();
+  }
+
+  function closeSearch() {
+    searchOpen = false;
+    searchQuery = '';
+    searchResults = [];
+    searchLoading = false;
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = undefined;
+    }
+  }
+
+  async function runSearch(q: string) {
+    const myId = ++searchReqId;
+    searchLoading = true;
+    try {
+      const res = await getProducts(8, 0, q);
+      if (myId === searchReqId) {
+        searchResults = res ?? [];
+      }
+    } catch {
+      if (myId === searchReqId) searchResults = [];
+    } finally {
+      if (myId === searchReqId) searchLoading = false;
+    }
+  }
+
+  $effect(() => {
+    const q = searchQuery.trim();
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = undefined;
+    }
+    if (!searchOpen) return;
+    if (q.length < 2) {
+      searchResults = [];
+      searchLoading = false;
+      searchReqId++;
+      return;
+    }
+    searchTimer = setTimeout(() => runSearch(q), 250);
+  });
+
+  function closeSearchOnOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (!target.closest('[data-search-panel]') && !target.closest('[data-search-toggle]')) {
+      closeSearch();
+    }
+  }
+
+  function onSearchKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+    }
+  }
+
+  $effect(() => {
+    if (searchOpen) {
+      document.addEventListener('click', closeSearchOnOutside);
+      document.addEventListener('keydown', onSearchKeydown);
+      return () => {
+        document.removeEventListener('click', closeSearchOnOutside);
+        document.removeEventListener('keydown', onSearchKeydown);
+      };
+    }
+  });
+
+  function onSearchSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    goto(`/products?q=${encodeURIComponent(q)}`);
+    closeSearch();
+  }
+
+  function productPrice(p: Product): number | null {
+    if (p.default_variant_price != null) return p.default_variant_price;
+    if (p.min_price != null) return p.min_price;
+    return null;
+  }
 </script>
 
 <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-ink-300/60">
@@ -98,6 +199,22 @@
 
       <!-- Account + Cart + Wishlist (always right) -->
       <div class="flex items-center gap-0 sm:gap-1">
+
+        <!-- Search -->
+        <button
+          type="button"
+          data-search-toggle
+          onclick={openSearch}
+          class="p-2 text-ink-900 hover:text-navy-500 transition-colors"
+          aria-label={m.header_aria_search()}
+          aria-expanded={searchOpen}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+          </svg>
+        </button>
 
         <!-- Account -->
         {#if customer}
@@ -226,5 +343,74 @@
         </a>
       {/each}
     </nav>
+  {/if}
+
+  <!-- Search slide-down panel -->
+  {#if searchOpen}
+    <div data-search-panel
+         class="border-t border-ink-300/60 bg-white shadow-card-hover">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <form onsubmit={onSearchSubmit} class="flex items-center gap-3 border-b border-ink-300/60 pb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 text-ink-500" fill="none"
+               viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+          </svg>
+          <input bind:this={searchInputEl}
+                 bind:value={searchQuery}
+                 type="search"
+                 placeholder={m.header_search_placeholder()}
+                 aria-label={m.header_search_aria()}
+                 autocomplete="off"
+                 class="flex-1 bg-transparent outline-none font-body text-base text-ink-900 placeholder:text-ink-500" />
+          <button type="button" onclick={closeSearch}
+                  class="p-1 text-ink-500 hover:text-ink-900 transition-colors"
+                  aria-label={m.common_aria_close()}>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </form>
+
+        {#if searchQuery.trim().length >= 2}
+          <div class="mt-2 max-h-[60vh] overflow-y-auto">
+            {#if searchLoading && searchResults.length === 0}
+              <p class="py-6 text-center font-body text-sm text-ink-500">{m.header_search_loading()}</p>
+            {:else if searchResults.length === 0}
+              <p class="py-6 text-center font-body text-sm text-ink-500">{m.header_search_no_results()}</p>
+            {:else}
+              <ul class="divide-y divide-ink-300/60">
+                {#each searchResults as p (p.id)}
+                  {@const price = productPrice(p)}
+                  <li>
+                    <a href="/products/{p.slug}" onclick={closeSearch}
+                       class="flex items-center gap-3 py-3 hover:bg-paper transition-colors">
+                      <div class="w-12 h-12 flex-shrink-0 bg-paper rounded overflow-hidden">
+                        {#if p.primary_image_url}
+                          <img src={p.primary_image_url} alt={p.name}
+                               class="w-full h-full object-cover" loading="lazy" />
+                        {/if}
+                      </div>
+                      <span class="flex-1 font-body text-sm text-ink-900 truncate">{p.name}</span>
+                      {#if price != null}
+                        <span class="font-display text-sm font-semibold text-ink-900 tabular-nums">
+                          HK${price.toFixed(2)}
+                        </span>
+                      {/if}
+                    </a>
+                  </li>
+                {/each}
+              </ul>
+              <a href="/products?q={encodeURIComponent(searchQuery.trim())}"
+                 onclick={closeSearch}
+                 class="block mt-2 py-3 text-center font-display text-sm uppercase tracking-[0.12em] text-navy-500 hover:underline">
+                {m.header_search_view_all()}
+              </a>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
   {/if}
 </header>
