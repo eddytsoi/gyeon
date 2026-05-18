@@ -1281,6 +1281,8 @@
         onChange={(id) => (banner1MediaId = id)}
         onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
         previewClass="aspect-[16/9] w-full max-w-md"
+        fallbackPreviewUrl={data.product?.banner_1_url ?? null}
+        fallbackWebpUrl={data.product?.banner_1_webp_url ?? null}
       />
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
@@ -1324,6 +1326,8 @@
         onChange={(id) => (banner2MediaId = id)}
         onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
         previewClass="aspect-[16/9] w-full max-w-md"
+        fallbackPreviewUrl={data.product?.banner_2_url ?? null}
+        fallbackWebpUrl={data.product?.banner_2_webp_url ?? null}
       />
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
@@ -1399,6 +1403,8 @@
           form="product-form"
           onChange={(id) => (media1MediaId = id)}
           onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          fallbackPreviewUrl={data.product?.media_1_url ?? null}
+          fallbackWebpUrl={data.product?.media_1_webp_url ?? null}
         />
         <SingleMediaPicker
           files={bannerLibrary}
@@ -1408,6 +1414,8 @@
           form="product-form"
           onChange={(id) => (media2MediaId = id)}
           onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          fallbackPreviewUrl={data.product?.media_2_url ?? null}
+          fallbackWebpUrl={data.product?.media_2_webp_url ?? null}
         />
         <SingleMediaPicker
           files={bannerLibrary}
@@ -1417,6 +1425,8 @@
           form="product-form"
           onChange={(id) => (media3MediaId = id)}
           onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          fallbackPreviewUrl={data.product?.media_3_url ?? null}
+          fallbackWebpUrl={data.product?.media_3_webp_url ?? null}
         />
         <SingleMediaPicker
           files={bannerLibrary}
@@ -1426,6 +1436,8 @@
           form="product-form"
           onChange={(id) => (media4MediaId = id)}
           onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          fallbackPreviewUrl={data.product?.media_4_url ?? null}
+          fallbackWebpUrl={data.product?.media_4_webp_url ?? null}
         />
       </div>
     </div>
