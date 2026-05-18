@@ -142,6 +142,15 @@
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
   const COMPANY_LOGO_KEYS = new Set(['company_logo_url', 'company_logo_height_px']);
+  const COMPANY_INFO_KEYS = new Set([
+    'company_address_line1',
+    'company_address_line2',
+    'company_city',
+    'company_postal_code',
+    'company_country',
+    'company_phone',
+    'company_registration_no',
+  ]);
   const SITE_NOTICE_KEYS = new Set([
     'site_notice',
     'site_notice_enabled',
@@ -298,6 +307,7 @@
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
         !COMPANY_LOGO_KEYS.has(s.key) &&
+        !COMPANY_INFO_KEYS.has(s.key) &&
         !SITE_NOTICE_KEYS.has(s.key) &&
         !HOMEPAGE_KEYS.has(s.key) &&
         !TAX_KEYS.has(s.key) &&
