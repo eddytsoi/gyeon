@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>{{ .L.receipt_title }} {{ .Order.OrderNumber }}</title>
 <style>
-  @page { size: A4; margin: 14mm 12mm 14mm 12mm; }
+  @page { size: A4; margin: 14mm; }
   *, *::before, *::after { box-sizing: border-box; }
   html, body {
     margin: 0;
@@ -128,7 +128,8 @@
     font-size: 11pt;
   }
   .payment {
-    margin-top: 16px;
+    width: 50%;
+    margin: 16px 0 0 auto;
     padding: 10px 12px;
     background: #F8F7F4;
     border-radius: 6px;
