@@ -45,7 +45,7 @@
        style="background-color: {bgColor}; color: {textColor};"
        role="region" aria-label="Site announcement">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-3 relative">
-      <p class="font-display font-semibold uppercase tracking-[0.15em] text-center"
+      <p class="font-display font-semibold uppercase tracking-normal sm:tracking-[0.15em] text-center"
          style="font-size: {textSizePx}px;">
         {notice}
       </p>
