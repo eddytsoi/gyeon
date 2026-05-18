@@ -207,6 +207,11 @@
   "checkout_delivery_change_pickup": "Change",
   "checkout_delivery_pick_pickup": "Choose pickup point →",
 
+  "checkout_section_logistics": "Shipping",
+  "checkout_logistics_free": "Free shipping",
+  "checkout_logistics_cod": "Pay on delivery",
+  "checkout_logistics_not_configured": "Default courier not configured — please contact the store before ordering.",
+
   "checkout_section_remark": "Notes",
   "checkout_remark_placeholder": "Delivery instructions, gift wrapping, etc.",
 

@@ -1,4 +1,4 @@
-import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards } from '$lib/api';
+import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault } from '$lib/api';
 import type { PageServerLoad } from './$types';
 
 function parseShippingCountries(raw: string | undefined): string[] {
@@ -17,9 +17,10 @@ function parseShippingCountries(raw: string | undefined): string[] {
 
 export const load: PageServerLoad = async ({ cookies }) => {
   const token = cookies.get('customer_token') ?? null;
-  const [paymentConfig, settings] = await Promise.all([
+  const [paymentConfig, settings, shippingDefault] = await Promise.all([
     getPaymentConfig().catch(() => ({ publishable_key: '', mode: 'test' as const })),
-    getPublicSettings().catch(() => [])
+    getPublicSettings().catch(() => []),
+    getShippingDefault().catch(() => ({ configured: false }))
   ]);
   const shippingCountries = parseShippingCountries(
     settings.find((s) => s.key === 'shipping_countries')?.value
@@ -30,7 +31,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
   if (!token) {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
     };
   }
 
@@ -42,12 +43,12 @@ export const load: PageServerLoad = async ({ cookies }) => {
     ]);
     return {
       token, customer, addresses, savedCards,
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
     };
   } catch {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
     };
   }
 };

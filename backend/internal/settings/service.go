@@ -48,6 +48,7 @@ var publicSettingKeys = []string{
 	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
 	"blog_enabled",               // when 'false', storefront /blog routes 404 and nav links to /blog are hidden
 	"pwa_enabled",                // when 'false', storefront hides PWA tags and unregisters the service worker
+	"shipany_enabled",            // master toggle that drives the storefront logistics card (default-courier mode)
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

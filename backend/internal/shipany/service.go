@@ -114,6 +114,61 @@ func (s *Service) ListCouriers(ctx context.Context) ([]Courier, error) {
 	return s.client.ListCouriers(ctx)
 }
 
+// ShippingDefault resolves the admin-configured default courier + service
+// to display labels. Looks up uids in site_settings then resolves names via
+// the same /couriers/ feed admin uses. Returns configured=false when either
+// uid is blank or when ShipAny can't be reached — the storefront then shows
+// "not configured" and blocks checkout, the same UX as a real misconfigure.
+type ShippingDefaultResolved struct {
+	Configured  bool   `json:"configured"`
+	CourierUID  string `json:"courier_uid,omitempty"`
+	CourierName string `json:"courier_name,omitempty"`
+	ServiceUID  string `json:"service_uid,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
+}
+
+func (s *Service) ShippingDefault(ctx context.Context) ShippingDefaultResolved {
+	courierUID := strings.TrimSpace(s.read(ctx, "shipany_default_courier"))
+	serviceUID := strings.TrimSpace(s.read(ctx, "shipany_default_service"))
+	if courierUID == "" || serviceUID == "" {
+		return ShippingDefaultResolved{Configured: false}
+	}
+	if !s.Configured(ctx) {
+		return ShippingDefaultResolved{Configured: false}
+	}
+	couriers, err := s.client.ListCouriers(ctx)
+	if err != nil {
+		log.Printf("shipany shipping-default list couriers: %v", err)
+		return ShippingDefaultResolved{Configured: false}
+	}
+	for _, c := range couriers {
+		if c.UID != courierUID {
+			continue
+		}
+		// Service plan names aren't carried by ListCouriers — the UID is the
+		// human label too (e.g. "sf_standard"). Surface the uid as the name so
+		// the storefront has something readable; admin can rename the service
+		// in their own dropdown if needed later.
+		serviceName := serviceUID
+		for _, p := range c.SvcPlans {
+			if p.CourSvcPl == serviceUID {
+				serviceName = p.CourSvcPl
+				break
+			}
+		}
+		return ShippingDefaultResolved{
+			Configured:  true,
+			CourierUID:  c.UID,
+			CourierName: c.Name,
+			ServiceUID:  serviceUID,
+			ServiceName: serviceName,
+		}
+	}
+	// Configured uid no longer exists in the merchant's couriers list — treat
+	// as unconfigured so admin sees the same "not configured" notice and can fix it.
+	return ShippingDefaultResolved{Configured: false}
+}
+
 // ── Shipments ──────────────────────────────────────────────────────────
 
 type DBShipment struct {

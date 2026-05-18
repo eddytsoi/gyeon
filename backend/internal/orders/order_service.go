@@ -163,6 +163,7 @@ var ErrEmptyCart = errors.New("cart is empty")
 var ErrCustomerInfoRequired = errors.New("customer_info is required for guest checkout")
 var ErrShippingRequired = errors.New("shipping_address or shipping_address_id is required")
 var ErrOrderNotFound = errors.New("order not found")
+var ErrDefaultCarrierNotConfigured = errors.New("default carrier or service is not configured")
 
 // valid forward transitions
 var allowedTransitions = map[OrderStatus][]OrderStatus{
@@ -399,6 +400,49 @@ func (s *OrderService) orderNumberPrefix(ctx context.Context) string {
 		return "ORD"
 	}
 	return v
+}
+
+// resolveDefaultShipping reads the admin-configured default courier + service
+// from site_settings. Every storefront checkout is stamped with these values
+// so the auto-create-shipment job has what it needs without asking the
+// customer to choose a carrier.
+//
+// Returns enabled=false when shipany_enabled is not "true" — caller should
+// then place the order with NULL carrier/service (legacy behavior). Returns
+// ErrDefaultCarrierNotConfigured when shipany is enabled but either default
+// key is blank.
+func (s *OrderService) resolveDefaultShipping(ctx context.Context) (enabled bool, carrier, service string, err error) {
+	rows, qerr := s.db.QueryContext(ctx,
+		`SELECT key, value FROM site_settings
+		 WHERE key IN ('shipany_enabled', 'shipany_default_courier', 'shipany_default_service')`)
+	if qerr != nil {
+		return false, "", "", qerr
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return false, "", "", err
+		}
+		switch k {
+		case "shipany_enabled":
+			enabled = strings.EqualFold(strings.TrimSpace(v), "true")
+		case "shipany_default_courier":
+			carrier = strings.TrimSpace(v)
+		case "shipany_default_service":
+			service = strings.TrimSpace(v)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, "", "", err
+	}
+	if !enabled {
+		return false, "", "", nil
+	}
+	if carrier == "" || service == "" {
+		return true, "", "", ErrDefaultCarrierNotConfigured
+	}
+	return true, carrier, service, nil
 }
 
 func NewOrderService(
@@ -718,6 +762,21 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		namePtr = &customerName
 	}
 
+	// Carrier + service are sourced from admin defaults — the storefront no
+	// longer asks the customer to choose. Pickup-point columns stay NULL by
+	// default; admin can still override carrier + service per order from the
+	// order detail page. When shipany is disabled, the order is placed with
+	// NULL carrier/service (legacy behavior).
+	shipanyOn, defaultCarrier, defaultService, err := s.resolveDefaultShipping(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var carrierPtr, servicePtr *string
+	if shipanyOn {
+		carrierPtr = &defaultCarrier
+		servicePtr = &defaultService
+	}
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
@@ -730,7 +789,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		           created_at, updated_at`,
 		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
-		req.SelectedCarrier, req.SelectedService, req.PickupPointID, req.PickupPointLabel, req.CartID).
+		carrierPtr, servicePtr, nil, nil, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,

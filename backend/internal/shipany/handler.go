@@ -27,6 +27,7 @@ func (h *Handler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/quote", h.quote)
 	r.Get("/pickup-points", h.pickupPoints)
+	r.Get("/shipping-default", h.shippingDefault)
 	r.Post("/webhook", h.webhook)
 	return r
 }
@@ -131,6 +132,16 @@ func (h *Handler) pickupPoints(w http.ResponseWriter, r *http.Request) {
 		points = []PickupPoint{}
 	}
 	respond.JSON(w, http.StatusOK, points)
+}
+
+// shippingDefault returns the admin-configured default courier + service for
+// the storefront checkout panel. Public so it can be fetched without a
+// customer token. Sensitive details (uids) are returned alongside labels —
+// they're the same uids the storefront would send back at checkout, and the
+// backend re-derives them anyway, so this exposes nothing customers couldn't
+// have learned from the previous quote-based picker.
+func (h *Handler) shippingDefault(w http.ResponseWriter, r *http.Request) {
+	respond.JSON(w, http.StatusOK, h.svc.ShippingDefault(r.Context()))
 }
 
 func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
