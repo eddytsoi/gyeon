@@ -462,15 +462,27 @@ func (s *Service) importProduct(
 	// one default variant built from the product-level fields.
 	seenVariationIDs := make([]int, 0)
 	variantCount := 0
+	// variantImages collects (gyeon variant id, wc image) pairs to re-add
+	// in the image-refresh pass below, after DeleteWCSourcedImages wipes
+	// the previous WC-sourced rows.
+	type variantImage struct {
+		variantID string
+		img       wcImage
+	}
+	var variantImages []variantImage
 	if prod.Type == "variable" {
 		variations, err := wc.fetchVariations(prod.ID)
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch variations for %q: %v", prod.Slug, err))
 		}
 		for _, v := range variations {
-			if err := s.upsertVariantFromVariation(ctx, productID, prod.Slug, v); err != nil {
+			variantID, err := s.upsertVariantFromVariation(ctx, productID, prod.Slug, v)
+			if err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("variant for %q (id=%d): %v", prod.Slug, v.ID, err))
 				continue
+			}
+			if v.Image != nil && v.Image.Src != "" {
+				variantImages = append(variantImages, variantImage{variantID: variantID, img: *v.Image})
 			}
 			seenVariationIDs = append(seenVariationIDs, v.ID)
 			p.ImportedVariants++
@@ -543,6 +555,39 @@ func (s *Service) importProduct(
 		}
 		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
+		}
+	}
+
+	// Variant-specific images. DeleteWCSourcedImages above already wiped
+	// any prior WC-sourced rows for this product (including variant ones),
+	// so we just re-add. Each WC variation carries at most one image, so
+	// we mark it primary and leave SortOrder at 0 — the storefront groups
+	// by variant_id, the ordering is per-variant not per-product.
+	for _, vi := range variantImages {
+		var alt *string
+		if vi.img.Alt != "" {
+			alt = &vi.img.Alt
+		}
+		vid := vi.variantID
+		req := shop.AddImageRequest{
+			VariantID: &vid,
+			URL:       &vi.img.Src,
+			AltText:   alt,
+			SortOrder: 0,
+			IsPrimary: true,
+		}
+		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, vi.img.Src); ok {
+			req.MediaFileID = &id
+		} else {
+			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, vi.img.Src, vi.img.Alt)
+			if err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("variant media download for %q (variant=%s): %v", prod.Slug, vid, err))
+				continue
+			}
+			req.MediaFileID = &mediaID
+		}
+		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("variant image for %q (variant=%s): %v", prod.Slug, vid, err))
 		}
 	}
 
@@ -739,7 +784,7 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 	return err
 }
 
-func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, productSlug string, v wcVariation) error {
+func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, productSlug string, v wcVariation) (string, error) {
 	price, compareAt := parsePrices(v.RegularPrice, v.SalePrice)
 	stockQty := 0
 	if v.StockQuantity != nil {
@@ -748,7 +793,7 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 	wcID := v.ID
 	// SKU is generated from product slug + WC variation ID; WC's own SKU
 	// is ignored so every Gyeon variant follows one predictable scheme.
-	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
+	return s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  &wcID,
 		SKU:            fmt.Sprintf("%s-%d", productSlug, v.ID),
 		Name:           formatVariantName(v.Attributes),
@@ -760,7 +805,6 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 		WidthMM:        parseDimensionCM(v.Dimensions.Width),
 		HeightMM:       parseDimensionCM(v.Dimensions.Height),
 	})
-	return err
 }
 
 // parsePrices converts WC price strings to Gyeon price/compareAtPrice.

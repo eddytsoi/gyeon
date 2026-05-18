@@ -116,6 +116,10 @@ type wcVariation struct {
 	Weight        string        `json:"weight"`
 	Dimensions    wcDimensions  `json:"dimensions"`
 	Attributes    []wcAttribute `json:"attributes"`
+	// Image is the variation-specific image set in WC. WC's variations
+	// endpoint returns a single object (not an array); nil when the
+	// variation inherits the parent product image.
+	Image *wcImage `json:"image"`
 }
 
 type wcAttribute struct {
