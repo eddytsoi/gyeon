@@ -21,9 +21,42 @@ function withTimeout(init?: RequestInit): RequestInit {
   };
 }
 
+// Silent client-side retry for transient mobile failures (one dropped 5G
+// packet, brief Cloudflare edge blip, etc) that would otherwise surface as
+// "Internal Error" to the user. SSR is excluded because the load function's
+// .catch() already handles fallback; non-GET methods are excluded because
+// replaying POST/PUT/DELETE could double-create / double-charge — the same
+// rationale as nginx's `proxy_next_upstream` policy. 5xx is the only
+// retryable status: 4xx is a real client error, 2xx/3xx are success.
+async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response> {
+  const isServer = typeof window === 'undefined';
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const idempotent = method === 'GET' || method === 'HEAD';
+  const maxAttempts = isServer || !idempotent ? 1 : 3;
+
+  let lastResponse: Response | undefined;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      await new Promise((r) => setTimeout(r, 200 * (attempt - 1)));
+    }
+    try {
+      const res = await fetch(url, withTimeout(init));
+      if (res.status < 500) return res;
+      lastResponse = res;
+    } catch (e) {
+      // Caller cancelled (e.g. SvelteKit aborted SPA navigation) — respect it.
+      if ((init?.signal as AbortSignal | undefined)?.aborted) throw e;
+      lastError = e;
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastError;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${base()}${path}`, {
-    ...withTimeout(init),
+  const res = await fetchWithRetry(`${base()}${path}`, {
+    ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers }
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
@@ -69,8 +102,8 @@ export const getProductsListPage = async (
   filters: ProductListFilters,
   init?: RequestInit
 ): Promise<{ items: Product[]; total: number }> => {
-  const res = await fetch(`${base()}/products?${buildProductQuery(filters).toString()}`, {
-    ...withTimeout(init),
+  const res = await fetchWithRetry(`${base()}/products?${buildProductQuery(filters).toString()}`, {
+    ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers }
   });
   if (!res.ok) throw new Error(`API ${res.status}: /products`);
