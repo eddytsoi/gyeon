@@ -1,14 +1,13 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { checkout, getShipanyQuote, getVariantByID, validateCoupon, type ShipanyPickupPoint, type ShipanyRateOption } from '$lib/api';
+  import { checkout, getVariantByID, validateCoupon } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
   import type { SavedPaymentMethod, Variant } from '$lib/types';
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
-  import PickupPointPicker from '$lib/components/PickupPointPicker.svelte';
   import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
 
@@ -40,15 +39,13 @@
   const cityListId = 'checkout-city-options';
   const cityOptions = $derived(country === 'HK' ? HK_DISTRICTS : []);
 
-  // ── ShipAny delivery method (section 3) ───────────────────────
-  let rateOptions = $state<ShipanyRateOption[]>([]);
-  let selectedRate = $state<ShipanyRateOption | null>(null);
-  let quoteLoading = $state(false);
-  let quoteError = $state('');
-  let quoteFetched = $state(false);
-  let pickupPoint = $state<ShipanyPickupPoint | null>(null);
-  let pickupPickerOpen = $state(false);
-  let quoteTimer: ReturnType<typeof setTimeout> | null = null;
+  // ── Logistics (section 3) ─────────────────────────────────────
+  // Customers no longer pick a courier — checkout always ships via the
+  // admin-configured default. The block path triggers when admin hasn't
+  // filled in shipany_default_courier / shipany_default_service.
+  const shippingConfigured = $derived(
+    !data.shipanyEnabled || (data.shippingDefault?.configured ?? false)
+  );
 
   // ── Remark (section 4) ────────────────────────────────────────
   let notes = $state('');
@@ -125,76 +122,7 @@
       : line1.trim() !== '' && country.trim() !== ''
   );
 
-  // Delivery method is only required when ShipAny is enabled. If the
-  // selected rate needs a pickup point, a point must also be chosen.
-  const deliveryValid = $derived(
-    !data.shipanyEnabled
-      ? true
-      : selectedRate !== null && (!selectedRate.requires_pickup_point || pickupPoint !== null)
-  );
-
-  const formValid = $derived(customerValid && shippingValid && deliveryValid && tcAccepted);
-
-  // Resolve the address payload that will be sent to the rate quoter.
-  // For "saved" mode we look up the chosen address; for "new" mode we use
-  // the live form values.
-  const quoteAddress = $derived.by(() => {
-    if (addressMode === 'saved') {
-      const a = data.addresses?.find((x) => x.id === selectedAddressID);
-      if (!a) return null;
-      return {
-        line1: a.line1, line2: a.line2 ?? undefined,
-        city: a.city, district: a.city,
-        postal_code: a.postal_code ?? '',
-        country: a.country
-      };
-    }
-    if (line1.trim() === '' || country.trim() === '') return null;
-    return {
-      line1: line1.trim(), city: city.trim(),
-      district: city.trim(),
-      postal_code: postalCode.trim(),
-      country: country.trim() || 'HK'
-    };
-  });
-
-  // Re-fetch quotes whenever the destination changes, debounced.
-  $effect(() => {
-    if (!data.shipanyEnabled || !activeCart) return;
-    const addr = quoteAddress;
-    if (!addr) return;
-    untrack(() => { selectedRate = null; pickupPoint = null; });
-    if (quoteTimer) clearTimeout(quoteTimer);
-    quoteTimer = setTimeout(() => {
-      void refreshQuote(addr);
-    }, 500);
-  });
-
-  async function refreshQuote(addr: NonNullable<typeof quoteAddress>) {
-    if (!activeCart) return;
-    quoteLoading = true;
-    quoteError = '';
-    try {
-      const rates = await getShipanyQuote(activeCart.id, {
-        line1: addr.line1, line2: addr.line2,
-        city: addr.city, district: addr.district,
-        postal_code: addr.postal_code,
-        country: addr.country
-      });
-      rateOptions = rates;
-      quoteFetched = true;
-    } catch (e) {
-      quoteError = e instanceof Error ? e.message : m.checkout_quote_failed();
-      rateOptions = [];
-    } finally {
-      quoteLoading = false;
-    }
-  }
-
-  function handlePickupSelected(p: ShipanyPickupPoint) {
-    pickupPoint = p;
-    pickupPickerOpen = false;
-  }
+  const formValid = $derived(customerValid && shippingValid && shippingConfigured && tcAccepted);
 
   onMount(async () => {
     if (!cartStore.cart) await cartStore.init();
@@ -278,11 +206,7 @@
         couponCode: couponResult?.valid ? couponCode.trim() : undefined,
         notes: notes.trim() || undefined,
         saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
-        savedPaymentMethodId: selectedCard?.stripe_pm_id,
-        selectedCarrier: selectedRate?.carrier,
-        selectedService: selectedRate?.service,
-        pickupPointId: pickupPoint?.id,
-        pickupPointLabel: pickupPoint ? `${pickupPoint.name} — ${pickupPoint.address}` : undefined
+        savedPaymentMethodId: selectedCard?.stripe_pm_id
       });
 
       pendingClientSecret = result.client_secret;
@@ -515,69 +439,23 @@
           {/if}
         </section>
 
-        <!-- ── 3. Delivery method (ShipAny) ─────────────────────── -->
+        <!-- ── 3. Logistics (read-only, admin default) ─────────── -->
         {#if data.shipanyEnabled}
           <section class="bg-white rounded-2xl border border-gray-100 p-6">
             <div class="flex items-center gap-3 mb-4">
               <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-semibold">3</span>
-              <h2 class="font-semibold text-gray-900">{m.checkout_section_delivery()}</h2>
+              <h2 class="font-semibold text-gray-900">{m.checkout_section_logistics()}</h2>
             </div>
 
-            {#if !shippingValid}
-              <p class="text-sm text-gray-400">{m.checkout_delivery_need_address()}</p>
-            {:else if quoteLoading && rateOptions.length === 0}
-              <div class="flex flex-col gap-2">
-                {#each [0, 1, 2] as _}
-                  <div class="h-14 bg-gray-100 animate-pulse rounded-xl"></div>
-                {/each}
+            {#if data.shippingDefault?.configured}
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="font-medium text-gray-900">{data.shippingDefault.courier_name}</span>
+                <span class="text-sm whitespace-nowrap {shippingFree ? 'text-green-600' : 'text-gray-600'}">
+                  {shippingFree ? m.checkout_logistics_free() : m.checkout_logistics_cod()}
+                </span>
               </div>
-            {:else if quoteError}
-              <p class="text-sm text-amber-600">
-                {m.checkout_delivery_quote_warning({ error: quoteError })}
-              </p>
-            {:else if quoteFetched && rateOptions.length === 0}
-              <p class="text-sm text-gray-500">{m.checkout_delivery_no_options()}</p>
             {:else}
-              <div class="flex flex-col gap-2">
-                {#each rateOptions as rate}
-                  <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl border
-                                {selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service
-                                  ? 'border-gray-900 bg-gray-50'
-                                  : 'border-gray-100 hover:border-gray-300'}">
-                    <input type="radio" name="shipany_rate"
-                           value="{rate.carrier}::{rate.service}"
-                           checked={selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service}
-                           onchange={() => { selectedRate = rate; pickupPoint = null; }}
-                           class="mt-0.5 accent-gray-900 flex-shrink-0" />
-                    <div class="flex-1 text-sm">
-                      <div class="flex items-baseline justify-between gap-3">
-                        <span class="font-medium text-gray-900">{rate.carrier_name}</span>
-                        <span class="font-semibold text-gray-900 whitespace-nowrap">HK${rate.fee_hkd.toFixed(2)}</span>
-                      </div>
-                      <p class="text-xs text-gray-500 mt-0.5">
-                        {rate.service_name}{#if rate.eta_days} · {m.checkout_delivery_eta_days({ days: rate.eta_days })}{/if}
-                      </p>
-                      {#if selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service && rate.requires_pickup_point}
-                        <div class="mt-2 flex items-center gap-3">
-                          {#if pickupPoint}
-                            <div class="text-xs text-gray-700">
-                              <p class="font-medium">{pickupPoint.name}</p>
-                              <p class="text-gray-500">{pickupPoint.address}</p>
-                            </div>
-                            <button type="button"
-                                    onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
-                                    class="text-xs text-gray-700 underline hover:text-gray-900">{m.checkout_delivery_change_pickup()}</button>
-                          {:else}
-                            <button type="button"
-                                    onclick={(e) => { e.preventDefault(); pickupPickerOpen = true; }}
-                                    class="text-xs text-gray-700 underline hover:text-gray-900">{m.checkout_delivery_pick_pickup()}</button>
-                          {/if}
-                        </div>
-                      {/if}
-                    </div>
-                  </label>
-                {/each}
-              </div>
+              <p class="text-sm text-red-500">{m.checkout_logistics_not_configured()}</p>
             {/if}
           </section>
         {/if}
@@ -813,11 +691,3 @@
   {/if}
 </div>
 
-{#if pickupPickerOpen && selectedRate}
-  <PickupPointPicker
-    carrier={selectedRate.carrier}
-    carrierName={selectedRate.carrier_name}
-    initialDistrict={addressMode === 'new' ? city.trim() : (data.addresses?.find((a) => a.id === selectedAddressID)?.city ?? '')}
-    onSelect={handlePickupSelected}
-    onClose={() => (pickupPickerOpen = false)} />
-{/if}

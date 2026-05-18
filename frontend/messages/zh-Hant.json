@@ -207,6 +207,11 @@
   "checkout_delivery_change_pickup": "更改",
   "checkout_delivery_pick_pickup": "選擇取件點 →",
 
+  "checkout_section_logistics": "物流",
+  "checkout_logistics_free": "免運費",
+  "checkout_logistics_cod": "到付",
+  "checkout_logistics_not_configured": "店主尚未設定預設速遞商，請聯絡店主後再下單。",
+
   "checkout_section_remark": "備註",
   "checkout_remark_placeholder": "送貨指示、禮品包裝等",
 

@@ -109,10 +109,6 @@ export const checkout = (
     notes?: string;
     saveCard?: boolean;
     savedPaymentMethodId?: string;
-    selectedCarrier?: string;
-    selectedService?: string;
-    pickupPointId?: string;
-    pickupPointLabel?: string;
   } = {}
 ) =>
   request<CheckoutResult>('/orders/checkout', {
@@ -128,11 +124,7 @@ export const checkout = (
       coupon_code: options.couponCode ?? null,
       notes: options.notes ?? null,
       save_card: options.saveCard ?? false,
-      saved_payment_method_id: options.savedPaymentMethodId ?? null,
-      selected_carrier: options.selectedCarrier ?? null,
-      selected_service: options.selectedService ?? null,
-      pickup_point_id: options.pickupPointId ?? null,
-      pickup_point_label: options.pickupPointLabel ?? null
+      saved_payment_method_id: options.savedPaymentMethodId ?? null
     })
   });
 
@@ -187,6 +179,20 @@ export const listShipanyPickupPoints = (carrier: string, district?: string) => {
   if (district) q.set('district', district);
   return request<ShipanyPickupPoint[]>(`/shipany/pickup-points?${q.toString()}`);
 };
+
+// Default courier + service resolved from admin settings, with display labels
+// looked up via the ShipAny couriers feed. Used by the storefront checkout
+// to render a read-only logistics panel — the customer no longer picks.
+export type ShippingDefault = {
+  configured: boolean;
+  courier_uid?: string;
+  courier_name?: string;
+  service_uid?: string;
+  service_name?: string;
+};
+
+export const getShippingDefault = () =>
+  request<ShippingDefault>('/shipany/shipping-default');
 
 export type PublicSetting = { key: string; value: string; description?: string; updated_at: string };
 export const getPublicSettings = () => request<PublicSetting[]>('/settings/');

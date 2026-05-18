@@ -277,6 +277,10 @@ func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, err.Error())
 		return
 	}
+	if errors.Is(err, ErrDefaultCarrierNotConfigured) {
+		respond.BadRequest(w, "shipping defaults not configured")
+		return
+	}
 	if err != nil {
 		respond.Error(w, http.StatusConflict, err.Error())
 		return
