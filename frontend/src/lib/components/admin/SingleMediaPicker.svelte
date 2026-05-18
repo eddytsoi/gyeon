@@ -14,6 +14,11 @@
     name?: string;
     form?: string;
     previewClass?: string;
+    // Used when `value` references a media file that isn't in `files` — e.g. the
+    // admin media list is capped at 200 and the slot's image is older than that.
+    // Keeps the preview rendering instead of dropping back to the placeholder.
+    fallbackPreviewUrl?: string | null;
+    fallbackWebpUrl?: string | null;
   }
 
   let {
@@ -26,11 +31,19 @@
     description,
     name,
     form,
-    previewClass = 'aspect-[4/3] w-full'
+    previewClass = 'aspect-[4/3] w-full',
+    fallbackPreviewUrl = null,
+    fallbackWebpUrl = null
   }: Props = $props();
 
   const current = $derived(value ? files.find((f) => f.id === value) ?? null : null);
-  const previewUrl = $derived(current ? (current.webp_url ?? current.url) : null);
+  const previewUrl = $derived(
+    current
+      ? (current.webp_url ?? current.url)
+      : value
+        ? (fallbackWebpUrl ?? fallbackPreviewUrl ?? null)
+        : null
+  );
 
   let open = $state(false);
   let tab = $state<'library' | 'upload'>('library');
@@ -95,10 +108,12 @@
         sizes="320px"
         class="w-full h-full object-cover"
       />
-      <span
-        class="absolute inset-x-0 bottom-0 p-2 text-[10px] text-white truncate
-               bg-gradient-to-t from-black/60 to-transparent text-left"
-      >{current?.original_name}</span>
+      {#if current?.original_name}
+        <span
+          class="absolute inset-x-0 bottom-0 p-2 text-[10px] text-white truncate
+                 bg-gradient-to-t from-black/60 to-transparent text-left"
+        >{current.original_name}</span>
+      {/if}
     {:else}
       <div class="flex flex-col items-center gap-1 text-gray-400 py-6">
         <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
