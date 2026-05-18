@@ -207,7 +207,7 @@
           type="button"
           data-search-toggle
           onclick={openSearch}
-          class="p-2 text-ink-900 hover:text-navy-500 transition-colors"
+          class="py-2 px-1 xl:p-2 text-ink-900 hover:text-navy-500 transition-colors"
           aria-label={m.header_aria_search()}
           aria-expanded={searchOpen}
         >
@@ -224,7 +224,7 @@
             <button
               type="button"
               onclick={(e) => { e.stopPropagation(); accountOpen = !accountOpen; }}
-              class="p-2 text-ink-900 hover:text-navy-500 transition-colors flex items-center"
+              class="py-2 px-1 xl:p-2 text-ink-900 hover:text-navy-500 transition-colors flex items-center"
               aria-label={m.header_aria_account_menu()}
               aria-expanded={accountOpen}
             >
@@ -286,7 +286,7 @@
         {:else}
           <a
             href="/account/login"
-            class="hidden lg:inline-flex p-2 text-ink-900 hover:text-navy-500 transition-colors"
+            class="hidden lg:inline-flex py-2 px-1 xl:p-2 text-ink-900 hover:text-navy-500 transition-colors"
             aria-label={m.header_aria_sign_in()}
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
@@ -298,7 +298,7 @@
         {/if}
 
         <!-- Wishlist (desktop only — mobile uses hamburger menu) -->
-        <a href="/wishlist" class="relative hidden lg:inline-flex p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.wishlist_heading()}>
+        <a href="/wishlist" class="relative hidden lg:inline-flex py-2 px-1 xl:p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.wishlist_heading()}>
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -312,7 +312,7 @@
         </a>
 
         <!-- Cart -->
-        <a href="/cart" class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.header_aria_cart()}>
+        <a href="/cart" class="relative py-2 px-1 xl:p-2 text-gray-600 hover:text-gray-900 transition-colors" aria-label={m.header_aria_cart()}>
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -387,7 +387,7 @@
           </svg>
           <input bind:this={searchInputEl}
                  bind:value={searchQuery}
-                 type="search"
+                 type="text"
                  placeholder={m.header_search_placeholder()}
                  aria-label={m.header_search_aria()}
                  autocomplete="off"
