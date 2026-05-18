@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -177,12 +178,49 @@ func (h *OrderHandler) paymentInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	orders, total, err := h.svc.List(r.Context(), limit, offset)
+
+	f := ListFilters{Search: q.Get("q")}
+
+	// `status` is a comma-separated list of order_status enum values. Unknown
+	// values are silently dropped so callers never get a 500 from typos in the
+	// URL; an all-unknown list behaves like "no status filter".
+	if raw := q.Get("status"); raw != "" {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if isKnownStatus(s) {
+				f.Statuses = append(f.Statuses, OrderStatus(s))
+			}
+		}
+	}
+
+	// `from` and `to` are calendar dates (YYYY-MM-DD) interpreted in the
+	// server's local zone. `to` is inclusive of the named day — we add 24h
+	// and use a half-open interval so created_at='2026-05-18 23:59' matches
+	// to=2026-05-18.
+	if raw := q.Get("from"); raw != "" {
+		if t, err := time.ParseInLocation("2006-01-02", raw, time.Local); err == nil {
+			f.From = &t
+		}
+	}
+	if raw := q.Get("to"); raw != "" {
+		if t, err := time.ParseInLocation("2006-01-02", raw, time.Local); err == nil {
+			end := t.Add(24 * time.Hour)
+			f.To = &end
+		}
+	}
+
+	switch q.Get("unread") {
+	case "1", "true":
+		f.HasUnread = true
+	}
+
+	orders, total, err := h.svc.List(r.Context(), f, limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -191,6 +229,15 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 		"items": orders,
 		"total": total,
 	})
+}
+
+func isKnownStatus(s string) bool {
+	switch OrderStatus(s) {
+	case StatusPending, StatusPaid, StatusProcessing, StatusShipped,
+		StatusDelivered, StatusCancelled, StatusRefunded:
+		return true
+	}
+	return false
 }
 
 func (h *OrderHandler) get(w http.ResponseWriter, r *http.Request) {

@@ -180,8 +180,28 @@ export const adminReorderCategories = (token: string, ids: string[]) =>
   });
 
 // Orders
-export const adminGetOrders = (token: string, limit = 50, offset = 0) =>
-  request<PagedResponse<Order>>(`/admin/orders?limit=${limit}&offset=${offset}`, token);
+export interface AdminOrdersQuery {
+  limit?: number;
+  offset?: number;
+  q?: string;
+  statuses?: string[];
+  from?: string; // YYYY-MM-DD
+  to?: string;   // YYYY-MM-DD (inclusive)
+  unread?: boolean;
+}
+
+export const adminGetOrders = (token: string, opts: AdminOrdersQuery = {}) => {
+  const qs = new URLSearchParams({
+    limit: String(opts.limit ?? 50),
+    offset: String(opts.offset ?? 0)
+  });
+  if (opts.q) qs.set('q', opts.q);
+  if (opts.statuses?.length) qs.set('status', opts.statuses.join(','));
+  if (opts.from) qs.set('from', opts.from);
+  if (opts.to) qs.set('to', opts.to);
+  if (opts.unread) qs.set('unread', '1');
+  return request<PagedResponse<Order>>(`/admin/orders?${qs.toString()}`, token);
+};
 
 export const adminGetOrder = (token: string, id: string) =>
   request<Order>(`/admin/orders/${id}`, token);

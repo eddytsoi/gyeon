@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { invalidateAll } from '$app/navigation';
   import { adminDeleteOrder } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
@@ -6,6 +8,7 @@
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
   import Pagination from '$lib/components/admin/Pagination.svelte';
+  import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
 
@@ -13,6 +16,12 @@
 
   let deleteTarget = $state<Order | null>(null);
   let deleting = $state(false);
+
+  const STATUSES = [
+    'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
+  ] as const;
+
+  const NEEDS_ACTION = ['pending', 'paid', 'processing'] as const;
 
   const statusColour: Record<string, string> = {
     pending:    'bg-amber-50 text-amber-700',
@@ -23,6 +32,72 @@
     cancelled:  'bg-gray-100 text-gray-500',
     refunded:   'bg-red-50 text-red-700',
   };
+
+  // Selected status chips — derived from URL so back/forward stays in sync.
+  const selectedStatuses = $derived(new Set(data.statuses));
+  const hasFilters = $derived(
+    !!data.q || data.statuses.length > 0 || !!data.from || !!data.to || data.unread
+  );
+  // "Needs action" highlights only when the selected set is exactly the
+  // shortcut's three statuses — partial overlap is treated as a manual
+  // selection, not the quick filter.
+  const needsActionActive = $derived(
+    selectedStatuses.size === NEEDS_ACTION.length &&
+    NEEDS_ACTION.every(s => selectedStatuses.has(s))
+  );
+
+  function pushParams(mutate: (p: URLSearchParams) => void) {
+    const url = new URL(page.url);
+    mutate(url.searchParams);
+    url.searchParams.delete('page'); // any filter change resets pagination
+    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  }
+
+  function onSearch(q: string) {
+    pushParams(p => { q ? p.set('q', q) : p.delete('q'); });
+  }
+
+  function toggleStatus(s: string) {
+    pushParams(p => {
+      const current = new Set((p.get('status') ?? '').split(',').filter(Boolean));
+      if (current.has(s)) current.delete(s);
+      else current.add(s);
+      if (current.size === 0) p.delete('status');
+      else p.set('status', [...current].join(','));
+    });
+  }
+
+  function clearStatuses() {
+    pushParams(p => p.delete('status'));
+  }
+
+  function onDateChange(key: 'from' | 'to', value: string) {
+    pushParams(p => { value ? p.set(key, value) : p.delete(key); });
+  }
+
+  function toggleNeedsAction() {
+    pushParams(p => {
+      if (needsActionActive) p.delete('status');
+      else p.set('status', NEEDS_ACTION.join(','));
+    });
+  }
+
+  function toggleUnread() {
+    pushParams(p => {
+      if (data.unread) p.delete('unread');
+      else p.set('unread', '1');
+    });
+  }
+
+  function clearAll() {
+    pushParams(p => {
+      p.delete('q');
+      p.delete('status');
+      p.delete('from');
+      p.delete('to');
+      p.delete('unread');
+    });
+  }
 
   async function confirmDelete() {
     if (!deleteTarget || !data.token) return;
@@ -47,7 +122,79 @@
 
 <svelte:head><title>{m.admin_orders_title()}</title></svelte:head>
 
-<h1 class="text-2xl font-bold text-gray-900 mb-8">{m.admin_orders_heading()}</h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">{m.admin_orders_heading()}</h1>
+  <span class="text-sm text-gray-400">
+    {#if hasFilters}
+      {data.total === 1 ? m.admin_orders_count_match_one({ count: data.total }) : m.admin_orders_count_match_many({ count: data.total })}
+    {:else}
+      {m.admin_orders_count_total({ count: data.total })}
+    {/if}
+  </span>
+</div>
+
+<!-- Filters -->
+<div class="mb-4 space-y-3">
+  <div class="flex flex-wrap items-center gap-3">
+    <SearchInput value={data.q} placeholder={m.admin_orders_search_placeholder()} onChange={onSearch} />
+
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500" for="orders-from">{m.admin_orders_filter_from()}</label>
+      <input id="orders-from" type="date" value={data.from} max={data.to || undefined}
+             oninput={(e) => onDateChange('from', (e.currentTarget as HTMLInputElement).value)}
+             class="text-sm px-2.5 py-2 rounded-xl border border-gray-200 bg-white
+                    focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900" />
+      <label class="text-xs text-gray-500" for="orders-to">{m.admin_orders_filter_to()}</label>
+      <input id="orders-to" type="date" value={data.to} min={data.from || undefined}
+             oninput={(e) => onDateChange('to', (e.currentTarget as HTMLInputElement).value)}
+             class="text-sm px-2.5 py-2 rounded-xl border border-gray-200 bg-white
+                    focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900" />
+    </div>
+
+    {#if hasFilters}
+      <button type="button" onclick={clearAll}
+              class="text-xs text-gray-500 hover:text-gray-900 underline-offset-2 hover:underline">
+        {m.admin_orders_filter_clear()}
+      </button>
+    {/if}
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="button" onclick={toggleNeedsAction}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {needsActionActive
+                     ? 'bg-amber-500 text-white border-amber-500'
+                     : 'bg-white text-gray-700 border-gray-200 hover:border-amber-400'}">
+      {m.admin_orders_filter_needs_action()}
+    </button>
+    <button type="button" onclick={toggleUnread}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors inline-flex items-center gap-1.5
+                   {data.unread
+                     ? 'bg-green-500 text-white border-green-500'
+                     : 'bg-white text-gray-700 border-gray-200 hover:border-green-400'}">
+      <span class="inline-block w-1.5 h-1.5 rounded-full {data.unread ? 'bg-white' : 'bg-green-500'}"></span>
+      {m.admin_orders_filter_unread()}
+    </button>
+    <span class="h-4 w-px bg-gray-200 mx-1" aria-hidden="true"></span>
+    <button type="button" onclick={clearStatuses}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {selectedStatuses.size === 0
+                     ? 'bg-gray-900 text-white border-gray-900'
+                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+      {m.admin_orders_filter_status_all()}
+    </button>
+    {#each STATUSES as s}
+      {@const active = selectedStatuses.has(s)}
+      <button type="button" onclick={() => toggleStatus(s)}
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                     {active
+                       ? `${statusColour[s]} border-current`
+                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+        {orderStatusLabel(s)}
+      </button>
+    {/each}
+  </div>
+</div>
 
 <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
      use:spotlight={{ selector: '.js-row' }}>
@@ -114,7 +261,14 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-gray-400">{m.admin_orders_empty()}</td>
+          <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+            {#if hasFilters}
+              <p class="font-medium text-gray-700 mb-1">{m.admin_orders_empty_no_match()}</p>
+              <p class="text-xs">{m.admin_orders_empty_no_match_hint()}</p>
+            {:else}
+              {m.admin_orders_empty()}
+            {/if}
+          </td>
         </tr>
       {/each}
     </tbody>
