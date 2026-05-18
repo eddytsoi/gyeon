@@ -97,13 +97,18 @@ type OrderEmailItem struct {
 }
 
 type OrderEmailParams struct {
-	OrderID         string
-	OrderNumber     string // customer-facing, e.g. ORD-0001
-	CustomerName    string
-	CustomerEmail   string
-	Items           []OrderEmailItem
-	Subtotal        float64
-	ShippingFee     float64
+	OrderID       string
+	OrderNumber   string // customer-facing, e.g. ORD-0001
+	CustomerName  string
+	CustomerEmail string
+	Items         []OrderEmailItem
+	Subtotal      float64
+	ShippingFee   float64
+	// ShippingLabel is the localized SF carrier line, e.g. "順豐速運（免運費）"
+	// or "順豐速運（到付）". Computed at send time from the order's frozen
+	// shipping_free flag — the numeric ShippingFee is always 0 today so the
+	// label is what the customer actually needs to see.
+	ShippingLabel   string
 	DiscountAmount  float64
 	TaxAmount       float64
 	TaxLabel        string
@@ -878,7 +883,7 @@ const orderConfirmationText = `您好 {{.CustomerName}}，
 小計：     {{.Currency}} {{printf "%.2f" .Subtotal}}
 {{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{printf "%.2f" .DiscountAmount}}
 {{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{printf "%.2f" .TaxAmount}}
-{{end}}運費：     {{.Currency}} {{printf "%.2f" .ShippingFee}}
+{{end}}運費：     {{.ShippingLabel}}
 總額：     {{.Currency}} {{printf "%.2f" .Total}}
 
 {{if .ShippingLine1}}──────── 送貨地址 ────────
@@ -912,7 +917,7 @@ const orderConfirmationHTML = `<!doctype html>
         <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
         {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{printf "%.2f" .DiscountAmount}}</td></tr>{{end}}
         {{if gt .TaxAmount 0.0}}<tr><td style="padding:4px 0;color:#6b7280">{{if .TaxLabel}}{{.TaxLabel | esc}}{{else}}稅金{{end}}</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .TaxAmount}}</td></tr>{{end}}
-        <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .ShippingFee}}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.ShippingLabel}}</td></tr>
         <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{printf "%.2f" .Total}}</td></tr>
       </table>
 

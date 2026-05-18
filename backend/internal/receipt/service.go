@@ -154,23 +154,23 @@ type viewRow struct {
 }
 
 type viewModel struct {
-	Locale      string
-	L           map[string]string
-	Shop        viewShop
-	Order       *orders.Order
-	ReceiptDate string
-	PlacedOn    string
-	BillTo      viewParty
-	ShipTo      *viewParty
-	Rows        []viewRow
-	HasDiscount bool
-	HasTax      bool
-	SubtotalFmt string
-	DiscountFmt string
-	TaxFmt      string
-	ShippingFmt string
-	TotalFmt    string
-	PaymentLine string
+	Locale        string
+	L             map[string]string
+	Shop          viewShop
+	Order         *orders.Order
+	ReceiptDate   string
+	PlacedOn      string
+	BillTo        viewParty
+	ShipTo        *viewParty
+	Rows          []viewRow
+	HasDiscount   bool
+	HasTax        bool
+	SubtotalFmt   string
+	DiscountFmt   string
+	TaxFmt        string
+	ShippingLabel string
+	TotalFmt      string
+	PaymentLine   string
 }
 
 // buildView assembles the data passed into the HTML template. Pulling settings
@@ -227,23 +227,23 @@ func (s *Service) buildView(ctx context.Context, order *orders.Order, images map
 	}
 
 	return viewModel{
-		Locale:      locale,
-		L:           labels[locale],
-		Shop:        shop,
-		Order:       order,
-		ReceiptDate: formatDate(receiptDate, locale),
-		PlacedOn:    formatDate(placedOn, locale),
-		BillTo:      bill,
-		ShipTo:      ship,
-		Rows:        rows,
-		HasDiscount: order.DiscountAmount > 0,
-		HasTax:      order.TaxAmount > 0,
-		SubtotalFmt: fmtMoney(order.Subtotal, currency),
-		DiscountFmt: fmtMoney(order.DiscountAmount, currency),
-		TaxFmt:      fmtMoney(order.TaxAmount, currency),
-		ShippingFmt: fmtMoney(order.ShippingFee, currency),
-		TotalFmt:    fmtMoney(order.Total, currency),
-		PaymentLine: formatPayment(order),
+		Locale:        locale,
+		L:             labels[locale],
+		Shop:          shop,
+		Order:         order,
+		ReceiptDate:   formatDate(receiptDate, locale),
+		PlacedOn:      formatDate(placedOn, locale),
+		BillTo:        bill,
+		ShipTo:        ship,
+		Rows:          rows,
+		HasDiscount:   order.DiscountAmount > 0,
+		HasTax:        order.TaxAmount > 0,
+		SubtotalFmt:   fmtMoney(order.Subtotal, currency),
+		DiscountFmt:   fmtMoney(order.DiscountAmount, currency),
+		TaxFmt:        fmtMoney(order.TaxAmount, currency),
+		ShippingLabel: orders.ShippingLabel(order, locale),
+		TotalFmt:      fmtMoney(order.Total, currency),
+		PaymentLine:   formatPayment(order),
 	}
 }
 

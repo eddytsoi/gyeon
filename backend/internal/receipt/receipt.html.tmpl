@@ -224,7 +224,7 @@
     <div class="row"><span>{{ .L.subtotal }}</span><span>{{ .SubtotalFmt }}</span></div>
     {{ if .HasDiscount }}<div class="row discount"><span>{{ .L.discount }}</span><span>-{{ .DiscountFmt }}</span></div>{{ end }}
     {{ if .HasTax }}<div class="row"><span>{{ .L.tax }}</span><span>{{ .TaxFmt }}</span></div>{{ end }}
-    <div class="row"><span>{{ .L.shipping }}</span><span>{{ .ShippingFmt }}</span></div>
+    <div class="row"><span>{{ .L.shipping }}</span><span>{{ .ShippingLabel }}</span></div>
     <div class="row total"><span>{{ .L.total }}</span><span>{{ .TotalFmt }}</span></div>
   </div>
 

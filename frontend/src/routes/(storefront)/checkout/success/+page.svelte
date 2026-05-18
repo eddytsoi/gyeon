@@ -8,6 +8,21 @@
 
   let { data }: { data: PageData } = $props();
 
+  // Group order items by parent_item_id so bundle component rows render
+  // indented under their bundle parent line (mirrors the account order page
+  // and the PDF receipt). Without this, bundle children show up as flat
+  // sibling rows and read like they were charged separately.
+  const parentItems = $derived((data.order.items ?? []).filter((it) => !it.parent_item_id));
+  const childrenByParent = $derived.by(() => {
+    const map: Record<string, typeof data.order.items> = {};
+    for (const it of data.order.items ?? []) {
+      if (it.parent_item_id) {
+        (map[it.parent_item_id] ??= []).push(it);
+      }
+    }
+    return map;
+  });
+
   // Cart is now cleared by the Stripe webhook (payment_intent.succeeded).
   // Refresh the local cart store so the header badge / cart page reflect
   // the empty cart as soon as the customer reaches the success page.
@@ -51,19 +66,31 @@
     <h2 class="font-semibold text-gray-900 mb-4">{m.checkout_success_summary()}</h2>
 
     <div class="flex flex-col gap-3 mb-4">
-      {#each data.order.items as item}
-        <div class="flex items-start justify-between gap-3 text-sm">
-          <div class="min-w-0">
-            <p class="font-medium text-gray-900">{item.product_name}</p>
-            <p class="text-xs text-gray-400 mt-0.5">
-              {item.variant_sku}
-              {#if item.variant_attrs && Object.keys(item.variant_attrs).length > 0}
-                · {Object.values(item.variant_attrs).join(', ')}
-              {/if}
-              · {m.checkout_success_qty({ quantity: item.quantity })}
-            </p>
+      {#each parentItems as item}
+        <div class="flex flex-col gap-1">
+          <div class="flex items-start justify-between gap-3 text-sm">
+            <div class="min-w-0">
+              <p class="font-medium text-gray-900">{item.product_name}</p>
+              <p class="text-xs text-gray-400 mt-0.5">
+                {item.variant_sku}
+                {#if item.variant_attrs && Object.keys(item.variant_attrs).length > 0}
+                  · {Object.values(item.variant_attrs).join(', ')}
+                {/if}
+                · {m.checkout_success_qty({ quantity: item.quantity })}
+              </p>
+            </div>
+            <span class="text-gray-900 font-medium flex-shrink-0">${item.line_total.toFixed(2)}</span>
           </div>
-          <span class="text-gray-900 font-medium flex-shrink-0">${item.line_total.toFixed(2)}</span>
+          {#if childrenByParent[item.id]?.length}
+            <ul class="mt-1 pl-4 border-l border-gray-100 flex flex-col gap-1">
+              {#each childrenByParent[item.id] as child}
+                <li class="flex items-start justify-between gap-3 text-xs text-gray-500">
+                  <span class="min-w-0 truncate">↳ {child.product_name} <span class="text-gray-400">× {child.quantity}</span></span>
+                  <span class="flex-shrink-0 text-gray-400">{m.order_item_included_in_bundle()}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </div>
       {/each}
     </div>

@@ -151,7 +151,7 @@
       {/if}
       <div class="flex justify-between text-gray-600">
         <span>{m.account_order_shipping()}</span>
-        <span>{order.shipping_fee > 0 ? `HK$${order.shipping_fee.toFixed(2)}` : m.common_free()}</span>
+        <span>{order.shipping_free ? m.shipping_sf_free() : m.shipping_sf_cod()}</span>
       </div>
       <div class="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100 text-base">
         <span>{m.account_order_total()}</span>

@@ -339,6 +339,7 @@
   "account_order_placed_on": "下單時間：{date}",
   "account_order_items": "商品",
   "account_order_item_meta": "SKU：{sku} · 數量：{quantity}",
+  "order_item_included_in_bundle": "套裝包含",
   "account_order_summary": "摘要",
   "account_order_subtotal": "小計",
   "account_order_discount": "折扣",
