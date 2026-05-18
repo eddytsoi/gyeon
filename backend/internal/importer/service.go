@@ -363,7 +363,11 @@ func (s *Service) resolveProductMediaSlots(
 		}
 		item, err := wc.resolveMediaSlug(slug)
 		if err != nil {
-			if !errors.Is(err, errMediaSlugNotFound) {
+			if errors.Is(err, errMediaSlugNotFound) {
+				p.Errors = append(p.Errors, fmt.Sprintf(
+					"product %q: media reference %q could not be resolved (tried slug, sanitized slug, title search)",
+					prod.Slug, slug))
+			} else {
 				p.Errors = append(p.Errors, fmt.Sprintf("resolve media slug %q for %q: %v", slug, prod.Slug, err))
 			}
 			return nil

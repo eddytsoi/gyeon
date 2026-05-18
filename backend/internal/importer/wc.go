@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -216,15 +218,28 @@ type wpMediaItem struct {
 	SourceURL string `json:"source_url"`
 	AltText   string `json:"alt_text"`
 	MimeType  string `json:"mime_type"`
+	Title     struct {
+		Rendered string `json:"rendered"`
+	} `json:"title"`
 }
 
-// resolveMediaSlug looks up a WP media attachment by its slug and returns
-// the matched item. WP's media endpoint is public-readable, so no auth
-// is sent — sending WC consumer key/secret here would fail with 401
-// because WP REST treats them as a WP user login attempt.
+// resolveMediaSlug resolves a value from a product's ACF meta (banner_1,
+// media_2, …) to a WP media attachment. Merchants don't always type a real
+// WP slug into those fields — we also see attachment titles, full source
+// URLs, and bare attachment IDs. We walk a ladder of strategies in order
+// of confidence; only the first that yields a match is used.
 //
-// Results are memoised per-client (one import run). errMediaSlugNotFound
-// is returned when WP returns an empty list.
+//  1. URL  → synthesize a wpMediaItem{SourceURL: value}; download path
+//     handles arbitrary URLs.
+//  2. Digits-only → GET /wp/v2/media/{id}.
+//  3. Slug as-is → GET /wp/v2/media?slug={value}.
+//  4. WP-sanitized slug ("IK FOAM Pro 2-1" → "ik-foam-pro-2-1").
+//  5. Title search → GET /wp/v2/media?search={value}, accept only an
+//     exact (case-insensitive) title match to avoid content-search noise.
+//
+// WP's media endpoint is public-readable, so no auth is sent — the WC
+// consumer key/secret would 401 here as WP treats them as a user login.
+// Results are memoised per-client (one import run) keyed by the raw input.
 func (c *wcClient) resolveMediaSlug(slug string) (wpMediaItem, error) {
 	if slug == "" {
 		return wpMediaItem{}, errMediaSlugNotFound
@@ -236,33 +251,143 @@ func (c *wcClient) resolveMediaSlug(slug string) (wpMediaItem, error) {
 	}
 	c.mediaSlugMu.Unlock()
 
-	u := c.baseURL + "/wp-json/wp/v2/media?slug=" + url.QueryEscape(slug)
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	item, err := c.lookupMedia(slug)
 	if err != nil {
 		return wpMediaItem{}, err
 	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return wpMediaItem{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return wpMediaItem{}, fmt.Errorf("wp media lookup %q: status %d", slug, resp.StatusCode)
-	}
-	var items []wpMediaItem
-	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
-		return wpMediaItem{}, fmt.Errorf("wp media lookup %q: decode: %w", slug, err)
-	}
-	if len(items) == 0 {
-		return wpMediaItem{}, errMediaSlugNotFound
-	}
-	// WP can return multiple matches when an attachment slug collides with
-	// another's numeric suffix; first match wins (newest on default order).
-	item := items[0]
 	c.mediaSlugMu.Lock()
 	c.mediaSlugCache[slug] = item
 	c.mediaSlugMu.Unlock()
 	return item, nil
+}
+
+func (c *wcClient) lookupMedia(value string) (wpMediaItem, error) {
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return wpMediaItem{SourceURL: value}, nil
+	}
+	if id, err := strconv.Atoi(value); err == nil && id > 0 {
+		if item, ok, err := c.fetchMediaByID(id); err != nil {
+			return wpMediaItem{}, err
+		} else if ok {
+			return item, nil
+		}
+	}
+	if item, ok, err := c.fetchMediaBySlug(value); err != nil {
+		return wpMediaItem{}, err
+	} else if ok {
+		return item, nil
+	}
+	if sanitized := wpSanitizeTitle(value); sanitized != "" && sanitized != value {
+		if item, ok, err := c.fetchMediaBySlug(sanitized); err != nil {
+			return wpMediaItem{}, err
+		} else if ok {
+			return item, nil
+		}
+	}
+	if item, ok, err := c.searchMediaByTitle(value); err != nil {
+		return wpMediaItem{}, err
+	} else if ok {
+		return item, nil
+	}
+	return wpMediaItem{}, errMediaSlugNotFound
+}
+
+func (c *wcClient) fetchMediaBySlug(slug string) (wpMediaItem, bool, error) {
+	u := c.baseURL + "/wp-json/wp/v2/media?slug=" + url.QueryEscape(slug)
+	resp, err := c.httpClient.Get(u)
+	if err != nil {
+		return wpMediaItem{}, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return wpMediaItem{}, false, fmt.Errorf("wp media lookup %q: status %d", slug, resp.StatusCode)
+	}
+	var items []wpMediaItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		return wpMediaItem{}, false, fmt.Errorf("wp media lookup %q: decode: %w", slug, err)
+	}
+	if len(items) == 0 {
+		return wpMediaItem{}, false, nil
+	}
+	// WP can return multiple matches when an attachment slug collides with
+	// another's numeric suffix; first match wins (newest on default order).
+	return items[0], true, nil
+}
+
+func (c *wcClient) fetchMediaByID(id int) (wpMediaItem, bool, error) {
+	u := c.baseURL + "/wp-json/wp/v2/media/" + strconv.Itoa(id)
+	resp, err := c.httpClient.Get(u)
+	if err != nil {
+		return wpMediaItem{}, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return wpMediaItem{}, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return wpMediaItem{}, false, fmt.Errorf("wp media id %d: status %d", id, resp.StatusCode)
+	}
+	var item wpMediaItem
+	if err := json.NewDecoder(resp.Body).Decode(&item); err != nil {
+		return wpMediaItem{}, false, fmt.Errorf("wp media id %d: decode: %w", id, err)
+	}
+	if item.SourceURL == "" {
+		return wpMediaItem{}, false, nil
+	}
+	return item, true, nil
+}
+
+func (c *wcClient) searchMediaByTitle(title string) (wpMediaItem, bool, error) {
+	u := c.baseURL + "/wp-json/wp/v2/media?per_page=10&search=" + url.QueryEscape(title)
+	resp, err := c.httpClient.Get(u)
+	if err != nil {
+		return wpMediaItem{}, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return wpMediaItem{}, false, fmt.Errorf("wp media search %q: status %d", title, resp.StatusCode)
+	}
+	var items []wpMediaItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		return wpMediaItem{}, false, fmt.Errorf("wp media search %q: decode: %w", title, err)
+	}
+	for _, it := range items {
+		// title.rendered is HTML-escaped (&amp; etc.) — unescape before
+		// comparing so values containing entities still match.
+		decoded := html.UnescapeString(it.Title.Rendered)
+		if strings.EqualFold(strings.TrimSpace(decoded), strings.TrimSpace(title)) {
+			return it, true, nil
+		}
+	}
+	return wpMediaItem{}, false, nil
+}
+
+// wpSanitizeTitle approximates WordPress's sanitize_title_with_dashes for
+// ASCII inputs: lowercase, collapse whitespace/underscore/slash runs into
+// single dashes, drop any other non-[a-z0-9-] character, then trim/collapse
+// dashes. For "IK FOAM Pro 2-1" this produces "ik-foam-pro-2-1", matching
+// the slug WP would have assigned the attachment at upload time.
+//
+// CJK and other non-ASCII inputs collapse to "" — the caller treats that
+// as "skip this strategy" and falls through to the title-search step.
+func wpSanitizeTitle(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	prevDash := false
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			prevDash = false
+		case r == ' ', r == '\t', r == '\n', r == '_', r == '/', r == '\\', r == '-':
+			if !prevDash {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func (c *wcClient) get(path string, params url.Values, out interface{}) error {
