@@ -34,6 +34,7 @@ import (
 	"gyeon/backend/internal/queue"
 	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/recaptcha"
+	"gyeon/backend/internal/receipt"
 	"gyeon/backend/internal/redirects"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/shipany"
@@ -362,6 +363,15 @@ func main() {
 	loyaltySvc := loyalty.NewService(conn)
 	loyaltyHandler := loyalty.NewHandler(loyaltySvc)
 
+	// PDF receipt renderer + handler. The renderer keeps a long-lived
+	// headless Chromium process around so the second download onwards skips
+	// the cold-start; Close on shutdown.
+	receiptRenderer := receipt.NewRenderer()
+	defer receiptRenderer.Close()
+	receiptHandler := receipt.NewHandler(
+		receipt.NewService(conn, orderSvc, settingsSvc, receiptRenderer),
+	)
+
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
 	recaptchaVerifier := recaptcha.New(settingsSvc)
 	formsSvc := forms.NewService(conn, emailEnqueuer, recaptchaVerifier, formsSettingsAdapter{svc: settingsSvc})
@@ -560,6 +570,10 @@ func main() {
 			r.Use(auth.CustomerMiddleware(customerJWTSecret))
 			r.Mount("/order-notices", noticeHandler.CustomerRoutes())
 			r.Mount("/loyalty", loyaltyHandler.CustomerRoutes())
+			// PDF receipt for the customer's own order. Mounted as a sibling
+			// of /customers (not nested) because chi rejects two handlers
+			// rooted at the same path. The frontend proxy hits this directly.
+			r.Mount("/customer-orders", receiptHandler.CustomerRoutes())
 		})
 
 		// Admin auth (now uses admin_users table) — per-IP throttle to slow
@@ -617,6 +631,11 @@ func main() {
 			// Order admin — list / get / status / delete / refund. Public /orders
 			// only exposes checkout + PI-authorized read-back.
 			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+
+			// PDF receipt for admin: /admin/orders/{id}/receipt.pdf. Registered
+			// directly (not as a sibling Mount) because chi disallows two
+			// handlers rooted at the same path.
+			r.Mount("/admin/order-receipts", receiptHandler.AdminRoutes())
 
 			// Admin-side order notices
 			r.Mount("/admin/order-notices", noticeHandler.AdminRoutes())

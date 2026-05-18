@@ -866,6 +866,77 @@
       </div>
     {/if}
 
+    <!-- Company info (shown on PDF receipts) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_company_info_heading()}</h2>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_company_info_subtitle()}</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <label for="company_address_line1" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_address_line1()}
+          </label>
+          <input id="company_address_line1" name="company_address_line1" type="text"
+                 value={data.settings.find((s) => s.key === 'company_address_line1')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <label for="company_address_line2" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_address_line2()}
+          </label>
+          <input id="company_address_line2" name="company_address_line2" type="text"
+                 value={data.settings.find((s) => s.key === 'company_address_line2')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="company_city" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_city()}
+          </label>
+          <input id="company_city" name="company_city" type="text"
+                 value={data.settings.find((s) => s.key === 'company_city')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="company_postal_code" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_postal_code()}
+          </label>
+          <input id="company_postal_code" name="company_postal_code" type="text"
+                 value={data.settings.find((s) => s.key === 'company_postal_code')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="company_country" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_country()}
+          </label>
+          <input id="company_country" name="company_country" type="text"
+                 value={data.settings.find((s) => s.key === 'company_country')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="company_phone" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_phone()}
+          </label>
+          <input id="company_phone" name="company_phone" type="text"
+                 value={data.settings.find((s) => s.key === 'company_phone')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <label for="company_registration_no" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_company_info_registration_no()}
+          </label>
+          <input id="company_registration_no" name="company_registration_no" type="text"
+                 value={data.settings.find((s) => s.key === 'company_registration_no')?.value ?? ''}
+                 class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    </div>
+
     </div>
 
     <!-- Commerce tab -->

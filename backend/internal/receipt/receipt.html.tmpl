@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="{{ .Locale }}">
+<head>
+<meta charset="utf-8">
+<title>{{ .L.receipt_title }} {{ .Order.OrderNumber }}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm 14mm 12mm; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Inter", "Helvetica Neue", "Helvetica", "Arial",
+                 "Noto Sans CJK TC", "Noto Sans TC", "PingFang TC",
+                 "Microsoft JhengHei", sans-serif;
+    color: #19253F;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+  h1, h2, h3 { margin: 0; font-weight: 600; }
+  .receipt { width: 100%; }
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+  .brand .logo { max-height: 48px; max-width: 220px; display: block; margin-bottom: 8px; }
+  .brand .name { font-size: 16pt; font-weight: 700; letter-spacing: -0.01em; color: #19253F; }
+  .brand .meta { font-size: 8.5pt; color: #6B7280; line-height: 1.5; white-space: pre-line; margin-top: 2px; }
+  .receipt-meta { text-align: right; }
+  .receipt-meta .title { font-size: 18pt; font-weight: 700; color: #19253F; letter-spacing: -0.01em; }
+  .receipt-meta dl { margin: 8px 0 0; padding: 0; font-size: 9pt; }
+  .receipt-meta dt { color: #6B7280; display: inline-block; min-width: 92px; }
+  .receipt-meta dd { display: inline; margin: 0; font-weight: 500; color: #19253F; }
+  .receipt-meta dl > div { margin-bottom: 2px; }
+  .addresses {
+    display: flex;
+    gap: 24px;
+    margin: 14px 0 16px;
+  }
+  .addresses .col {
+    flex: 1;
+    background: #F8F7F4;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .addresses .col h3 {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6B7280;
+    margin-bottom: 4px;
+  }
+  .addresses .col .body { font-size: 9pt; white-space: pre-line; }
+  .addresses .col .body strong { display: block; color: #19253F; margin-bottom: 1px; }
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 9pt;
+  }
+  table.items thead {
+    display: table-header-group;
+  }
+  table.items thead th {
+    background: #19253F;
+    color: #FFFFFF;
+    font-weight: 600;
+    text-align: left;
+    padding: 6px 8px;
+    font-size: 8.5pt;
+    letter-spacing: 0.02em;
+  }
+  table.items thead th.center { text-align: center; }
+  table.items thead th.right { text-align: right; }
+  table.items tbody td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #E5E7EB;
+    vertical-align: top;
+  }
+  table.items tbody td.center { text-align: center; }
+  table.items tbody td.right { text-align: right; white-space: nowrap; }
+  table.items tbody tr.bundle-child td {
+    color: #6B7280;
+    font-size: 8.5pt;
+    background: #FAFAF8;
+  }
+  table.items tbody tr.bundle-child td.product { padding-left: 24px; }
+  table.items tbody tr.bundle-child td.product::before {
+    content: "↳ ";
+    color: #9CA3AF;
+  }
+  td.image { width: 56px; }
+  td.image .thumb {
+    width: 40px; height: 40px;
+    background: #F3F4F6;
+    border-radius: 4px;
+    object-fit: cover;
+    display: block;
+  }
+  td.product .name { font-weight: 500; color: #19253F; }
+  td.product .sku  { color: #9CA3AF; font-size: 7.5pt; margin-top: 1px; font-variant-numeric: tabular-nums; }
+  td.product .attrs { color: #6B7280; font-size: 8pt; margin-top: 1px; }
+  td.idx { width: 26px; text-align: center; color: #9CA3AF; font-variant-numeric: tabular-nums; }
+  td.qty { width: 40px; }
+  td.right { font-variant-numeric: tabular-nums; }
+  .totals {
+    margin: 0 0 0 auto;
+    width: 50%;
+    margin-top: 12px;
+    font-size: 9.5pt;
+  }
+  .totals .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    color: #4B5563;
+  }
+  .totals .row.discount { color: #047857; }
+  .totals .row.total {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px solid #19253F;
+    font-weight: 700;
+    color: #19253F;
+    font-size: 11pt;
+  }
+  .payment {
+    margin-top: 16px;
+    padding: 10px 12px;
+    background: #F8F7F4;
+    border-radius: 6px;
+    font-size: 9pt;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .payment .label { color: #6B7280; }
+  .payment .value { font-weight: 500; color: #19253F; }
+  footer.bottom {
+    margin-top: 18px;
+    padding-top: 10px;
+    border-top: 1px solid #E5E7EB;
+    text-align: center;
+    color: #6B7280;
+    font-size: 8.5pt;
+    line-height: 1.5;
+  }
+  footer.bottom .thanks { color: #19253F; font-weight: 600; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="receipt">
+  <header class="top">
+    <div class="brand">
+      {{ if .Shop.LogoURL }}
+        <img class="logo" src="{{ .Shop.LogoURL }}" alt="">
+      {{ end }}
+      <div class="name">{{ .Shop.Name }}</div>
+      <div class="meta">{{ .Shop.AddressBlock }}{{ if .Shop.Phone }}
+{{ .Shop.Phone }}{{ end }}{{ if .Shop.Email }}
+{{ .Shop.Email }}{{ end }}{{ if .Shop.RegistrationNo }}
+{{ .L.registration_no }}: {{ .Shop.RegistrationNo }}{{ end }}</div>
+    </div>
+    <div class="receipt-meta">
+      <div class="title">{{ .L.receipt_title }}</div>
+      <dl>
+        <div><dt>{{ .L.receipt_number }}</dt><dd>{{ .Order.OrderNumber }}</dd></div>
+        <div><dt>{{ .L.receipt_date }}</dt><dd>{{ .ReceiptDate }}</dd></div>
+        <div><dt>{{ .L.placed_on }}</dt><dd>{{ .PlacedOn }}</dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <div class="addresses">
+    <div class="col">
+      <h3>{{ .L.bill_to }}</h3>
+      <div class="body">{{ if .BillTo.Name }}<strong>{{ .BillTo.Name }}</strong>{{ end }}{{ if .BillTo.Email }}
+{{ .BillTo.Email }}{{ end }}{{ if .BillTo.Phone }}
+{{ .BillTo.Phone }}{{ end }}</div>
+    </div>
+    <div class="col">
+      <h3>{{ .L.ship_to }}</h3>
+      <div class="body">{{ if .ShipTo }}{{ if .ShipTo.Name }}<strong>{{ .ShipTo.Name }}</strong>{{ end }}{{ .ShipTo.AddressBlock }}{{ if .ShipTo.Phone }}
+{{ .ShipTo.Phone }}{{ end }}{{ else }}—{{ end }}</div>
+    </div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th class="center">{{ .L.item }}</th>
+        <th>{{ .L.image }}</th>
+        <th>{{ .L.product }}</th>
+        <th class="center">{{ .L.qty }}</th>
+        <th class="right">{{ .L.unit_price }}</th>
+        <th class="right">{{ .L.line_total }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range $i, $row := .Rows }}
+        <tr{{ if $row.IsChild }} class="bundle-child"{{ end }}>
+          <td class="idx">{{ if not $row.IsChild }}{{ $row.Index }}{{ end }}</td>
+          <td class="image">
+            {{ if $row.ImageURL }}<img class="thumb" src="{{ $row.ImageURL }}" alt="">{{ end }}
+          </td>
+          <td class="product">
+            <div class="name">{{ $row.ProductName }}</div>
+            {{ if $row.SKU }}<div class="sku">{{ $row.SKU }}</div>{{ end }}
+            {{ if $row.Attrs }}<div class="attrs">{{ $row.Attrs }}</div>{{ end }}
+          </td>
+          <td class="qty center">{{ $row.Quantity }}</td>
+          <td class="right">{{ if $row.IsChild }}<span style="color:#9CA3AF">—</span>{{ else }}{{ $row.UnitPriceFmt }}{{ end }}</td>
+          <td class="right">{{ if $row.IsChild }}<span style="color:#9CA3AF">{{ $.L.included_in_bundle }}</span>{{ else }}{{ $row.LineTotalFmt }}{{ end }}</td>
+        </tr>
+      {{ end }}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="row"><span>{{ .L.subtotal }}</span><span>{{ .SubtotalFmt }}</span></div>
+    {{ if .HasDiscount }}<div class="row discount"><span>{{ .L.discount }}</span><span>-{{ .DiscountFmt }}</span></div>{{ end }}
+    {{ if .HasTax }}<div class="row"><span>{{ .L.tax }}</span><span>{{ .TaxFmt }}</span></div>{{ end }}
+    <div class="row"><span>{{ .L.shipping }}</span><span>{{ .ShippingFmt }}</span></div>
+    <div class="row total"><span>{{ .L.total }}</span><span>{{ .TotalFmt }}</span></div>
+  </div>
+
+  {{ if .PaymentLine }}
+    <div class="payment">
+      <span class="label">{{ .L.payment_method }}</span>
+      <span class="value">{{ .PaymentLine }}</span>
+    </div>
+  {{ end }}
+
+  <footer class="bottom">
+    <div class="thanks">{{ .L.thank_you }}</div>
+    {{ if .Shop.Email }}<div>{{ .L.contact_us }} {{ .Shop.Email }}</div>{{ end }}
+  </footer>
+</div>
+</body>
+</html>

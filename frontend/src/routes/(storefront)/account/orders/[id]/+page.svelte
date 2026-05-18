@@ -61,9 +61,25 @@
           {m.account_order_placed_on({ date: new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' }) })}
         </p>
       </div>
-      <span class="px-3 py-1.5 rounded-full text-sm font-medium border {statusColors[order.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}">
-        {orderStatusLabel(order.status)}
-      </span>
+      <div class="flex items-center gap-2 flex-wrap">
+        {#if ['paid','processing','shipped','delivered'].includes(order.status)}
+          <a href="/account/orders/{order.id}/receipt.pdf"
+             target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+                    text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {m.account_order_receipt_download()}
+          </a>
+        {/if}
+        <span class="px-3 py-1.5 rounded-full text-sm font-medium border {statusColors[order.status] ?? 'bg-gray-100 text-gray-600 border-gray-200'}">
+          {orderStatusLabel(order.status)}
+        </span>
+      </div>
     </div>
 
     <!-- Progress bar (for non-terminal statuses) -->
