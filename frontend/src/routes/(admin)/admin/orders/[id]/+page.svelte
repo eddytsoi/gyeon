@@ -123,11 +123,31 @@
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_status()}</p>
-      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium
-                   {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
-        {orderStatusLabel(data.order.status)}
-      </span>
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_status()}</p>
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium
+                       {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
+            {orderStatusLabel(data.order.status)}
+          </span>
+        </div>
+        {#if ['paid','processing','shipped','delivered'].includes(data.order.status)}
+          <a href="/admin/orders/{data.order.id}/receipt.pdf"
+             target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
+                    text-gray-700 border border-gray-200 rounded-lg
+                    hover:bg-gray-50 transition-colors whitespace-nowrap"
+             title={m.admin_order_receipt_download()}>
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {m.admin_order_receipt_download()}
+          </a>
+        {/if}
+      </div>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
       <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_total()}</p>
