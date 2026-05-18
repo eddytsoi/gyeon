@@ -127,7 +127,6 @@
     io.observe(sentinel);
     return () => {
       io.disconnect();
-      abortCtl?.abort();
     };
   });
 
