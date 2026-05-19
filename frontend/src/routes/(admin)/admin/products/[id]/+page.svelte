@@ -713,16 +713,6 @@
           </select>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">PDP Layout</label>
-          <select name="use_taobao_layout" bind:value={layoutSel}
-                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-gray-900">
-            <option value="default">Default (use site setting)</option>
-            <option value="off">Classic — inline add-to-cart</option>
-            <option value="on">Taobao — add-to-cart opens modal</option>
-          </select>
-        </div>
-        <div class="flex flex-col gap-1.5">
           <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_product_edit_label_additional_categories()}
           </span>
@@ -745,6 +735,16 @@
             {#each primaryCategoryChoices as cat}
               <option value={cat.id}>{cat.name}</option>
             {/each}
+          </select>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">PDP Layout</label>
+          <select name="use_taobao_layout" bind:value={layoutSel}
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="default">Default (use site setting)</option>
+            <option value="off">Classic — inline add-to-cart</option>
+            <option value="on">Taobao — add-to-cart opens modal</option>
           </select>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
