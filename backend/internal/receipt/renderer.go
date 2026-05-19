@@ -1,7 +1,6 @@
 package receipt
 
 import (
-	"container/list"
 	"context"
 	"fmt"
 	"sync"
@@ -11,26 +10,19 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-// pdfCacheSize is the LRU cap. Average receipt PDF is ~30-80 KB, so 256
-// entries stays comfortably under ~20 MB even on the upper end.
-const pdfCacheSize = 256
-
 // Renderer wraps a headless Chromium process and renders HTML pages to PDF.
 // One allocator is reused across requests so the second receipt onwards skips
-// the ~300ms browser cold-start. The mutex below only guards lazy allocator
-// initialisation — once that's done, each render opens its own tab and runs
-// concurrently with other renders against the same browser.
+// the ~300ms browser cold-start. Concurrency is serialised: chromedp can
+// share an allocator across contexts, but issuing many parallel Page.printToPDF
+// calls against the same browser quickly exhausts file descriptors and is not
+// worth the complexity for a receipt endpoint that fires once per order view.
 type Renderer struct {
 	mu        sync.Mutex
 	allocCtx  context.Context
 	allocStop context.CancelFunc
-
-	cache *pdfCache
 }
 
-func NewRenderer() *Renderer {
-	return &Renderer{cache: newPDFCache(pdfCacheSize)}
-}
+func NewRenderer() *Renderer { return &Renderer{} }
 
 // ensureAlloc lazily spins up the long-lived allocator. Caller must hold r.mu.
 func (r *Renderer) ensureAlloc() {
@@ -60,14 +52,7 @@ func (r *Renderer) Close() {
 
 // Render returns a PDF byte slice for the given HTML document. The HTML must
 // be self-contained: external <link>/<script>/<img> URLs are fetched by
-// Chromium, so make sure remote assets are reachable from the API host (or
-// inline them as data: URIs before calling Render — see receipt.inlineImages).
-//
-// The HTML is injected via Page.SetDocumentContent rather than navigating to
-// a data: URL. The former has no size limit; the latter silently truncates
-// past ~1 MB on some Chromium builds, producing receipts where inlined
-// <img src="data:image/…"> tags get cut mid-base64 and render as broken
-// images. v0.9.189 hit this when image inlining was added.
+// Chromium, so make sure remote assets are reachable from the API host.
 func (r *Renderer) Render(ctx context.Context, html string) ([]byte, error) {
 	r.mu.Lock()
 	r.ensureAlloc()
@@ -84,20 +69,9 @@ func (r *Renderer) Render(ctx context.Context, html string) ([]byte, error) {
 	defer cancelTimeout()
 
 	var pdf []byte
+	dataURL := "data:text/html;charset=utf-8," + encodeForDataURL(html)
 	err := chromedp.Run(tabCtx,
-		// Navigate to about:blank so the tab has a valid frame tree we can
-		// target SetDocumentContent at.
-		chromedp.Navigate("about:blank"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			tree, err := page.GetFrameTree().Do(ctx)
-			if err != nil {
-				return fmt.Errorf("getFrameTree: %w", err)
-			}
-			if err := page.SetDocumentContent(tree.Frame.ID, html).Do(ctx); err != nil {
-				return fmt.Errorf("setDocumentContent: %w", err)
-			}
-			return nil
-		}),
+		chromedp.Navigate(dataURL),
 		chromedp.WaitReady("body", chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			data, _, err := page.PrintToPDF().
@@ -117,86 +91,24 @@ func (r *Renderer) Render(ctx context.Context, html string) ([]byte, error) {
 	return pdf, nil
 }
 
-// RenderCached returns the PDF for the given cache key, generating it lazily
-// from buildHTML on a miss. buildHTML is a closure so the expensive work
-// (image inlining, template execution) is also skipped on a hit. The boolean
-// reports whether the result came from cache, for instrumentation.
-//
-// Callers are responsible for embedding any inputs that should bust the cache
-// (order updated_at, locale, branding version, …) into key. An empty key
-// bypasses the cache entirely — used as a safe escape hatch when an input
-// needed for keying is unavailable.
-func (r *Renderer) RenderCached(ctx context.Context, key string, buildHTML func() (string, error)) ([]byte, bool, error) {
-	if key != "" {
-		if pdf, ok := r.cache.get(key); ok {
-			return pdf, true, nil
+// encodeForDataURL percent-encodes the bytes that would otherwise break a
+// data: URL — primarily `#` (fragment start), `%` (escape char) and `&`
+// (parameter delimiter when the data URL is itself in a larger query). Keeping
+// the encoding minimal preserves the data URL's readability when debugging
+// rendering issues by pasting it into a browser.
+func encodeForDataURL(s string) string {
+	var b []byte
+	b = make([]byte, 0, len(s)+32)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case '#', '%', '&':
+			b = append(b, '%')
+			const hex = "0123456789ABCDEF"
+			b = append(b, hex[c>>4], hex[c&0xF])
+		default:
+			b = append(b, c)
 		}
 	}
-	html, err := buildHTML()
-	if err != nil {
-		return nil, false, err
-	}
-	pdf, err := r.Render(ctx, html)
-	if err != nil {
-		return nil, false, err
-	}
-	if key != "" {
-		r.cache.add(key, pdf)
-	}
-	return pdf, false, nil
+	return string(b)
 }
-
-// pdfCache is a tiny LRU keyed by string, holding []byte payloads. Concurrent
-// access is serialised with a mutex — the contended path is cheap (map +
-// list ops, no allocation on hits) and avoids pulling in a dependency for
-// something this small.
-type pdfCache struct {
-	mu    sync.Mutex
-	cap   int
-	items map[string]*list.Element
-	order *list.List
-}
-
-type pdfCacheEntry struct {
-	key string
-	val []byte
-}
-
-func newPDFCache(cap int) *pdfCache {
-	return &pdfCache{
-		cap:   cap,
-		items: make(map[string]*list.Element, cap),
-		order: list.New(),
-	}
-}
-
-func (c *pdfCache) get(key string) ([]byte, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	el, ok := c.items[key]
-	if !ok {
-		return nil, false
-	}
-	c.order.MoveToFront(el)
-	return el.Value.(*pdfCacheEntry).val, true
-}
-
-func (c *pdfCache) add(key string, val []byte) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if el, ok := c.items[key]; ok {
-		el.Value.(*pdfCacheEntry).val = val
-		c.order.MoveToFront(el)
-		return
-	}
-	el := c.order.PushFront(&pdfCacheEntry{key: key, val: val})
-	c.items[key] = el
-	if c.order.Len() > c.cap {
-		oldest := c.order.Back()
-		if oldest != nil {
-			c.order.Remove(oldest)
-			delete(c.items, oldest.Value.(*pdfCacheEntry).key)
-		}
-	}
-}
-
