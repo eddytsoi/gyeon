@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { enhance } from '$app/forms';
+  import { replaceState } from '$app/navigation';
   import type { PageData } from './$types';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import MediaPicker from '$lib/components/admin/MediaPicker.svelte';
@@ -38,14 +39,20 @@
 
   let activeTab = $state<TabId>('general');
 
-  onMount(() => {
+  function syncTabFromHash() {
     const fromHash = window.location.hash.slice(1) as TabId;
     if (TABS.some((t) => t.id === fromHash)) activeTab = fromHash;
+  }
+
+  onMount(() => {
+    syncTabFromHash();
+    window.addEventListener('popstate', syncTabFromHash);
+    return () => window.removeEventListener('popstate', syncTabFromHash);
   });
 
   function setTab(id: TabId) {
     activeTab = id;
-    history.replaceState(null, '', `#${id}`);
+    replaceState(`#${id}`, {});
   }
 
   // ── Tab magnetic spotlight ───────────────────────────────────────
