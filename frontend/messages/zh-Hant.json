@@ -1535,6 +1535,7 @@
   "admin_settings_label_site_name": "網站名稱",
   "admin_settings_label_form_upload_hard_cap_mb": "表單上傳上限 (MB)",
   "admin_settings_label_pdp_taobao_layout": "產品淘寶樣式",
+  "admin_settings_desc_pdp_taobao_layout": "若啟用此功能，前台商品詳情頁將使用全站統一的淘寶樣式購物彈窗。每個商品都可以個別覆寫此設定。",
   "admin_settings_desc_form_upload_hard_cap_mb": "聯絡 / 自訂表單上傳檔案的最大容量（MB）。為硬性上限，不會被個別表單設定覆蓋。",
   "admin_settings_desc_currency": "預設貨幣代碼（ISO 4217）",
   "admin_settings_desc_free_shipping_threshold_hkd": "訂單小計達到此金額（HKD）或以上即享免運費。0 = 停用。",

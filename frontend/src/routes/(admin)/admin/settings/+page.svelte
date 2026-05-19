@@ -1772,7 +1772,7 @@
           <div>
             <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_taobao_layout()}</p>
             <p class="text-xs text-gray-400 mt-0.5">
-              {pdpTaobaoSetting.description ?? 'When on, the storefront PDP uses a modal-based add-to-cart flow that surfaces variants and promo bundles together. Each product can override this default from its admin page.'}
+              {m.admin_settings_desc_pdp_taobao_layout()}
             </p>
           </div>
           <button type="button"
