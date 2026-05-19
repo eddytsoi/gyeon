@@ -699,26 +699,29 @@
           </div>
         {/if}
 
-        <!-- Qty + CTA -->
+        <!-- Qty + CTA. In taobao layout the qty stepper lives inside the
+             selection modal, so the inline stepper is hidden here. -->
         <div class="flex gap-3" bind:this={ctaEl}>
-          <div class="flex items-center border-2 border-ink-300 rounded-xl overflow-hidden bg-white">
-            <button
-              type="button"
-              onclick={() => (qty = Math.max(1, qty - 1))}
-              aria-label={m.common_aria_decrease_quantity()}
-              disabled={qty <= 1}
-              class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
-                     disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg"
-            >−</button>
-            <span class="w-10 text-center font-display text-sm font-bold text-ink-900 tabular-nums" aria-live="polite">{qty}</span>
-            <button
-              type="button"
-              onclick={() => (qty = qty + 1)}
-              aria-label={m.common_aria_increase_quantity()}
-              class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
-                     transition-colors text-lg"
-            >+</button>
-          </div>
+          {#if !data.useTaobaoLayout}
+            <div class="flex items-center border-2 border-ink-300 rounded-xl overflow-hidden bg-white">
+              <button
+                type="button"
+                onclick={() => (qty = Math.max(1, qty - 1))}
+                aria-label={m.common_aria_decrease_quantity()}
+                disabled={qty <= 1}
+                class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
+                       disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg"
+              >−</button>
+              <span class="w-10 text-center font-display text-sm font-bold text-ink-900 tabular-nums" aria-live="polite">{qty}</span>
+              <button
+                type="button"
+                onclick={() => (qty = qty + 1)}
+                aria-label={m.common_aria_increase_quantity()}
+                class="w-11 h-12 flex items-center justify-center text-ink-500 hover:text-navy-500 hover:bg-paper
+                       transition-colors text-lg"
+              >+</button>
+            </div>
+          {/if}
 
           <button
             onclick={addToCart}

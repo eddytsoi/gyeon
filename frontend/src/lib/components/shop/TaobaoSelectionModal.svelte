@@ -206,7 +206,7 @@
       <div class="flex items-start gap-4 p-5 sm:p-6 border-b border-ink-300/40">
         <button type="button" aria-label="View image"
                 onclick={() => onOpenImageBrowser(selectedIndex())}
-                class="shrink-0 w-24 h-24 sm:w-28 sm:h-28 ring-2 ring-red-500 rounded overflow-hidden bg-paper">
+                class="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded overflow-hidden bg-paper">
           {#if selected.image}
             <ResponsiveImage src={selected.image} alt={selected.name}
                              widths={[160, 240, 320]} sizes="120px"
