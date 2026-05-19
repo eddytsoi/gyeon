@@ -113,14 +113,14 @@
        onclick={close}
        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') close(); }}
        tabindex="-1">
-    <!-- Top bar: close + counter -->
+    <!-- Top bar: counter centered, close button top-right. -->
     <div class="flex items-center justify-between px-4 sm:px-6 py-4 text-white">
+      <span class="w-10 h-10"></span>
+      <div class="text-base font-medium text-white/90 tabular-nums">{index + 1} / {items.length}</div>
       <button type="button" aria-label="Close" onclick={close}
               class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6l-12 12"/></svg>
       </button>
-      <div class="text-base font-medium text-white/90 tabular-nums">{index + 1} / {items.length}</div>
-      <span class="w-10 h-10"></span>
     </div>
 
     <!-- Image area — stop propagation so taps on the inner area don't dismiss. -->
