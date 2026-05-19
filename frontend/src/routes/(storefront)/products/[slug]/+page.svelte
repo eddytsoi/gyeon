@@ -619,8 +619,9 @@
 
         <div class="border-t border-ink-300/60"></div>
 
-        <!-- Variant selector -->
-        {#if data.variants.length > 0 && data.product.kind !== 'bundle'}
+        <!-- Variant selector. In taobao layout the variant chips live inside
+             the selection modal, so the inline selector is hidden here. -->
+        {#if data.variants.length > 0 && data.product.kind !== 'bundle' && !data.useTaobaoLayout}
           <div>
             <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-3">
               {data.variants.length > 1 ? m.product_detail_options_label_multi() : m.product_detail_options_label_single()}
