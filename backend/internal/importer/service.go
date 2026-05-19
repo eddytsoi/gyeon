@@ -502,6 +502,14 @@ func (s *Service) importProduct(
 		img       wcImage
 	}
 	var variantImages []variantImage
+	// WC's /products/{id}/variations endpoint never returns nil for a
+	// variation's image — when admin has no image on the variation, WC
+	// substitutes the parent's featured image (images[0]). We treat
+	// image.id == parent.images[0].id as "no own image" and skip.
+	var parentFeaturedImageID int
+	if len(prod.Images) > 0 {
+		parentFeaturedImageID = prod.Images[0].ID
+	}
 	if prod.Type == "variable" {
 		variations, err := wc.fetchVariations(prod.ID)
 		if err != nil {
@@ -513,7 +521,7 @@ func (s *Service) importProduct(
 				p.Errors = append(p.Errors, fmt.Sprintf("variant for %q (id=%d): %v", prod.Slug, v.ID, err))
 				continue
 			}
-			if v.Image != nil && v.Image.Src != "" {
+			if v.Image != nil && v.Image.Src != "" && v.Image.ID != parentFeaturedImageID {
 				variantImages = append(variantImages, variantImage{variantID: variantID, img: *v.Image})
 			}
 			seenVariationIDs = append(seenVariationIDs, v.ID)

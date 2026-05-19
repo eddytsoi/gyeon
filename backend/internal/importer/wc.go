@@ -29,6 +29,7 @@ type wcProductCategory struct {
 }
 
 type wcImage struct {
+	ID       int    `json:"id"`
 	Src      string `json:"src"`
 	Alt      string `json:"alt"`
 	Position int    `json:"position"`
@@ -117,9 +118,12 @@ type wcVariation struct {
 	Weight        string        `json:"weight"`
 	Dimensions    wcDimensions  `json:"dimensions"`
 	Attributes    []wcAttribute `json:"attributes"`
-	// Image is the variation-specific image set in WC. WC's variations
-	// endpoint returns a single object (not an array); nil when the
-	// variation inherits the parent product image.
+	// Image is the variation-specific image WC exposes for this variation.
+	// Despite the WC docs implying otherwise, /products/{id}/variations
+	// never returns nil here: when no image is set on the variation in WC
+	// admin, WC silently substitutes the parent product's featured image
+	// (images[0]). Callers must compare Image.ID against the parent's
+	// featured image ID to detect "no own image."
 	Image *wcImage `json:"image"`
 }
 
