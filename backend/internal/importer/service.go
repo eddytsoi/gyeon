@@ -66,6 +66,10 @@ type ImportRequest struct {
 	// default) or "bundle_products" (WC Product Bundles plugin entries).
 	// One filter per run keeps stale-cleanup scoped to that kind.
 	ProductType string `json:"product_type"`
+	// ProductID, when > 0, limits the run to a single WooCommerce product
+	// fetched by ID. Takes precedence over Limit. Stale cleanup is skipped
+	// when set — one product is never an authoritative "seen" set.
+	ProductID int `json:"product_id"`
 }
 
 // ProgressUpdate is sent via SSE for every meaningful step of the import.
@@ -222,11 +226,16 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := ProgressUpdate{Errors: []string{}}
 
-	p.TotalProducts = wc.fetchProductTotal(countTypes)
-	// When the caller capped the run, show the cap as the denominator so
-	// the progress bar represents work scheduled, not the WC store size.
-	if req.Limit > 0 && (p.TotalProducts == 0 || p.TotalProducts > req.Limit) {
-		p.TotalProducts = req.Limit
+	if req.ProductID > 0 {
+		// Single-product run: denominator is always 1, no count call.
+		p.TotalProducts = 1
+	} else {
+		p.TotalProducts = wc.fetchProductTotal(countTypes)
+		// When the caller capped the run, show the cap as the denominator so
+		// the progress bar represents work scheduled, not the WC store size.
+		if req.Limit > 0 && (p.TotalProducts == 0 || p.TotalProducts > req.Limit) {
+			p.TotalProducts = req.Limit
+		}
 	}
 	send(p)
 
@@ -254,26 +263,14 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	// the run finishes (products that no longer exist in WC).
 	seenWCProductIDs := make([]int, 0, p.TotalProducts)
 
-pages:
-	for page := 1; ; page++ {
-		products, err := wc.fetchProducts(page, wcType)
+	if req.ProductID > 0 {
+		prod, err := wc.fetchProduct(req.ProductID)
 		if err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("fetch products page %d: %v", page, err))
-			break
-		}
-		if len(products) == 0 {
-			break
-		}
-		for _, prod := range products {
-			if req.Limit > 0 && p.ProcessedProducts >= req.Limit {
-				break pages
-			}
-			// Defensive client-side filter — server-side ?type= is missing
-			// for the "products" preset, and even when set we don't trust
-			// every plugin to honour it perfectly.
-			if !matchesProductType(req.ProductType, prod.Type) {
-				continue
-			}
+			p.Errors = append(p.Errors, fmt.Sprintf("fetch product %d: %v", req.ProductID, err))
+		} else if !matchesProductType(req.ProductType, prod.Type) {
+			p.Errors = append(p.Errors, fmt.Sprintf(
+				"product %d has type %q which doesn't match selected import type", req.ProductID, prod.Type))
+		} else {
 			p.CurrentProduct = prod.Name
 			send(p)
 			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
@@ -286,14 +283,49 @@ pages:
 			p.CurrentProduct = ""
 			send(p)
 		}
+	} else {
+	pages:
+		for page := 1; ; page++ {
+			products, err := wc.fetchProducts(page, wcType)
+			if err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("fetch products page %d: %v", page, err))
+				break
+			}
+			if len(products) == 0 {
+				break
+			}
+			for _, prod := range products {
+				if req.Limit > 0 && p.ProcessedProducts >= req.Limit {
+					break pages
+				}
+				// Defensive client-side filter — server-side ?type= is missing
+				// for the "products" preset, and even when set we don't trust
+				// every plugin to honour it perfectly.
+				if !matchesProductType(req.ProductType, prod.Type) {
+					continue
+				}
+				p.CurrentProduct = prod.Name
+				send(p)
+				seenWCProductIDs = append(seenWCProductIDs, prod.ID)
+				if gyeonKind == "bundle" {
+					s.importBundleProduct(ctx, wc, prod, categoryMap, &p)
+				} else {
+					s.importProduct(ctx, wc, prod, categoryMap, &p)
+				}
+				p.ProcessedProducts++
+				p.CurrentProduct = ""
+				send(p)
+			}
+		}
 	}
 
 	// Stale cleanup: delete WC-imported products whose WC ID was not seen
-	// in this run. Skipped under Limit > 0 — a partial run hasn't seen the
-	// rest of the catalog, so its "seen" set isn't authoritative and the
-	// delete would wipe products the run never visited. Scoped to gyeonKind
-	// so the other kind's previously-imported rows aren't affected.
-	if req.Limit == 0 {
+	// in this run. Skipped under Limit > 0 or ProductID > 0 — a partial run
+	// hasn't seen the rest of the catalog, so its "seen" set isn't
+	// authoritative and the delete would wipe products the run never visited.
+	// Scoped to gyeonKind so the other kind's previously-imported rows aren't
+	// affected.
+	if req.Limit == 0 && req.ProductID == 0 {
 		if n, derr := s.productSvc.DeleteStaleWCProducts(ctx, gyeonKind, seenWCProductIDs); derr != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("delete stale products: %v", derr))
 		} else {
@@ -780,7 +812,6 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 		LengthMM:       parseDimensionCM(prod.Dimensions.Length),
 		WidthMM:        parseDimensionCM(prod.Dimensions.Width),
 		HeightMM:       parseDimensionCM(prod.Dimensions.Height),
-		IsActive:       prod.Status == "publish",
 	})
 	return err
 }
@@ -805,7 +836,6 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 		LengthMM:       parseDimensionCM(v.Dimensions.Length),
 		WidthMM:        parseDimensionCM(v.Dimensions.Width),
 		HeightMM:       parseDimensionCM(v.Dimensions.Height),
-		IsActive:       v.Status == "publish",
 	})
 }
 

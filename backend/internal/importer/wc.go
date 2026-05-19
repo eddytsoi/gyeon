@@ -110,7 +110,6 @@ type wcBundledItem struct {
 
 type wcVariation struct {
 	ID            int           `json:"id"`
-	Status        string        `json:"status"`
 	RegularPrice  string        `json:"regular_price"`
 	SalePrice     string        `json:"sale_price"`
 	StockQuantity *int          `json:"stock_quantity"`
@@ -505,6 +504,22 @@ func (c *wcClient) fetchProducts(page int, wcType string) ([]wcProduct, error) {
 		}
 	}
 	return products, nil
+}
+
+// fetchProduct returns a single product by its WooCommerce ID. Used by
+// the single-product import path; the multi-product path uses fetchProducts
+// with pagination. Slug + category slugs are normalized the same way as
+// fetchProducts so downstream matching stays aligned.
+func (c *wcClient) fetchProduct(id int) (wcProduct, error) {
+	var prod wcProduct
+	if err := c.get(fmt.Sprintf("/wp-json/wc/v3/products/%d", id), nil, &prod); err != nil {
+		return wcProduct{}, fmt.Errorf("product %d: %w", id, err)
+	}
+	prod.Slug = decodeSlug(prod.Slug)
+	for j := range prod.Categories {
+		prod.Categories[j].Slug = decodeSlug(prod.Categories[j].Slug)
+	}
+	return prod, nil
 }
 
 // decodeSlug normalizes WooCommerce-returned slugs. WC stores non-ASCII
