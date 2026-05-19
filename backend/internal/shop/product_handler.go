@@ -70,6 +70,9 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 	r.Delete("/{id}", h.delete)
 
 	// Variant sub-routes — literal /reorder before /{variantID} so chi prefers it.
+	// Admin GET lives here (not in the public Routes group) so it can return
+	// is_active = FALSE rows without exposing disabled variants to the storefront.
+	r.Get("/{id}/variants", h.adminListVariants)
 	r.Post("/{id}/variants", h.createVariant)
 	r.Patch("/{id}/variants/reorder", h.reorderVariants)
 	r.Put("/{id}/variants/{variantID}", h.updateVariant)
@@ -225,7 +228,20 @@ func (h *ProductHandler) getVariantByID(w http.ResponseWriter, r *http.Request) 
 
 func (h *ProductHandler) listVariants(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	variants, err := h.svc.ListVariants(r.Context(), id)
+	variants, err := h.svc.ListVariants(r.Context(), id, false)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, variants)
+}
+
+// adminListVariants is the admin counterpart to listVariants. It returns every
+// variant for a product, including is_active = FALSE, so the admin PDP can
+// still show (and re-enable) a variant after its status has been flipped off.
+func (h *ProductHandler) adminListVariants(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	variants, err := h.svc.ListVariants(r.Context(), id, true)
 	if err != nil {
 		respond.InternalError(w)
 		return

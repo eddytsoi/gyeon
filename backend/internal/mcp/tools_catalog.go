@@ -79,7 +79,7 @@ func registerCatalogTools(s *mcpserver.MCPServer, catSvc *shop.CategoryService, 
 		if product.Status != "active" {
 			return mcplib.NewToolResultError("product not found"), nil
 		}
-		variants, err := prodSvc.ListVariants(ctx, productID)
+		variants, err := prodSvc.ListVariants(ctx, productID, false)
 		if err != nil {
 			return nil, err
 		}
