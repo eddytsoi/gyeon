@@ -12,6 +12,18 @@
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
   import StickyAddToCart from '$lib/components/shop/StickyAddToCart.svelte';
+  import TaobaoSelectionModal from '$lib/components/shop/TaobaoSelectionModal.svelte';
+  import TaobaoImageBrowserModal from '$lib/components/shop/TaobaoImageBrowserModal.svelte';
+  type BrowserItem = {
+    kind: 'variant' | 'bundle';
+    id: string;
+    variantId: string;
+    name: string;
+    image: string | null;
+    price: number;
+    compareAtPrice: number | null;
+    stockQty: number;
+  };
   import { recentlyViewedStore } from '$lib/stores/recentlyViewed.svelte';
   import { trackViewItem, trackAddToCart } from '$lib/tracker';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
@@ -283,6 +295,13 @@
   );
 
   async function addToCart() {
+    // Taobao layout intercepts the CTA — clicking the inline button opens
+    // the selection modal instead of going straight to cart. Real
+    // add-to-cart happens from inside the modal.
+    if (data.useTaobaoLayout) {
+      taobaoSelectionOpen = true;
+      return;
+    }
     if (!selectedVariant || !inStock) return;
     adding = true;
     try {
@@ -299,6 +318,51 @@
     } finally {
       adding = false;
     }
+  }
+
+  // ── Taobao layout (modal-driven add-to-cart) ─────────────────────────────
+  let taobaoSelectionOpen = $state(false);
+  let taobaoBrowserOpen = $state(false);
+  let taobaoBrowserStart = $state(0);
+
+  // One BrowserItem per variant + per promo bundle, in the same order the
+  // selection modal lists them. The image browser modal indexes into this
+  // shared array so the slide that opens always matches the row clicked.
+  const taobaoItems = $derived<BrowserItem[]>(
+    !data.useTaobaoLayout
+      ? []
+      : [
+          ...data.variants.map((v): BrowserItem => ({
+            kind: 'variant',
+            id: v.id,
+            variantId: v.id,
+            name: (v.name && v.name.trim()) || v.sku || data.product.name,
+            image:
+              v.image_url ??
+              data.images.find((img) => img.variant_id === v.id)?.url ??
+              data.images.find((img) => img.is_primary)?.url ??
+              data.images[0]?.url ??
+              null,
+            price: v.price,
+            compareAtPrice: v.compare_at_price ?? null,
+            stockQty: v.stock_qty
+          })),
+          ...(data.promoBundles ?? []).map((b): BrowserItem => ({
+            kind: 'bundle',
+            id: b.bundle_product_id,
+            variantId: b.variant_id,
+            name: b.name,
+            image: b.primary_image_url ?? null,
+            price: b.price,
+            compareAtPrice: b.compare_at_price ?? null,
+            stockQty: b.stock_qty
+          }))
+        ]
+  );
+
+  function openTaobaoImageBrowser(index: number) {
+    taobaoBrowserStart = index;
+    taobaoBrowserOpen = true;
   }
 </script>
 
@@ -984,3 +1048,21 @@
 />
 
 <RecentlyViewed excludeID={data.product.id} />
+
+<!-- ── Taobao-layout modals ─────────────────────────────────────────── -->
+{#if data.useTaobaoLayout}
+  <TaobaoSelectionModal
+    bind:open={taobaoSelectionOpen}
+    product={data.product}
+    variants={data.variants}
+    images={data.images}
+    promoBundles={data.promoBundles ?? []}
+    onOpenImageBrowser={openTaobaoImageBrowser}
+  />
+  <TaobaoImageBrowserModal
+    bind:open={taobaoBrowserOpen}
+    items={taobaoItems}
+    startIndex={taobaoBrowserStart}
+    productId={data.product.id}
+  />
+{/if}

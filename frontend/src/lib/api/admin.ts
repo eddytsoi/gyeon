@@ -1,4 +1,4 @@
-import type { BundleItem, Category, Order, OrderNotice, Product, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, Order, OrderNotice, Product, PromoBundle, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -157,6 +157,20 @@ export const adminSetBundleItems = (
   request<BundleItem[]>(`/admin/products/${productID}/bundle-items`, token, {
     method: 'PUT',
     body: JSON.stringify({ items })
+  });
+
+// Promo bundles — curated "優惠套裝" bundle products linked to a parent product.
+export const adminGetPromoBundles = (token: string, productID: string) =>
+  request<PromoBundle[]>(`/products/${productID}/promo-bundles`, token);
+
+export const adminSetPromoBundles = (
+  token: string,
+  productID: string,
+  bundleProductIDs: string[]
+) =>
+  request<PromoBundle[]>(`/admin/products/${productID}/promo-bundles`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ bundle_product_ids: bundleProductIDs })
   });
 
 // Categories — admin opts out of the storefront-facing hidden filter so it

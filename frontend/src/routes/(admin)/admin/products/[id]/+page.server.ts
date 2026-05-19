@@ -7,6 +7,7 @@ import {
   adminReorderVariants,
   adminAddImage, adminUpdateImage, adminDeleteImage,
   adminGetBundleItems, adminSetBundleItems, adminGetProducts,
+  adminGetPromoBundles, adminSetPromoBundles,
   adminGetSettings,
 } from '$lib/api/admin';
 import { extractMediaUploadLimits } from '$lib/media';
@@ -40,13 +41,20 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const isBundle = !isNew && product?.kind === 'bundle';
   // Always load allProducts when creating (so user can pick components if they switch kind to bundle).
   const needsAllProducts = isNew || isBundle;
-  const [bundleItems, allProductsRes] = await Promise.all([
+  // Bundle products themselves can't host promo-bundle associations (a
+  // bundle can't have promo bundles); skip the fetch + the kind=bundle
+  // product list when we don't need them.
+  const wantsPromoBundles = !isNew && !isBundle;
+  const [bundleItems, allProductsRes, promoBundles, allBundleProductsRes] = await Promise.all([
     isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
-    needsAllProducts ? adminGetProducts(token, 200, 0, '', '', 'simple').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
+    needsAllProducts ? adminGetProducts(token, 200, 0, '', '', 'simple').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 }),
+    wantsPromoBundles ? adminGetPromoBundles(token, id).catch(() => []) : Promise.resolve([]),
+    wantsPromoBundles ? adminGetProducts(token, 200, 0, '', '', 'bundle').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
   ]);
   const allProducts = allProductsRes.items;
+  const allBundleProducts = allBundleProductsRes.items;
 
-  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, isNew, uploadLimits, token };
+  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, promoBundles, allBundleProducts, isNew, uploadLimits, token };
 };
 
 export const actions: Actions = {
@@ -57,6 +65,12 @@ export const actions: Actions = {
 
     const form = await request.formData();
     const kind = form.get('kind')?.toString() ?? 'simple';
+    // use_taobao_layout: 'default' → null (follow site), 'on' → true, 'off' → false.
+    // Sent as a tristate select rather than a checkbox so admin can explicitly
+    // pin Classic on a product even when the site default is Taobao.
+    const layoutSel = form.get('use_taobao_layout')?.toString() ?? 'default';
+    const useTaobaoLayout: boolean | null =
+      layoutSel === 'on' ? true : layoutSel === 'off' ? false : null;
     const body = {
       category_id: form.get('category_id')?.toString() || undefined,
       category_ids: form.getAll('category_ids').map((v) => v.toString()).filter(Boolean),
@@ -75,7 +89,8 @@ export const actions: Actions = {
       media_3_media_id: form.get('media_3_media_id')?.toString() || undefined,
       media_4_media_id: form.get('media_4_media_id')?.toString() || undefined,
       status: form.get('status')?.toString() ?? 'active',
-      kind
+      kind,
+      use_taobao_layout: useTaobaoLayout
     };
 
     let newProductId: string | undefined;
@@ -88,6 +103,16 @@ export const actions: Actions = {
       }
     } catch {
       return fail(400, { error: 'Failed to save product' });
+    }
+
+    // Edit-mode non-bundle: persist promo-bundle associations.
+    // Bundles can't host promo bundles (kind === 'bundle' → skip).
+    if (!newProductId && kind !== 'bundle') {
+      const promoRaw = form.get('promo_bundle_ids')?.toString();
+      if (promoRaw !== undefined) {
+        const ids = promoRaw.split(',').map(s => s.trim()).filter(Boolean);
+        try { await adminSetPromoBundles(token, id, ids); } catch { /* non-fatal */ }
+      }
     }
 
     // Edit-mode bundle: persist component changes + pricing alongside the product save.

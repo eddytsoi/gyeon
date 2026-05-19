@@ -4,7 +4,7 @@
   import { adminUploadMedia, adminGetVariants, adminGetVariantStockHistory, adminListProductStockHistory, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
   import StockMovementTable from '$lib/components/admin/StockMovementTable.svelte';
   import type { PageData } from './$types';
-  import type { BundleItem, Variant } from '$lib/types';
+  import type { BundleItem, Product, PromoBundle, Variant } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
@@ -46,6 +46,15 @@
   let kind = $state(data.product?.kind ?? 'simple');
   let autoSlug = $state(!data.product);
   let saving = $state(false);
+
+  // Layout override: 'default' = follow site setting, 'on' = taobao, 'off' = classic.
+  // Initial: null/undefined → 'default'; true → 'on'; false → 'off'.
+  function layoutToSelect(v: boolean | null | undefined): 'default' | 'on' | 'off' {
+    if (v === true) return 'on';
+    if (v === false) return 'off';
+    return 'default';
+  }
+  let layoutSel = $state<'default' | 'on' | 'off'>(layoutToSelect(data.product?.use_taobao_layout));
 
   // Markdown fields backed by $state so the shortcode toolbar can insert
   // at the cursor. (Was previously plain textareas with default values.)
@@ -313,6 +322,67 @@
 
   // Simple products for bundle component picker (exclude bundles to prevent nesting)
   const simpleProducts = $derived((data.allProducts ?? []).filter(p => p.kind !== 'bundle' && p.id !== data.product?.id));
+
+  // ── Promo bundles ("優惠套裝") state ─────────────────────────────────────────
+  // Editable list of bundle products associated to this parent product as
+  // 優惠套裝 rows in the taobao-layout PDP modal. Only relevant when the
+  // current product is NOT itself a bundle.
+  type EditablePromoBundle = PromoBundle & { _localId: string };
+  let promoBundles = $state<EditablePromoBundle[]>(
+    (data.promoBundles ?? []).map(pb => ({ ...pb, _localId: pb.id }))
+  );
+  $effect(() => {
+    promoBundles = (data.promoBundles ?? []).map(pb => ({ ...pb, _localId: pb.id }));
+  });
+  let promoBundlePickerId = $state('');
+  // Bundle products available to pick, excluding ones already added and the
+  // current product itself (a product can't promote itself).
+  const promoBundleChoices = $derived(
+    (data.allBundleProducts ?? [])
+      .filter(p => p.id !== data.product?.id)
+      .filter(p => !promoBundles.some(pb => pb.bundle_product_id === p.id))
+  );
+  const promoBundleIdsCsv = $derived(
+    promoBundles.map(pb => pb.bundle_product_id).join(',')
+  );
+
+  function addPromoBundle() {
+    if (!promoBundlePickerId) return;
+    const candidate = (data.allBundleProducts ?? []).find(p => p.id === promoBundlePickerId);
+    if (!candidate) return;
+    if (promoBundles.some(pb => pb.bundle_product_id === candidate.id)) return;
+    promoBundles = [...promoBundles, {
+      _localId: crypto.randomUUID(),
+      id: '',
+      parent_product_id: data.product?.id ?? '',
+      bundle_product_id: candidate.id,
+      sort_order: promoBundles.length,
+      slug: candidate.slug,
+      name: candidate.name,
+      excerpt: candidate.excerpt ?? null,
+      status: candidate.status,
+      variant_id: candidate.default_variant_id ?? '',
+      price: candidate.default_variant_price ?? 0,
+      compare_at_price: candidate.default_variant_compare_at_price ?? null,
+      stock_qty: candidate.default_variant_stock_qty ?? 0,
+      primary_image_url: candidate.primary_image_url ?? null,
+      created_at: ''
+    }];
+    promoBundlePickerId = '';
+  }
+
+  function removePromoBundle(localId: string) {
+    promoBundles = promoBundles.filter(pb => pb._localId !== localId);
+  }
+
+  function onReorderPromoBundles(orderedIds: string[]) {
+    const byLocalId = new Map(promoBundles.map(pb => [pb._localId, pb]));
+    const reordered = orderedIds
+      .map(lid => byLocalId.get(lid))
+      .filter((pb): pb is typeof promoBundles[number] => !!pb);
+    if (reordered.length !== promoBundles.length) return;
+    promoBundles = reordered.map((pb, idx) => ({ ...pb, sort_order: idx }));
+  }
 
   // Add Image modal state
   let showAddImage = $state(false);
@@ -613,6 +683,16 @@
           </select>
         </div>
         <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">PDP Layout</label>
+          <select name="use_taobao_layout" bind:value={layoutSel}
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="default">Default (use site setting)</option>
+            <option value="off">Classic — inline add-to-cart</option>
+            <option value="on">Taobao — add-to-cart opens modal</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1.5">
           <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_product_edit_label_additional_categories()}
           </span>
@@ -667,6 +747,9 @@
       <input type="hidden" name="bundle_length_mm"             value={pendingBundleLengthMM} />
       <input type="hidden" name="bundle_width_mm"              value={pendingBundleWidthMM} />
       <input type="hidden" name="bundle_height_mm"             value={pendingBundleHeightMM} />
+    {/if}
+    {#if !data.isNew && kind !== 'bundle'}
+      <input type="hidden" name="promo_bundle_ids" value={promoBundleIdsCsv} />
     {/if}
   </form>
 
@@ -1087,6 +1170,79 @@
           ? m.admin_product_edit_bundle_contents_hint_new()
           : m.admin_product_edit_bundle_contents_hint_existing()}
       </div>
+    </section>
+  {/if}
+
+  <!-- ── 優惠套裝 / Promo Bundles (non-bundle, existing products only) ── -->
+  {#if !data.isNew && kind !== 'bundle'}
+    <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-900">優惠套裝</h2>
+        <p class="text-xs text-gray-400 mt-1">
+          Bundle products to surface inside the taobao-layout PDP modal under "優惠套裝".
+          Only products of type "Bundle" appear in the picker. Drag rows to reorder.
+        </p>
+      </div>
+
+      <div class="px-6 py-4 border-b border-gray-100 flex items-end gap-3">
+        <div class="flex-1 flex flex-col gap-1.5">
+          <label for="promo-bundle-picker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add bundle product</label>
+          <select id="promo-bundle-picker" bind:value={promoBundlePickerId}
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="">— select a bundle product —</option>
+            {#each promoBundleChoices as bp (bp.id)}
+              <option value={bp.id}>{bp.name} {bp.default_variant_price != null ? `· HK$${bp.default_variant_price}` : ''}</option>
+            {/each}
+          </select>
+        </div>
+        <button type="button" onclick={addPromoBundle} disabled={!promoBundlePickerId}
+                class="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg
+                       hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          Add
+        </button>
+      </div>
+
+      {#if promoBundles.length === 0}
+        <div class="px-6 py-6 text-sm text-gray-400">No 優惠套裝 linked yet.</div>
+      {:else}
+        <ul class="divide-y divide-gray-50"
+            use:sortable={{
+              onReorder: onReorderPromoBundles,
+              handle: '[data-drag-handle]',
+              filter: 'button, form, input, a, [role="button"]'
+            }}>
+          {#each promoBundles as pb (pb._localId)}
+            <li class="flex items-center gap-3 px-6 py-3" data-id={pb._localId}>
+              <span class="text-gray-300 cursor-grab active:cursor-grabbing select-none" data-drag-handle aria-hidden="true">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"/>
+                </svg>
+              </span>
+              {#if pb.primary_image_url}
+                <ResponsiveImage src={pb.primary_image_url} alt="" widths={TINY_THUMB_WIDTHS} sizes={TINY_THUMB_SIZES}
+                                 class="w-10 h-10 rounded object-cover bg-gray-100" />
+              {:else}
+                <div class="w-10 h-10 rounded bg-gray-100"></div>
+              {/if}
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-gray-900 truncate">{pb.name}</div>
+                <div class="text-xs text-gray-400 font-mono">{pb.slug}</div>
+              </div>
+              <div class="text-sm text-gray-900 whitespace-nowrap">
+                {#if pb.compare_at_price != null && pb.compare_at_price > pb.price}
+                  <span class="text-xs text-gray-400 line-through mr-1.5">HK${pb.compare_at_price}</span>
+                {/if}
+                HK${pb.price}
+              </div>
+              <button type="button" onclick={() => removePromoBundle(pb._localId)}
+                      class="text-xs text-red-500 hover:text-red-700 px-2 py-1">
+                Remove
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
   {/if}
 

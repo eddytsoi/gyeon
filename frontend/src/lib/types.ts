@@ -48,6 +48,10 @@ export interface Product {
   media_4_webp_url?: string | null;
   status: string;
   kind?: string; // 'simple' | 'bundle'
+  // Per-product override of the site-wide `pdp_taobao_layout_enabled`
+  // flag. null/undefined = follow site default, true = force taobao
+  // modal, false = force classic inline PDP.
+  use_taobao_layout?: boolean | null;
   created_at: string;
   updated_at: string;
   // List-endpoint enrichments (ProductWithMeta on the backend)
@@ -79,6 +83,28 @@ export interface BundleItem {
   component_price?: number;
   component_stock_qty?: number;
   component_primary_image_url?: string;
+}
+
+// PromoBundle is a bundle product associated to a parent product as one
+// of the "優惠套裝" rows shown inside the taobao-layout PDP modal. Each
+// row is flattened with the bundle's default variant (price /
+// compare_at_price / variant_id / stock) and its primary image so the
+// storefront can render the modal in a single fetch.
+export interface PromoBundle {
+  id: string;
+  parent_product_id: string;
+  bundle_product_id: string;
+  sort_order: number;
+  slug: string;
+  name: string;
+  excerpt?: string | null;
+  status: string;
+  variant_id: string;
+  price: number;
+  compare_at_price?: number | null;
+  stock_qty: number;
+  primary_image_url?: string | null;
+  created_at: string;
 }
 
 export interface Variant {
