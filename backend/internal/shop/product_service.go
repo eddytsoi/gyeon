@@ -1591,6 +1591,7 @@ type UpsertWCVariantRequest struct {
 	LengthMM       *int
 	WidthMM        *int
 	HeightMM       *int
+	IsActive       bool
 }
 
 // UpsertWCVariant inserts or updates a variant keyed by wc_variation_id
@@ -1601,8 +1602,8 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, wc_variation_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			     (product_id, wc_variation_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			 ON CONFLICT (wc_variation_id) DO UPDATE
 			    SET product_id        = EXCLUDED.product_id,
 			        sku               = EXCLUDED.sku,
@@ -1614,10 +1615,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			        length_mm         = EXCLUDED.length_mm,
 			        width_mm          = EXCLUDED.width_mm,
 			        height_mm         = EXCLUDED.height_mm,
+			        is_active         = EXCLUDED.is_active,
 			        updated_at        = NOW()
 			 RETURNING id`,
 			productID, *req.WCVariationID, req.SKU, req.Name, req.Price,
-			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).Scan(&id)
+			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive).Scan(&id)
 		return id, err
 	}
 
@@ -1633,11 +1635,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			     (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			 RETURNING id`,
 			productID, req.SKU, req.Name, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).Scan(&id)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive).Scan(&id)
 		return id, err
 	case err != nil:
 		return "", err
@@ -1645,10 +1647,10 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		_, uerr := s.db.ExecContext(ctx,
 			`UPDATE product_variants
 			    SET sku=$2, name=$3, price=$4, compare_at_price=$5,
-			        stock_qty=$6, weight_grams=$7, length_mm=$8, width_mm=$9, height_mm=$10, updated_at=NOW()
+			        stock_qty=$6, weight_grams=$7, length_mm=$8, width_mm=$9, height_mm=$10, is_active=$11, updated_at=NOW()
 			  WHERE id=$1`,
 			existing, req.SKU, req.Name, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive)
 		return existing, uerr
 	}
 }
