@@ -110,6 +110,7 @@ type wcBundledItem struct {
 
 type wcVariation struct {
 	ID            int           `json:"id"`
+	Status        string        `json:"status"`
 	RegularPrice  string        `json:"regular_price"`
 	SalePrice     string        `json:"sale_price"`
 	StockQuantity *int          `json:"stock_quantity"`
