@@ -50,6 +50,15 @@ export const load: PageServerLoad = async ({ params }) => {
     primaryImage: relatedImages[i]?.find((img) => img.is_primary) ?? relatedImages[i]?.[0] ?? null
   }));
 
+  // Drop non-primary gallery entries whose underlying file is identical to
+  // the primary image — avoids showing the same shot twice in the carousel
+  // and thumbnail strip.
+  const primaryImage = images.find((i) => i.is_primary);
+  const primaryKey = primaryImage ? (primaryImage.media_file_id ?? primaryImage.url) : null;
+  const dedupedImages = primaryKey
+    ? images.filter((i) => i.is_primary || (i.media_file_id ?? i.url) !== primaryKey)
+    : images;
+
   // Per-product `use_taobao_layout` (true / false) wins over the site
   // default; null/undefined falls through to the site setting. Bundles
   // never use the taobao layout — they have no variants and no promo
@@ -63,7 +72,7 @@ export const load: PageServerLoad = async ({ params }) => {
   return {
     product,
     variants,
-    images,
+    images: dedupedImages,
     bundleItems,
     promoBundles,
     category,
