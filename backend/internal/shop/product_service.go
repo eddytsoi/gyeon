@@ -1848,10 +1848,20 @@ func (s *ProductService) GetVariantByID(ctx context.Context, variantID string) (
 	return &v, nil
 }
 
-func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]Variant, error) {
+// ListVariants returns variants for a product. When includeInactive is false
+// (storefront use), only is_active = TRUE rows are returned. The admin PDP
+// passes true so it can render and re-enable disabled variants — without that,
+// flipping a variant's status to inactive would make the row vanish from the
+// admin UI on the next refresh.
+func (s *ProductService) ListVariants(ctx context.Context, productID string, includeInactive bool) ([]Variant, error) {
 	// Determine product kind upfront so we can apply derived stock to bundles.
 	var productKind string
 	_ = s.db.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, productID).Scan(&productKind)
+
+	activeFilter := "AND pv.is_active = TRUE"
+	if includeInactive {
+		activeFilter = ""
+	}
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
@@ -1861,7 +1871,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string) ([]
 		 FROM product_variants pv
 		 LEFT JOIN product_images pi ON pi.variant_id = pv.id
 		 LEFT JOIN media_files mf ON mf.id = pi.media_file_id
-		 WHERE pv.product_id = $1 AND pv.is_active = TRUE
+		 WHERE pv.product_id = $1 `+activeFilter+`
 		 ORDER BY pv.sort_order ASC, pv.created_at ASC`, productID)
 	if err != nil {
 		return nil, err

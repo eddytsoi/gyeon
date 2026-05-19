@@ -96,7 +96,7 @@ export const adminGetProduct = (token: string, id: string) =>
   request<Product>(`/products/${id}`, token);
 
 export const adminGetVariants = (token: string, productID: string) =>
-  request<Variant[]>(`/products/${productID}/variants`, token);
+  request<Variant[]>(`/admin/products/${productID}/variants`, token);
 
 export const adminCreateVariant = (token: string, productID: string, body: Partial<Variant>) =>
   request<Variant>(`/admin/products/${productID}/variants`, token, { method: 'POST', body: JSON.stringify(body) });

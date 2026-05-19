@@ -31,9 +31,6 @@
   const TINY_THUMB_SIZES = '32px';
   const GALLERY_WIDTHS = [160, 320, 480];
   const GALLERY_SIZES = '(min-width: 1024px) 200px, 33vw';
-  const VARIANT_PREVIEW_WIDTHS = [320, 480];
-  const VARIANT_PREVIEW_SIZES = '220px';
-
   let { data }: { data: PageData } = $props();
 
   function slugify(s: string) {
@@ -211,11 +208,6 @@
   let editVariantImageId = $state<string | null>(null);
   let editVariantOldImageId = $state<string | null>(null);
   let editVariantRemoveImage = $state(false);
-  const editVariantPreviewUrl = $derived(
-    editVariantRemoveImage ? null : (editVariantImageId
-      ? (imageMedia.find(m => m.id === editVariantImageId)?.webp_url ?? imageMedia.find(m => m.id === editVariantImageId)?.url ?? null)
-      : (editingVariant?.image_url ?? null))
-  );
 
   // Pending state for new products
   type PendingVariant = {
@@ -1870,35 +1862,21 @@
         <input type="hidden" name="image_media_file_id" value={editVariantRemoveImage ? '' : (editVariantImageId ?? '')} />
         <input type="hidden" name="remove_image" value={String(editVariantRemoveImage)} />
         <div class="flex-1 overflow-y-auto min-h-0">
-        <!-- Full-width image preview -->
-        <div class="relative mt-4 w-full aspect-video bg-gray-100">
-          {#if editVariantPreviewUrl}
-            {#if isVideo({ url: editVariantPreviewUrl })}
-              <video src={editVariantPreviewUrl} muted loop playsinline preload="metadata"
-                     class="w-full h-full object-cover bg-black"></video>
-            {:else}
-              <ResponsiveImage src={editVariantPreviewUrl} alt=""
-                               widths={VARIANT_PREVIEW_WIDTHS} sizes={VARIANT_PREVIEW_SIZES}
-                               class="w-full h-full object-cover" />
-            {/if}
-            <button type="button"
-                    onclick={() => { editVariantRemoveImage = true; editVariantImageId = null; }}
-                    class="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/40 hover:bg-red-500/80 transition-colors text-white">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-              </svg>
-            </button>
-          {:else}
-            <div class="w-full h-full flex flex-col items-center justify-center gap-1.5 text-gray-400">
-              <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-              </svg>
-              <span class="text-xs font-medium">{m.admin_product_edit_edit_variant_no_image()}</span>
-            </div>
-          {/if}
-        </div>
         <div class="p-6 pt-4">
-        <div class="grid grid-cols-2 gap-4">
+        <SingleMediaPicker
+          files={bannerLibrary}
+          value={editVariantImageId}
+          token={data.token ?? null}
+          label={m.admin_product_edit_add_variant_label_images()}
+          previewClass="aspect-[16/9] w-full"
+          onChange={(id) => {
+            editVariantImageId = id;
+            editVariantRemoveImage = id === null;
+          }}
+          onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+          fallbackPreviewUrl={editingVariant?.image_url ?? null}
+        />
+        <div class="grid grid-cols-2 gap-4 mt-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_sku()} {m.admin_product_edit_required_marker()}</label>
             <input name="sku" required value={editingVariant.sku}
@@ -1976,42 +1954,6 @@
               <option value="false" selected={!editingVariant.is_active}>{m.admin_product_edit_status_inactive()}</option>
             </select>
           </div>
-        </div>
-        <!-- Image picker -->
-        <div class="mt-4">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_images()}</label>
-          {#if imageMedia.length === 0}
-            <p class="mt-2 text-xs text-gray-400">{m.admin_product_edit_add_variant_no_media()}</p>
-          {:else}
-            <div class="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {#each imageMedia as mf}
-                <button type="button"
-                        onclick={() => { editVariantImageId = editVariantImageId === mf.id ? null : mf.id; editVariantRemoveImage = false; }}
-                        style={mf.mime_type === 'link' ? 'display: none' : ''}
-                        class="relative flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
-                               {editVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
-                  {#if isVideo(mf)}
-                    {#if isStreamingVideo(mf)}
-                      <ResponsiveImage src={mf.thumbnail_url ?? ''} alt={mf.original_name}
-                                       widths={[160, 320]} sizes="56px"
-                                       class="w-full h-full object-cover bg-black" />
-                    {:else}
-                      <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
-                    {/if}
-                    <span class="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white" aria-hidden="true">
-                      <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </span>
-                  {:else}
-                    <ResponsiveImage src={mf.webp_url ?? mf.url} alt={mf.original_name}
-                                     widths={[160, 320]} sizes="56px"
-                                     class="w-full h-full object-cover"
-                                     onload={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = ''; } : null}
-                                     onerror={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = 'none'; } : null} />
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
         </div>
         <div class="flex gap-3 mt-5">
           <SaveButton loading={updatingVariant}
