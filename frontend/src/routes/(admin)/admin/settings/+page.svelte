@@ -1770,7 +1770,7 @@
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <p class="text-sm font-semibold text-gray-900">PDP Taobao Layout</p>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_taobao_layout()}</p>
             <p class="text-xs text-gray-400 mt-0.5">
               {pdpTaobaoSetting.description ?? 'When on, the storefront PDP uses a modal-based add-to-cart flow that surfaces variants and promo bundles together. Each product can override this default from its admin page.'}
             </p>
