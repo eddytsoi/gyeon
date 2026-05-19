@@ -617,9 +617,12 @@ func (s *Service) importProduct(
 
 	// Variant-specific images. DeleteWCSourcedImages above already wiped
 	// any prior WC-sourced rows for this product (including variant ones),
-	// so we just re-add. Each WC variation carries at most one image, so
-	// we mark it primary and leave SortOrder at 0 — the storefront groups
-	// by variant_id, the ordering is per-variant not per-product.
+	// so we just re-add. Each WC variation carries at most one image; we
+	// insert it with IsPrimary=false because the product-level primary
+	// (variant_id IS NULL, Position==0) is the only row allowed to carry
+	// is_primary=true. AddImage's unset_others CTE clears every other
+	// primary on the product when IsPrimary=true, regardless of variant_id,
+	// so marking variant rows primary would clobber the product hero.
 	for _, vi := range variantImages {
 		var alt *string
 		if vi.img.Alt != "" {
@@ -631,7 +634,7 @@ func (s *Service) importProduct(
 			URL:       &vi.img.Src,
 			AltText:   alt,
 			SortOrder: 0,
-			IsPrimary: true,
+			IsPrimary: false,
 		}
 		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, vi.img.Src); ok {
 			req.MediaFileID = &id
