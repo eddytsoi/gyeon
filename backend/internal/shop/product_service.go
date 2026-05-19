@@ -1810,6 +1810,26 @@ func (s *ProductService) DeleteWCSourcedImages(ctx context.Context, productID st
 	return err
 }
 
+// DeleteImagesForVariants removes every product_images row tagged with one
+// of the given variant IDs. Used by the importer to mirror WC: when a WC
+// variation has no own image, the Gyeon variant must have no image. Keyed
+// on variant_id only — does NOT filter by media linkage, so it also clears
+// rows with media_file_id IS NULL that DeleteWCSourcedImages would miss.
+// Media file rows and files on disk are not touched. No-op on empty input.
+func (s *ProductService) DeleteImagesForVariants(ctx context.Context, variantIDs []string) error {
+	if len(variantIDs) == 0 {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM product_images WHERE variant_id = ANY($1)`,
+		pq.Array(variantIDs))
+	if err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(productPrefix)
+	return nil
+}
+
 // DeleteAll removes every product (cascades to variants and images).
 func (s *ProductService) DeleteAll(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM products`)

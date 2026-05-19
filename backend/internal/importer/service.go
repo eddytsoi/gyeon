@@ -502,6 +502,11 @@ func (s *Service) importProduct(
 		img       wcImage
 	}
 	var variantImages []variantImage
+	// variantsWithoutImage collects Gyeon variant IDs whose WC counterpart
+	// has no own image (nil/empty Src, or the parent's featured image
+	// substituted in). We delete their product_images rows below so Gyeon
+	// mirrors WC exactly: WC variant no image → Gyeon variant no image.
+	var variantsWithoutImage []string
 	// WC's /products/{id}/variations endpoint never returns nil for a
 	// variation's image — when admin has no image on the variation, WC
 	// substitutes the parent's featured image (images[0]). We treat
@@ -523,6 +528,8 @@ func (s *Service) importProduct(
 			}
 			if v.Image != nil && v.Image.Src != "" && v.Image.ID != parentFeaturedImageID {
 				variantImages = append(variantImages, variantImage{variantID: variantID, img: *v.Image})
+			} else {
+				variantsWithoutImage = append(variantsWithoutImage, variantID)
 			}
 			seenVariationIDs = append(seenVariationIDs, v.ID)
 			p.ImportedVariants++
@@ -561,6 +568,16 @@ func (s *Service) importProduct(
 	if prod.Type == "variable" && variantCount > 0 {
 		if _, derr := s.productSvc.DeleteStaleWCVariants(ctx, productID, seenVariationIDs); derr != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("delete stale variants for %q: %v", prod.Slug, derr))
+		}
+	}
+
+	// Variants whose WC counterpart has no own image: drop their
+	// product_images rows so Gyeon mirrors WC. Keyed on variant_id (not on
+	// media linkage) because DeleteWCSourcedImages below can miss rows
+	// with media_file_id IS NULL (NULL IN (...) is NULL, not TRUE).
+	if len(variantsWithoutImage) > 0 {
+		if err := s.productSvc.DeleteImagesForVariants(ctx, variantsWithoutImage); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("clear variant images for %q: %v", prod.Slug, err))
 		}
 	}
 
