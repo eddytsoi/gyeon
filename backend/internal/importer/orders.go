@@ -228,7 +228,7 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 		if sku == "" {
 			sku = fmt.Sprintf("WC-%d", li.ProductID)
 		}
-		unitPrice := parseDecimal(li.Price)
+		unitPrice := parseDecimal(string(li.Price))
 		lineTotal := parseDecimal(li.Total)
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO order_items (
