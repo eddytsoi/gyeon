@@ -88,6 +88,7 @@
   let wcKey = $state('');
   let wcSecret = $state('');
   let limit = $state<number | null>(null);
+  let wcProductId = $state<number | null>(null);
 
   let savingCreds = $state(false);
   let testingConn = $state(false);
@@ -209,7 +210,8 @@
           wc_secret: wcSecret,
           mode,
           product_type: productType,
-          limit: limit && limit > 0 ? Math.floor(limit) : 0
+          limit: limit && limit > 0 ? Math.floor(limit) : 0,
+          product_id: wcProductId && wcProductId > 0 ? Math.floor(wcProductId) : 0
         })
       });
 
@@ -509,7 +511,11 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-3">{m.admin_import_confirm_title()}</h2>
       <p class="text-sm text-gray-600 leading-relaxed mb-6">
-        {#if mode === 'upsert'}
+        {#if wcProductId && wcProductId > 0}
+          {mode === 'upsert'
+            ? m.admin_import_confirm_upsert_single({ id: wcProductId })
+            : m.admin_import_confirm_replace_single({ id: wcProductId })}
+        {:else if mode === 'upsert'}
           {limit && limit > 0
             ? m.admin_import_confirm_upsert_limited({ limit })
             : m.admin_import_confirm_upsert_full()}
@@ -788,6 +794,21 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
             {#if limit && limit > 0}
               <p class="text-xs text-amber-600 mt-1">{m.admin_import_limit_warning()}</p>
+            {/if}
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_product_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_label_product_id()}
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_product_id_hint()}</p>
+            <input id="wc_product_id" type="number" min="1" step="1"
+                   placeholder={m.admin_import_product_id_placeholder()}
+                   bind:value={wcProductId}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            {#if wcProductId && wcProductId > 0}
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_product_id_warning()}</p>
             {/if}
           </div>
 
