@@ -1535,6 +1535,7 @@
   "admin_settings_label_site_name": "Site name",
   "admin_settings_label_form_upload_hard_cap_mb": "Form Upload Hard Cap (MB)",
   "admin_settings_label_pdp_taobao_layout": "Product Taobao Layout",
+  "admin_settings_desc_pdp_taobao_layout": "When true, the storefront product detail page uses the taobao-style add-to-cart modal site-wide. Each product can override this setting individually.",
   "admin_settings_desc_form_upload_hard_cap_mb": "Maximum size in megabytes for file uploads via contact / custom forms. Applies as a hard limit regardless of per-form settings.",
   "admin_settings_desc_currency": "Default currency code (ISO 4217)",
   "admin_settings_desc_free_shipping_threshold_hkd": "Order subtotal (HKD) at or above which shipping is free. 0 = disabled.",
