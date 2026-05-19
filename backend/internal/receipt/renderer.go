@@ -60,7 +60,14 @@ func (r *Renderer) Close() {
 
 // Render returns a PDF byte slice for the given HTML document. The HTML must
 // be self-contained: external <link>/<script>/<img> URLs are fetched by
-// Chromium, so make sure remote assets are reachable from the API host.
+// Chromium, so make sure remote assets are reachable from the API host (or
+// inline them as data: URIs before calling Render — see receipt.inlineImages).
+//
+// The HTML is injected via Page.SetDocumentContent rather than navigating to
+// a data: URL. The former has no size limit; the latter silently truncates
+// past ~1 MB on some Chromium builds, producing receipts where inlined
+// <img src="data:image/…"> tags get cut mid-base64 and render as broken
+// images. v0.9.189 hit this when image inlining was added.
 func (r *Renderer) Render(ctx context.Context, html string) ([]byte, error) {
 	r.mu.Lock()
 	r.ensureAlloc()
@@ -77,9 +84,20 @@ func (r *Renderer) Render(ctx context.Context, html string) ([]byte, error) {
 	defer cancelTimeout()
 
 	var pdf []byte
-	dataURL := "data:text/html;charset=utf-8," + encodeForDataURL(html)
 	err := chromedp.Run(tabCtx,
-		chromedp.Navigate(dataURL),
+		// Navigate to about:blank so the tab has a valid frame tree we can
+		// target SetDocumentContent at.
+		chromedp.Navigate("about:blank"),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			tree, err := page.GetFrameTree().Do(ctx)
+			if err != nil {
+				return fmt.Errorf("getFrameTree: %w", err)
+			}
+			if err := page.SetDocumentContent(tree.Frame.ID, html).Do(ctx); err != nil {
+				return fmt.Errorf("setDocumentContent: %w", err)
+			}
+			return nil
+		}),
 		chromedp.WaitReady("body", chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			data, _, err := page.PrintToPDF().
@@ -182,24 +200,3 @@ func (c *pdfCache) add(key string, val []byte) {
 	}
 }
 
-// encodeForDataURL percent-encodes the bytes that would otherwise break a
-// data: URL — primarily `#` (fragment start), `%` (escape char) and `&`
-// (parameter delimiter when the data URL is itself in a larger query). Keeping
-// the encoding minimal preserves the data URL's readability when debugging
-// rendering issues by pasting it into a browser.
-func encodeForDataURL(s string) string {
-	var b []byte
-	b = make([]byte, 0, len(s)+32)
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '#', '%', '&':
-			b = append(b, '%')
-			const hex = "0123456789ABCDEF"
-			b = append(b, hex[c>>4], hex[c&0xF])
-		default:
-			b = append(b, c)
-		}
-	}
-	return string(b)
-}
