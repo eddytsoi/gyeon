@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { adminUploadMedia, adminGetVariants, adminGetVariantStockHistory, adminListProductStockHistory, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
+  import { adminUploadMedia, adminGetVariants, adminGetImages, adminGetVariantStockHistory, adminListProductStockHistory, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
   import StockMovementTable from '$lib/components/admin/StockMovementTable.svelte';
   import type { PageData } from './$types';
   import type { BundleItem, Product, PromoBundle, Variant } from '$lib/types';
@@ -346,11 +346,41 @@
     promoBundles.map(pb => pb.bundle_product_id).join(',')
   );
 
-  function addPromoBundle() {
+  async function addPromoBundle() {
     if (!promoBundlePickerId) return;
     const candidate = (data.allBundleProducts ?? []).find(p => p.id === promoBundlePickerId);
     if (!candidate) return;
     if (promoBundles.some(pb => pb.bundle_product_id === candidate.id)) return;
+
+    // The admin product list omits primary_image_url and default-variant
+    // pricing (only the public list endpoint hydrates those), so we fetch
+    // the bundle's variant + images on the fly here. Without this the row
+    // shows HK$0 and a blank thumbnail until the parent product is saved
+    // and the page reloads through adminGetPromoBundles.
+    let variantId = candidate.default_variant_id ?? '';
+    let price = candidate.default_variant_price ?? 0;
+    let compareAt: number | null = candidate.default_variant_compare_at_price ?? null;
+    let stockQty = candidate.default_variant_stock_qty ?? 0;
+    let imageUrl: string | null = candidate.primary_image_url ?? null;
+
+    if (data.token) {
+      try {
+        const [variants, images] = await Promise.all([
+          adminGetVariants(data.token, candidate.id).catch(() => []),
+          adminGetImages(data.token, candidate.id).catch(() => [])
+        ]);
+        const bv = variants[0];
+        if (bv) {
+          variantId = bv.id;
+          price = bv.price;
+          compareAt = bv.compare_at_price ?? null;
+          stockQty = bv.stock_qty;
+        }
+        const primary = images.find((img) => img.is_primary) ?? images[0];
+        if (primary?.url) imageUrl = primary.url;
+      } catch { /* non-fatal — keep the candidate fallbacks */ }
+    }
+
     promoBundles = [...promoBundles, {
       _localId: crypto.randomUUID(),
       id: '',
@@ -361,11 +391,11 @@
       name: candidate.name,
       excerpt: candidate.excerpt ?? null,
       status: candidate.status,
-      variant_id: candidate.default_variant_id ?? '',
-      price: candidate.default_variant_price ?? 0,
-      compare_at_price: candidate.default_variant_compare_at_price ?? null,
-      stock_qty: candidate.default_variant_stock_qty ?? 0,
-      primary_image_url: candidate.primary_image_url ?? null,
+      variant_id: variantId,
+      price,
+      compare_at_price: compareAt,
+      stock_qty: stockQty,
+      primary_image_url: imageUrl,
       created_at: ''
     }];
     promoBundlePickerId = '';
