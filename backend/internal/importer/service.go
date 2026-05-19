@@ -812,6 +812,7 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 		LengthMM:       parseDimensionCM(prod.Dimensions.Length),
 		WidthMM:        parseDimensionCM(prod.Dimensions.Width),
 		HeightMM:       parseDimensionCM(prod.Dimensions.Height),
+		IsActive:       prod.Status == "publish",
 	})
 	return err
 }
@@ -836,6 +837,7 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 		LengthMM:       parseDimensionCM(v.Dimensions.Length),
 		WidthMM:        parseDimensionCM(v.Dimensions.Width),
 		HeightMM:       parseDimensionCM(v.Dimensions.Height),
+		IsActive:       v.Status == "publish",
 	})
 }
 
