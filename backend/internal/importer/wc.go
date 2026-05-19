@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,17 +167,41 @@ type wcOrderBilling struct {
 	Email string `json:"email"`
 }
 
+// wcDecimal accepts either a JSON string ("5.99") or a JSON number (5.99).
+// WC's /wc/v3/orders endpoint emits line_items.price as a number, while
+// the sibling totals are strings; the underlying form here stays a string
+// so existing parseDecimal callers keep working unchanged.
+type wcDecimal string
+
+func (d *wcDecimal) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		*d = ""
+		return nil
+	}
+	if b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		*d = wcDecimal(s)
+		return nil
+	}
+	*d = wcDecimal(b)
+	return nil
+}
+
 type wcLineItem struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	ProductID   int    `json:"product_id"`
-	VariationID int    `json:"variation_id"`
-	Quantity    int    `json:"quantity"`
-	SKU         string `json:"sku"`
-	Price       string `json:"price"`    // unit price (ex-tax)
-	Subtotal    string `json:"subtotal"` // line subtotal pre-discount, ex-tax
-	Total       string `json:"total"`    // line total post-discount, ex-tax
-	TotalTax    string `json:"total_tax"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	ProductID   int       `json:"product_id"`
+	VariationID int       `json:"variation_id"`
+	Quantity    int       `json:"quantity"`
+	SKU         string    `json:"sku"`
+	Price       wcDecimal `json:"price"`    // unit price (ex-tax) — WC returns this as a JSON number
+	Subtotal    string    `json:"subtotal"` // line subtotal pre-discount, ex-tax
+	Total       string    `json:"total"`    // line total post-discount, ex-tax
+	TotalTax    string    `json:"total_tax"`
 }
 
 type wcOrder struct {
