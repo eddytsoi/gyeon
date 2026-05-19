@@ -536,7 +536,7 @@
           </div>
         {/if}
 
-        {#if data.images.length > 0}
+        {#if data.images.length > 1}
           <div class="flex gap-2 overflow-x-auto pb-1">
             {#each data.images as img}
               <button
