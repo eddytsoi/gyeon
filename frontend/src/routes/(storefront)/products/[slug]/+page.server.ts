@@ -1,4 +1,4 @@
-import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems } from '$lib/api';
+import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems, getProductPromoBundles, getPublicSettings } from '$lib/api';
 import { error } from '@sveltejs/kit';
 import { scanShortcodeRefsMany } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
@@ -34,10 +34,13 @@ export const load: PageServerLoad = async ({ params }) => {
   }
   const related = pool.slice(0, 4);
 
-  const [variants, images, bundleItems, shortcodeRefs, ...relatedImages] = await Promise.all([
+  const [variants, images, bundleItems, promoBundles, settings, shortcodeRefs, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
     getProductImages(product.id).catch(() => []),
     product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
+    // Promo bundles only make sense for non-bundle parents. Bundles can't host them.
+    product.kind !== 'bundle' ? getProductPromoBundles(product.id).catch(() => []) : Promise.resolve([]),
+    getPublicSettings().catch(() => []),
     resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use)),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
@@ -47,5 +50,25 @@ export const load: PageServerLoad = async ({ params }) => {
     primaryImage: relatedImages[i]?.find((img) => img.is_primary) ?? relatedImages[i]?.[0] ?? null
   }));
 
-  return { product, variants, images, bundleItems, category, related: relatedWithImage, shortcodeRefs };
+  // Per-product `use_taobao_layout` (true / false) wins over the site
+  // default; null/undefined falls through to the site setting. Bundles
+  // never use the taobao layout — they have no variants and no promo
+  // bundles to surface.
+  const siteTaobaoOn = settings.find((s) => s.key === 'pdp_taobao_layout_enabled')?.value === 'true';
+  const useTaobaoLayout =
+    product.kind !== 'bundle' &&
+    (product.use_taobao_layout === true ||
+      (product.use_taobao_layout == null && siteTaobaoOn));
+
+  return {
+    product,
+    variants,
+    images,
+    bundleItems,
+    promoBundles,
+    category,
+    related: relatedWithImage,
+    shortcodeRefs,
+    useTaobaoLayout
+  };
 };

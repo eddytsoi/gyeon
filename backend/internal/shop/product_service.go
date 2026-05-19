@@ -72,6 +72,10 @@ type Product struct {
 	Media4WebpURL      *string  `json:"media_4_webp_url,omitempty"`
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"
+	// UseTaobaoLayout overrides the site-wide `pdp_taobao_layout_enabled`
+	// flag for this single product: nil = follow site default,
+	// true = force taobao modal layout, false = force classic layout.
+	UseTaobaoLayout    *bool    `json:"use_taobao_layout,omitempty"`
 	CreatedAt          string   `json:"created_at"`
 	UpdatedAt          string   `json:"updated_at"`
 }
@@ -124,6 +128,34 @@ type BundleItemInput struct {
 // SetBundleItemsRequest wraps the item list for the PUT handler.
 type SetBundleItemsRequest struct {
 	Items []BundleItemInput `json:"items"`
+}
+
+// PromoBundle is a bundle product curated as "優惠套裝" under a parent
+// product in the taobao-layout PDP modal. The bundle product is itself a
+// kind='bundle' row in `products`; this struct flattens the join with its
+// auto-created variant so the storefront can render price/CTA without an
+// extra round-trip.
+type PromoBundle struct {
+	ID               string   `json:"id"`
+	ParentProductID  string   `json:"parent_product_id"`
+	BundleProductID  string   `json:"bundle_product_id"`
+	SortOrder        int      `json:"sort_order"`
+	Slug             string   `json:"slug"`
+	Name             string   `json:"name"`
+	Excerpt          *string  `json:"excerpt,omitempty"`
+	Status           string   `json:"status"`
+	VariantID        string   `json:"variant_id"`
+	Price            float64  `json:"price"`
+	CompareAtPrice   *float64 `json:"compare_at_price,omitempty"`
+	StockQty         int      `json:"stock_qty"`
+	PrimaryImageURL  *string  `json:"primary_image_url,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+}
+
+// SetPromoBundlesRequest wraps the ordered list of bundle product IDs to
+// associate with a parent product.
+type SetPromoBundlesRequest struct {
+	BundleProductIDs []string `json:"bundle_product_ids"`
 }
 
 type ProductTranslation struct {
@@ -198,6 +230,7 @@ type CreateProductRequest struct {
 	Media4MediaID      *string  `json:"media_4_media_id"`
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"; defaults to "simple"
+	UseTaobaoLayout    *bool    `json:"use_taobao_layout"`
 }
 
 type UpdateProductRequest struct {
@@ -266,7 +299,7 @@ const productSelect = `
 	       p.video_id,
 	       p.banner_1_media_id, p.banner_2_media_id,
 	       p.media_1_media_id, p.media_2_media_id, p.media_3_media_id, p.media_4_media_id,
-	       p.status, p.kind, p.created_at, p.updated_at
+	       p.status, p.kind, p.use_taobao_layout, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
@@ -276,7 +309,7 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 		&p.VideoID,
 		&p.Banner1MediaID, &p.Banner2MediaID,
 		&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-		&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt)
+		&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -1141,20 +1174,20 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		                       video_id, banner_1_media_id, banner_2_media_id,
 		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		                       status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		                       status, kind, use_taobao_layout)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, created_at, updated_at`,
+		           status, kind, use_taobao_layout, created_at, updated_at`,
 		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind).
+		req.Status, kind, req.UseTaobaoLayout).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1247,22 +1280,22 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		                     how_to_use=$8, compatible_surfaces=$9,
 		                     video_id=$10, banner_1_media_id=$11, banner_2_media_id=$12,
 		                     media_1_media_id=$13, media_2_media_id=$14, media_3_media_id=$15, media_4_media_id=$16,
-		                     status=$17, kind=$18
+		                     status=$17, kind=$18, use_taobao_layout=$19
 		 WHERE id=$1
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, created_at, updated_at`,
+		           status, kind, use_taobao_layout, created_at, updated_at`,
 		id, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description,
 		req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind).
+		req.Status, kind, req.UseTaobaoLayout).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description,
 			&p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -2457,5 +2490,112 @@ func (s *ProductService) SetBundleItems(ctx context.Context, productID string, i
 		return nil, err
 	}
 	s.record(ctx, "product.bundle.set", "product_bundle", productID, beforeItems, after)
+	return after, nil
+}
+
+// ListPromoBundles returns the curated bundle products associated with a
+// parent product for the taobao-layout PDP modal. Each row is flattened
+// with the bundle's default variant (price / compare_at / stock /
+// variant_id) and primary image so the storefront can render rows + CTA
+// without any follow-up fetches.
+func (s *ProductService) ListPromoBundles(ctx context.Context, parentProductID string) ([]PromoBundle, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ppb.id, ppb.parent_product_id, ppb.bundle_product_id, ppb.sort_order,
+		        p.slug, p.name, p.excerpt, p.status,
+		        pv.id, pv.price, pv.compare_at_price, pv.stock_qty,
+		        pi.url,
+		        ppb.created_at
+		 FROM product_promo_bundles ppb
+		 JOIN products p          ON p.id = ppb.bundle_product_id
+		 JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active = TRUE
+		 LEFT JOIN LATERAL (
+		   SELECT url FROM product_images
+		    WHERE product_id = p.id
+		    ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+		    LIMIT 1
+		 ) pi ON TRUE
+		 WHERE ppb.parent_product_id = $1
+		 ORDER BY ppb.sort_order ASC, ppb.created_at ASC`, parentProductID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]PromoBundle, 0)
+	for rows.Next() {
+		var pb PromoBundle
+		if err := rows.Scan(
+			&pb.ID, &pb.ParentProductID, &pb.BundleProductID, &pb.SortOrder,
+			&pb.Slug, &pb.Name, &pb.Excerpt, &pb.Status,
+			&pb.VariantID, &pb.Price, &pb.CompareAtPrice, &pb.StockQty,
+			&pb.PrimaryImageURL,
+			&pb.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, pb)
+	}
+	return items, rows.Err()
+}
+
+// SetPromoBundles atomically replaces all promo-bundle associations for
+// a parent product. Rejects associations where the candidate row isn't a
+// bundle product (kind != 'bundle') or points back at the parent itself
+// (which would create a self-referencing modal entry).
+func (s *ProductService) SetPromoBundles(ctx context.Context, parentProductID string, bundleProductIDs []string) ([]PromoBundle, error) {
+	// Validate: every candidate must be kind='bundle' and not the parent itself.
+	for _, bid := range bundleProductIDs {
+		if bid == parentProductID {
+			return nil, fmt.Errorf("a product cannot be its own promo bundle: %s", bid)
+		}
+		var bKind string
+		err := s.db.QueryRowContext(ctx, `SELECT kind FROM products WHERE id = $1`, bid).Scan(&bKind)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("promo bundle product %s not found", bid)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if bKind != "bundle" {
+			return nil, fmt.Errorf("promo bundle product %s is not a bundle (kind=%s)", bid, bKind)
+		}
+	}
+
+	var before []PromoBundle
+	if s.audit != nil {
+		before, _ = s.ListPromoBundles(ctx, parentProductID)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM product_promo_bundles WHERE parent_product_id = $1`, parentProductID); err != nil {
+		return nil, err
+	}
+
+	for i, bid := range bundleProductIDs {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO product_promo_bundles (parent_product_id, bundle_product_id, sort_order)
+			 VALUES ($1, $2, $3)`,
+			parentProductID, bid, i,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	s.cache.DeleteByPrefix(productPrefix)
+	after, err := s.ListPromoBundles(ctx, parentProductID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "product.promo_bundles.set", "product_promo_bundles", parentProductID, before, after)
 	return after, nil
 }

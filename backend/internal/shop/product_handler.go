@@ -56,6 +56,7 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Get("/{id}/images", h.listImages)
 	r.Get("/{id}/translations", h.listTranslations)
 	r.Get("/{id}/bundle-items", h.getBundleItems)
+	r.Get("/{id}/promo-bundles", h.getPromoBundles)
 	return r
 }
 
@@ -85,6 +86,7 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 	r.Delete("/{id}/translations/{locale}", h.deleteTranslation)
 
 	r.Put("/{id}/bundle-items", h.setBundleItems)
+	r.Put("/{id}/promo-bundles", h.setPromoBundles)
 	return r
 }
 
@@ -485,6 +487,35 @@ func (h *ProductHandler) setBundleItems(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	items, err := h.svc.SetBundleItems(r.Context(), id, req.Items)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respond.NotFound(w)
+			return
+		}
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) getPromoBundles(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	items, err := h.svc.ListPromoBundles(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) setPromoBundles(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req SetPromoBundlesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	items, err := h.svc.SetPromoBundles(r.Context(), id, req.BundleProductIDs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respond.NotFound(w)
