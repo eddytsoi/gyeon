@@ -110,23 +110,6 @@ func scanSettings(rows *sql.Rows) ([]Setting, error) {
 	return settings, rows.Err()
 }
 
-// GetMany returns the requested keys in one round-trip. Missing keys are
-// omitted from the result — callers apply their own fallback. Returned in the
-// same shape as ListAll so callers can read both Value and UpdatedAt (used by
-// the receipt service to derive a branding cache version).
-func (s *Service) GetMany(ctx context.Context, keys []string) ([]Setting, error) {
-	if len(keys) == 0 {
-		return nil, nil
-	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT key, value, description, updated_at FROM site_settings WHERE key = ANY($1)`,
-		pq.Array(keys))
-	if err != nil {
-		return nil, err
-	}
-	return scanSettings(rows)
-}
-
 func (s *Service) Get(ctx context.Context, key string) (*Setting, error) {
 	var st Setting
 	err := s.db.QueryRowContext(ctx,

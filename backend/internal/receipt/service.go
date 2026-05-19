@@ -15,7 +15,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -60,101 +59,31 @@ func NewService(db *sql.DB, orderSvc *orders.OrderService, settingsSvc *settings
 // GenerateForOrder builds and prints the receipt PDF for the given order.
 // locale is one of "en" / "zh-Hant" (defaults to "en" for anything else).
 // The order must be in a receiptable status; otherwise returns ErrNotReceiptable.
-//
-// Pipeline:
-//  1. Load all needed site_settings in one batched query (shopBundle).
-//  2. Look up per-item image URLs (one query).
-//  3. Inline logo + item images as data: URIs in parallel — Chromium then
-//     renders without making any network calls, which is the largest single
-//     contributor to wall-time on this endpoint.
-//  4. Execute template + print to PDF via the cached headless Chromium.
-//
-// The cache layer (see renderer.RenderCached) wraps step 3+4 with a key built
-// from order identity and shopBundle.shopVersion so admin edits to either the
-// order or shop branding invalidate immediately.
 func (s *Service) GenerateForOrder(ctx context.Context, order *orders.Order, locale string) ([]byte, error) {
 	if !receiptableStatuses[order.Status] {
 		return nil, ErrNotReceiptable
 	}
 	locale = resolveLocale(locale)
 
-	start := time.Now()
-
-	// Load branding + currency in one batched query so the cache key can
-	// include shopVersion (max updated_at across the rows). loading before
-	// the cache check is intentional: site_settings is tiny, indexed, and
-	// reading it here costs ~1ms vs. the multi-hundred-ms render it gates.
-	bundle := s.loadShopBundle(ctx)
-
-	// Cache key invalidates automatically on: order edits (UpdatedAt bump),
-	// status transitions, branding edits, locale switch. Empty UpdatedAt
-	// disables caching for that one request (defensive — every receiptable
-	// order should have one).
-	cacheKey := ""
-	if order.UpdatedAt != "" {
-		cacheKey = order.ID + "|" + order.UpdatedAt + "|" + locale + "|" + bundle.shopVersion
+	images, err := s.fetchOrderItemImages(ctx, order.ID)
+	if err != nil {
+		// Best-effort: a failure to look up thumbnails should never stop the
+		// receipt from generating. The image cells will just render blank.
+		images = map[string]string{}
 	}
 
-	var inlineMS int64
-	pdf, cached, err := s.renderer.RenderCached(ctx, cacheKey, func() (string, error) {
-		images, err := s.fetchOrderItemImages(ctx, order.ID)
-		if err != nil {
-			// Best-effort: a failure to look up thumbnails should never stop
-			// the receipt from generating. The image cells will just render
-			// blank.
-			images = map[string]string{}
-		}
+	view := s.buildView(ctx, order, images, locale)
 
-		// Inline images server-side so Chromium's PrintToPDF does not block
-		// on network fetches. Per-image failures map to "" → template
-		// renders the cell blank rather than failing the whole receipt.
-		urls := make([]string, 0, len(images)+1)
-		for _, u := range images {
-			urls = append(urls, u)
-		}
-		if bundle.shop.LogoURL != "" {
-			urls = append(urls, bundle.shop.LogoURL)
-		}
-		inlineStart := time.Now()
-		inlined := inlineImages(ctx, urls)
-		inlineMS = time.Since(inlineStart).Milliseconds()
-		for id, u := range images {
-			if v, ok := inlined[u]; ok {
-				images[id] = v
-			}
-		}
-		if v, ok := inlined[bundle.shop.LogoURL]; ok {
-			bundle.shop.LogoURL = v
-		}
+	var buf bytes.Buffer
+	if err := receiptTemplate.Execute(&buf, view); err != nil {
+		return nil, fmt.Errorf("execute receipt template: %w", err)
+	}
 
-		view := s.buildView(order, bundle, images, locale)
-
-		var buf bytes.Buffer
-		if err := receiptTemplate.Execute(&buf, view); err != nil {
-			return "", fmt.Errorf("execute receipt template: %w", err)
-		}
-		return buf.String(), nil
-	})
+	pdf, err := s.renderer.Render(ctx, buf.String())
 	if err != nil {
 		return nil, fmt.Errorf("render PDF: %w", err)
 	}
-
-	slog.Info("receipt.generate",
-		"order_id", order.ID,
-		"locale", locale,
-		"cache", cacheHitLabel(cached),
-		"inline_ms", inlineMS,
-		"total_ms", time.Since(start).Milliseconds(),
-		"pdf_bytes", len(pdf),
-	)
 	return pdf, nil
-}
-
-func cacheHitLabel(hit bool) string {
-	if hit {
-		return "hit"
-	}
-	return "miss"
 }
 
 // fetchOrderItemImages returns a map order_item_id → image URL using the same
@@ -244,12 +173,12 @@ type viewModel struct {
 	PaymentLine   string
 }
 
-// buildView assembles the data passed into the HTML template. Settings are
-// passed in pre-loaded (one batched query in GenerateForOrder) so this stays
-// pure and easy to test in isolation against fixtures.
-func (s *Service) buildView(order *orders.Order, bundle shopBundle, images map[string]string, locale string) viewModel {
-	shop := bundle.shop
-	currency := bundle.currency
+// buildView assembles the data passed into the HTML template. Pulling settings
+// here (rather than from the handler) keeps the receipt route handler thin
+// and makes the view model easy to test in isolation against fixtures.
+func (s *Service) buildView(ctx context.Context, order *orders.Order, images map[string]string, locale string) viewModel {
+	shop := s.loadShop(ctx)
+	currency := s.settingValue(ctx, "currency", "HKD")
 
 	bill := viewParty{}
 	if order.CustomerName != nil {
@@ -318,74 +247,40 @@ func (s *Service) buildView(order *orders.Order, bundle shopBundle, images map[s
 	}
 }
 
-// shopBundle is the result of one batched site_settings fetch. Carrying
-// shopVersion (max updated_at across the rows we read) lets GenerateForOrder
-// build a cache key that invalidates automatically when admin edits branding.
-type shopBundle struct {
-	shop        viewShop
-	currency    string
-	shopVersion string
-}
-
-// shopSettingKeys is the closed list of site_settings keys the receipt needs.
-// Kept as a package var so loadShopBundle and any future caller stay in sync.
-var shopSettingKeys = []string{
-	"site_name",
-	"company_address_line1",
-	"company_address_line2",
-	"company_city",
-	"company_postal_code",
-	"company_country",
-	"company_logo_url",
-	"company_phone",
-	"contact_email",
-	"company_registration_no",
-	"currency",
-}
-
-// loadShopBundle fetches every site_settings key the receipt needs in a single
-// round-trip. Missing keys fall back to "" (or "HKD"/"Gyeon" for the two that
-// have user-visible defaults). Errors are swallowed: a missing branding row
-// should never block a receipt from rendering.
-func (s *Service) loadShopBundle(ctx context.Context) shopBundle {
-	rows, _ := s.settingsSvc.GetMany(ctx, shopSettingKeys)
-	values := make(map[string]string, len(rows))
-	var maxUpdated string
-	for _, r := range rows {
-		if v := strings.TrimSpace(r.Value); v != "" {
-			values[r.Key] = v
-		}
-		// UpdatedAt is RFC3339Nano (lib/pq → string), so lexicographic max
-		// matches chronological max — good enough as a cache version stamp.
-		if r.UpdatedAt > maxUpdated {
-			maxUpdated = r.UpdatedAt
-		}
+func (s *Service) loadShop(ctx context.Context) viewShop {
+	get := func(key string) string { return s.settingValue(ctx, key, "") }
+	name := get("site_name")
+	if name == "" {
+		name = "Gyeon"
 	}
-	get := func(k, fallback string) string {
-		if v, ok := values[k]; ok {
-			return v
-		}
+	address := composeAddress(
+		get("company_address_line1"),
+		get("company_address_line2"),
+		get("company_city"),
+		"", // no state field in site_settings
+		get("company_postal_code"),
+		get("company_country"),
+	)
+	return viewShop{
+		Name:           name,
+		LogoURL:        get("company_logo_url"),
+		AddressBlock:   address,
+		Phone:          get("company_phone"),
+		Email:          get("contact_email"),
+		RegistrationNo: get("company_registration_no"),
+	}
+}
+
+func (s *Service) settingValue(ctx context.Context, key, fallback string) string {
+	st, err := s.settingsSvc.Get(ctx, key)
+	if err != nil || st == nil {
 		return fallback
 	}
-	return shopBundle{
-		shop: viewShop{
-			Name:    get("site_name", "Gyeon"),
-			LogoURL: get("company_logo_url", ""),
-			AddressBlock: composeAddress(
-				get("company_address_line1", ""),
-				get("company_address_line2", ""),
-				get("company_city", ""),
-				"", // no state field in site_settings
-				get("company_postal_code", ""),
-				get("company_country", ""),
-			),
-			Phone:          get("company_phone", ""),
-			Email:          get("contact_email", ""),
-			RegistrationNo: get("company_registration_no", ""),
-		},
-		currency:    get("currency", "HKD"),
-		shopVersion: maxUpdated,
+	v := strings.TrimSpace(st.Value)
+	if v == "" {
+		return fallback
 	}
+	return v
 }
 
 // assembleRows flattens the bundle parent/child relationship and assigns a
