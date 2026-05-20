@@ -3,6 +3,11 @@
 // backend at /uploads/r/{width}/{filename}. The whitelist below MUST stay in
 // sync with backend/internal/media/resize.go::allowedWidths — anything not in
 // that set returns 400 from the backend.
+//
+// Only raster formats (.jpg/.jpeg/.png/.webp) go through the resize endpoint;
+// SVG / GIF / other extensions pass through with an empty srcset so the
+// browser fetches them from the plain /uploads/ FileServer. Mirrors
+// backend/internal/receipt/image.go::toResizedWebpURL.
 
 const ALLOWED_WIDTHS = new Set([160, 320, 480, 640, 768, 960, 1280, 1600, 1920]);
 
@@ -38,6 +43,16 @@ export function buildResponsiveAttrs(
   // Backend rejects slashes/dotdot in filename, so the rewrite is a no-op for
   // anything that wouldn't be served anyway.
   if (filename.includes('/') || filename.includes('..')) return { src, srcset: '' };
+
+  // Only rewrite raster formats that the resize endpoint actually serves.
+  // SVG / GIF / anything else falls through to the plain /uploads/ FileServer
+  // untouched. Mirrors backend/internal/media/resize.go::resizableExt and
+  // backend/internal/receipt/image.go::toResizedWebpURL.
+  const dot = filename.lastIndexOf('.');
+  const ext = dot > 0 ? filename.slice(dot + 1).toLowerCase() : '';
+  if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png' && ext !== 'webp') {
+    return { src, srcset: '' };
+  }
 
   const valid = widths.filter((w) => ALLOWED_WIDTHS.has(w));
   if (valid.length === 0) return { src, srcset: '' };
