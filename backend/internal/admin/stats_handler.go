@@ -31,10 +31,11 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var stats Stats
 
+	// Products count is a current snapshot — intentionally not scoped by the
+	// dashboard date filter (asking "how many active products in the last
+	// 7 days" is rarely what an admin actually wants here).
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM products
-		 WHERE status = 'active'
-		   AND created_at >= $1 AND created_at < $2`, from, to).
+		`SELECT COUNT(*) FROM products WHERE status = 'active'`).
 		Scan(&stats.TotalProducts)
 
 	h.db.QueryRowContext(r.Context(),
