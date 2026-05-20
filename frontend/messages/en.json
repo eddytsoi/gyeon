@@ -156,6 +156,8 @@
   "product_detail_surface_fabric": "Fabric",
   "product_detail_related_kicker": "Complete the Set",
   "product_detail_related_heading": "Complete Your Protection",
+  "product_detail_fbt_kicker": "Frequently Bought Together",
+  "product_detail_fbt_heading": "Customers Often Buy With This",
   "bundle_composer_total_label": "Bundle Total",
   "bundle_composer_saved": "Save HK${amount}",
   "bundle_composer_selected_count": "{selected} of {total} selected",

@@ -2631,3 +2631,130 @@ func (s *ProductService) SetPromoBundles(ctx context.Context, parentProductID st
 	s.record(ctx, "product.promo_bundles.set", "product_promo_bundles", parentProductID, before, after)
 	return after, nil
 }
+
+// fbtCachePrefix namespaces FrequentlyBoughtTogether cache entries so the
+// admin rebuild endpoint can drop them in one call after repopulating
+// product_copurchase.
+const fbtCachePrefix = "shop:fbt:"
+
+// FrequentlyBoughtTogether returns up to `limit` publicly-visible products
+// most often purchased in the same paid+ order as `productID`. Source rows
+// live in product_copurchase, which is rebuilt periodically by
+// RebuildCopurchase — so reads are a single indexed lookup and don't scan
+// the orders table.
+func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID, locale string, limit int) ([]ProductWithMeta, error) {
+	if limit <= 0 || limit > 12 {
+		limit = 4
+	}
+	args := []any{locale, limit, productID}
+	wheres := []string{"p.status = 'active'"}
+	var hiddenRaw string
+	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
+
+	key := fmt.Sprintf("%s%s:%s:%d:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw)
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]ProductWithMeta), nil
+	}
+
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
+		       p.excerpt,
+		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name
+		FROM product_copurchase cp
+		JOIN products p ON p.id = cp.related_product_id` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
+		WHERE cp.product_id = $3 AND ` + where + `
+		ORDER BY cp.together_order_count DESC, p.created_at DESC
+		LIMIT $2`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]ProductWithMeta, 0)
+	for rows.Next() {
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
+		); err != nil {
+			return nil, err
+		}
+		products = append(products, pm)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.overrideBundleStock(ctx, products)
+	s.cache.Set(key, products, s.ttl(ctx))
+	return products, nil
+}
+
+// RebuildCopurchase replaces every row in product_copurchase with a fresh
+// aggregation from paid+ orders. Returns the number of pair rows written.
+// Wrapped in a single tx so a concurrent reader sees either the old set or
+// the new set, never an empty table.
+func (s *ProductService) RebuildCopurchase(ctx context.Context) (int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `TRUNCATE TABLE product_copurchase`); err != nil {
+		return 0, err
+	}
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO product_copurchase (product_id, related_product_id, together_order_count)
+		SELECT v1.product_id, v2.product_id, COUNT(DISTINCT o.id)
+		FROM orders o
+		JOIN order_items oi1 ON oi1.order_id = o.id
+		JOIN product_variants v1 ON v1.id = oi1.variant_id
+		JOIN order_items oi2 ON oi2.order_id = o.id AND oi2.id <> oi1.id
+		JOIN product_variants v2 ON v2.id = oi2.variant_id
+		WHERE o.status IN ('paid','processing','shipped','delivered')
+		  AND v1.product_id <> v2.product_id
+		GROUP BY v1.product_id, v2.product_id
+		HAVING COUNT(DISTINCT o.id) >= 2`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	s.cache.DeleteByPrefix(fbtCachePrefix)
+	return int(n), nil
+}

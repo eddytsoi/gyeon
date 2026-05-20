@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/respond"
@@ -57,6 +58,7 @@ func (h *ProductHandler) Routes() chi.Router {
 	r.Get("/{id}/translations", h.listTranslations)
 	r.Get("/{id}/bundle-items", h.getBundleItems)
 	r.Get("/{id}/promo-bundles", h.getPromoBundles)
+	r.Get("/{id}/frequently-bought-together", h.frequentlyBoughtTogether)
 	return r
 }
 
@@ -90,6 +92,10 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 
 	r.Put("/{id}/bundle-items", h.setBundleItems)
 	r.Put("/{id}/promo-bundles", h.setPromoBundles)
+
+	// Admin-only rebuild of the "frequently bought together" aggregation.
+	// Pointed at by an external cron — mirrors the abandoned-cart pattern.
+	r.Post("/recommendations/rebuild", h.rebuildRecommendations)
 	return r
 }
 
@@ -541,4 +547,30 @@ func (h *ProductHandler) setPromoBundles(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) frequentlyBoughtTogether(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := h.svc.FrequentlyBoughtTogether(r.Context(), id, r.URL.Query().Get("lang"), limit)
+	if err != nil {
+		log.Printf("frequentlyBoughtTogether product=%s: %v", id, err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) rebuildRecommendations(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	n, err := h.svc.RebuildCopurchase(r.Context())
+	if err != nil {
+		log.Printf("rebuildRecommendations: %v", err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"rows":        n,
+		"duration_ms": time.Since(start).Milliseconds(),
+	})
 }

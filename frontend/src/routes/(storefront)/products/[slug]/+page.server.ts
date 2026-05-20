@@ -1,4 +1,4 @@
-import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems, getProductPromoBundles, getPublicSettings } from '$lib/api';
+import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems, getProductPromoBundles, getFrequentlyBoughtTogether, getPublicSettings } from '$lib/api';
 import { error } from '@sveltejs/kit';
 import { scanShortcodeRefsMany } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params }) => {
   }
   const related = pool.slice(0, 4);
 
-  const [variants, images, bundleItems, promoBundles, settings, shortcodeRefs, ...relatedImages] = await Promise.all([
+  const [variants, images, bundleItems, promoBundles, settings, shortcodeRefs, frequentlyBoughtTogether, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
     getProductImages(product.id).catch(() => []),
     product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ params }) => {
     product.kind !== 'bundle' ? getProductPromoBundles(product.id).catch(() => []) : Promise.resolve([]),
     getPublicSettings().catch(() => []),
     resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use)),
+    getFrequentlyBoughtTogether(product.id, 4).catch(() => []),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
@@ -68,6 +69,7 @@ export const load: PageServerLoad = async ({ params }) => {
     promoBundles,
     category,
     related: relatedWithImage,
+    frequentlyBoughtTogether,
     shortcodeRefs,
     useTaobaoLayout
   };
