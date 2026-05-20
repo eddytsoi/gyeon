@@ -202,17 +202,26 @@ type EmailSender interface {
 	SendLowStockAlert(ctx context.Context, p email.LowStockParams) error
 }
 
+// ReceiptCacheInvalidator is the slice of *receipt.Cache the order service
+// calls when an order mutates in a way that makes any cached PDF receipt
+// stale (refund / delete). Decoupled to a local interface so this package
+// doesn't take an import on receipt (which itself depends on orders).
+type ReceiptCacheInvalidator interface {
+	DeleteForOrder(orderID string) error
+}
+
 type OrderService struct {
-	db          *sql.DB
-	cartSvc     *CartService
-	pricingSvc  *pricing.Service
-	customerSvc *customers.Service
-	paymentSvc  *payment.Service
-	emailSvc    EmailSender
-	taxSvc      *tax.Service
-	audit       AuditRecorder
-	onCreated   func(ctx context.Context, order *Order)
-	onPaid      func(ctx context.Context, order *Order)
+	db           *sql.DB
+	cartSvc      *CartService
+	pricingSvc   *pricing.Service
+	customerSvc  *customers.Service
+	paymentSvc   *payment.Service
+	emailSvc     EmailSender
+	taxSvc       *tax.Service
+	audit        AuditRecorder
+	onCreated    func(ctx context.Context, order *Order)
+	onPaid       func(ctx context.Context, order *Order)
+	receiptCache ReceiptCacheInvalidator
 }
 
 // SetAudit wires an optional audit recorder. Call from main during setup.
@@ -239,6 +248,27 @@ func (s *OrderService) SetOnOrderPaid(fn func(context.Context, *Order)) {
 // (best-effort, non-blocking). Used for SSE broadcasts to admin clients.
 func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 	s.onCreated = fn
+}
+
+// SetReceiptCache wires the receipt cache invalidator. When set, the
+// service deletes any cached receipt PDFs for an order at the points
+// where its content would diverge from a previously generated receipt
+// (admin delete, status transition to refunded, full refund).
+func (s *OrderService) SetReceiptCache(c ReceiptCacheInvalidator) {
+	s.receiptCache = c
+}
+
+// invalidateReceiptCache best-effort removes any cached receipt for orderID.
+// Failures are logged and swallowed — invalidation is hygiene, not safety:
+// a stale cache only means the next download serves a slightly outdated
+// PDF, which is still better than failing the order operation.
+func (s *OrderService) invalidateReceiptCache(orderID string) {
+	if s.receiptCache == nil {
+		return
+	}
+	if err := s.receiptCache.DeleteForOrder(orderID); err != nil {
+		log.Printf("invalidate receipt cache for order %s: %v", orderID, err)
+	}
 }
 
 // SetTaxService wires an optional tax calculator. When unset, orders skip the
@@ -1443,6 +1473,13 @@ func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req Refu
 
 	go s.sendRefundEmail(context.Background(), orderID, float64(amount)/100.0, req.Reason, newStatus == StatusRefunded)
 
+	// On a full refund the receipt is no longer accurate — drop any cache so
+	// the storefront stops showing a "fast download" lightning icon for a
+	// receipt that's about to fail the receiptable-status check.
+	if newStatus == StatusRefunded {
+		s.invalidateReceiptCache(orderID)
+	}
+
 	after, err := s.GetByID(ctx, orderID)
 	if err != nil {
 		return nil, err
@@ -1755,6 +1792,10 @@ func (s *OrderService) Delete(ctx context.Context, id string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrOrderNotFound
 	}
+	// Receipt cache lives on disk, not in the DB — the FK cascade can't reach
+	// it. Unlink files explicitly so a recycled order ID can never read back
+	// a stale prior receipt.
+	s.invalidateReceiptCache(id)
 	s.record(ctx, "order.delete", id, before, nil)
 	return nil
 }
@@ -1846,6 +1887,12 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 
 	if req.Status == StatusShipped {
 		go s.sendShippedEmail(context.Background(), id)
+	}
+	// A refund renders any previously cached receipt misleading (it claims
+	// a paid balance that's no longer owed). Clear so the next download
+	// either re-renders or shows the not-receiptable error.
+	if req.Status == StatusRefunded {
+		s.invalidateReceiptCache(id)
 	}
 
 	s.record(ctx, "order.update_status", order.ID, before, order)

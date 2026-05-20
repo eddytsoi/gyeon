@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"gyeon/backend/internal/orders"
@@ -28,12 +29,13 @@ type NoticeWriter interface {
 // existing CreateForOrder path and writes a system notice on the order with
 // the result so admins can see the outcome from the order timeline.
 type QueueHandler struct {
-	svc     *Service
-	notices NoticeWriter
+	svc      *Service
+	notices  NoticeWriter
+	orderSvc *orders.OrderService
 }
 
-func NewQueueHandler(svc *Service, notices NoticeWriter) *QueueHandler {
-	return &QueueHandler{svc: svc, notices: notices}
+func NewQueueHandler(svc *Service, notices NoticeWriter, orderSvc *orders.OrderService) *QueueHandler {
+	return &QueueHandler{svc: svc, notices: notices, orderSvc: orderSvc}
 }
 
 // Handle dispatches one shipment-creation job. Returns nil on success or for
@@ -92,6 +94,22 @@ func (h *QueueHandler) Handle(ctx context.Context, payload []byte) error {
 		fmt.Fprintf(&b, "標籤：%s\n", *sh.LabelURL)
 	}
 	h.note(ctx, job.OrderID, strings.TrimRight(b.String(), "\n"))
+
+	// Advance paid → processing once the shipment exists. Only fire when the
+	// order is still in `paid`: ShipAny status webhooks may already have
+	// pushed it further (shipped/delivered), and the state machine rejects
+	// re-entering processing from there. Best-effort: a transition failure
+	// shouldn't fail the queue job — the shipment has already been created.
+	if h.orderSvc != nil {
+		if current, err := h.orderSvc.GetByID(ctx, job.OrderID); err == nil &&
+			current.Status == orders.StatusPaid {
+			if _, err := h.orderSvc.UpdateStatus(ctx, job.OrderID, orders.UpdateStatusRequest{
+				Status: orders.StatusProcessing,
+			}); err != nil {
+				log.Printf("shipany: advance order %s to processing: %v", job.OrderID, err)
+			}
+		}
+	}
 	return nil
 }
 

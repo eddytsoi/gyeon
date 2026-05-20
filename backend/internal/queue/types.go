@@ -16,6 +16,7 @@ const (
 	JobTypeSendEmail              = "send_email"
 	JobTypeSendEmailRaw           = "send_email_raw"
 	JobTypeCreateShipanyShipment  = "create_shipany_shipment"
+	JobTypeGenerateReceiptCache   = "generate_receipt_cache"
 )
 
 // HandlerFunc processes one job payload. Returning nil marks the job

@@ -284,7 +284,7 @@ func main() {
 	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailEnqueuer, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
 	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc)
-	shipanyJobs := shipany.NewQueueHandler(shipanySvc, noticeSvc)
+	shipanyJobs := shipany.NewQueueHandler(shipanySvc, noticeSvc, orderSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)
@@ -368,9 +368,10 @@ func main() {
 	// the cold-start; Close on shutdown.
 	receiptRenderer := receipt.NewRenderer()
 	defer receiptRenderer.Close()
-	receiptHandler := receipt.NewHandler(
-		receipt.NewService(conn, orderSvc, settingsSvc, receiptRenderer),
-	)
+	receiptSvc := receipt.NewService(conn, orderSvc, settingsSvc, receiptRenderer)
+	receiptCache := receipt.NewCache()
+	receiptHandler := receipt.NewHandler(receiptSvc, receiptCache, queueSvc)
+	orderSvc.SetReceiptCache(receiptCache)
 
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
 	recaptchaVerifier := recaptcha.New(settingsSvc)
@@ -397,6 +398,18 @@ func main() {
 			if _, err := queueSvc.Enqueue(ctx, queue.JobTypeCreateShipanyShipment, payload); err != nil {
 				log.Printf("queue: enqueue shipany for order %s: %v", o.ID, err)
 			}
+		}
+
+		// Pre-warm the PDF receipt cache so the first download — whether
+		// admin or customer — hits a ready file instead of cold-starting
+		// Chromium. Locale matches the storefront default (zh-Hant);
+		// other locales lazy-cache on first request.
+		cachePayload, _ := json.Marshal(receipt.GenerateReceiptCacheJob{
+			OrderID: o.ID,
+			Locale:  "zh-Hant",
+		})
+		if _, err := queueSvc.Enqueue(ctx, queue.JobTypeGenerateReceiptCache, cachePayload); err != nil {
+			log.Printf("queue: enqueue receipt cache for order %s: %v", o.ID, err)
 		}
 	})
 	redirectsSvc.SetAudit(redirectsAuditAdapter{svc: auditSvc})
@@ -704,6 +717,12 @@ func main() {
 	worker.Register(queue.JobTypeSendEmailRaw, emailEnqueuer.HandleSendEmailRaw)
 	worker.Register(queue.JobTypeCreateShipanyShipment, shipanyJobs.Handle)
 	worker.SetTimeout(queue.JobTypeCreateShipanyShipment, 5*time.Minute)
+	// Receipt cache pre-warm — uses the same Chromium renderer the on-demand
+	// download path uses. Give it a generous timeout because cold-start can
+	// add ~300ms on top of the render itself.
+	receiptQueueHandler := receipt.NewQueueHandler(receiptSvc, receiptCache, adminHub)
+	worker.Register(queue.JobTypeGenerateReceiptCache, receiptQueueHandler.Handle)
+	worker.SetTimeout(queue.JobTypeGenerateReceiptCache, 2*time.Minute)
 	worker.Start(rootCtx)
 
 	addr := ":" + getenv("PORT", "8080")

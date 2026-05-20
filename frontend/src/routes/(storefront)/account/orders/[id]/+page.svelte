@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { onMount, onDestroy } from 'svelte';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
@@ -8,6 +9,60 @@
 
   const order = $derived(data.order);
   const notices = $derived(data.notices ?? []);
+
+  // ── Receipt cache lightning-icon ────────────────────────────────────────
+  // No customer-side SSE in this app, so we poll the cache-status endpoint
+  // every ~3 s while the page is mounted and the order is in a receiptable
+  // status. Stops polling as soon as the icon lights up (or the order is
+  // not receiptable).
+  let receiptReady = $state(false);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+
+  async function checkReceiptCache(orderId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/account/orders/${orderId}/receipt-cache-status`, {
+        headers: { Accept: 'application/json' }
+      });
+      if (!res.ok) return false;
+      const j = (await res.json()) as { available?: boolean };
+      return j.available === true;
+    } catch {
+      return false;
+    }
+  }
+
+  onMount(() => {
+    if (!receiptStatuses.includes(order.status)) return;
+    // Initial probe — if the queue worker has already finished by the time
+    // the customer lands here, the icon shows immediately without waiting
+    // for the first poll tick.
+    checkReceiptCache(order.id).then((ready) => {
+      if (ready) {
+        receiptReady = true;
+        return;
+      }
+      pollTimer = setInterval(async () => {
+        if (!receiptStatuses.includes(order.status)) {
+          stopPolling();
+          return;
+        }
+        if (await checkReceiptCache(order.id)) {
+          receiptReady = true;
+          stopPolling();
+        }
+      }, 3000);
+    });
+  });
+
+  onDestroy(() => stopPolling());
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
 
   // Group order items by parent_item_id so bundle component rows appear
   // indented under their bundle parent line.
@@ -62,11 +117,19 @@
         </p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        {#if ['paid','processing','shipped','delivered'].includes(order.status)}
+        {#if receiptStatuses.includes(order.status)}
           <a href="/account/orders/{order.id}/receipt.pdf"
              target="_blank" rel="noopener"
              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
-                    text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+                    text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+             title={receiptReady ? m.account_order_receipt_cached_tooltip() : m.account_order_receipt_download()}>
+            {#if receiptReady}
+              <!-- ⚡ cache-ready indicator -->
+              <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24"
+                   fill="currentColor" aria-hidden="true">
+                <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>
+              </svg>
+            {/if}
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
