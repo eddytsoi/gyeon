@@ -2637,17 +2637,24 @@ func (s *ProductService) SetPromoBundles(ctx context.Context, parentProductID st
 // product_copurchase.
 const fbtCachePrefix = "shop:fbt:"
 
-// FrequentlyBoughtTogether returns up to `limit` publicly-visible products
-// most often purchased in the same paid+ order as `productID`. Source rows
-// live in product_copurchase, which is rebuilt periodically by
+// FrequentlyBoughtTogether returns up to `limit` publicly-visible, purchasable
+// products most often purchased in the same paid+ order as `productID`. Source
+// rows live in product_copurchase, which is rebuilt periodically by
 // RebuildCopurchase — so reads are a single indexed lookup and don't scan
-// the orders table.
+// the orders table. Products without a purchasable default variant (inactive,
+// no variants, or out-of-stock) are excluded so the FBT row only shows items
+// the customer can actually add to cart — bundles get filtered post-query
+// once their derived stock is computed (their synthetic variant always reads
+// stock_qty=0 in SQL).
 func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID, locale string, limit int) ([]ProductWithMeta, error) {
 	if limit <= 0 || limit > 12 {
 		limit = 4
 	}
 	args := []any{locale, limit, productID}
-	wheres := []string{"p.status = 'active'"}
+	wheres := []string{
+		"p.status = 'active'",
+		"(p.kind = 'bundle' OR (defv.id IS NOT NULL AND defv.stock_qty > 0))",
+	}
 	var hiddenRaw string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
@@ -2718,6 +2725,17 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 		return nil, err
 	}
 	s.overrideBundleStock(ctx, products)
+	// SQL kept bundles unconditionally because their synthetic variant always
+	// reads stock_qty=0; drop the ones whose derived stock is also 0 so the
+	// row only surfaces purchasable bundles.
+	purchasable := products[:0]
+	for _, p := range products {
+		if p.Kind == "bundle" && (p.DefaultVariantStockQty == nil || *p.DefaultVariantStockQty <= 0) {
+			continue
+		}
+		purchasable = append(purchasable, p)
+	}
+	products = purchasable
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
