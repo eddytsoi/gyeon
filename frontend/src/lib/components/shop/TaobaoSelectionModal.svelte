@@ -94,15 +94,21 @@
     };
   }
 
-  // Default selection = first variant (matches the parent product's main
-  // SKU shown in desktop-1 / mobile-1 mockup).
-  const initial = $derived(
-    variants[0]
+  // Default selection = first IN-STOCK variant, then first in-stock promo
+  // bundle. Falls back to the first row regardless of stock only when
+  // everything is sold out (in which case the PDP CTA is already disabled
+  // and the modal won't open anyway).
+  const initial = $derived.by(() => {
+    const firstInStockVariant = variants.find((v) => v.stock_qty > 0);
+    if (firstInStockVariant) return variantToSelection(firstInStockVariant);
+    const firstInStockBundle = promoBundles.find((b) => b.stock_qty > 0);
+    if (firstInStockBundle) return bundleToSelection(firstInStockBundle);
+    return variants[0]
       ? variantToSelection(variants[0])
       : promoBundles[0]
         ? bundleToSelection(promoBundles[0])
-        : null
-  );
+        : null;
+  });
   let selected = $state<Selection | null>(initial);
   // Reset selection whenever the modal is freshly opened so re-entering the
   // flow always lands on the default first-variant state. Without this,
