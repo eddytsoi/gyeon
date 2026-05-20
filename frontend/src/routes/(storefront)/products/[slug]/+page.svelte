@@ -284,6 +284,14 @@
   let ctaEl = $state<HTMLDivElement | undefined>();
 
   const inStock = $derived((selectedVariant?.stock_qty ?? 0) > 0);
+  // Taobao layout hides the inline variant chips, so the CTA must reflect
+  // whether ANY variant or promo bundle is buyable — otherwise a sold-out
+  // default variant locks the user out of opening the selection modal.
+  const anyAvailable = $derived(
+    data.variants.some((v) => v.stock_qty > 0) ||
+    (data.promoBundles ?? []).some((b) => b.stock_qty > 0)
+  );
+  const ctaAvailable = $derived(data.useTaobaoLayout ? anyAvailable : inStock);
   const hasDiscount = $derived(
     selectedVariant?.compare_at_price != null &&
     selectedVariant.compare_at_price > selectedVariant.price
@@ -726,15 +734,15 @@
 
           <button
             onclick={addToCart}
-            disabled={!inStock || adding}
+            disabled={!ctaAvailable || adding}
             class="flex-1 h-12 px-6 rounded-md font-display font-bold text-sm tracking-[0.1em] uppercase transition-all duration-200 ease-gy text-white
-                   {!inStock
+                   {!ctaAvailable
                      ? 'bg-ink-300 cursor-not-allowed'
                      : added
                        ? 'bg-success'
                        : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
           >
-            {#if !inStock}
+            {#if !ctaAvailable}
               {m.product_detail_out_of_stock()}
             {:else if adding}
               {m.product_detail_adding()}
@@ -1055,7 +1063,7 @@
   variant={selectedVariant}
   primaryImage={activeImage ?? data.images[0]}
   onAdd={addToCart}
-  inStock={inStock}
+  inStock={ctaAvailable}
   adding={adding}
   added={added}
 />
