@@ -92,13 +92,13 @@
           {#each items as p (p.id)}
             {@const enabled = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0)}
             {@const checked = !!selected[p.id]}
+            {@const imgUrl = p.primaryImage?.url ?? p.primary_image_url ?? null}
             <li>
               <label
                 class="group flex flex-col gap-3 p-3 bg-white rounded-lg border-2 transition-all duration-200 ease-gy cursor-pointer
                        {enabled ? '' : 'opacity-50 cursor-not-allowed'}
                        {checked ? 'border-navy-500' : 'border-ink-300/60 hover:border-navy-500'}">
                 <div class="relative aspect-square bg-paper rounded-md overflow-hidden">
-                  {@const imgUrl = p.primaryImage?.url ?? p.primary_image_url ?? null}
                   {#if imgUrl}
                     <ResponsiveImage src={imgUrl} alt={p.primaryImage?.alt_text ?? p.name}
                                      widths={[320, 480, 640]}
