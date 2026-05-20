@@ -119,7 +119,10 @@ func (s *Service) fetchOrderItemImages(ctx context.Context, orderID string) (map
 			return nil, err
 		}
 		if url != "" {
-			out[id] = url
+			// Product thumbnails render at 40×40 CSS px in the receipt template.
+			// 160px WebP is the smallest allowed bucket — plenty for retina at
+			// that size and keeps the PDF tiny.
+			out[id] = toResizedWebpURL(url, 160)
 		}
 	}
 	return out, rows.Err()
@@ -262,8 +265,11 @@ func (s *Service) loadShop(ctx context.Context) viewShop {
 		get("company_country"),
 	)
 	return viewShop{
-		Name:           name,
-		LogoURL:        get("company_logo_url"),
+		Name: name,
+		// Logo CSS caps at max-width 220px / max-height 48px, so 320px WebP
+		// covers retina comfortably. External-hosted logos (non-/uploads/)
+		// pass through unchanged.
+		LogoURL:        toResizedWebpURL(get("company_logo_url"), 320),
 		AddressBlock:   address,
 		Phone:          get("company_phone"),
 		Email:          get("contact_email"),
