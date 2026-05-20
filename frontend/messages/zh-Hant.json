@@ -156,6 +156,8 @@
   "product_detail_surface_fabric": "織物",
   "product_detail_related_kicker": "完整保護組合",
   "product_detail_related_heading": "完成整套保護",
+  "product_detail_fbt_kicker": "經常一齊購買",
+  "product_detail_fbt_heading": "其他客人都會買埋呢啲",
   "bundle_composer_total_label": "一次過買齊",
   "bundle_composer_saved": "省下 HK${amount}",
   "bundle_composer_selected_count": "已選 {selected} / {total} 件",

@@ -126,6 +126,8 @@ export const getVariantByID = (id: string) => request<Variant>(`/products/varian
 export const getProductImages = (id: string) => request<ProductImage[]>(`/products/${id}/images`);
 export const getProductBundleItems = (id: string) => request<BundleItem[]>(`/products/${id}/bundle-items`);
 export const getProductPromoBundles = (id: string) => request<PromoBundle[]>(`/products/${id}/promo-bundles`);
+export const getFrequentlyBoughtTogether = (id: string, limit = 4) =>
+  request<Product[]>(`/products/${id}/frequently-bought-together?limit=${limit}`);
 
 export const getOrCreateCart = (sessionToken: string, customerID?: string) =>
   request<Cart>('/cart', {

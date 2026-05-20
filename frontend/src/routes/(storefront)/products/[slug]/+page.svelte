@@ -1039,6 +1039,15 @@
 <!-- ── BUNDLE COMPOSER (replaces flat related row, §4.7) ───────── -->
 <BundleComposer items={data.related} />
 
+<!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->
+{#if data.frequentlyBoughtTogether.length > 0}
+  <BundleComposer
+    items={data.frequentlyBoughtTogether}
+    kicker={m.product_detail_fbt_kicker()}
+    heading={m.product_detail_fbt_heading()}
+  />
+{/if}
+
 <!-- ── STICKY ADD-TO-CART BAR (mobile only, §4.8) ────────────── -->
 <StickyAddToCart
   ctaEl={ctaEl}

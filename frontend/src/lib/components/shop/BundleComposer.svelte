@@ -17,10 +17,18 @@
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   interface Item extends Product {
-    primaryImage: ProductImage | null;
+    primaryImage?: ProductImage | null;
   }
 
-  let { items }: { items: Item[] } = $props();
+  let {
+    items,
+    kicker,
+    heading
+  }: {
+    items: Item[];
+    kicker?: string;
+    heading?: string;
+  } = $props();
 
   const initial = items.reduce<Record<string, boolean>>((acc, p) => {
     acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0);
@@ -70,10 +78,10 @@
   <section class="bg-paper border-y border-ink-300/60">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
       <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-2">
-        {m.product_detail_related_kicker()}
+        {kicker ?? m.product_detail_related_kicker()}
       </p>
       <h2 class="font-display text-2xl md:text-3xl font-bold tracking-tight text-ink-900">
-        {m.product_detail_related_heading()}
+        {heading ?? m.product_detail_related_heading()}
       </h2>
       <div class="mt-3 h-px w-12 bg-navy-500"></div>
 
@@ -90,8 +98,9 @@
                        {enabled ? '' : 'opacity-50 cursor-not-allowed'}
                        {checked ? 'border-navy-500' : 'border-ink-300/60 hover:border-navy-500'}">
                 <div class="relative aspect-square bg-paper rounded-md overflow-hidden">
-                  {#if p.primaryImage}
-                    <ResponsiveImage src={p.primaryImage.url} alt={p.primaryImage.alt_text ?? p.name}
+                  {@const imgUrl = p.primaryImage?.url ?? p.primary_image_url ?? null}
+                  {#if imgUrl}
+                    <ResponsiveImage src={imgUrl} alt={p.primaryImage?.alt_text ?? p.name}
                                      widths={[320, 480, 640]}
                                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                                      class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
