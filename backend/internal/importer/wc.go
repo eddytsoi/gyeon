@@ -603,12 +603,19 @@ func (c *wcClient) fetchCustomers(page int) ([]wcCustomer, error) {
 }
 
 // fetchOrderTotal returns the WC store's total order count via X-WP-Total,
-// filtered by the given WC status (empty → "any"). 0 on any error.
-func (c *wcClient) fetchOrderTotal(status string) int {
+// filtered by the given WC status (empty → "any") and optional calendar
+// year (0 = no year filter). 0 on any error.
+func (c *wcClient) fetchOrderTotal(status string, year int) int {
 	if status == "" {
 		status = "any"
 	}
-	u := c.baseURL + "/wp-json/wc/v3/orders?per_page=1&page=1&status=" + url.QueryEscape(status)
+	params := url.Values{
+		"per_page": {"1"},
+		"page":     {"1"},
+		"status":   {status},
+	}
+	applyOrderYearFilter(params, year)
+	u := c.baseURL + "/wp-json/wc/v3/orders?" + params.Encode()
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return 0
@@ -626,8 +633,9 @@ func (c *wcClient) fetchOrderTotal(status string) int {
 // fetchOrders returns one page of orders, oldest first so the import
 // processes history in chronological order. The status param filters
 // server-side ("any" returns trash/draft too — orchestrator still filters
-// them via mapWCOrderStatus).
-func (c *wcClient) fetchOrders(page int, status string) ([]wcOrder, error) {
+// them via mapWCOrderStatus). year > 0 restricts to that calendar year via
+// WC's after/before params.
+func (c *wcClient) fetchOrders(page int, status string, year int) ([]wcOrder, error) {
 	if status == "" {
 		status = "any"
 	}
@@ -639,10 +647,22 @@ func (c *wcClient) fetchOrders(page int, status string) ([]wcOrder, error) {
 		"orderby":  {"id"},
 		"order":    {"asc"},
 	}
+	applyOrderYearFilter(params, year)
 	if err := c.get("/wp-json/wc/v3/orders", params, &orders); err != nil {
 		return nil, fmt.Errorf("orders page %d: %w", page, err)
 	}
 	return orders, nil
+}
+
+// applyOrderYearFilter mutates params to bracket the given calendar year
+// using WC's after/before ISO 8601 params (interpreted in the site's
+// timezone server-side). year <= 0 is a no-op.
+func applyOrderYearFilter(params url.Values, year int) {
+	if year <= 0 {
+		return
+	}
+	params.Set("after", fmt.Sprintf("%04d-01-01T00:00:00", year))
+	params.Set("before", fmt.Sprintf("%04d-01-01T00:00:00", year+1))
 }
 
 func (c *wcClient) fetchVariations(productID int) ([]wcVariation, error) {
