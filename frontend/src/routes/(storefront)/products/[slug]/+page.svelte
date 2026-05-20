@@ -787,33 +787,24 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10">
       {#each [
-        { icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
-          label: m.product_detail_specs_variants(),
-          caption: 'SIZE OPTIONS',
-          value: data.variants.length > 0
-            ? (data.variants.length > 1
-                ? m.product_detail_specs_sizes_many({ count: data.variants.length })
-                : m.product_detail_specs_sizes_one({ count: data.variants.length }))
-            : m.product_detail_specs_dash() },
-        { icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z',
-          label: m.product_detail_specs_availability(),
-          caption: 'AVAILABILITY',
-          value: inStock ? m.product_detail_specs_in_stock() : m.product_detail_specs_out_of_stock() },
-        { icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3',
-          label: m.product_detail_specs_coverage(),
-          caption: 'COVERAGE',
-          value: m.product_detail_specs_dash() },
-        { icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-          label: m.product_detail_specs_durability(),
-          caption: 'DURABILITY',
-          value: m.product_detail_specs_dash() }
+        { icon: 'M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.186c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5',
+          value: m.product_detail_specs_korean_rd(),
+          caption: 'KOREAN R&D' },
+        { icon: 'M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z',
+          value: m.product_detail_specs_total_care(),
+          caption: 'PROFESSIONAL CARE' },
+        { icon: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+          value: m.product_detail_specs_lasting(),
+          caption: 'LONG-LASTING' },
+        { icon: 'M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5',
+          value: m.product_detail_specs_since_2012(),
+          caption: 'SINCE 2012' }
       ] as spec}
         <div class="bg-navy-900 flex flex-col items-center gap-2 py-8 px-4 sm:py-10 sm:px-6 text-center">
           <svg class="w-7 h-7 text-amber-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={spec.icon} />
           </svg>
           <span class="font-display text-2xl md:text-3xl font-bold text-white">{spec.value}</span>
-          <span class="font-display text-sm font-medium text-white/85">{spec.label}</span>
           <span class="text-[10px] font-display font-semibold uppercase tracking-[0.18em] text-white/40">{spec.caption}</span>
         </div>
       {/each}
