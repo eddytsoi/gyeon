@@ -44,14 +44,37 @@ func TestToResizedWebpURL(t *testing.T) {
 			want: "/uploads/r/160/foo.jpg.webp",
 		},
 		{
-			name:  "svg passes through extension unchanged",
+			name:  "svg logo passes through unchanged",
 			in:    "/uploads/logo.svg",
 			width: 320,
-			// SVG ext not rewritten — backend will 404 on /uploads/r/ for SVG
-			// (resizableExt rejects it). This is fine: SVG logos should be kept
-			// outside /uploads/ or callers should not pass them. Documented here
-			// so the helper's behaviour is unambiguous if it ever happens.
-			want: "/uploads/r/320/logo.svg",
+			// SVG can't go through the resize endpoint (resizableExt rejects
+			// it → 404). It's served by the plain /uploads/ FileServer with
+			// MIME image/svg+xml, so the rewrite must leave the URL alone.
+			want: "/uploads/logo.svg",
+		},
+		{
+			name:  "absolute svg logo passes through unchanged",
+			in:    "https://gyeon.hk/uploads/logo.svg",
+			width: 320,
+			want:  "https://gyeon.hk/uploads/logo.svg",
+		},
+		{
+			name:  "gif passes through unchanged",
+			in:    "/uploads/animation.gif",
+			width: 160,
+			want:  "/uploads/animation.gif",
+		},
+		{
+			name:  "pdf passes through unchanged",
+			in:    "/uploads/document.pdf",
+			width: 160,
+			want:  "/uploads/document.pdf",
+		},
+		{
+			name:  "no extension passes through unchanged",
+			in:    "/uploads/somefile",
+			width: 160,
+			want:  "/uploads/somefile",
 		},
 		{
 			name:  "already resized URL passes through",
