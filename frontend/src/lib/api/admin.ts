@@ -32,7 +32,10 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
     } catch {
       // ignore — fall through to status-only message
     }
-    if (detail.length > 500) detail = detail.slice(0, 500) + '…';
+    // Cap is defensive against runaway HTML error pages from upstream gateways;
+    // 4000 chars is generous enough for any real JSON envelope (the ShipAny
+    // 403 "already exists" body is ~600 chars) so operators don't lose context.
+    if (detail.length > 4000) detail = detail.slice(0, 4000) + '…';
     throw new Error(`API ${res.status} ${path}${detail ? `: ${detail}` : ''}`);
   }
   if (res.status === 204) return undefined as T;

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -276,7 +277,22 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		PaidByReceiver: paidByReceiver,
 	})
 	if err != nil {
-		return nil, err
+		// Recovery: a prior attempt succeeded at ShipAny (returned 201 with a
+		// uid) but the subsequent local INSERT below failed — leaving a
+		// remote order with no local row. Every retry then hits ShipAny's
+		// duplicate-ext_order_id check and gets 403. Detect that case from
+		// the error envelope, fetch the orphaned remote order, and persist
+		// it as if the create had just succeeded.
+		if uid := extractExistingShipanyUID(err); uid != "" {
+			recovered, rerr := s.client.FetchOrder(ctx, uid)
+			if rerr != nil {
+				return nil, fmt.Errorf("%w (recovery FetchOrder %s failed: %v)", err, uid, rerr)
+			}
+			log.Printf("shipany createForOrder: recovered orphan ShipAny order %s for local order %s", uid, orderID)
+			created = recovered
+		} else {
+			return nil, err
+		}
 	}
 
 	// Backfill carrier/service onto the order when the operator supplied an
@@ -672,3 +688,34 @@ func ptrToString(p *string) string {
 }
 
 func strPtr(s string) *string { return &s }
+
+// shipanyExistingUIDPattern matches the result.details line ShipAny returns
+// when ext_order_id collides with an existing order:
+//
+//	"Order creation failed as order(uid: <uuid>, ref: <ref>) already exists."
+//
+// Captured group 1 is the remote order uid we use to recover.
+var shipanyExistingUIDPattern = regexp.MustCompile(`order\(uid:\s*([0-9a-fA-F-]{36})`)
+
+// extractExistingShipanyUID pulls the existing remote order uid out of a
+// CreateShipment error whose ShipAny envelope says the order already exists.
+// Returns "" if the error isn't an APIError or the message doesn't match.
+func extractExistingShipanyUID(err error) string {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	if apiErr.Status != 403 && apiErr.Code != 403 {
+		return ""
+	}
+	for _, d := range apiErr.Details {
+		if m := shipanyExistingUIDPattern.FindStringSubmatch(d); len(m) == 2 {
+			return m[1]
+		}
+	}
+	// Fallback: also scan Raw — defensive in case ShipAny re-shapes the envelope.
+	if m := shipanyExistingUIDPattern.FindStringSubmatch(apiErr.Raw); len(m) == 2 {
+		return m[1]
+	}
+	return ""
+}

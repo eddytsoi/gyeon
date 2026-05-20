@@ -2,6 +2,8 @@ package shipany
 
 import (
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -111,6 +113,89 @@ func TestNormalizePhoneNumber(t *testing.T) {
 		if got != c.want {
 			t.Errorf("normalizePhoneNumber(%q, %q) = %q, want %q", c.raw, c.country, got, c.want)
 		}
+	}
+}
+
+// TestAPIErrorFormatting pins what callers see when ShipAny rejects a
+// CreateShipment with the real-world "order already exists" envelope. The
+// red banner in the admin UI is built from APIError.Error(), so this
+// guards against regressions that would either re-truncate the body or
+// drop the parsed result.details.
+func TestAPIErrorFormatting(t *testing.T) {
+	err := &APIError{
+		Status:  403,
+		Code:    403,
+		Descr:   "Forbidden",
+		Details: []string{"Order creation failed as order(uid: c68e4a46-8603-43d8-941c-9ec63e2b9689, ref: ORD-4916) already exists."},
+		Method:  "POST",
+		Route:   "orders/",
+	}
+	msg := err.Error()
+	want := "shipany POST orders/: 403 Forbidden — Order creation failed as order(uid: c68e4a46-8603-43d8-941c-9ec63e2b9689, ref: ORD-4916) already exists."
+	if msg != want {
+		t.Fatalf("APIError formatting:\n  got:  %s\n  want: %s", msg, want)
+	}
+}
+
+// TestAPIErrorFallsBackToRaw covers the non-JSON path: a gateway 502 returning
+// an HTML page should still surface intact (no parsed envelope = use Raw).
+func TestAPIErrorFallsBackToRaw(t *testing.T) {
+	err := &APIError{
+		Status: 502,
+		Raw:    "<html>nginx: bad gateway</html>",
+		Method: "GET",
+		Route:  "merchants/self/",
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "502") || !strings.Contains(msg, "nginx: bad gateway") {
+		t.Fatalf("expected status + raw body in fallback, got: %s", msg)
+	}
+}
+
+// TestExtractExistingShipanyUID covers the recovery hook in CreateForOrder:
+// the regex must pull the uid out of the real ShipAny details string and
+// must NOT match on unrelated 403s (e.g. permission errors).
+func TestExtractExistingShipanyUID(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "real-world already-exists details",
+			err: &APIError{
+				Status:  403,
+				Code:    403,
+				Details: []string{"Order creation failed as order(uid: c68e4a46-8603-43d8-941c-9ec63e2b9689, ref: ORD-4916) already exists."},
+			},
+			want: "c68e4a46-8603-43d8-941c-9ec63e2b9689",
+		},
+		{
+			name: "uid present in raw body only (envelope shape changed)",
+			err: &APIError{
+				Status: 403,
+				Raw:    `{"result":{"descr":"Forbidden","details":["order(uid: a1b2c3d4-e5f6-7890-1234-567890abcdef, ref: ORD-1) already exists."]}}`,
+			},
+			want: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+		},
+		{
+			name: "unrelated 403 (no uid present)",
+			err:  &APIError{Status: 403, Details: []string{"API key revoked"}},
+			want: "",
+		},
+		{
+			name: "non-APIError",
+			err:  errors.New("boom"),
+			want: "",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := extractExistingShipanyUID(c.err)
+			if got != c.want {
+				t.Fatalf("got %q, want %q", got, c.want)
+			}
+		})
 	}
 }
 
