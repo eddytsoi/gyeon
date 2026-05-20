@@ -34,6 +34,36 @@ import (
 // ErrNotConfigured is returned when shipany_api_key is empty.
 var ErrNotConfigured = errors.New("shipany is not configured")
 
+// APIError is returned by c.do() when ShipAny responds with status >= 400.
+// Callers that need to react to specific failure modes (e.g. "order already
+// exists") can errors.As into this to read the parsed `result` envelope.
+// String callers see a formatted message that includes the descr + details
+// when present, falling back to the verbatim body so HTML / non-JSON 5xx
+// pages still surface intact in admin logs.
+type APIError struct {
+	Status  int
+	Code    int      // result.code from the ShipAny envelope (0 if absent)
+	Descr   string   // result.descr
+	Details []string // result.details
+	Raw     string   // response body verbatim (no length cap — bounded upstream by 4MB io.LimitReader)
+	Method  string
+	Route   string
+}
+
+func (e *APIError) Error() string {
+	body := e.Raw
+	if e.Descr != "" || len(e.Details) > 0 {
+		body = strings.TrimSpace(e.Descr)
+		if len(e.Details) > 0 {
+			if body != "" {
+				body += " — "
+			}
+			body += strings.Join(e.Details, "; ")
+		}
+	}
+	return fmt.Sprintf("shipany %s %s: %d %s", e.Method, e.Route, e.Status, body)
+}
+
 // Env prefixes the merchant portal embeds in the API key. We strip them
 // before sending and use them to pick the subdomain variant.
 var envPrefixes = map[string]string{
@@ -364,6 +394,7 @@ func (c *HTTPClient) FetchOrder(ctx context.Context, shipmentID string) (*Shipme
 
 type envelope[T any] struct {
 	Result struct {
+		Code    int      `json:"code,omitempty"`
 		Descr   string   `json:"descr,omitempty"`
 		Details []string `json:"details,omitempty"`
 	} `json:"result,omitempty"`
@@ -693,8 +724,29 @@ func (c *HTTPClient) do(ctx context.Context, method, route string, body, query a
 
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode >= 400 {
-		return resp.StatusCode, fmt.Errorf("shipany %s %s: %d %s",
-			method, route, resp.StatusCode, truncate(string(respBody), 256))
+		apiErr := &APIError{
+			Status: resp.StatusCode,
+			Method: method,
+			Route:  route,
+			Raw:    string(respBody),
+		}
+		// Best-effort parse of the ShipAny envelope so callers can match on
+		// result.code / result.details (used by the "order already exists"
+		// recovery path in service.go). Non-JSON bodies just leave the
+		// structured fields empty — Error() falls back to Raw.
+		var env struct {
+			Result struct {
+				Code    int      `json:"code,omitempty"`
+				Descr   string   `json:"descr,omitempty"`
+				Details []string `json:"details,omitempty"`
+			} `json:"result"`
+		}
+		if json.Unmarshal(respBody, &env) == nil {
+			apiErr.Code = env.Result.Code
+			apiErr.Descr = env.Result.Descr
+			apiErr.Details = env.Result.Details
+		}
+		return resp.StatusCode, apiErr
 	}
 	if out != nil && len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, out); err != nil {
