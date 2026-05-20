@@ -141,6 +141,7 @@ func (h *Handler) OrdersTest(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
+	req.Status = normalizeWCOrderStatus(req.Status)
 	if err := h.svc.TestConnection(ImportRequest{WCURL: req.WCURL, WCKey: req.WCKey, WCSecret: req.WCSecret}); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -163,6 +164,7 @@ func (h *Handler) OrdersImportStream(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
+	req.Status = normalizeWCOrderStatus(req.Status)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

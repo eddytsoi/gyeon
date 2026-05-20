@@ -19,6 +19,25 @@ type OrdersImportRequest struct {
 	WCKey    string `json:"wc_key"`
 	WCSecret string `json:"wc_secret"`
 	Limit    int    `json:"limit"`
+	// Status filters WC orders fetched from /wc/v3/orders by their WC-side
+	// status. Accepted: "any" (default, empty also treated as any),
+	// "pending", "processing", "on-hold", "completed", "cancelled",
+	// "refunded", "failed". Unknown values are coerced to "any" by the
+	// handler via normalizeWCOrderStatus.
+	Status string `json:"status"`
+}
+
+// normalizeWCOrderStatus coerces a user-supplied WC status string into a
+// safe value to forward to the WC REST API. Empty / unknown → "any".
+func normalizeWCOrderStatus(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "any":
+		return "any"
+	case "pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return "any"
+	}
 }
 
 // OrdersProgressUpdate is streamed once per processed order.
@@ -59,7 +78,7 @@ func mapWCOrderStatus(s string) (string, bool) {
 // OrderTotal returns the WC store's total order count via X-WP-Total. 0 on
 // any error — the test endpoint already validated connectivity.
 func (s *Service) OrderTotal(req OrdersImportRequest) int {
-	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchOrderTotal()
+	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchOrderTotal(req.Status)
 }
 
 // RunOrdersStreaming pages through /wc/v3/orders, upserts each order +
@@ -69,7 +88,7 @@ func (s *Service) RunOrdersStreaming(ctx context.Context, req OrdersImportReques
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := OrdersProgressUpdate{Errors: []string{}}
 
-	p.TotalOrders = wc.fetchOrderTotal()
+	p.TotalOrders = wc.fetchOrderTotal(req.Status)
 	if req.Limit > 0 && (p.TotalOrders == 0 || p.TotalOrders > req.Limit) {
 		p.TotalOrders = req.Limit
 	}
@@ -82,7 +101,7 @@ func (s *Service) RunOrdersStreaming(ctx context.Context, req OrdersImportReques
 
 pages:
 	for page := 1; ; page++ {
-		batch, err := wc.fetchOrders(page)
+		batch, err := wc.fetchOrders(page, req.Status)
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch orders page %d: %v", page, err))
 			break
