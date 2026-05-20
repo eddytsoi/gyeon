@@ -57,8 +57,8 @@ export const adminLogin = async (email: string, password: string): Promise<strin
   return data.token;
 };
 
-export const getStats = (token: string) =>
-  request<AdminStats>('/admin/stats', token);
+export const getStats = (token: string, from?: string, to?: string) =>
+  request<AdminStats>(`/admin/stats${rangeQs(from, to)}`, token);
 
 // Products — admin list hits a dedicated endpoint that returns all statuses.
 // Detail reads (GET) use the public /products/* (open). Mutations use

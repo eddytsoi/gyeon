@@ -23,23 +23,35 @@ func NewStatsHandler(db *sql.DB) *StatsHandler {
 }
 
 func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
+	from, to, err := parseRange(r)
+	if err != nil {
+		respond.BadRequest(w, err.Error())
+		return
+	}
+
 	var stats Stats
 
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM products WHERE status = 'active'`).
+		`SELECT COUNT(*) FROM products
+		 WHERE status = 'active'
+		   AND created_at >= $1 AND created_at < $2`, from, to).
 		Scan(&stats.TotalProducts)
 
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM orders`).
+		`SELECT COUNT(*) FROM orders
+		 WHERE created_at >= $1 AND created_at < $2`, from, to).
 		Scan(&stats.TotalOrders)
 
 	h.db.QueryRowContext(r.Context(),
 		`SELECT COALESCE(SUM(total), 0) FROM orders
-		 WHERE status NOT IN ('cancelled', 'refunded')`).
+		 WHERE created_at >= $1 AND created_at < $2
+		   AND status NOT IN ('cancelled', 'refunded')`, from, to).
 		Scan(&stats.TotalRevenue)
 
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM orders WHERE status = 'pending'`).
+		`SELECT COUNT(*) FROM orders
+		 WHERE created_at >= $1 AND created_at < $2
+		   AND status = 'pending'`, from, to).
 		Scan(&stats.PendingOrders)
 
 	respond.JSON(w, http.StatusOK, stats)
