@@ -391,6 +391,7 @@
   let ordersErrorMsg = $state('');
   let ordersProgress = $state<OrdersProgress | null>(null);
   let ordersLimit = $state<number | null>(null);
+  let ordersStatus = $state<string>('any');
 
   const ordersPct = $derived(
     ordersProgress && ordersProgress.total_orders > 0
@@ -420,7 +421,7 @@
       const testRes = await fetch('/api/v1/admin/import/woocommerce/orders/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret })
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, status: ordersStatus })
       });
       if (!testRes.ok) {
         ordersErrorMsg = (await testRes.text()) || m.admin_import_run_failed_default();
@@ -442,7 +443,8 @@
           wc_url: wcUrl,
           wc_key: wcKey,
           wc_secret: wcSecret,
-          limit: ordersLimit && ordersLimit > 0 ? Math.floor(ordersLimit) : 0
+          limit: ordersLimit && ordersLimit > 0 ? Math.floor(ordersLimit) : 0,
+          status: ordersStatus
         })
       });
 
@@ -998,6 +1000,23 @@
         <p class="text-xs text-gray-500 mb-5">{m.admin_import_orders_intro()}</p>
 
         <div class="flex flex-col gap-5">
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_orders_status" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_orders_status_label()}
+            </label>
+            <select id="wc_orders_status" bind:value={ordersStatus}
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="any">{m.admin_import_orders_status_any()}</option>
+              <option value="pending">{m.wc_order_status_pending()}</option>
+              <option value="processing">{m.wc_order_status_processing()}</option>
+              <option value="on-hold">{m.wc_order_status_on_hold()}</option>
+              <option value="completed">{m.wc_order_status_completed()}</option>
+              <option value="cancelled">{m.wc_order_status_cancelled()}</option>
+              <option value="refunded">{m.wc_order_status_refunded()}</option>
+              <option value="failed">{m.wc_order_status_failed()}</option>
+            </select>
+          </div>
           <div class="flex flex-col gap-1.5">
             <label for="wc_orders_limit" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {m.admin_import_label_limit()}

@@ -602,10 +602,13 @@ func (c *wcClient) fetchCustomers(page int) ([]wcCustomer, error) {
 	return customers, nil
 }
 
-// fetchOrderTotal returns the WC store's total order count via X-WP-Total.
-// 0 on any error.
-func (c *wcClient) fetchOrderTotal() int {
-	u := c.baseURL + "/wp-json/wc/v3/orders?per_page=1&page=1&status=any"
+// fetchOrderTotal returns the WC store's total order count via X-WP-Total,
+// filtered by the given WC status (empty → "any"). 0 on any error.
+func (c *wcClient) fetchOrderTotal(status string) int {
+	if status == "" {
+		status = "any"
+	}
+	u := c.baseURL + "/wp-json/wc/v3/orders?per_page=1&page=1&status=" + url.QueryEscape(status)
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return 0
@@ -621,14 +624,18 @@ func (c *wcClient) fetchOrderTotal() int {
 }
 
 // fetchOrders returns one page of orders, oldest first so the import
-// processes history in chronological order. status=any so trash and
-// draft are also fetched (we filter them out in the orchestrator).
-func (c *wcClient) fetchOrders(page int) ([]wcOrder, error) {
+// processes history in chronological order. The status param filters
+// server-side ("any" returns trash/draft too — orchestrator still filters
+// them via mapWCOrderStatus).
+func (c *wcClient) fetchOrders(page int, status string) ([]wcOrder, error) {
+	if status == "" {
+		status = "any"
+	}
 	var orders []wcOrder
 	params := url.Values{
 		"per_page": {"100"},
 		"page":     {fmt.Sprintf("%d", page)},
-		"status":   {"any"},
+		"status":   {status},
 		"orderby":  {"id"},
 		"order":    {"asc"},
 	}
