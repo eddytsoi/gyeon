@@ -30,7 +30,7 @@
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { onMount } from 'svelte';
 
-  // PDP main image is sticky on the left in a 3fr/2fr grid on lg+: max column
+  // PDP main image is sticky on the left in a 4fr/3fr grid on lg+: max column
   // width ~720px there, full viewport on mobile. Eager + high priority for LCP.
   const PDP_MAIN_WIDTHS = [480, 640, 960, 1280];
   const PDP_MAIN_SIZES = '(min-width: 1024px) 720px, 100vw';
@@ -393,7 +393,7 @@
       <span class="font-semibold text-navy-900 truncate max-w-[60vw]">{data.product.name}</span>
     </nav>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16 items-start">
+    <div class="grid grid-cols-1 lg:grid-cols-[4fr_3fr] gap-10 lg:gap-16 items-start">
 
       <!-- LEFT: Image Gallery -->
       <div class="flex flex-col gap-4">
