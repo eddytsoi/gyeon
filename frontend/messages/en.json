@@ -1574,6 +1574,7 @@
   "wc_order_status_processing": "Processing",
   "wc_order_status_on_hold": "On hold",
   "wc_order_status_completed": "Completed",
+  "wc_order_status_collected": "Collected",
   "wc_order_status_cancelled": "Cancelled",
   "wc_order_status_refunded": "Refunded",
   "wc_order_status_failed": "Failed",

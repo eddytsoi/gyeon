@@ -1574,6 +1574,7 @@
   "wc_order_status_processing": "處理中",
   "wc_order_status_on_hold": "保留中",
   "wc_order_status_completed": "已完成",
+  "wc_order_status_collected": "已取貨",
   "wc_order_status_cancelled": "已取消",
   "wc_order_status_refunded": "已退款",
   "wc_order_status_failed": "失敗",

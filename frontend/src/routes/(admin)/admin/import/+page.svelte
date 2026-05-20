@@ -1022,6 +1022,7 @@
               <option value="processing">{m.wc_order_status_processing()}</option>
               <option value="on-hold">{m.wc_order_status_on_hold()}</option>
               <option value="completed">{m.wc_order_status_completed()}</option>
+              <option value="collected">{m.wc_order_status_collected()}</option>
               <option value="cancelled">{m.wc_order_status_cancelled()}</option>
               <option value="refunded">{m.wc_order_status_refunded()}</option>
               <option value="failed">{m.wc_order_status_failed()}</option>
