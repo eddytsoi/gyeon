@@ -19,6 +19,12 @@ var uploadsURLRe = regexp.MustCompile(`^(.*?)/uploads/([^?#]+)(\?.*)?$`)
 //   - doesn't match the /uploads/<filename> pattern (external CDN, data URI)
 //   - already points at /uploads/r/ (already resized)
 //   - has a filename containing "/" or ".." (would be rejected by backend anyway)
+//   - has a non-raster extension (.svg, .gif, .pdf, no extension, etc.) — the
+//     resize endpoint only handles .jpg/.jpeg/.png/.webp, so anything else
+//     must keep its original URL and be served by the plain /uploads/
+//     FileServer (main.go:500). SVG logos in particular embed as PDF vector
+//     when Chromium prints, which is smaller and crisper than rasterising
+//     them through the resize pipeline.
 //
 // Width should be one of media.allowedWidths; callers in this package only
 // pass 160 (product thumbs) and 320 (logo) so we don't re-validate here.
@@ -46,6 +52,17 @@ func toResizedWebpURL(rawURL string, width int) string {
 	// Backend rejects slashes/dotdot in filename, so the rewrite is a no-op
 	// for anything that wouldn't be served anyway.
 	if strings.ContainsAny(filename, "/\\") || strings.Contains(filename, "..") {
+		return rawURL
+	}
+
+	// Only rewrite raster formats that the resize endpoint actually serves.
+	// SVG / GIF / anything else falls through to the plain /uploads/
+	// FileServer untouched. Mirrors media/resize.go::resizableExt.
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp":
+		// fall through to rewrite below
+	default:
 		return rawURL
 	}
 
