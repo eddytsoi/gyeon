@@ -392,6 +392,8 @@
   let ordersProgress = $state<OrdersProgress | null>(null);
   let ordersLimit = $state<number | null>(null);
   let ordersStatus = $state<string>('any');
+  let ordersYear = $state<number>(0);
+  const ORDERS_YEARS = [2026, 2025, 2024, 2023] as const;
 
   const ordersPct = $derived(
     ordersProgress && ordersProgress.total_orders > 0
@@ -421,7 +423,7 @@
       const testRes = await fetch('/api/v1/admin/import/woocommerce/orders/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, status: ordersStatus })
+        body: JSON.stringify({ wc_url: wcUrl, wc_key: wcKey, wc_secret: wcSecret, status: ordersStatus, year: ordersYear })
       });
       if (!testRes.ok) {
         ordersErrorMsg = (await testRes.text()) || m.admin_import_run_failed_default();
@@ -444,7 +446,8 @@
           wc_key: wcKey,
           wc_secret: wcSecret,
           limit: ordersLimit && ordersLimit > 0 ? Math.floor(ordersLimit) : 0,
-          status: ordersStatus
+          status: ordersStatus,
+          year: ordersYear
         })
       });
 
@@ -549,11 +552,18 @@
        role="dialog" aria-modal="true">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
       <h2 class="text-base font-semibold text-gray-900 mb-3">{m.admin_import_orders_confirm_title()}</h2>
-      <p class="text-sm text-gray-600 leading-relaxed mb-6">
+      <p class="text-sm text-gray-600 leading-relaxed mb-2">
         {ordersLimit && ordersLimit > 0
           ? m.admin_import_orders_confirm_limited({ limit: ordersLimit })
           : m.admin_import_orders_confirm_full()}
       </p>
+      {#if ordersYear > 0}
+        <p class="text-xs text-gray-500 mb-6">
+          {m.admin_import_orders_confirm_year_scope({ year: ordersYear })}
+        </p>
+      {:else}
+        <div class="mb-6"></div>
+      {/if}
       <div class="flex gap-3 justify-end">
         <button onclick={cancelOrdersConfirm}
                 class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl
@@ -1015,6 +1025,19 @@
               <option value="cancelled">{m.wc_order_status_cancelled()}</option>
               <option value="refunded">{m.wc_order_status_refunded()}</option>
               <option value="failed">{m.wc_order_status_failed()}</option>
+            </select>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_orders_year" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_orders_year_label()}
+            </label>
+            <select id="wc_orders_year" bind:value={ordersYear}
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value={0}>{m.admin_import_orders_year_any()}</option>
+              {#each ORDERS_YEARS as y}
+                <option value={y}>{y}</option>
+              {/each}
             </select>
           </div>
           <div class="flex flex-col gap-1.5">

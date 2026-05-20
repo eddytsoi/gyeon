@@ -25,6 +25,10 @@ type OrdersImportRequest struct {
 	// "refunded", "failed". Unknown values are coerced to "any" by the
 	// handler via normalizeWCOrderStatus.
 	Status string `json:"status"`
+	// Year scopes the import to orders created in that calendar year (site
+	// timezone, as accepted by WC's after/before params). 0 or unset =
+	// no year filter (all years).
+	Year int `json:"year"`
 }
 
 // normalizeWCOrderStatus coerces a user-supplied WC status string into a
@@ -78,7 +82,7 @@ func mapWCOrderStatus(s string) (string, bool) {
 // OrderTotal returns the WC store's total order count via X-WP-Total. 0 on
 // any error — the test endpoint already validated connectivity.
 func (s *Service) OrderTotal(req OrdersImportRequest) int {
-	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchOrderTotal(req.Status)
+	return newWCClient(req.WCURL, req.WCKey, req.WCSecret).fetchOrderTotal(req.Status, req.Year)
 }
 
 // RunOrdersStreaming pages through /wc/v3/orders, upserts each order +
@@ -88,7 +92,7 @@ func (s *Service) RunOrdersStreaming(ctx context.Context, req OrdersImportReques
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := OrdersProgressUpdate{Errors: []string{}}
 
-	p.TotalOrders = wc.fetchOrderTotal(req.Status)
+	p.TotalOrders = wc.fetchOrderTotal(req.Status, req.Year)
 	if req.Limit > 0 && (p.TotalOrders == 0 || p.TotalOrders > req.Limit) {
 		p.TotalOrders = req.Limit
 	}
@@ -101,7 +105,7 @@ func (s *Service) RunOrdersStreaming(ctx context.Context, req OrdersImportReques
 
 pages:
 	for page := 1; ; page++ {
-		batch, err := wc.fetchOrders(page, req.Status)
+		batch, err := wc.fetchOrders(page, req.Status, req.Year)
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch orders page %d: %v", page, err))
 			break
