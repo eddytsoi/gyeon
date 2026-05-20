@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const sortBy = (url.searchParams.get('by') === 'revenue' ? 'revenue' : 'qty') as 'qty' | 'revenue';
 
   const [stats, revenue, topProducts, topCustomers, statusBreakdown, refunds] = await Promise.all([
-    getStats(token).catch(() => null),
+    getStats(token, fromISO, toISO).catch(() => null),
     adminGetRevenueTrend(token, fromISO, toISO).catch(() => [] as RevenuePoint[]),
     adminGetTopProducts(token, fromISO, toISO, sortBy).catch(() => [] as TopProduct[]),
     adminGetTopCustomers(token, fromISO, toISO).catch(() => [] as TopCustomer[]),
