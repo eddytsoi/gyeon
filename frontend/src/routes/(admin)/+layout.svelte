@@ -7,6 +7,7 @@
   import Notifications from '$lib/components/Notifications.svelte';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
+  import { receiptCache } from '$lib/stores/receiptCache.svelte';
 
   let { data, children } = $props();
 
@@ -35,6 +36,17 @@
           0,
           `/admin/orders/${o.order_id}`
         );
+      } catch {
+        /* ignore malformed events */
+      }
+    });
+    // The queue worker fires this once a receipt PDF has been written to
+    // disk. Update the shared store so any open order page lights up the
+    // ⚡ icon next to the download button without a reload.
+    es.addEventListener('receipt_cache_ready', (e) => {
+      try {
+        const o = JSON.parse((e as MessageEvent).data) as { order_id: string };
+        if (o.order_id) receiptCache.set(o.order_id, true);
       } catch {
         /* ignore malformed events */
       }

@@ -1,11 +1,50 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { onMount } from 'svelte';
   import type { ActionData, PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import { receiptCache } from '$lib/stores/receiptCache.svelte';
+  import { notify } from '$lib/stores/notifications.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
+
+  const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+  const receiptReady = $derived(receiptCache.isReady(data.order.id));
+  let regenerating = $state(false);
+
+  // Fetch the initial cache state on mount so the icon reflects backend
+  // reality on first paint. SSE will keep it fresh from there.
+  onMount(() => {
+    if (!receiptStatuses.includes(data.order.status)) return;
+    fetch(`/admin/orders/${data.order.id}/receipt-cache-status`, {
+      headers: { Accept: 'application/json' }
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { available?: boolean } | null) => {
+        if (j?.available) receiptCache.set(data.order.id, true);
+      })
+      .catch(() => {});
+  });
+
+  async function regenerateReceiptCache() {
+    if (regenerating) return;
+    regenerating = true;
+    // Optimistically clear the icon; the worker will re-light it via SSE.
+    receiptCache.set(data.order.id, false);
+    try {
+      const res = await fetch(`/admin/orders/${data.order.id}/receipt-regenerate`, {
+        method: 'POST'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      notify.success(m.admin_order_receipt_regenerate_done());
+    } catch {
+      notify.error(m.admin_order_receipt_regenerate_failed());
+    } finally {
+      regenerating = false;
+    }
+  }
 
   // Group order items by parent_item_id so bundle component rows appear
   // indented under their bundle parent line. Mirrors the storefront/account
@@ -146,21 +185,38 @@
             {orderStatusLabel(data.order.status)}
           </span>
         </div>
-        {#if ['paid','processing','shipped','delivered'].includes(data.order.status)}
-          <a href="/admin/orders/{data.order.id}/receipt.pdf"
-             target="_blank" rel="noopener"
-             class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
-                    text-gray-700 border border-gray-200 rounded-lg
-                    hover:bg-gray-50 transition-colors whitespace-nowrap"
-             title={m.admin_order_receipt_download()}>
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            {m.admin_order_receipt_download()}
-          </a>
+        {#if receiptStatuses.includes(data.order.status)}
+          <div class="flex items-center gap-1.5">
+            <a href="/admin/orders/{data.order.id}/receipt.pdf"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
+                      text-gray-700 border border-gray-200 rounded-lg
+                      hover:bg-gray-50 transition-colors whitespace-nowrap"
+               title={receiptReady ? m.admin_order_receipt_cached_tooltip() : m.admin_order_receipt_download()}>
+              {#if receiptReady}
+                <!-- ⚡ cache-ready indicator -->
+                <svg class="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24"
+                     fill="currentColor" aria-hidden="true">
+                  <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>
+                </svg>
+              {/if}
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {m.admin_order_receipt_download()}
+            </a>
+            <button type="button" onclick={regenerateReceiptCache} disabled={regenerating}
+                    class="inline-flex items-center px-2 py-1 text-xs font-medium
+                           text-gray-500 border border-gray-200 rounded-lg
+                           hover:bg-gray-50 hover:text-gray-700 transition-colors
+                           disabled:opacity-50 whitespace-nowrap"
+                    title={m.admin_order_receipt_regenerate()}>
+              {regenerating ? m.admin_order_receipt_regenerating() : m.admin_order_receipt_regenerate()}
+            </button>
+          </div>
         {/if}
       </div>
     </div>
