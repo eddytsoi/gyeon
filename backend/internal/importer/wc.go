@@ -205,20 +205,24 @@ type wcLineItem struct {
 }
 
 type wcOrder struct {
-	ID            int               `json:"id"`
-	Number        string            `json:"number"`
-	Status        string            `json:"status"`
-	DateCreated   string            `json:"date_created"`
-	Currency      string            `json:"currency"`
-	CustomerID    int               `json:"customer_id"`
-	CustomerNote  string            `json:"customer_note"`
-	Total         string            `json:"total"`
-	TotalTax      string            `json:"total_tax"`
-	DiscountTotal string            `json:"discount_total"`
-	ShippingTotal string            `json:"shipping_total"`
-	LineItems     []wcLineItem      `json:"line_items"`
-	Billing       wcOrderBilling    `json:"billing"`
-	Shipping      wcCustomerAddress `json:"shipping"`
+	ID          int    `json:"id"`
+	Number      string `json:"number"`
+	Status      string `json:"status"`
+	DateCreated string `json:"date_created"`
+	// DateCreatedGMT is WC's UTC equivalent of DateCreated. Preferred for
+	// orders.created_at so the import is timezone-agnostic — the site-time
+	// DateCreated is naive and would be 8h off when the WC store runs in HKT.
+	DateCreatedGMT string            `json:"date_created_gmt"`
+	Currency       string            `json:"currency"`
+	CustomerID     int               `json:"customer_id"`
+	CustomerNote   string            `json:"customer_note"`
+	Total          string            `json:"total"`
+	TotalTax       string            `json:"total_tax"`
+	DiscountTotal  string            `json:"discount_total"`
+	ShippingTotal  string            `json:"shipping_total"`
+	LineItems      []wcLineItem      `json:"line_items"`
+	Billing        wcOrderBilling    `json:"billing"`
+	Shipping       wcCustomerAddress `json:"shipping"`
 }
 
 type wcClient struct {

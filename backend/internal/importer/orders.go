@@ -37,7 +37,7 @@ func normalizeWCOrderStatus(s string) string {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "", "any":
 		return "any"
-	case "pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed":
+	case "pending", "processing", "on-hold", "completed", "cancelled", "refunded", "failed", "collected":
 		return strings.ToLower(strings.TrimSpace(s))
 	default:
 		return "any"
@@ -70,6 +70,11 @@ func mapWCOrderStatus(s string) (string, bool) {
 		return "paid", true
 	case "completed":
 		return "delivered", true
+	case "collected":
+		// Custom WC status used by the source store to mark
+		// customer-picked-up orders. Local equivalent is "shipped"
+		// (order has left our hands).
+		return "shipped", true
 	case "cancelled", "failed":
 		return "cancelled", true
 	case "refunded":
@@ -174,7 +179,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	tax := parseDecimal(o.TotalTax)
 	total := parseDecimal(o.Total)
 
-	createdAt := parseWCTime(o.DateCreated)
+	// Prefer date_created_gmt (UTC) over date_created (site timezone, naive).
+	// The source WC store runs in UTC-8 / HKT, so parsing the site-time value
+	// as UTC would drift created_at by 8 hours.
+	createdAt := parseWCTime(firstNonEmpty(o.DateCreatedGMT, o.DateCreated))
 
 	shipAddrID, err := snapshotOrderAddress(ctx, tx, customerID, o)
 	if err != nil {
@@ -415,6 +423,13 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 func parseDecimal(s string) float64 {
 	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return f
+}
+
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
 }
 
 // parseWCTime accepts WC's date_created in either RFC3339 (when set on
