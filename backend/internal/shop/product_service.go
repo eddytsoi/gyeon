@@ -1059,6 +1059,11 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	// loader fired one /variants call per row just to display a count,
 	// and the handler had no way to surface the matching-row total for
 	// pagination.
+	//
+	// `primary_image_url`, `default_variant_*` and `min_price*` mirror the
+	// public List query so admin search pickers (e.g. the new-order page)
+	// can show a thumbnail + price next to each result without fanning out
+	// one /variants request per row.
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
@@ -1069,8 +1074,38 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 		       p.status, p.kind, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM product_variants pv
 		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name,
+		       cheapest.price AS min_price,
+		       cheapest.compare_at_price AS min_compare_at_price,
+		       cheapest.stock_qty AS min_price_stock_qty,
 		       COUNT(*) OVER () AS total_rows
-		FROM products p` + productTranslationJoin + where +
+		FROM products p` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.price, pv.compare_at_price, pv.stock_qty
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.price ASC
+		    LIMIT 1
+		) cheapest ON TRUE
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE` + where +
 		` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -1086,7 +1121,11 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
 			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
 			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
-			&pm.VariantCount, &total,
+			&pm.VariantCount, &pm.PrimaryImageURL,
+			&pm.DefaultVariantID, &pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
+			&pm.MinPrice, &pm.MinPriceCompareAt, &pm.MinPriceStock,
+			&total,
 		); err != nil {
 			return nil, 0, err
 		}
@@ -1104,6 +1143,10 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 		countQuery := `SELECT COUNT(*) FROM products p` + productTranslationJoin + where
 		_ = s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	}
+	// Bundles store a synthetic variant stock that isn't kept in sync with
+	// the underlying components — derive the real stock from components so
+	// the admin search shows the same "in stock" picture as the storefront.
+	s.overrideBundleStock(ctx, products)
 	s.cache.Set(key, adminListPage{Items: products, Total: total}, s.ttl(ctx))
 	return products, total, nil
 }

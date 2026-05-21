@@ -155,6 +155,8 @@
     {:else}
       <ul class="divide-y divide-gray-100 max-h-80 overflow-y-auto">
         {#each results as p (p.id)}
+          {@const price = p.default_variant_price ?? p.min_price ?? null}
+          {@const compareAt = p.default_variant_compare_at_price ?? p.min_compare_at_price ?? null}
           <li>
             <button type="button" onclick={() => pickProduct(p)}
                     class="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors flex items-center gap-3">
@@ -172,10 +174,20 @@
                     </span>
                   {/if}
                 </p>
-                <p class="text-xs text-gray-500 truncate">
-                  HK${(p.default_variant_price ?? p.min_price ?? 0).toFixed(2)}
+                <p class="text-xs text-gray-500 truncate flex items-center gap-1.5 flex-wrap">
+                  {#if price != null}
+                    {#if compareAt != null && compareAt > price}
+                      <span class="text-gray-400 line-through">HK${compareAt.toFixed(2)}</span>
+                      <span class="text-red-600 font-medium">HK${price.toFixed(2)}</span>
+                    {:else}
+                      <span>HK${price.toFixed(2)}</span>
+                    {/if}
+                  {:else}
+                    <span class="text-gray-400">—</span>
+                  {/if}
                   {#if p.default_variant_stock_qty != null}
-                    · {p.default_variant_stock_qty > 0 ? m.admin_order_create_items_stock({ qty: String(p.default_variant_stock_qty) }) : m.admin_order_create_items_out_of_stock()}
+                    <span>·</span>
+                    <span>{p.default_variant_stock_qty > 0 ? m.admin_order_create_items_stock({ qty: String(p.default_variant_stock_qty) }) : m.admin_order_create_items_out_of_stock()}</span>
                   {/if}
                 </p>
               </div>
@@ -228,8 +240,11 @@
     {:else if variants.length === 0}
       <p class="text-xs text-red-500">{m.admin_order_create_items_no_results()}</p>
     {:else}
-      <!-- Variant picker (only for non-bundle, multi-variant products) -->
-      {#if selectedProduct.kind !== 'bundle' && variants.filter((v) => v.is_active).length > 1}
+      <!-- Variant picker — shown for any non-bundle product with at least
+           one active variant. With a single variant the chip is purely
+           informational (the variant name is otherwise hidden behind the
+           SKU and admins lose track of which size/colour they're adding). -->
+      {#if selectedProduct.kind !== 'bundle' && variants.filter((v) => v.is_active).length >= 1}
         <div class="mb-3">
           <p class="text-xs font-medium text-gray-600 mb-1.5">{m.admin_order_create_items_select_variant()}</p>
           <div class="flex flex-wrap gap-1.5">
