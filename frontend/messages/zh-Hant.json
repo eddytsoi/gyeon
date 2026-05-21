@@ -594,6 +594,7 @@
   "admin_orders_title": "訂單 — Gyeon 管理員",
   "admin_orders_heading": "訂單",
   "admin_orders_col_id": "訂單編號",
+  "admin_orders_col_customer": "客戶",
   "admin_orders_col_date": "日期",
   "admin_orders_col_status": "狀態",
   "admin_orders_col_total": "總計",

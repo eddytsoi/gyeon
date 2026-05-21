@@ -202,6 +202,7 @@
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_orders_col_customer()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_orders_col_date()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_total()}</th>
@@ -223,8 +224,11 @@
               {/if}
             </span>
           </td>
+          <td class="px-5 py-3 text-gray-700 hidden md:table-cell">
+            {order.customer_name || '—'}
+          </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
-            {new Date(order.created_at).toLocaleDateString('en-HK')}
+            {new Date(order.created_at).toLocaleString('en-HK', { dateStyle: 'medium', timeStyle: 'short' })}
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -261,7 +265,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+          <td colspan="6" class="px-5 py-10 text-center text-gray-400">
             {#if hasFilters}
               <p class="font-medium text-gray-700 mb-1">{m.admin_orders_empty_no_match()}</p>
               <p class="text-xs">{m.admin_orders_empty_no_match_hint()}</p>
