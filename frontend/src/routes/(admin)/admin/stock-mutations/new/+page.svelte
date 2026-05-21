@@ -10,6 +10,7 @@
   import { notify } from '$lib/stores/notifications.svelte';
   import ProductPicker, { type ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
   import MutationItemsTable, { type MutationItemRow } from '$lib/components/admin/MutationItemsTable.svelte';
+  import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -27,7 +28,10 @@
     // Reject duplicate variant — backend enforces UNIQUE(mutation_id, variant_id)
     // anyway, but catching it here gives an immediate, friendlier UX.
     if (items.some((it) => it.variantId === variant.id)) {
-      notify.error('呢個 variant 已經喺單入面', '同一張 mutation 唔可以重複加入。');
+      notify.error(
+        m.admin_stock_mutations_duplicate_variant_title(),
+        m.admin_stock_mutations_duplicate_variant_body()
+      );
       return;
     }
     nextKey += 1;
@@ -55,7 +59,7 @@
 
   function setType(t: StockMutationType) {
     if (items.length > 0 && t !== type) {
-      if (!confirm('改變方向會清除所有 line items。繼續？')) return;
+      if (!confirm(m.admin_stock_mutations_confirm_change_type())) return;
       items = [];
     }
     type = t;
@@ -63,7 +67,10 @@
 
   async function save({ thenExecute }: { thenExecute: boolean }) {
     if (items.length === 0) {
-      notify.error('未有貨品', '至少要加一個 variant 先可以儲存。');
+      notify.error(
+        m.admin_stock_mutations_no_items_title(),
+        m.admin_stock_mutations_no_items_body()
+      );
       return;
     }
     saving = true;
@@ -75,93 +82,99 @@
         items: items.map((it) => ({ variant_id: it.variantId, quantity: it.quantity }))
       });
       if (!thenExecute) {
-        notify.success(`已儲存 ${created.mutation_number}`);
+        notify.success(m.admin_stock_mutations_saved_success({ id: created.mutation_number }));
         goto(`/admin/stock-mutations/${created.id}`);
         return;
       }
       try {
         await adminExecuteStockMutation(token, created.id);
-        notify.success(`${created.mutation_number} 已儲存並執行`);
+        notify.success(m.admin_stock_mutations_saved_and_executed({ id: created.mutation_number }));
         goto(`/admin/stock-mutations/${created.id}`);
       } catch (e) {
         if (e instanceof StockMutationInsufficientStockError) {
           conflicts = e.conflicts;
-          notify.error('庫存不足，未執行', '已儲存為 draft，請睇下面衝突列表。');
+          notify.error(
+            m.admin_stock_mutations_insufficient_stock_not_executed(),
+            m.admin_stock_mutations_insufficient_stock_saved_as_draft()
+          );
           goto(`/admin/stock-mutations/${created.id}`);
           return;
         }
         throw e;
       }
     } catch (e) {
-      notify.error('儲存失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_save_failure(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     } finally {
       saving = false;
     }
   }
 </script>
 
-<svelte:head><title>New Stock Mutation · Admin</title></svelte:head>
+<svelte:head><title>{m.admin_stock_mutations_new()} · {m.admin_stock_mutations_heading()}</title></svelte:head>
 
 <div class="space-y-4 max-w-4xl">
   <div class="flex items-center gap-3">
-    <a href="/admin/stock-mutations" class="text-sm text-gray-500 hover:text-gray-700">← Back</a>
-    <h1 class="text-2xl font-semibold text-gray-900">New Stock Mutation</h1>
+    <a href="/admin/stock-mutations" class="text-sm text-gray-500 hover:text-gray-700">← {m.admin_stock_mutations_back()}</a>
+    <h1 class="text-2xl font-semibold text-gray-900">{m.admin_stock_mutations_new()}</h1>
   </div>
 
   <!-- Type selector -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-    <h2 class="text-sm font-medium text-gray-900">Direction</h2>
+    <h2 class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_direction()}</h2>
     <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
       <button class="px-4 py-2 {type === 'in' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-gray-50'}"
-              onclick={() => setType('in')} type="button">＋ Stock In</button>
+              onclick={() => setType('in')} type="button">{m.admin_stock_mutations_button_in()}</button>
       <button class="px-4 py-2 border-l border-gray-200 {type === 'out' ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-gray-50'}"
-              onclick={() => setType('out')} type="button">− Stock Out</button>
+              onclick={() => setType('out')} type="button">{m.admin_stock_mutations_button_out()}</button>
     </div>
     <p class="text-xs text-gray-500">
       {#if type === 'in'}
-        每行 quantity 都會 <strong>加入</strong>庫存。
+        {@html m.admin_stock_mutations_direction_hint_in()}
       {:else}
-        每行 quantity 都會 <strong>扣減</strong>庫存。執行時如果有 variant 不足會 reject。
+        {@html m.admin_stock_mutations_direction_hint_out()}
       {/if}
     </p>
   </section>
 
   <!-- Items -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
-    <h2 class="text-sm font-medium text-gray-900">Items</h2>
+    <h2 class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_items()}</h2>
     <ProductPicker {token} mode="variant-only" onAdd={addItem} />
     <MutationItemsTable {items} {type} onChangeQty={changeQty} onRemove={removeRow} />
   </section>
 
   <!-- Note -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-    <label for="note" class="text-sm font-medium text-gray-900">Note (optional)</label>
+    <label for="note" class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_note_optional()}</label>
     <textarea id="note" bind:value={note} rows="3"
               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
-              placeholder="例如：2026-05 月盤點、收 supplier #123 到貨、…"></textarea>
+              placeholder={m.admin_stock_mutations_note_placeholder()}></textarea>
   </section>
 
   <!-- Actions -->
   <div class="flex flex-wrap justify-end gap-2">
-    <a href="/admin/stock-mutations" class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Discard</a>
+    <a href="/admin/stock-mutations" class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">{m.admin_stock_mutations_action_discard()}</a>
     <button onclick={() => save({ thenExecute: false })} disabled={saving}
             class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50">
-      {saving ? '…' : 'Save draft'}
+      {saving ? '…' : m.admin_stock_mutations_action_save_draft()}
     </button>
     <button onclick={() => save({ thenExecute: true })} disabled={saving}
             class="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
-      {saving ? '…' : 'Save & Execute'}
+      {saving ? '…' : m.admin_stock_mutations_action_save_execute()}
     </button>
   </div>
 
   {#if conflicts && conflicts.length > 0}
     <section class="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
-      <h3 class="text-sm font-medium text-red-800">庫存衝突</h3>
+      <h3 class="text-sm font-medium text-red-800">{m.admin_stock_mutations_conflict_heading()}</h3>
       <ul class="text-xs text-red-700 space-y-1">
         {#each conflicts as c}
           <li>
             • <strong>{c.product_name ?? c.variant_id}</strong>
-            ({c.variant_sku ?? '—'}) — 需要 {c.requested}，現有 {c.available}
+            ({c.variant_sku ?? '—'}) — {m.admin_stock_mutations_conflict_line({ requested: String(c.requested), available: String(c.available) })}
           </li>
         {/each}
       </ul>

@@ -15,6 +15,7 @@
 </script>
 
 <script lang="ts">
+  import * as m from '$lib/paraglide/messages';
   import type { MutationItemRow as Row } from './MutationItemsTable.svelte';
 
   let { items, type, readonly = false, onChangeQty, onRemove }: {
@@ -47,18 +48,18 @@
 
 {#if items.length === 0}
   <div class="border-2 border-dashed border-gray-200 rounded-xl px-6 py-10 text-center">
-    <p class="text-sm font-medium text-gray-500">📦 未有貨品</p>
-    <p class="text-xs text-gray-400 mt-1">用上面嘅搜尋加入 variant</p>
+    <p class="text-sm font-medium text-gray-500">📦 {m.admin_stock_mutations_table_empty_title()}</p>
+    <p class="text-xs text-gray-400 mt-1">{m.admin_stock_mutations_table_empty_hint()}</p>
   </div>
 {:else}
   <div class="overflow-x-auto -mx-2">
     <table class="w-full text-sm">
       <thead>
         <tr class="text-left border-b border-gray-100">
-          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">Product</th>
-          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Current</th>
-          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">Qty</th>
-          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap text-right">After</th>
+          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">{m.admin_stock_mutations_table_col_product()}</th>
+          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">{m.admin_stock_mutations_table_col_current()}</th>
+          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap">{m.admin_stock_mutations_table_col_qty()}</th>
+          <th class="px-2 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide whitespace-nowrap text-right">{m.admin_stock_mutations_table_col_after()}</th>
           {#if !readonly}<th class="px-2 py-2 w-8"></th>{/if}
         </tr>
       </thead>
@@ -109,7 +110,7 @@
             <td class="px-2 py-3 text-right whitespace-nowrap font-medium {negative ? 'text-red-600' : 'text-gray-900'}">
               {after ?? '—'}
               {#if negative}
-                <span class="ml-1 text-[10px] uppercase tracking-wide">⚠ negative</span>
+                <span class="ml-1 text-[10px] uppercase tracking-wide">{m.admin_stock_mutations_table_negative_warn()}</span>
               {/if}
             </td>
             {#if !readonly}
