@@ -17,6 +17,74 @@
   let hoveredParent = $state<string | null>(null);
   let canHover = $state(false);
 
+  const COLLAPSED_KEY = 'gyeon_admin_sidebar_collapsed';
+  let userCollapsed = $state(false);
+  let viewportWidth = $state(1920);
+
+  // iconOnly == "labels are hidden, only icons shown" — derived from viewport + user preference.
+  // Mirrors the Tailwind class logic on labels so JS behavior stays in sync with CSS.
+  const iconOnly = $derived(viewportWidth >= 768 && (viewportWidth < 1280 || userCollapsed));
+
+  function toggleCollapsed() {
+    userCollapsed = !userCollapsed;
+    try { localStorage.setItem(COLLAPSED_KEY, userCollapsed ? '1' : '0'); } catch { /* ignore */ }
+  }
+
+  onMount(() => {
+    try { userCollapsed = localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { /* ignore */ }
+    viewportWidth = window.innerWidth;
+    const onResize = () => { viewportWidth = window.innerWidth; };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  });
+
+  // ── Icon-only hover flyout ────────────────────────────────────
+  // Single fixed-positioned element repositioned per hovered item, so it can
+  // escape the nav's `overflow-y-auto` clipping. Children → menu card; plain
+  // link → small label pill.
+  type FlyoutState = {
+    visible: boolean;
+    top: number;
+    left: number;
+    itemHeight: number;
+    label: string;
+    href: string;
+    children: NavChild[] | null;
+  };
+  let flyout = $state<FlyoutState>({
+    visible: false, top: 0, left: 0, itemHeight: 0, label: '', href: '', children: null
+  });
+  let flyoutHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showFlyout(e: MouseEvent, link: NavLink) {
+    if (!iconOnly) return;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
+    flyout = {
+      visible: true,
+      top: rect.top,
+      left: rect.right,
+      itemHeight: rect.height,
+      label: link.label,
+      href: link.href,
+      children: link.children ?? null,
+    };
+  }
+  function scheduleHideFlyout() {
+    if (flyoutHideTimer) clearTimeout(flyoutHideTimer);
+    flyoutHideTimer = setTimeout(() => { flyout.visible = false; }, 120);
+  }
+  function keepFlyout() {
+    if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
+  }
+  function hideFlyoutNow() {
+    if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
+    flyout.visible = false;
+  }
+  // Hide the flyout if the user transitions out of icon-only (e.g. expands sidebar).
+  $effect(() => { if (!iconOnly) hideFlyoutNow(); });
+
   onMount(() => {
     if (!data.token || isLoginPage) return;
     const es = new EventSource(`/api/v1/admin/events?token=${encodeURIComponent(data.token)}`);
@@ -272,21 +340,65 @@
          role="button" tabindex="-1" aria-label={m.admin_aria_close_menu()}></div>
   {/if}
 
+  <!-- Icon-only sidebar hover flyout (label tooltip OR sub-items menu) -->
+  {#if flyout.visible}
+    {#if flyout.children}
+      <!-- Parent with children: full menu card -->
+      <div role="menu"
+           onmouseenter={keepFlyout}
+           onmouseleave={scheduleHideFlyout}
+           class="fixed z-[60] ml-2 min-w-[12rem] rounded-xl bg-white shadow-lg
+                  border border-gray-100 overflow-hidden"
+           style="top: {flyout.top}px; left: {flyout.left}px;">
+        <a href={flyout.href}
+           onclick={hideFlyoutNow}
+           class="block px-3 py-2 text-sm font-semibold text-gray-900
+                  border-b border-gray-50 hover:bg-gray-50 transition-colors">
+          {flyout.label}
+        </a>
+        <div class="py-1">
+          {#each flyout.children as child}
+            <a href={child.href}
+               onclick={hideFlyoutNow}
+               class="block px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900
+                      hover:bg-gray-50 transition-colors">
+              {child.label}
+            </a>
+          {/each}
+        </div>
+      </div>
+    {:else}
+      <!-- Plain link: label tooltip pill, vertically centered on the item -->
+      <div role="tooltip"
+           onmouseenter={keepFlyout}
+           onmouseleave={scheduleHideFlyout}
+           class="fixed z-[60] ml-2 pointer-events-none"
+           style="top: {flyout.top + flyout.itemHeight / 2}px; left: {flyout.left}px; transform: translateY(-50%);">
+        <span class="inline-block px-2 py-1 rounded-md bg-gray-900 text-white
+                     text-xs whitespace-nowrap shadow-md">
+          {flyout.label}
+        </span>
+      </div>
+    {/if}
+  {/if}
+
   <div class="flex h-screen bg-slate-50 overflow-hidden">
 
     <!-- ── Sidebar ── -->
     <aside class="
       fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-white border-r border-gray-100
-      transition-transform duration-200 ease-in-out
-      md:static md:translate-x-0 md:flex-shrink-0
+      transition-[width,transform] duration-200 ease-in-out
+      md:static md:translate-x-0 md:flex-shrink-0 md:min-w-0
+      md:w-16 {userCollapsed ? 'xl:w-16' : 'xl:w-64'}
       {drawerOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
     ">
       <!-- Logo -->
-      <div class="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 flex-shrink-0">
-        <div class="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center">
+      <div class="flex items-center gap-2.5 px-5 h-16 border-b border-gray-100 flex-shrink-0
+                  md:px-0 md:justify-center {userCollapsed ? 'xl:px-0 xl:justify-center' : 'xl:px-5 xl:justify-start'}">
+        <div class="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
           <span class="text-white font-bold text-sm">G</span>
         </div>
-        <div>
+        <div class="md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}">
           <p class="font-bold text-gray-900 text-sm leading-none">Gyeon</p>
           <p class="text-[10px] text-gray-400 mt-0.5 leading-none">{m.admin_console()}</p>
         </div>
@@ -304,7 +416,8 @@
       <nav bind:this={navEl}
            onmousemove={onNavMouseMove}
            onmouseleave={onNavMouseLeave}
-           class="relative flex-1 overflow-y-auto px-3 py-4 space-y-4">
+           class="relative flex-1 overflow-y-auto px-3 py-4 space-y-4
+                  md:px-2 {userCollapsed ? 'xl:px-2' : 'xl:px-3'}">
         <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered item -->
         <div aria-hidden="true"
              class="pointer-events-none absolute z-0 rounded-lg bg-gray-100
@@ -315,7 +428,8 @@
 
         {#each navGroups as group}
           <div>
-            <p class="px-3 mb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            <p class="px-3 mb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest
+                      md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}">
               {group.label}
             </p>
             <div class="space-y-0.5">
@@ -326,29 +440,34 @@
                   {@const loadingParent = isNavigatingTo(link.href) && !expanded}
                   <div>
                     <a href={link.href}
+                       aria-label={link.label}
                        onclick={() => drawerOpen = false}
-                       onmouseenter={() => { if (canHover) hoveredParent = link.href; }}
+                       onmouseenter={(e) => { if (canHover && !iconOnly) hoveredParent = link.href; showFlyout(e, link); }}
+                       onmouseleave={scheduleHideFlyout}
                        class="js-nav-item relative z-10 flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
                               transition-colors duration-150 group
+                              md:justify-center {userCollapsed ? 'xl:justify-center xl:pl-3' : 'xl:justify-start xl:pl-4'}
                               {parentActive
                                 ? 'text-gray-900 font-semibold'
                                 : 'text-gray-500 hover:text-gray-900 font-medium'}">
                       {#if parentActive}
-                        <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
+                        <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full
+                                     md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}"></span>
                       {/if}
                       <svg class="w-4 h-4 flex-shrink-0 transition-colors
                                   {parentActive ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'}"
                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d={link.icon} />
                       </svg>
-                      <span class="flex-1">{link.label}</span>
+                      <span class="flex-1 md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline'}">{link.label}</span>
                       {#if loadingParent}
-                        <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse
+                                     md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline-block'}"></span>
                       {/if}
                     </a>
                     {#if expanded}
                       <div transition:slide={{ duration: 180, easing: cubicOut }}
-                           class="overflow-hidden">
+                           class="overflow-hidden md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}">
                         <div class="ml-4 mt-0.5 pl-3 border-l border-gray-100 space-y-0.5">
                           {#each link.children as child}
                             {@const childActive = isChildActive(child.href, link.children)}
@@ -379,23 +498,29 @@
                   {@const active = isActive(link.href)}
                   {@const loading = isNavigatingTo(link.href)}
                   <a href={link.href}
+                     aria-label={link.label}
                      onclick={() => drawerOpen = false}
+                     onmouseenter={(e) => showFlyout(e, link)}
+                     onmouseleave={scheduleHideFlyout}
                      class="js-nav-item relative z-10 flex items-center gap-3 pl-4 pr-3 py-2 rounded-lg text-sm
                             transition-colors duration-150 group
+                            md:justify-center {userCollapsed ? 'xl:justify-center xl:pl-3' : 'xl:justify-start xl:pl-4'}
                             {active
                               ? 'text-gray-900 font-semibold'
                               : 'text-gray-500 hover:text-gray-900 font-medium'}">
                     {#if active}
-                      <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full"></span>
+                      <span class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gray-900 rounded-r-full
+                                   md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}"></span>
                     {/if}
                     <svg class="w-4 h-4 flex-shrink-0 transition-colors
                                 {active ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-700'}"
                          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                       <path stroke-linecap="round" stroke-linejoin="round" d={link.icon} />
                     </svg>
-                    <span class="flex-1">{link.label}</span>
+                    <span class="flex-1 md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline'}">{link.label}</span>
                     {#if loading}
-                      <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-current opacity-50 animate-pulse
+                                   md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline-block'}"></span>
                     {/if}
                   </a>
                 {/if}
@@ -409,7 +534,8 @@
       <div bind:this={footerEl}
            onmousemove={onFooterMouseMove}
            onmouseleave={onFooterMouseLeave}
-           class="relative px-3 py-4 border-t border-gray-100 flex-shrink-0">
+           class="relative px-3 py-4 border-t border-gray-100 flex-shrink-0
+                  md:px-2 {userCollapsed ? 'xl:px-2' : 'xl:px-3'}">
         <!-- Footer magnetic spotlight -->
         <div aria-hidden="true"
              class="pointer-events-none absolute z-0 rounded-xl
@@ -418,28 +544,48 @@
                     {footerSpotlight.visible ? 'opacity-100' : 'opacity-0'}"
              style="top: 0; left: 0; transform: translate3d({footerSpotlight.left}px, {footerSpotlight.top}px, 0); width: {footerSpotlight.width}px; height: {footerSpotlight.height}px;">
         </div>
+        <!-- Collapse / expand toggle (xl+ only — at md–xl the sidebar is forced icon-only) -->
+        <button onclick={toggleCollapsed}
+                aria-label={userCollapsed ? m.admin_aria_expand_sidebar() : m.admin_aria_collapse_sidebar()}
+                class="js-footer-item relative z-10 hidden xl:flex w-full items-center gap-3 px-3 py-2 rounded-xl
+                       text-sm text-gray-400 hover:text-gray-700 transition-colors group mb-1
+                       {userCollapsed ? 'xl:justify-center' : 'xl:justify-end'}">
+          <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            {#if userCollapsed}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5"/>
+            {:else}
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5"/>
+            {/if}
+          </svg>
+        </button>
+
         <a href="/" target="_blank"
+           title={m.admin_footer_view_store()}
            class="js-footer-item relative z-10 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm
-                  text-gray-400 hover:text-gray-700 transition-colors group mb-1">
+                  text-gray-400 hover:text-gray-700 transition-colors group mb-1
+                  md:justify-center {userCollapsed ? 'xl:justify-center' : 'xl:justify-start'}">
           <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors"
                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25
                  2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
           </svg>
-          {m.admin_footer_view_store()}
+          <span class="md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline'}">{m.admin_footer_view_store()}</span>
         </a>
         <form method="POST" action="/admin/logout">
           <button type="submit"
+                  title={m.admin_footer_sign_out()}
                   class="js-footer-item js-footer-item--danger relative z-10 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-                         text-sm text-gray-400 hover:text-red-600 transition-colors group">
+                         text-sm text-gray-400 hover:text-red-600 transition-colors group
+                         md:justify-center {userCollapsed ? 'xl:justify-center' : 'xl:justify-start'}">
             <svg class="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors"
                  fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25
                    2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/>
             </svg>
-            {m.admin_footer_sign_out()}
+            <span class="md:hidden {userCollapsed ? 'xl:hidden' : 'xl:inline'}">{m.admin_footer_sign_out()}</span>
           </button>
         </form>
       </div>

@@ -463,6 +463,8 @@
 
   "admin_console": "管理控制台",
   "admin_aria_close_menu": "關閉選單",
+  "admin_aria_collapse_sidebar": "收起側欄",
+  "admin_aria_expand_sidebar": "展開側欄",
   "admin_nav_section_main": "主要",
   "admin_nav_section_cms": "內容管理",
   "admin_nav_section_store": "商店",

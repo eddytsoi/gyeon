@@ -463,6 +463,8 @@
 
   "admin_console": "Admin Console",
   "admin_aria_close_menu": "Close menu",
+  "admin_aria_collapse_sidebar": "Collapse sidebar",
+  "admin_aria_expand_sidebar": "Expand sidebar",
   "admin_nav_section_main": "Main",
   "admin_nav_section_cms": "CMS",
   "admin_nav_section_store": "Store",
