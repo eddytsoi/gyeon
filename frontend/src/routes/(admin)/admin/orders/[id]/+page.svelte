@@ -418,21 +418,24 @@
               {m.admin_order_shipment_download_waybill()}
             </a>
           {/if}
-          {#if !pickupRequested}
-            <form method="POST" action="?/requestPickup"
-                  use:enhance={() => {
-                    if (requestingPickup) return;
-                    requestingPickup = true;
-                    return async ({ update }) => { await update(); requestingPickup = false; };
-                  }}>
-              <SaveButton loading={requestingPickup}
-                      class="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
-                             hover:bg-gray-50 transition-colors disabled:opacity-50">
-                {m.admin_order_shipment_request_pickup()}
-              </SaveButton>
-            </form>
-          {:else}
-            <span class="px-3 py-2 text-xs text-gray-400">{m.admin_order_shipment_pickup_already()}</span>
+          <!-- TEMP: 預約取件 button hidden (per request 2026-05-21) -->
+          {#if false}
+            {#if !pickupRequested}
+              <form method="POST" action="?/requestPickup"
+                    use:enhance={() => {
+                      if (requestingPickup) return;
+                      requestingPickup = true;
+                      return async ({ update }) => { await update(); requestingPickup = false; };
+                    }}>
+                <SaveButton loading={requestingPickup}
+                        class="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
+                               hover:bg-gray-50 transition-colors disabled:opacity-50">
+                  {m.admin_order_shipment_request_pickup()}
+                </SaveButton>
+              </form>
+            {:else}
+              <span class="px-3 py-2 text-xs text-gray-400">{m.admin_order_shipment_pickup_already()}</span>
+            {/if}
           {/if}
         </div>
       {:else}
@@ -692,17 +695,20 @@
         </div>
       </div>
 
-      <!-- Action bar -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-end gap-4">
-        {#if form?.error}
-          <p class="text-sm text-red-500 mr-auto">{form.error}</p>
-        {/if}
-        <SaveButton loading={updating}
-                class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
-                       text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
-                       disabled:opacity-50 whitespace-nowrap">
-          {m.admin_order_update()}
-        </SaveButton>
+      <!-- Action bar — matches Order Management width -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="hidden md:block"></div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-end gap-4">
+          {#if form?.error}
+            <p class="text-sm text-red-500 mr-auto">{form.error}</p>
+          {/if}
+          <SaveButton loading={updating}
+                  class="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-gray-900 text-white
+                         text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors
+                         disabled:opacity-50 whitespace-nowrap">
+            {m.admin_order_update()}
+          </SaveButton>
+        </div>
       </div>
     </form>
   {/if}
