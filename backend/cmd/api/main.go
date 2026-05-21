@@ -40,6 +40,7 @@ import (
 	"gyeon/backend/internal/shipany"
 	"gyeon/backend/internal/shop"
 	"gyeon/backend/internal/smtplog"
+	"gyeon/backend/internal/stock"
 	"gyeon/backend/internal/tax"
 	"gyeon/backend/internal/wcshim"
 	"gyeon/backend/internal/wishlist"
@@ -149,6 +150,16 @@ func (a customersAuditAdapter) Record(ctx context.Context, e customers.AuditEntr
 type adminUsersAuditAdapter struct{ svc *audit.Service }
 
 func (a adminUsersAuditAdapter) Record(ctx context.Context, e admin.AuditEntry) {
+	a.svc.Record(ctx, audit.Entry{
+		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
+		Before: e.Before, After: e.After,
+	})
+}
+
+// stockMutationsAuditAdapter bridges stock.AuditRecorder → audit.Service.
+type stockMutationsAuditAdapter struct{ svc *audit.Service }
+
+func (a stockMutationsAuditAdapter) Record(ctx context.Context, e stock.AuditEntry) {
 	a.svc.Record(ctx, audit.Entry{
 		Action: e.Action, EntityType: e.EntityType, EntityID: e.EntityID,
 		Before: e.Before, After: e.After,
@@ -422,6 +433,11 @@ func main() {
 	postSvc.SetAudit(cmsAuditAdapter{svc: auditSvc})
 	customerSvc.SetAudit(customersAuditAdapter{svc: auditSvc})
 	adminUserSvc.SetAudit(adminUsersAuditAdapter{svc: auditSvc})
+
+	// Stock Management — batch stock-change documents (mutations).
+	stockSvc := stock.NewService(conn)
+	stockSvc.SetAudit(stockMutationsAuditAdapter{svc: auditSvc})
+	stockHandler := stock.NewHandler(stockSvc)
 	// JWT revocation: the middleware consults a TokenVersionStore on every
 	// request. Back it with a tiny in-memory cache to keep the per-request
 	// DB cost negligible; sign-out-everywhere endpoints below explicitly
@@ -637,6 +653,9 @@ func main() {
 
 			// Cross-product stock movement log (進出記錄).
 			r.Mount("/admin/stock-history", productHandler.AdminStockHistoryRoutes())
+
+			// Stock Management — batch mutation documents (draft → executed).
+			r.Mount("/admin/stock-mutations", stockHandler.AdminRoutes())
 
 			// CMS admin
 			r.Mount("/admin/cms/pages", pageHandler.AdminRoutes())

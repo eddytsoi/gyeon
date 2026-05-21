@@ -12,17 +12,18 @@ import (
 
 // InventoryHistoryRow is the API/DB shape for one stock-change record.
 type InventoryHistoryRow struct {
-	ID         string  `json:"id"`
-	VariantID  string  `json:"variant_id"`
-	Delta      int     `json:"delta"`
-	BeforeQty  int     `json:"before_qty"`
-	AfterQty   int     `json:"after_qty"`
-	Reason     string  `json:"reason"`
-	ActorID    *string `json:"actor_user_id,omitempty"`
-	ActorEmail *string `json:"actor_email,omitempty"`
-	OrderID    *string `json:"order_id,omitempty"`
-	Note       *string `json:"note,omitempty"`
-	CreatedAt  string  `json:"created_at"`
+	ID              string  `json:"id"`
+	VariantID       string  `json:"variant_id"`
+	Delta           int     `json:"delta"`
+	BeforeQty       int     `json:"before_qty"`
+	AfterQty        int     `json:"after_qty"`
+	Reason          string  `json:"reason"`
+	ActorID         *string `json:"actor_user_id,omitempty"`
+	ActorEmail      *string `json:"actor_email,omitempty"`
+	OrderID         *string `json:"order_id,omitempty"`
+	StockMutationID *string `json:"stock_mutation_id,omitempty"`
+	Note            *string `json:"note,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // StockMovementRow is the wider row returned by the cross-product admin list;
@@ -30,10 +31,11 @@ type InventoryHistoryRow struct {
 // flat table without per-row lookups.
 type StockMovementRow struct {
 	InventoryHistoryRow
-	ProductID   *string `json:"product_id,omitempty"`
-	ProductName *string `json:"product_name,omitempty"`
-	VariantSKU  *string `json:"variant_sku,omitempty"`
-	OrderNumber *string `json:"order_number,omitempty"`
+	ProductID      *string `json:"product_id,omitempty"`
+	ProductName    *string `json:"product_name,omitempty"`
+	VariantSKU     *string `json:"variant_sku,omitempty"`
+	OrderNumber    *string `json:"order_number,omitempty"`
+	MutationNumber *string `json:"mutation_number,omitempty"`
 }
 
 // StockMovementFilters narrows the cross-product stock-history list.
@@ -65,6 +67,16 @@ type StockMovementList struct {
 // change is customer-driven (checkout deduction).
 func recordStockChange(ctx context.Context, exec sqlExecer, variantID string, beforeQty, afterQty int,
 	reason string, orderID *string, note *string) {
+	RecordStockChange(ctx, exec, variantID, beforeQty, afterQty, reason, orderID, nil, note)
+}
+
+// RecordStockChange is the exported variant used by sibling packages (e.g. the
+// stock-mutation module) that need to associate an inventory_history row with
+// a non-order source (stockMutationID). All existing in-package callers go
+// through the unexported recordStockChange wrapper above and pass nil for the
+// mutation id, preserving prior behaviour.
+func RecordStockChange(ctx context.Context, exec sqlExecer, variantID string, beforeQty, afterQty int,
+	reason string, orderID *string, stockMutationID *string, note *string) {
 	delta := afterQty - beforeQty
 	if delta == 0 {
 		return
@@ -77,18 +89,26 @@ func recordStockChange(ctx context.Context, exec sqlExecer, variantID string, be
 	if orderID != nil && *orderID != "" {
 		orderIDArg = *orderID
 	}
+	var mutationIDArg any
+	if stockMutationID != nil && *stockMutationID != "" {
+		mutationIDArg = *stockMutationID
+	}
 	var noteArg any
 	if note != nil && *note != "" {
 		noteArg = *note
 	}
 	if _, err := exec.ExecContext(ctx,
-		`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id, note)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		variantID, delta, beforeQty, afterQty, reason, actorIDArg, orderIDArg, noteArg,
+		`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id, stock_mutation_id, note)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		variantID, delta, beforeQty, afterQty, reason, actorIDArg, orderIDArg, mutationIDArg, noteArg,
 	); err != nil {
 		log.Printf("inventory_history: insert variant=%s reason=%s: %v", variantID, reason, err)
 	}
 }
+
+// SQLExecer is the exported alias of sqlExecer so sibling packages can pass
+// in their own *sql.Tx without re-declaring the interface.
+type SQLExecer = sqlExecer
 
 // sqlExecer is the minimal interface satisfied by both *sql.DB and *sql.Tx.
 type sqlExecer interface {
@@ -102,7 +122,7 @@ func (s *ProductService) ListVariantHistory(ctx context.Context, variantID strin
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT h.id, h.variant_id, h.delta, h.before_qty, h.after_qty, h.reason,
-		        h.actor_user_id, u.email, h.order_id, h.note, h.created_at
+		        h.actor_user_id, u.email, h.order_id, h.stock_mutation_id, h.note, h.created_at
 		   FROM inventory_history h
 		   LEFT JOIN admin_users u ON u.id = h.actor_user_id
 		  WHERE h.variant_id = $1
@@ -117,7 +137,7 @@ func (s *ProductService) ListVariantHistory(ctx context.Context, variantID strin
 	for rows.Next() {
 		var r InventoryHistoryRow
 		if err := rows.Scan(&r.ID, &r.VariantID, &r.Delta, &r.BeforeQty, &r.AfterQty, &r.Reason,
-			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.Note, &r.CreatedAt); err != nil {
+			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.StockMutationID, &r.Note, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -193,13 +213,14 @@ func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMoveme
 	listArgs = append(listArgs, limit, offset)
 	listSQL := `
 		SELECT h.id, h.variant_id, h.delta, h.before_qty, h.after_qty, h.reason,
-		       h.actor_user_id, u.email, h.order_id, h.note, h.created_at,
-		       v.product_id, p.name, v.name, v.sku, o.order_number
+		       h.actor_user_id, u.email, h.order_id, h.stock_mutation_id, h.note, h.created_at,
+		       v.product_id, p.name, v.name, v.sku, o.order_number, m.mutation_number
 		  FROM inventory_history h
 		  LEFT JOIN admin_users     u ON u.id = h.actor_user_id
 		  LEFT JOIN product_variants v ON v.id = h.variant_id
 		  LEFT JOIN products         p ON p.id = v.product_id
 		  LEFT JOIN orders           o ON o.id = h.order_id
+		  LEFT JOIN stock_mutations  m ON m.id = h.stock_mutation_id
 		` + whereSQL + fmt.Sprintf(`
 		 ORDER BY h.created_at DESC
 		 LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
@@ -212,10 +233,10 @@ func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMoveme
 
 	for rows.Next() {
 		var r StockMovementRow
-		var variantName, orderNumber sql.NullString
+		var variantName, orderNumber, mutationNumber sql.NullString
 		if err := rows.Scan(&r.ID, &r.VariantID, &r.Delta, &r.BeforeQty, &r.AfterQty, &r.Reason,
-			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.Note, &r.CreatedAt,
-			&r.ProductID, &r.ProductName, &variantName, &r.VariantSKU, &orderNumber); err != nil {
+			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.StockMutationID, &r.Note, &r.CreatedAt,
+			&r.ProductID, &r.ProductName, &variantName, &r.VariantSKU, &orderNumber, &mutationNumber); err != nil {
 			return out, err
 		}
 		if r.ProductName != nil && variantName.Valid {
@@ -225,6 +246,10 @@ func (s *ProductService) ListInventoryHistory(ctx context.Context, f StockMoveme
 		if orderNumber.Valid && orderNumber.String != "" {
 			s := orderNumber.String
 			r.OrderNumber = &s
+		}
+		if mutationNumber.Valid && mutationNumber.String != "" {
+			s := mutationNumber.String
+			r.MutationNumber = &s
 		}
 		out.Items = append(out.Items, r)
 	}

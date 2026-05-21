@@ -1,0 +1,776 @@
+// Package stock owns the Stock Management module: batch stock-change
+// documents called "mutations". A mutation is a draft-first list of variant
+// line items, all going the same direction (all "in" or all "out"). The
+// draft is editable; on Execute it atomically updates product_variants
+// stock levels and writes one inventory_history row per item, all in a
+// single transaction. Executed mutations are immutable.
+package stock
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"gyeon/backend/internal/auth"
+	"gyeon/backend/internal/shop"
+)
+
+// ── Domain types ──────────────────────────────────────────────────────────
+
+type MutationType string
+
+const (
+	TypeIn  MutationType = "in"
+	TypeOut MutationType = "out"
+)
+
+type MutationStatus string
+
+const (
+	StatusDraft    MutationStatus = "draft"
+	StatusExecuted MutationStatus = "executed"
+)
+
+// Mutation is the parent document.
+type Mutation struct {
+	ID                 string         `json:"id"`
+	Number             int64          `json:"number"`
+	MutationNumber     string         `json:"mutation_number"`
+	Type               MutationType   `json:"type"`
+	Status             MutationStatus `json:"status"`
+	Note               *string        `json:"note,omitempty"`
+	CreatedByAdminID   *string        `json:"created_by_admin_id,omitempty"`
+	CreatedByEmail     *string        `json:"created_by_email,omitempty"`
+	ExecutedByAdminID  *string        `json:"executed_by_admin_id,omitempty"`
+	ExecutedByEmail    *string        `json:"executed_by_email,omitempty"`
+	CreatedAt          string         `json:"created_at"`
+	UpdatedAt          string         `json:"updated_at"`
+	ExecutedAt         *string        `json:"executed_at,omitempty"`
+	Items              []MutationItem `json:"items"`
+}
+
+// MutationItem is one variant line. quantity is always positive; the signed
+// stock delta is (quantity) for type=in or (-quantity) for type=out.
+type MutationItem struct {
+	ID          string  `json:"id"`
+	MutationID  string  `json:"mutation_id"`
+	VariantID   string  `json:"variant_id"`
+	Quantity    int     `json:"quantity"`
+	BeforeQty   *int    `json:"before_qty,omitempty"`
+	AfterQty    *int    `json:"after_qty,omitempty"`
+	Position    int     `json:"position"`
+	// Display fields populated on read for UI convenience. Never persisted.
+	ProductID   *string `json:"product_id,omitempty"`
+	ProductName *string `json:"product_name,omitempty"`
+	VariantName *string `json:"variant_name,omitempty"`
+	VariantSKU  *string `json:"variant_sku,omitempty"`
+	CurrentStock *int   `json:"current_stock,omitempty"`
+}
+
+// ── Errors ────────────────────────────────────────────────────────────────
+
+var (
+	ErrMutationNotFound      = errors.New("mutation not found")
+	ErrMutationExecuted      = errors.New("mutation already executed and cannot be modified")
+	ErrInvalidType           = errors.New("type must be 'in' or 'out'")
+	ErrNoItems               = errors.New("at least one item is required")
+	ErrInvalidQuantity       = errors.New("quantity must be a positive integer")
+	ErrDuplicateVariant      = errors.New("the same variant cannot appear twice in one mutation")
+	ErrVariantNotFound       = errors.New("variant not found")
+	ErrInsufficientStock     = errors.New("insufficient stock to execute mutation")
+)
+
+// StockConflict surfaces per-variant shortfall info on a failed Execute.
+type StockConflict struct {
+	VariantID   string  `json:"variant_id"`
+	ProductName *string `json:"product_name,omitempty"`
+	VariantSKU  *string `json:"variant_sku,omitempty"`
+	Requested   int     `json:"requested"`
+	Available   int     `json:"available"`
+}
+
+// InsufficientStockError is returned by Execute when one or more variants
+// don't have enough on-hand stock to satisfy a stock-out mutation. The HTTP
+// layer renders this as 422 with the conflicts array.
+type InsufficientStockError struct {
+	Conflicts []StockConflict
+}
+
+func (e *InsufficientStockError) Error() string {
+	return ErrInsufficientStock.Error()
+}
+
+// ── Audit ─────────────────────────────────────────────────────────────────
+
+type AuditRecorder interface {
+	Record(ctx context.Context, e AuditEntry)
+}
+
+type AuditEntry struct {
+	Action     string
+	EntityType string
+	EntityID   string
+	Before     any
+	After      any
+}
+
+// ── Service ───────────────────────────────────────────────────────────────
+
+type Service struct {
+	db    *sql.DB
+	audit AuditRecorder
+}
+
+func NewService(db *sql.DB) *Service {
+	return &Service{db: db}
+}
+
+func (s *Service) SetAudit(rec AuditRecorder) { s.audit = rec }
+
+func (s *Service) record(ctx context.Context, action, entityID string, before, after any) {
+	if s.audit == nil {
+		return
+	}
+	s.audit.Record(ctx, AuditEntry{
+		Action: action, EntityType: "stock_mutation", EntityID: entityID,
+		Before: before, After: after,
+	})
+}
+
+// ── Input shapes ──────────────────────────────────────────────────────────
+
+type CreateRequest struct {
+	Type  MutationType         `json:"type"`
+	Note  *string              `json:"note,omitempty"`
+	Items []CreateRequestItem  `json:"items"`
+}
+
+type CreateRequestItem struct {
+	VariantID string `json:"variant_id"`
+	Quantity  int    `json:"quantity"`
+}
+
+type UpdateRequest struct {
+	Type  MutationType         `json:"type"`
+	Note  *string              `json:"note,omitempty"`
+	Items []CreateRequestItem  `json:"items"`
+}
+
+type ListFilters struct {
+	Status string // "draft" | "executed" | ""
+	Type   string // "in" | "out" | ""
+	From   string
+	To     string
+	Search string // ILIKE on mutation_number / product name / variant sku
+	Limit  int
+	Offset int
+}
+
+type ListResult struct {
+	Items []MutationSummary `json:"items"`
+	Total int               `json:"total"`
+}
+
+// MutationSummary is the row shape returned by list queries — parent fields
+// + a small summary of items (count, total qty) without the full item array.
+type MutationSummary struct {
+	ID               string         `json:"id"`
+	MutationNumber   string         `json:"mutation_number"`
+	Type             MutationType   `json:"type"`
+	Status           MutationStatus `json:"status"`
+	ItemCount        int            `json:"item_count"`
+	TotalQuantity    int            `json:"total_quantity"`
+	Note             *string        `json:"note,omitempty"`
+	CreatedByEmail   *string        `json:"created_by_email,omitempty"`
+	ExecutedByEmail  *string        `json:"executed_by_email,omitempty"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
+	ExecutedAt       *string        `json:"executed_at,omitempty"`
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+// mutationNumberPrefix mirrors orders.OrderService.orderNumberPrefix — pulls
+// the configurable prefix from site_settings and falls back to "MUT".
+func (s *Service) mutationNumberPrefix(ctx context.Context) string {
+	var v string
+	_ = s.db.QueryRowContext(ctx,
+		`SELECT value FROM site_settings WHERE key = 'mutation_number_prefix'`).Scan(&v)
+	if v == "" {
+		return "MUT"
+	}
+	return v
+}
+
+func validateType(t MutationType) error {
+	if t != TypeIn && t != TypeOut {
+		return ErrInvalidType
+	}
+	return nil
+}
+
+func validateItems(items []CreateRequestItem) error {
+	if len(items) == 0 {
+		return ErrNoItems
+	}
+	seen := make(map[string]struct{}, len(items))
+	for _, it := range items {
+		if it.VariantID == "" {
+			return ErrVariantNotFound
+		}
+		if it.Quantity <= 0 {
+			return ErrInvalidQuantity
+		}
+		if _, dup := seen[it.VariantID]; dup {
+			return ErrDuplicateVariant
+		}
+		seen[it.VariantID] = struct{}{}
+	}
+	return nil
+}
+
+// ── CRUD ──────────────────────────────────────────────────────────────────
+
+// Create persists a new draft mutation + items in one transaction. The
+// caller's admin id (from ctx) is stamped onto created_by_admin_id.
+func (s *Service) Create(ctx context.Context, req CreateRequest) (*Mutation, error) {
+	if err := validateType(req.Type); err != nil {
+		return nil, err
+	}
+	if err := validateItems(req.Items); err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var adminIDArg any
+	if id, ok := auth.AdminIDFromContext(ctx); ok {
+		adminIDArg = id
+	}
+
+	var notePtr any
+	if req.Note != nil && strings.TrimSpace(*req.Note) != "" {
+		n := strings.TrimSpace(*req.Note)
+		notePtr = n
+	}
+
+	var (
+		id        string
+		number    int64
+		createdAt time.Time
+		updatedAt time.Time
+	)
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO stock_mutations (mutation_number, type, status, note, created_by_admin_id)
+		 VALUES ('', $1, 'draft', $2, $3)
+		 RETURNING id, number, created_at, updated_at`,
+		string(req.Type), notePtr, adminIDArg,
+	).Scan(&id, &number, &createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+
+	mutationNumber := fmt.Sprintf("%s-%04d", s.mutationNumberPrefix(ctx), number)
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE stock_mutations SET mutation_number = $2 WHERE id = $1`,
+		id, mutationNumber); err != nil {
+		return nil, err
+	}
+
+	if err := insertItems(ctx, tx, id, req.Items); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	out, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "stock_mutation.create", id, nil, out)
+	return out, nil
+}
+
+func insertItems(ctx context.Context, tx *sql.Tx, mutationID string, items []CreateRequestItem) error {
+	for i, it := range items {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO stock_mutation_items (mutation_id, variant_id, quantity, position)
+			 VALUES ($1, $2, $3, $4)`,
+			mutationID, it.VariantID, it.Quantity, i,
+		); err != nil {
+			// Catch foreign-key violations as a friendlier error.
+			if strings.Contains(err.Error(), "stock_mutation_items_variant_id_fkey") {
+				return ErrVariantNotFound
+			}
+			if strings.Contains(err.Error(), "stock_mutation_items_mutation_id_variant_id_key") {
+				return ErrDuplicateVariant
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// Update replaces the draft's type + items in one transaction. Rejects if
+// the mutation is already executed.
+func (s *Service) Update(ctx context.Context, id string, req UpdateRequest) (*Mutation, error) {
+	if err := validateType(req.Type); err != nil {
+		return nil, err
+	}
+	if err := validateItems(req.Items); err != nil {
+		return nil, err
+	}
+
+	before, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if before.Status == StatusExecuted {
+		return nil, ErrMutationExecuted
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var notePtr any
+	if req.Note != nil && strings.TrimSpace(*req.Note) != "" {
+		n := strings.TrimSpace(*req.Note)
+		notePtr = n
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE stock_mutations
+		    SET type = $2, note = $3, updated_at = NOW()
+		  WHERE id = $1 AND status = 'draft'`,
+		id, string(req.Type), notePtr,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM stock_mutation_items WHERE mutation_id = $1`, id); err != nil {
+		return nil, err
+	}
+	if err := insertItems(ctx, tx, id, req.Items); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	out, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "stock_mutation.update", id, before, out)
+	return out, nil
+}
+
+// Delete removes a draft mutation. Rejects if already executed.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	before, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if before.Status == StatusExecuted {
+		return ErrMutationExecuted
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`DELETE FROM stock_mutations WHERE id = $1 AND status = 'draft'`, id); err != nil {
+		return err
+	}
+	s.record(ctx, "stock_mutation.delete", id, before, nil)
+	return nil
+}
+
+// Duplicate clones a mutation (any status) into a brand new draft. Number is
+// freshly assigned; created_by is the current admin; status = draft.
+func (s *Service) Duplicate(ctx context.Context, id string) (*Mutation, error) {
+	src, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	req := CreateRequest{Type: src.Type, Note: src.Note}
+	for _, it := range src.Items {
+		req.Items = append(req.Items, CreateRequestItem{VariantID: it.VariantID, Quantity: it.Quantity})
+	}
+	return s.Create(ctx, req)
+}
+
+// Execute atomically applies the mutation's deltas to product_variants and
+// writes one inventory_history row per item. For type=out it pre-validates
+// that every variant has enough stock; on shortfall returns
+// *InsufficientStockError with the list of conflicts and no DB writes.
+func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Lock the parent row.
+	var (
+		mType   MutationType
+		mStatus MutationStatus
+		mNumber string
+	)
+	if err := tx.QueryRowContext(ctx,
+		`SELECT type, status, mutation_number
+		   FROM stock_mutations WHERE id = $1 FOR UPDATE`, id,
+	).Scan(&mType, &mStatus, &mNumber); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrMutationNotFound
+		}
+		return nil, err
+	}
+	if mStatus == StatusExecuted {
+		return nil, ErrMutationExecuted
+	}
+
+	// Load items.
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id, variant_id, quantity FROM stock_mutation_items
+		  WHERE mutation_id = $1 ORDER BY position, created_at`, id)
+	if err != nil {
+		return nil, err
+	}
+	type rawItem struct{ id, variantID string; qty int }
+	var items []rawItem
+	for rows.Next() {
+		var it rawItem
+		if err := rows.Scan(&it.id, &it.variantID, &it.qty); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		items = append(items, it)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, ErrNoItems
+	}
+
+	// Lock each variant FOR UPDATE so concurrent mutations / checkouts can't
+	// race the validation → apply window.
+	variantStock := make(map[string]int, len(items))
+	for _, it := range items {
+		var stock int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT stock_qty FROM product_variants WHERE id = $1 FOR UPDATE`,
+			it.variantID,
+		).Scan(&stock); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrVariantNotFound
+			}
+			return nil, err
+		}
+		variantStock[it.variantID] = stock
+	}
+
+	// For stock-out, pre-validate: every variant must have enough.
+	if mType == TypeOut {
+		var conflicts []StockConflict
+		for _, it := range items {
+			avail := variantStock[it.variantID]
+			if avail < it.qty {
+				c := StockConflict{
+					VariantID: it.variantID,
+					Requested: it.qty,
+					Available: avail,
+				}
+				// Enrich with product / sku for UI display.
+				var pname, sku sql.NullString
+				_ = tx.QueryRowContext(ctx,
+					`SELECT p.name, v.sku
+					   FROM product_variants v
+					   LEFT JOIN products p ON p.id = v.product_id
+					  WHERE v.id = $1`, it.variantID,
+				).Scan(&pname, &sku)
+				if pname.Valid {
+					n := pname.String
+					c.ProductName = &n
+				}
+				if sku.Valid {
+					n := sku.String
+					c.VariantSKU = &n
+				}
+				conflicts = append(conflicts, c)
+			}
+		}
+		if len(conflicts) > 0 {
+			return nil, &InsufficientStockError{Conflicts: conflicts}
+		}
+	}
+
+	// Apply each item: update variant stock + write inventory_history +
+	// snapshot before/after on the item row.
+	for _, it := range items {
+		before := variantStock[it.variantID]
+		var after int
+		if mType == TypeIn {
+			after = before + it.qty
+		} else {
+			after = before - it.qty
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE product_variants SET stock_qty = $2 WHERE id = $1`,
+			it.variantID, after); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE stock_mutation_items SET before_qty = $2, after_qty = $3 WHERE id = $1`,
+			it.id, before, after); err != nil {
+			return nil, err
+		}
+		mutID := id
+		note := mNumber
+		shop.RecordStockChange(ctx, tx, it.variantID, before, after,
+			"mutation.execute", nil, &mutID, &note)
+	}
+
+	// Mark executed.
+	var executorArg any
+	if aid, ok := auth.AdminIDFromContext(ctx); ok {
+		executorArg = aid
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE stock_mutations
+		    SET status = 'executed',
+		        executed_at = NOW(),
+		        executed_by_admin_id = $2,
+		        updated_at = NOW()
+		  WHERE id = $1`,
+		id, executorArg); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	out, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "stock_mutation.execute", id, nil, out)
+	return out, nil
+}
+
+// ── Reads ─────────────────────────────────────────────────────────────────
+
+// GetByID returns the mutation + all items + display fields for the admin UI.
+func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
+	var m Mutation
+	var note, createdByEmail, executedByEmail, executedAt sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		`SELECT m.id, m.number, m.mutation_number, m.type, m.status, m.note,
+		        m.created_by_admin_id, cb.email,
+		        m.executed_by_admin_id, eb.email,
+		        m.created_at, m.updated_at, m.executed_at
+		   FROM stock_mutations m
+		   LEFT JOIN admin_users cb ON cb.id = m.created_by_admin_id
+		   LEFT JOIN admin_users eb ON eb.id = m.executed_by_admin_id
+		  WHERE m.id = $1`, id,
+	).Scan(&m.ID, &m.Number, &m.MutationNumber, &m.Type, &m.Status, &note,
+		&m.CreatedByAdminID, &createdByEmail,
+		&m.ExecutedByAdminID, &executedByEmail,
+		&m.CreatedAt, &m.UpdatedAt, &executedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrMutationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if note.Valid {
+		v := note.String
+		m.Note = &v
+	}
+	if createdByEmail.Valid {
+		v := createdByEmail.String
+		m.CreatedByEmail = &v
+	}
+	if executedByEmail.Valid {
+		v := executedByEmail.String
+		m.ExecutedByEmail = &v
+	}
+	if executedAt.Valid {
+		v := executedAt.String
+		m.ExecutedAt = &v
+	}
+
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT i.id, i.mutation_id, i.variant_id, i.quantity, i.before_qty, i.after_qty, i.position,
+		        v.product_id, p.name, v.name, v.sku, v.stock_qty
+		   FROM stock_mutation_items i
+		   LEFT JOIN product_variants v ON v.id = i.variant_id
+		   LEFT JOIN products         p ON p.id = v.product_id
+		  WHERE i.mutation_id = $1
+		  ORDER BY i.position, i.created_at`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	m.Items = []MutationItem{}
+	for rows.Next() {
+		var it MutationItem
+		var beforeQty, afterQty, stockQty sql.NullInt64
+		var prodName, varName, sku sql.NullString
+		if err := rows.Scan(&it.ID, &it.MutationID, &it.VariantID, &it.Quantity,
+			&beforeQty, &afterQty, &it.Position,
+			&it.ProductID, &prodName, &varName, &sku, &stockQty); err != nil {
+			return nil, err
+		}
+		if beforeQty.Valid {
+			v := int(beforeQty.Int64)
+			it.BeforeQty = &v
+		}
+		if afterQty.Valid {
+			v := int(afterQty.Int64)
+			it.AfterQty = &v
+		}
+		if prodName.Valid {
+			composed := prodName.String
+			if varName.Valid {
+				composed = shop.ProductDisplayName(prodName.String, varName.String)
+			}
+			it.ProductName = &composed
+		}
+		if varName.Valid {
+			v := varName.String
+			it.VariantName = &v
+		}
+		if sku.Valid {
+			v := sku.String
+			it.VariantSKU = &v
+		}
+		if stockQty.Valid {
+			v := int(stockQty.Int64)
+			it.CurrentStock = &v
+		}
+		m.Items = append(m.Items, it)
+	}
+	return &m, rows.Err()
+}
+
+// List returns paginated mutation summaries with filters.
+func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	var where []string
+	var args []any
+	add := func(clause string, val any) {
+		args = append(args, val)
+		where = append(where, fmt.Sprintf(clause, len(args)))
+	}
+	if f.Status != "" {
+		add("m.status = $%d", f.Status)
+	}
+	if f.Type != "" {
+		add("m.type = $%d", f.Type)
+	}
+	if f.From != "" {
+		add("m.created_at >= $%d", f.From)
+	}
+	if f.To != "" {
+		add("m.created_at <= $%d", f.To)
+	}
+	if f.Search != "" {
+		args = append(args, "%"+f.Search+"%")
+		idx := len(args)
+		where = append(where, fmt.Sprintf(
+			`(m.mutation_number ILIKE $%d
+			   OR EXISTS (SELECT 1 FROM stock_mutation_items si
+			               LEFT JOIN product_variants v ON v.id = si.variant_id
+			               LEFT JOIN products p ON p.id = v.product_id
+			              WHERE si.mutation_id = m.id
+			                AND (p.name ILIKE $%d OR v.sku ILIKE $%d)))`,
+			idx, idx, idx))
+	}
+
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	out := ListResult{Items: []MutationSummary{}}
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM stock_mutations m `+whereSQL, args...,
+	).Scan(&out.Total); err != nil {
+		return out, err
+	}
+
+	listArgs := append([]any{}, args...)
+	listArgs = append(listArgs, limit, offset)
+	listSQL := `
+		SELECT m.id, m.mutation_number, m.type, m.status, m.note,
+		       cb.email, eb.email,
+		       m.created_at, m.updated_at, m.executed_at,
+		       COALESCE(agg.item_count, 0), COALESCE(agg.total_qty, 0)
+		  FROM stock_mutations m
+		  LEFT JOIN admin_users cb ON cb.id = m.created_by_admin_id
+		  LEFT JOIN admin_users eb ON eb.id = m.executed_by_admin_id
+		  LEFT JOIN (
+		      SELECT mutation_id,
+		             COUNT(*)::int      AS item_count,
+		             SUM(quantity)::int AS total_qty
+		        FROM stock_mutation_items
+		       GROUP BY mutation_id
+		  ) agg ON agg.mutation_id = m.id
+		` + whereSQL + fmt.Sprintf(`
+		 ORDER BY m.created_at DESC
+		 LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+
+	rows, err := s.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r MutationSummary
+		var note, cbEmail, ebEmail, executedAt sql.NullString
+		if err := rows.Scan(&r.ID, &r.MutationNumber, &r.Type, &r.Status, &note,
+			&cbEmail, &ebEmail, &r.CreatedAt, &r.UpdatedAt, &executedAt,
+			&r.ItemCount, &r.TotalQuantity); err != nil {
+			return out, err
+		}
+		if note.Valid {
+			v := note.String
+			r.Note = &v
+		}
+		if cbEmail.Valid {
+			v := cbEmail.String
+			r.CreatedByEmail = &v
+		}
+		if ebEmail.Valid {
+			v := ebEmail.String
+			r.ExecutedByEmail = &v
+		}
+		if executedAt.Valid {
+			v := executedAt.String
+			r.ExecutedAt = &v
+		}
+		out.Items = append(out.Items, r)
+	}
+	return out, rows.Err()
+}

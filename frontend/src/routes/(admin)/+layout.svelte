@@ -150,6 +150,7 @@
           children: [
             { href: '/admin/products/categories', label: m.admin_nav_products_categories() },
             { href: '/admin/stock-history',       label: m.admin_nav_stock_history() },
+            { href: '/admin/stock-mutations',     label: m.admin_nav_stock_mutations() },
           ]
         },
         {
@@ -626,6 +627,7 @@
           {:else if $page.url.pathname.includes('tax')}{m.admin_top_tax()}
           {:else if $page.url.pathname.includes('shipping')}{m.admin_top_shipping()}
           {:else if $page.url.pathname.includes('audit-log')}{m.admin_top_audit_log()}
+          {:else if $page.url.pathname.includes('stock-mutations')}{m.admin_top_stock_mutations()}
           {:else if $page.url.pathname.includes('stock-history')}{m.admin_top_stock_history()}
           {:else if $page.url.pathname.includes('email-templates')}{m.admin_top_email_templates()}
           {:else if $page.url.pathname.includes('discounts')}{m.admin_top_discounts()}

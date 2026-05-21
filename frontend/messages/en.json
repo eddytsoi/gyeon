@@ -1972,6 +1972,8 @@
 
   "admin_nav_stock_history": "Stock History",
   "admin_top_stock_history": "Stock History",
+  "admin_nav_stock_mutations": "Stock Mutations",
+  "admin_top_stock_mutations": "Stock Mutations",
   "admin_stock_history_title": "Stock History — Gyeon Admin",
   "admin_stock_history_heading": "Stock History",
   "admin_stock_history_subtitle": "Every stock-in / stock-out event across all variants, with the actor and source.",

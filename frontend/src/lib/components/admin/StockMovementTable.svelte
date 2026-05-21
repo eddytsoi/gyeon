@@ -81,6 +81,10 @@
               <a class="text-gray-900 hover:underline font-mono" href={`/admin/orders/${row.order_id}`}>
                 {row.order_number || `ORD-${row.order_id.slice(0, 8)}`}
               </a>
+            {:else if row.stock_mutation_id}
+              <a class="text-gray-900 hover:underline font-mono" href={`/admin/stock-mutations/${row.stock_mutation_id}`}>
+                {row.mutation_number || `MUT-${row.stock_mutation_id.slice(0, 8)}`}
+              </a>
             {:else}
               <span class="text-gray-400">—</span>
             {/if}
