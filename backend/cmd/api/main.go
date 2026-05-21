@@ -41,6 +41,7 @@ import (
 	"gyeon/backend/internal/shop"
 	"gyeon/backend/internal/smtplog"
 	"gyeon/backend/internal/tax"
+	"gyeon/backend/internal/wcshim"
 	"gyeon/backend/internal/wishlist"
 )
 
@@ -356,6 +357,7 @@ func main() {
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
 	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc, customerSvc, emailEnqueuer))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
+	wcshimHandler := wcshim.NewHandler(conn, orderSvc)
 	redirectsSvc := redirects.NewService(conn)
 	redirectsHandler := redirects.NewHandler(redirectsSvc)
 	auditSvc := audit.NewService(conn)
@@ -530,6 +532,16 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	// WooCommerce REST shim — ShipAny PUTs shipment status updates to
+	// /wp-json/wc/v3/orders/{id} using consumer_key/secret from the
+	// original WC OAuth handshake. Auth is migrated from the legacy
+	// WC site's wp_woocommerce_api_keys table (see migration 087).
+	// Mounted at root, not under /api/v1, because the URL shape has
+	// to match what ShipAny stored against the merchant.
+	r.Route("/wp-json/wc/v3", func(r chi.Router) {
+		r.Mount("/orders", wcshimHandler.Routes())
 	})
 
 	// MCP discoverability — agents can probe this to find the MCP endpoint
