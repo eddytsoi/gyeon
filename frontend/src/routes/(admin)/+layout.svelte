@@ -416,7 +416,7 @@
       <nav bind:this={navEl}
            onmousemove={onNavMouseMove}
            onmouseleave={onNavMouseLeave}
-           class="relative flex-1 overflow-y-auto px-3 py-4 space-y-4
+           class="relative flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4
                   md:px-2 {userCollapsed ? 'xl:px-2' : 'xl:px-3'}">
         <!-- Magnetic spotlight: glides under the cursor and snaps to the hovered item -->
         <div aria-hidden="true"
