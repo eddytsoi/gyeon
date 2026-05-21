@@ -202,6 +202,28 @@ type wcLineItem struct {
 	Subtotal    string    `json:"subtotal"` // line subtotal pre-discount, ex-tax
 	Total       string    `json:"total"`    // line total post-discount, ex-tax
 	TotalTax    string    `json:"total_tax"`
+	// MetaData carries WC's per-line-item meta_data array. We need it for the
+	// WC Product Bundles plugin which links a bundle parent line item to its
+	// component children via _bundle_cart_key (on the parent) and _bundled_by
+	// (on each child, value = parent's _bundle_cart_key).
+	MetaData []wcMeta `json:"meta_data"`
+}
+
+// bundleKeys reads the two meta keys that the WC Product Bundles plugin uses
+// to link a bundle parent line item to its component children. cartKey is set
+// on parents (and also on each child, identifying them — but we don't use that
+// side). bundledBy is set on children only and equals the parent's cartKey;
+// its presence is what marks a line item as a bundle child.
+func (li wcLineItem) bundleKeys() (cartKey, bundledBy string) {
+	for _, m := range li.MetaData {
+		switch m.Key {
+		case "_bundle_cart_key":
+			cartKey = m.String()
+		case "_bundled_by":
+			bundledBy = m.String()
+		}
+	}
+	return
 }
 
 type wcOrder struct {
