@@ -13,9 +13,15 @@
     bundleItems: BundleItem[]; // only populated for bundles
   };
 
-  let { token, onAdd }: {
+  // mode='order' (default) is the original add-to-order flow with prices,
+  // bundle components, and OOS chips disabled.
+  // mode='variant-only' is the Stock Management flow: hide prices, allow
+  // selecting OOS variants (a stock-in mutation refills them), and skip the
+  // bundle components UI since stock is tracked per concrete variant.
+  let { token, onAdd, mode = 'order' }: {
     token: string;
     onAdd: (payload: ProductPickerAddPayload) => void;
+    mode?: 'order' | 'variant-only';
   } = $props();
 
   let query = $state('');
@@ -175,18 +181,22 @@
                   {/if}
                 </p>
                 <p class="text-xs text-gray-500 truncate flex items-center gap-1.5 flex-wrap">
-                  {#if price != null}
-                    {#if compareAt != null && compareAt > price}
-                      <span class="text-gray-400 line-through">HK${compareAt.toFixed(2)}</span>
-                      <span class="text-red-600 font-medium">HK${price.toFixed(2)}</span>
+                  {#if mode === 'order'}
+                    {#if price != null}
+                      {#if compareAt != null && compareAt > price}
+                        <span class="text-gray-400 line-through">HK${compareAt.toFixed(2)}</span>
+                        <span class="text-red-600 font-medium">HK${price.toFixed(2)}</span>
+                      {:else}
+                        <span>HK${price.toFixed(2)}</span>
+                      {/if}
                     {:else}
-                      <span>HK${price.toFixed(2)}</span>
+                      <span class="text-gray-400">—</span>
                     {/if}
-                  {:else}
-                    <span class="text-gray-400">—</span>
-                  {/if}
-                  {#if p.default_variant_stock_qty != null}
-                    <span>·</span>
+                    {#if p.default_variant_stock_qty != null}
+                      <span>·</span>
+                      <span>{p.default_variant_stock_qty > 0 ? m.admin_order_create_items_stock({ qty: String(p.default_variant_stock_qty) }) : m.admin_order_create_items_out_of_stock()}</span>
+                    {/if}
+                  {:else if p.default_variant_stock_qty != null}
                     <span>{p.default_variant_stock_qty > 0 ? m.admin_order_create_items_stock({ qty: String(p.default_variant_stock_qty) }) : m.admin_order_create_items_out_of_stock()}</span>
                   {/if}
                 </p>
@@ -219,8 +229,9 @@
         </p>
         {#if selectedVariant}
           <p class="text-xs text-gray-500 mt-0.5">
-            {selectedVariant.sku} · HK${selectedVariant.price.toFixed(2)}
-            {#if selectedProduct.kind !== 'bundle'}
+            {selectedVariant.sku}
+            {#if mode === 'order'}· HK${selectedVariant.price.toFixed(2)}{/if}
+            {#if mode === 'variant-only' || selectedProduct.kind !== 'bundle'}
               · {selectedVariant.stock_qty > 0 ? m.admin_order_create_items_stock({ qty: String(selectedVariant.stock_qty) }) : m.admin_order_create_items_out_of_stock()}
             {/if}
           </p>
@@ -244,29 +255,34 @@
            one active variant. With a single variant the chip is purely
            informational (the variant name is otherwise hidden behind the
            SKU and admins lose track of which size/colour they're adding). -->
-      {#if selectedProduct.kind !== 'bundle' && variants.filter((v) => v.is_active).length >= 1}
+      {#if (mode === 'variant-only' || selectedProduct.kind !== 'bundle') && variants.filter((v) => v.is_active).length >= 1}
         <div class="mb-3">
           <p class="text-xs font-medium text-gray-600 mb-1.5">{m.admin_order_create_items_select_variant()}</p>
           <div class="flex flex-wrap gap-1.5">
             {#each variants.filter((v) => v.is_active) as v (v.id)}
               {@const oos = v.stock_qty <= 0}
+              {@const disableOOS = oos && mode === 'order'}
               <button type="button"
-                      disabled={oos}
+                      disabled={disableOOS}
                       onclick={() => { selectedVariantId = v.id; }}
                       class="px-3 py-1.5 rounded-full text-xs border transition-colors
                              {selectedVariantId === v.id
                                ? 'bg-gray-900 border-gray-900 text-white'
                                : 'border-gray-200 text-gray-700 hover:border-gray-400'}
-                             {oos ? 'opacity-50 cursor-not-allowed line-through' : ''}">
+                             {disableOOS ? 'opacity-50 cursor-not-allowed line-through' : ''}">
                 {v.name || v.sku}
+                {#if mode === 'variant-only'}
+                  <span class="ml-1 text-[10px] opacity-70">({v.stock_qty})</span>
+                {/if}
               </button>
             {/each}
           </div>
         </div>
       {/if}
 
-      <!-- Bundle components (read-only) -->
-      {#if selectedProduct.kind === 'bundle' && bundleItems.length > 0}
+      <!-- Bundle components (read-only) — order mode only; stock mutations
+           operate on the variant level and ignore bundle composition. -->
+      {#if mode === 'order' && selectedProduct.kind === 'bundle' && bundleItems.length > 0}
         <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {#each bundleItems as bi (bi.id)}
             <div class="flex items-center gap-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5">

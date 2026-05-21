@@ -129,6 +129,7 @@ export interface VariantHistoryRow {
   actor_user_id?: string;
   actor_email?: string;
   order_id?: string;
+  stock_mutation_id?: string;
   note?: string;
   created_at: string;
 }
@@ -998,6 +999,7 @@ export interface StockMovementRow extends VariantHistoryRow {
   product_name?: string;
   variant_sku?: string;
   order_number?: string;
+  mutation_number?: string;
 }
 
 export interface StockMovementList {
@@ -1258,3 +1260,162 @@ export const adminDeleteFormSubmission = (token: string, sid: string) =>
 // can't add custom headers to a plain <a download>, so callers fetch the
 // blob and trigger a download via createObjectURL.
 export const adminFormSubmissionsCsvURL = (id: string) => `/admin/forms/${id}/submissions.csv`;
+
+// ── Stock Management (mutations) ─────────────────────────────────────────────
+
+export type StockMutationType = 'in' | 'out';
+export type StockMutationStatus = 'draft' | 'executed';
+
+export interface StockMutationItem {
+  id: string;
+  mutation_id: string;
+  variant_id: string;
+  quantity: number;
+  before_qty?: number;
+  after_qty?: number;
+  position: number;
+  product_id?: string;
+  product_name?: string;
+  variant_name?: string;
+  variant_sku?: string;
+  current_stock?: number;
+}
+
+export interface StockMutation {
+  id: string;
+  number: number;
+  mutation_number: string;
+  type: StockMutationType;
+  status: StockMutationStatus;
+  note?: string;
+  created_by_admin_id?: string;
+  created_by_email?: string;
+  executed_by_admin_id?: string;
+  executed_by_email?: string;
+  created_at: string;
+  updated_at: string;
+  executed_at?: string;
+  items: StockMutationItem[];
+}
+
+export interface StockMutationSummary {
+  id: string;
+  mutation_number: string;
+  type: StockMutationType;
+  status: StockMutationStatus;
+  item_count: number;
+  total_quantity: number;
+  note?: string;
+  created_by_email?: string;
+  executed_by_email?: string;
+  created_at: string;
+  updated_at: string;
+  executed_at?: string;
+}
+
+export interface StockMutationList {
+  items: StockMutationSummary[];
+  total: number;
+}
+
+export interface StockMutationFilters {
+  status?: StockMutationStatus | '';
+  type?: StockMutationType | '';
+  from?: string;
+  to?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface StockMutationItemInput {
+  variant_id: string;
+  quantity: number;
+}
+
+export interface StockMutationInput {
+  type: StockMutationType;
+  note?: string | null;
+  items: StockMutationItemInput[];
+}
+
+export interface StockMutationConflict {
+  variant_id: string;
+  product_name?: string;
+  variant_sku?: string;
+  requested: number;
+  available: number;
+}
+
+/** Thrown by adminExecuteStockMutation on 422 — the UI uses .conflicts to
+ *  render a precise per-variant shortfall list. */
+export class StockMutationInsufficientStockError extends Error {
+  conflicts: StockMutationConflict[];
+  constructor(conflicts: StockMutationConflict[]) {
+    super('insufficient stock to execute mutation');
+    this.name = 'StockMutationInsufficientStockError';
+    this.conflicts = conflicts;
+  }
+}
+
+function stockMutationQS(f: StockMutationFilters): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) {
+    if (v == null || v === '') continue;
+    qs.set(k, String(v));
+  }
+  return qs.toString() ? `?${qs.toString()}` : '';
+}
+
+export const adminListStockMutations = (token: string, f: StockMutationFilters = {}) =>
+  request<StockMutationList>(`/admin/stock-mutations${stockMutationQS(f)}`, token);
+
+export const adminGetStockMutation = (token: string, id: string) =>
+  request<StockMutation>(`/admin/stock-mutations/${id}`, token);
+
+export const adminCreateStockMutation = (token: string, body: StockMutationInput) =>
+  request<StockMutation>(`/admin/stock-mutations`, token, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+
+export const adminUpdateStockMutation = (token: string, id: string, body: StockMutationInput) =>
+  request<StockMutation>(`/admin/stock-mutations/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  });
+
+export const adminDeleteStockMutation = (token: string, id: string) =>
+  request(`/admin/stock-mutations/${id}`, token, { method: 'DELETE' });
+
+export const adminDuplicateStockMutation = (token: string, id: string) =>
+  request<StockMutation>(`/admin/stock-mutations/${id}/duplicate`, token, { method: 'POST' });
+
+/** Execute a draft mutation. Re-thrown as StockMutationInsufficientStockError
+ *  when the server returns 422 with a conflicts payload (stock-out only). */
+export const adminExecuteStockMutation = async (token: string, id: string): Promise<StockMutation> => {
+  const res = await fetch(`${base()}/admin/stock-mutations/${id}/execute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (res.status === 422) {
+    let body: any = {};
+    try { body = await res.json(); } catch { /* ignore */ }
+    throw new StockMutationInsufficientStockError(body?.conflicts ?? []);
+  }
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const text = await res.text();
+      try {
+        const obj = JSON.parse(text);
+        detail = obj?.message ?? obj?.error ?? text;
+      } catch { detail = text; }
+    } catch { /* ignore */ }
+    throw new Error(`API ${res.status} /admin/stock-mutations/${id}/execute${detail ? `: ${detail}` : ''}`);
+  }
+  return res.json() as Promise<StockMutation>;
+};

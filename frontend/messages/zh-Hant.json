@@ -1972,6 +1972,8 @@
 
   "admin_nav_stock_history": "進出記錄",
   "admin_top_stock_history": "進出記錄",
+  "admin_nav_stock_mutations": "進銷單",
+  "admin_top_stock_mutations": "進銷單",
   "admin_stock_history_title": "進出記錄 — Gyeon 管理後台",
   "admin_stock_history_heading": "進出記錄",
   "admin_stock_history_subtitle": "所有產品變體的入庫 / 出庫紀錄，包括操作者及來源。",
