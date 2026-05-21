@@ -260,9 +260,26 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 		p.ImportedOrders++
 	}
 
+	// Two-pass insert so WC Product Bundles parent ↔ child links survive
+	// the import: pass 1 writes parents + standalones and remembers their
+	// Gyeon UUIDs keyed by WC's _bundle_cart_key; pass 2 writes children
+	// with parent_item_id resolved through that map. WC sometimes emits
+	// children before parent, so we can't do this in one pass.
+	parentGyeonID := make(map[string]string) // _bundle_cart_key → order_items.id
+	type childRow struct {
+		li        wcLineItem
+		bundledBy string
+	}
+	var children []childRow
+
 	for _, li := range o.LineItems {
 		if li.Quantity <= 0 {
 			continue // refund / 0-qty pseudo-rows
+		}
+		cartKey, bundledBy := li.bundleKeys()
+		if bundledBy != "" {
+			children = append(children, childRow{li: li, bundledBy: bundledBy})
+			continue
 		}
 		variantID, linked := s.resolveVariant(ctx, tx, li)
 		sku := strings.TrimSpace(li.SKU)
@@ -271,16 +288,55 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 		}
 		unitPrice := parseDecimal(string(li.Price))
 		lineTotal := parseDecimal(li.Total)
-		if _, err := tx.ExecContext(ctx, `
+		var insertedID string
+		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO order_items (
 				order_id, variant_id, product_name, variant_sku, variant_attrs,
 				unit_price, quantity, line_total
-			) VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)`,
+			) VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)
+			RETURNING id`,
 			orderID, variantID,
 			li.Name, sku,
 			unitPrice, li.Quantity, lineTotal,
-		); err != nil {
+		).Scan(&insertedID); err != nil {
 			return fmt.Errorf("insert line item: %w", err)
+		}
+		if cartKey != "" {
+			parentGyeonID[cartKey] = insertedID
+		}
+		p.ImportedLineItems++
+		if !linked {
+			p.UnlinkedLineItems++
+		}
+	}
+
+	for _, c := range children {
+		variantID, linked := s.resolveVariant(ctx, tx, c.li)
+		sku := strings.TrimSpace(c.li.SKU)
+		if sku == "" {
+			sku = fmt.Sprintf("WC-%d", c.li.ProductID)
+		}
+		unitPrice := parseDecimal(string(c.li.Price))
+		lineTotal := parseDecimal(c.li.Total)
+		var parentID sql.NullString
+		if pid, ok := parentGyeonID[c.bundledBy]; ok {
+			parentID = sql.NullString{String: pid, Valid: true}
+		} else {
+			// Broken WC data — child references a parent we never saw.
+			// Insert standalone so we don't drop the line, surface a note.
+			p.Errors = append(p.Errors,
+				fmt.Sprintf("order #%s: orphan bundle child (bundled_by=%q) inserted standalone", o.Number, c.bundledBy))
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO order_items (
+				order_id, variant_id, product_name, variant_sku, variant_attrs,
+				unit_price, quantity, line_total, parent_item_id
+			) VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8)`,
+			orderID, variantID,
+			c.li.Name, sku,
+			unitPrice, c.li.Quantity, lineTotal, parentID,
+		); err != nil {
+			return fmt.Errorf("insert bundle child line item: %w", err)
 		}
 		p.ImportedLineItems++
 		if !linked {
