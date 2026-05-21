@@ -51,28 +51,26 @@ type shipanyTrackingMeta struct {
 // order stays where it is.
 //
 // The full official ShipAny status vocabulary has ~80 entries; we only
-// translate the four milestones that drive Gyeon order state. The rest
-// are logged as "unmapped" so we can decide later whether they're worth
-// surfacing. Everything else is noise from intermediate carrier scans
-// that the customer-facing order timeline doesn't need.
+// translate the milestones that drive Gyeon order state. The rest are
+// logged as "unmapped" so we can decide later whether they're worth
+// surfacing. Most are carrier scan noise that the customer order
+// timeline doesn't need.
 //
 // Mappings used:
-//   - Order_Created                       → processing
 //   - Collected_By_Courier                → shipped
 //   - Order_Delivered, Order_Completed    → delivered
 //
-// Order_Created exists to bridge the allowedTransitions chain
-// (paid → processing → shipped → delivered). Without it, the order
-// stays at "paid" when ShipAny creates the waybill, and the subsequent
-// Collected_By_Courier→shipped transition gets rejected by
-// OrderService.UpdateStatus because paid→shipped isn't valid.
+// Order_Created is intentionally NOT mapped here. The paid → processing
+// transition is already handled synchronously by shipany.QueueHandler
+// the moment Gyeon successfully creates the ShipAny shipment (see
+// queue_handler.go ~line 98). Mapping Order_Created → processing would
+// duplicate that advance and emit a "cannot transition from processing
+// to processing" log on every Order_Created callback.
 //
 // Comparison is case-insensitive in case ShipAny normalises differently
 // between events.
 func mapStatus(s string) orders.OrderStatus {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "order_created":
-		return orders.StatusProcessing
 	case "collected_by_courier":
 		return orders.StatusShipped
 	case "order_delivered", "order_completed":
