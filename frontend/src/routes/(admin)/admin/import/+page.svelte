@@ -272,7 +272,7 @@
   let customersErrorMsg = $state('');
   let customersProgress = $state<CustomersProgress | null>(null);
   let customersLimit = $state<number | null>(null);
-  let customersSetupEmailMode = $state<CustomersSetupEmailMode>('passwordless');
+  let customersSetupEmailMode = $state<CustomersSetupEmailMode>('skip');
 
   const customersPct = $derived(
     customersProgress && customersProgress.total_customers > 0
