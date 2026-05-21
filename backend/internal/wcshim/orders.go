@@ -50,15 +50,29 @@ type shipanyTrackingMeta struct {
 // — the caller still echoes a 200 so ShipAny doesn't retry, but the
 // order stays where it is.
 //
-// Real ShipAny event names (per merchant confirmation):
-//   - Collected_By_Courier        → shipped
-//   - Order_Delivered             → delivered
-//   - Order_Completed             → delivered
+// The full official ShipAny status vocabulary has ~80 entries; we only
+// translate the four milestones that drive Gyeon order state. The rest
+// are logged as "unmapped" so we can decide later whether they're worth
+// surfacing. Everything else is noise from intermediate carrier scans
+// that the customer-facing order timeline doesn't need.
+//
+// Mappings used:
+//   - Order_Created                       → processing
+//   - Collected_By_Courier                → shipped
+//   - Order_Delivered, Order_Completed    → delivered
+//
+// Order_Created exists to bridge the allowedTransitions chain
+// (paid → processing → shipped → delivered). Without it, the order
+// stays at "paid" when ShipAny creates the waybill, and the subsequent
+// Collected_By_Courier→shipped transition gets rejected by
+// OrderService.UpdateStatus because paid→shipped isn't valid.
 //
 // Comparison is case-insensitive in case ShipAny normalises differently
 // between events.
 func mapStatus(s string) orders.OrderStatus {
 	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "order_created":
+		return orders.StatusProcessing
 	case "collected_by_courier":
 		return orders.StatusShipped
 	case "order_delivered", "order_completed":
