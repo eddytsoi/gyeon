@@ -13,6 +13,7 @@
   import { notify } from '$lib/stores/notifications.svelte';
   import ProductPicker, { type ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
   import MutationItemsTable, { type MutationItemRow } from '$lib/components/admin/MutationItemsTable.svelte';
+  import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -49,7 +50,10 @@
   function addItem(payload: ProductPickerAddPayload) {
     const v = payload.variant;
     if (items.some((it) => it.variantId === v.id)) {
-      notify.error('呢個 variant 已經喺單入面', '同一張 mutation 唔可以重複加入。');
+      notify.error(
+        m.admin_stock_mutations_duplicate_variant_title(),
+        m.admin_stock_mutations_duplicate_variant_body()
+      );
       return;
     }
     nextKey += 1;
@@ -77,7 +81,7 @@
   function setType(t: StockMutationType) {
     if (isExecuted) return;
     if (items.length > 0 && t !== type) {
-      if (!confirm('改變方向會清除所有 line items。繼續？')) return;
+      if (!confirm(m.admin_stock_mutations_confirm_change_type())) return;
       items = [];
     }
     type = t;
@@ -86,7 +90,10 @@
   async function save() {
     if (isExecuted) return;
     if (items.length === 0) {
-      notify.error('未有貨品', '至少要加一個 variant 先可以儲存。');
+      notify.error(
+        m.admin_stock_mutations_no_items_title(),
+        m.admin_stock_mutations_no_items_body()
+      );
       return;
     }
     saving = true;
@@ -96,10 +103,13 @@
         note: note.trim() || null,
         items: items.map((it) => ({ variant_id: it.variantId, quantity: it.quantity }))
       });
-      notify.success('已儲存');
+      notify.success(m.admin_stock_mutations_saved());
       await invalidateAll();
     } catch (e) {
-      notify.error('儲存失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_save_failure(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     } finally {
       saving = false;
     }
@@ -107,13 +117,13 @@
 
   async function execute() {
     if (isExecuted) return;
-    if (!confirm(`確定執行 ${initial.mutation_number}？執行後不能撤銷或修改。`)) return;
+    if (!confirm(m.admin_stock_mutations_confirm_execute({ id: initial.mutation_number }))) return;
     // Save any pending edits first, then execute.
     executing = true;
     conflicts = null;
     try {
       if (items.length === 0) {
-        notify.error('未有貨品');
+        notify.error(m.admin_stock_mutations_no_items_title());
         return;
       }
       await adminUpdateStockMutation(token, initial.id, {
@@ -123,18 +133,24 @@
       });
       try {
         await adminExecuteStockMutation(token, initial.id);
-        notify.success(`${initial.mutation_number} 已執行`);
+        notify.success(m.admin_stock_mutations_executed_success({ id: initial.mutation_number }));
         await invalidateAll();
       } catch (e) {
         if (e instanceof StockMutationInsufficientStockError) {
           conflicts = e.conflicts;
-          notify.error('庫存不足，未執行', '請睇下面衝突列表。');
+          notify.error(
+            m.admin_stock_mutations_insufficient_stock_not_executed(),
+            m.admin_stock_mutations_insufficient_stock_see_below()
+          );
           return;
         }
         throw e;
       }
     } catch (e) {
-      notify.error('執行失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_execute_failed(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     } finally {
       executing = false;
     }
@@ -142,23 +158,29 @@
 
   async function remove() {
     if (isExecuted) return;
-    if (!confirm(`刪除 ${initial.mutation_number}？此操作不能撤銷。`)) return;
+    if (!confirm(m.admin_stock_mutations_confirm_delete({ id: initial.mutation_number }))) return;
     try {
       await adminDeleteStockMutation(token, initial.id);
-      notify.success('已刪除');
+      notify.success(m.admin_stock_mutations_deleted());
       goto('/admin/stock-mutations');
     } catch (e) {
-      notify.error('刪除失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_delete_failure({ id: initial.mutation_number }),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     }
   }
 
   async function duplicate() {
     try {
       const created = await adminDuplicateStockMutation(token, initial.id);
-      notify.success(`已複製為 ${created.mutation_number}`);
+      notify.success(m.admin_stock_mutations_duplicated_success({ id: created.mutation_number }));
       goto(`/admin/stock-mutations/${created.id}`);
     } catch (e) {
-      notify.error('複製失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_duplicate_failure(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     }
   }
 
@@ -168,63 +190,63 @@
   }
 </script>
 
-<svelte:head><title>{live.mutation_number} · Stock Mutation</title></svelte:head>
+<svelte:head><title>{live.mutation_number} · {m.admin_stock_mutations_heading()}</title></svelte:head>
 
 <div class="space-y-4 max-w-4xl">
   <div class="flex items-center gap-3 flex-wrap">
-    <a href="/admin/stock-mutations" class="text-sm text-gray-500 hover:text-gray-700">← Back</a>
+    <a href="/admin/stock-mutations" class="text-sm text-gray-500 hover:text-gray-700">← {m.admin_stock_mutations_back()}</a>
     <h1 class="text-2xl font-semibold text-gray-900 font-mono">{live.mutation_number}</h1>
     {#if live.type === 'in'}
-      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">Stock In</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">{m.admin_stock_mutations_type_in()}</span>
     {:else}
-      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">Stock Out</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">{m.admin_stock_mutations_type_out()}</span>
     {/if}
     {#if live.status === 'draft'}
-      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">Draft</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">{m.admin_stock_mutations_status_draft()}</span>
     {:else}
-      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Executed</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">{m.admin_stock_mutations_status_executed()}</span>
     {/if}
   </div>
 
   <!-- Metadata -->
   <div class="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
     <div>
-      <div class="text-gray-400 uppercase tracking-wide">Created</div>
+      <div class="text-gray-400 uppercase tracking-wide">{m.admin_stock_mutations_meta_created()}</div>
       <div class="text-gray-900 mt-0.5">{fmt(live.created_at)}</div>
       <div class="text-gray-500">{live.created_by_email ?? '—'}</div>
     </div>
     <div>
-      <div class="text-gray-400 uppercase tracking-wide">Updated</div>
+      <div class="text-gray-400 uppercase tracking-wide">{m.admin_stock_mutations_meta_updated()}</div>
       <div class="text-gray-900 mt-0.5">{fmt(live.updated_at)}</div>
     </div>
     <div>
-      <div class="text-gray-400 uppercase tracking-wide">Executed</div>
+      <div class="text-gray-400 uppercase tracking-wide">{m.admin_stock_mutations_meta_executed()}</div>
       <div class="text-gray-900 mt-0.5">{fmt(live.executed_at ?? null)}</div>
       <div class="text-gray-500">{live.executed_by_email ?? '—'}</div>
     </div>
     <div>
-      <div class="text-gray-400 uppercase tracking-wide">Items / Qty</div>
-      <div class="text-gray-900 mt-0.5">{live.items.length} items</div>
-      <div class="text-gray-500">total {live.items.reduce((s, i) => s + i.quantity, 0)}</div>
+      <div class="text-gray-400 uppercase tracking-wide">{m.admin_stock_mutations_meta_items_qty()}</div>
+      <div class="text-gray-900 mt-0.5">{m.admin_stock_mutations_meta_items_count({ count: String(live.items.length) })}</div>
+      <div class="text-gray-500">{m.admin_stock_mutations_meta_total({ qty: String(live.items.reduce((s, i) => s + i.quantity, 0)) })}</div>
     </div>
   </div>
 
   <!-- Type selector / readonly badge -->
   {#if !isExecuted}
     <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-      <h2 class="text-sm font-medium text-gray-900">Direction</h2>
+      <h2 class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_direction()}</h2>
       <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
         <button class="px-4 py-2 {type === 'in' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-gray-50'}"
-                onclick={() => setType('in')} type="button">＋ Stock In</button>
+                onclick={() => setType('in')} type="button">{m.admin_stock_mutations_button_in()}</button>
         <button class="px-4 py-2 border-l border-gray-200 {type === 'out' ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-gray-50'}"
-                onclick={() => setType('out')} type="button">− Stock Out</button>
+                onclick={() => setType('out')} type="button">{m.admin_stock_mutations_button_out()}</button>
       </div>
     </section>
   {/if}
 
   <!-- Items -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
-    <h2 class="text-sm font-medium text-gray-900">Items</h2>
+    <h2 class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_items()}</h2>
     {#if !isExecuted}
       <ProductPicker {token} mode="variant-only" onAdd={addItem} />
     {/if}
@@ -234,7 +256,7 @@
 
   <!-- Note -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-    <label for="note" class="text-sm font-medium text-gray-900">Note</label>
+    <label for="note" class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_note()}</label>
     {#if isExecuted}
       <p class="text-sm text-gray-600 whitespace-pre-wrap">{note || '—'}</p>
     {:else}
@@ -246,35 +268,35 @@
   <!-- Actions -->
   <div class="flex flex-wrap justify-end gap-2">
     {#if isExecuted}
-      <button onclick={duplicate} class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Duplicate</button>
+      <button onclick={duplicate} class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">{m.admin_stock_mutations_action_duplicate()}</button>
     {:else}
       <button onclick={remove}
-              class="px-4 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50">Delete</button>
+              class="px-4 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50">{m.admin_stock_mutations_action_delete()}</button>
       <button onclick={duplicate}
-              class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Duplicate</button>
+              class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">{m.admin_stock_mutations_action_duplicate()}</button>
       <button onclick={save} disabled={saving || executing}
               class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50">
-        {saving ? '…' : 'Save draft'}
+        {saving ? '…' : m.admin_stock_mutations_action_save_draft()}
       </button>
       <button onclick={execute} disabled={saving || executing}
               class="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
-        {executing ? '…' : 'Save & Execute'}
+        {executing ? '…' : m.admin_stock_mutations_action_save_execute()}
       </button>
     {/if}
   </div>
 
   {#if conflicts && conflicts.length > 0}
     <section class="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
-      <h3 class="text-sm font-medium text-red-800">庫存衝突</h3>
+      <h3 class="text-sm font-medium text-red-800">{m.admin_stock_mutations_conflict_heading()}</h3>
       <ul class="text-xs text-red-700 space-y-1">
         {#each conflicts as c}
           <li>
             • <strong>{c.product_name ?? c.variant_id}</strong>
-            ({c.variant_sku ?? '—'}) — 需要 {c.requested}，現有 {c.available}
+            ({c.variant_sku ?? '—'}) — {m.admin_stock_mutations_conflict_line({ requested: String(c.requested), available: String(c.available) })}
           </li>
         {/each}
       </ul>
-      <p class="text-xs text-red-600">調整 quantity 或者去補貨後再 execute。</p>
+      <p class="text-xs text-red-600">{m.admin_stock_mutations_conflict_hint()}</p>
     </section>
   {/if}
 </div>

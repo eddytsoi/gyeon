@@ -12,6 +12,7 @@
   import NewButton from '$lib/components/admin/NewButton.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -53,13 +54,13 @@
     deleting = true;
     try {
       await adminDeleteStockMutation(data.token, t.id);
-      notify.success(`已刪除 ${t.mutation_number}`);
+      notify.success(m.admin_stock_mutations_deleted_success({ id: t.mutation_number }));
       deleteTarget = null;
       await invalidateAll();
     } catch (e) {
       notify.error(
-        `刪除 ${t.mutation_number} 失敗`,
-        e instanceof Error ? e.message : 'unknown error'
+        m.admin_stock_mutations_delete_failure({ id: t.mutation_number }),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
       );
     } finally {
       deleting = false;
@@ -68,20 +69,23 @@
 
   async function execute(row: StockMutationSummary) {
     if (!data.token) return;
-    if (!confirm(`確定執行 ${row.mutation_number}？執行後不能撤銷或修改。`)) return;
+    if (!confirm(m.admin_stock_mutations_confirm_execute({ id: row.mutation_number }))) return;
     executingId = row.id;
     try {
       await adminExecuteStockMutation(data.token, row.id);
-      notify.success(`${row.mutation_number} 已執行`);
+      notify.success(m.admin_stock_mutations_executed_success({ id: row.mutation_number }));
       await invalidateAll();
     } catch (e) {
       if (e instanceof StockMutationInsufficientStockError) {
         const lines = e.conflicts
-          .map(c => `• ${c.product_name ?? c.variant_id} (${c.variant_sku ?? '—'}): 需要 ${c.requested}, 現有 ${c.available}`)
+          .map(c => `• ${c.product_name ?? c.variant_id} (${c.variant_sku ?? '—'}): ${m.admin_stock_mutations_conflict_line({ requested: String(c.requested), available: String(c.available) })}`)
           .join('\n');
-        notify.error(`${row.mutation_number} 庫存不足`, lines);
+        notify.error(m.admin_stock_mutations_insufficient_stock_title({ id: row.mutation_number }), lines);
       } else {
-        notify.error(`執行 ${row.mutation_number} 失敗`, e instanceof Error ? e.message : 'unknown error');
+        notify.error(
+          m.admin_stock_mutations_execute_failure({ id: row.mutation_number }),
+          e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+        );
       }
     } finally {
       executingId = null;
@@ -93,10 +97,13 @@
     duplicatingId = row.id;
     try {
       const created = await adminDuplicateStockMutation(data.token, row.id);
-      notify.success(`已複製為 ${created.mutation_number}`);
+      notify.success(m.admin_stock_mutations_duplicated_success({ id: created.mutation_number }));
       goto(`/admin/stock-mutations/${created.id}`);
     } catch (e) {
-      notify.error('複製失敗', e instanceof Error ? e.message : 'unknown error');
+      notify.error(
+        m.admin_stock_mutations_duplicate_failure(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
     } finally {
       duplicatingId = null;
     }
@@ -116,31 +123,31 @@
   );
 </script>
 
-<svelte:head><title>Stock Mutations · Admin</title></svelte:head>
+<svelte:head><title>{m.admin_stock_mutations_title()}</title></svelte:head>
 
 <div class="space-y-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold text-gray-900">Stock Mutations</h1>
-    <NewButton label="New Mutation" href="/admin/stock-mutations/new" />
+    <h1 class="text-2xl font-semibold text-gray-900">{m.admin_stock_mutations_heading()}</h1>
+    <NewButton label={m.admin_stock_mutations_new()} href="/admin/stock-mutations/new" />
   </div>
 
   <!-- Filters -->
   <div class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
     <div class="flex flex-wrap gap-3 items-center">
       <div class="flex-1 min-w-[240px]">
-        <SearchInput value={data.q} placeholder="Search MUT-#, SKU or product name" onChange={onSearch} />
+        <SearchInput value={data.q} placeholder={m.admin_stock_mutations_search_placeholder()} onChange={onSearch} />
       </div>
 
       <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-        <button class="px-3 py-1.5 {data.status === '' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('')}>All</button>
-        <button class="px-3 py-1.5 border-l border-gray-200 {data.status === 'draft' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('draft')}>Draft</button>
-        <button class="px-3 py-1.5 border-l border-gray-200 {data.status === 'executed' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('executed')}>Executed</button>
+        <button class="px-3 py-1.5 {data.status === '' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('')}>{m.admin_stock_mutations_filter_all()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {data.status === 'draft' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('draft')}>{m.admin_stock_mutations_status_draft()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {data.status === 'executed' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setStatus('executed')}>{m.admin_stock_mutations_status_executed()}</button>
       </div>
 
       <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
-        <button class="px-3 py-1.5 {data.type === '' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setType('')}>All types</button>
-        <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'in' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-gray-50'}" onclick={() => setType('in')}>Stock In</button>
-        <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'out' ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-gray-50'}" onclick={() => setType('out')}>Stock Out</button>
+        <button class="px-3 py-1.5 {data.type === '' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setType('')}>{m.admin_stock_mutations_filter_all_types()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'in' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-gray-50'}" onclick={() => setType('in')}>{m.admin_stock_mutations_type_in()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'out' ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-gray-50'}" onclick={() => setType('out')}>{m.admin_stock_mutations_type_out()}</button>
       </div>
 
       <input type="date" value={data.from} onchange={(e) => setDate('from', (e.currentTarget as HTMLInputElement).value)}
@@ -150,7 +157,7 @@
              class="text-xs border border-gray-200 rounded-lg px-2 py-1.5" aria-label="to date" />
 
       {#if hasFilters}
-        <button onclick={clearAll} class="text-xs text-gray-500 underline hover:text-gray-700">Clear</button>
+        <button onclick={clearAll} class="text-xs text-gray-500 underline hover:text-gray-700">{m.admin_stock_mutations_filter_clear()}</button>
       {/if}
     </div>
   </div>
@@ -161,21 +168,21 @@
       <table class="w-full text-sm">
         <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
-            <th class="px-4 py-2 font-medium">Mutation #</th>
-            <th class="px-4 py-2 font-medium">Type</th>
-            <th class="px-4 py-2 font-medium">Status</th>
-            <th class="px-4 py-2 font-medium text-right">Items</th>
-            <th class="px-4 py-2 font-medium text-right">Total qty</th>
-            <th class="px-4 py-2 font-medium">Created</th>
-            <th class="px-4 py-2 font-medium">Executed</th>
-            <th class="px-4 py-2 font-medium text-right">Actions</th>
+            <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_number()}</th>
+            <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_type()}</th>
+            <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_status()}</th>
+            <th class="px-4 py-2 font-medium text-right">{m.admin_stock_mutations_col_items()}</th>
+            <th class="px-4 py-2 font-medium text-right">{m.admin_stock_mutations_col_total_qty()}</th>
+            <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_created()}</th>
+            <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_executed()}</th>
+            <th class="px-4 py-2 font-medium text-right">{m.admin_stock_mutations_col_actions()}</th>
           </tr>
         </thead>
         <tbody>
           {#if data.list.items.length === 0}
             <tr>
               <td colspan="8" class="px-4 py-10 text-center text-sm text-gray-400">
-                未有 stock mutation。{#if !hasFilters}試吓建立一張新嘅。{:else}試吓清除 filter。{/if}
+                {hasFilters ? m.admin_stock_mutations_empty_with_filters() : m.admin_stock_mutations_empty_no_filters()}
               </td>
             </tr>
           {:else}
@@ -186,16 +193,16 @@
                 </td>
                 <td class="px-4 py-2">
                   {#if row.type === 'in'}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">Stock In</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">{m.admin_stock_mutations_type_in()}</span>
                   {:else}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">Stock Out</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">{m.admin_stock_mutations_type_out()}</span>
                   {/if}
                 </td>
                 <td class="px-4 py-2">
                   {#if row.status === 'draft'}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">Draft</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">{m.admin_stock_mutations_status_draft()}</span>
                   {:else}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Executed</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">{m.admin_stock_mutations_status_executed()}</span>
                   {/if}
                 </td>
                 <td class="px-4 py-2 text-right tabular-nums">{row.item_count}</td>
@@ -214,19 +221,19 @@
                 </td>
                 <td class="px-4 py-2 text-right">
                   <div class="inline-flex items-center gap-2 text-xs">
-                    <a href="/admin/stock-mutations/{row.id}" class="text-gray-700 hover:underline">{row.status === 'draft' ? 'Edit' : 'View'}</a>
+                    <a href="/admin/stock-mutations/{row.id}" class="text-gray-700 hover:underline">{row.status === 'draft' ? m.admin_stock_mutations_action_edit() : m.admin_stock_mutations_action_view()}</a>
                     {#if row.status === 'draft'}
                       <button class="text-emerald-700 hover:underline disabled:opacity-50"
                               disabled={executingId === row.id}
                               onclick={() => execute(row)}>
-                        {executingId === row.id ? '…' : 'Execute'}
+                        {executingId === row.id ? '…' : m.admin_stock_mutations_action_execute()}
                       </button>
-                      <button class="text-red-600 hover:underline" onclick={() => (deleteTarget = row)}>Delete</button>
+                      <button class="text-red-600 hover:underline" onclick={() => (deleteTarget = row)}>{m.admin_stock_mutations_action_delete()}</button>
                     {/if}
                     <button class="text-gray-500 hover:underline disabled:opacity-50"
                             disabled={duplicatingId === row.id}
                             onclick={() => duplicate(row)}>
-                      {duplicatingId === row.id ? '…' : 'Duplicate'}
+                      {duplicatingId === row.id ? '…' : m.admin_stock_mutations_action_duplicate()}
                     </button>
                   </div>
                 </td>
@@ -244,13 +251,13 @@
 {#if deleteTarget}
   <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
-      <h2 class="text-lg font-semibold">刪除 {deleteTarget.mutation_number}？</h2>
-      <p class="text-sm text-gray-600">呢個操作不能撤銷。Draft 才能刪除，已執行嘅 mutation 不能刪除。</p>
+      <h2 class="text-lg font-semibold">{m.admin_stock_mutations_delete_modal_title({ id: deleteTarget.mutation_number })}</h2>
+      <p class="text-sm text-gray-600">{m.admin_stock_mutations_delete_modal_body()}</p>
       <div class="flex justify-end gap-2">
         <button class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
-                onclick={() => (deleteTarget = null)} disabled={deleting}>取消</button>
+                onclick={() => (deleteTarget = null)} disabled={deleting}>{m.admin_stock_mutations_cancel()}</button>
         <button class="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                onclick={confirmDelete} disabled={deleting}>{deleting ? '…' : '確定刪除'}</button>
+                onclick={confirmDelete} disabled={deleting}>{deleting ? '…' : m.admin_stock_mutations_confirm_delete_btn()}</button>
       </div>
     </div>
   </div>
