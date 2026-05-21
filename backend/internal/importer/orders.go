@@ -191,6 +191,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 
 	notes := nullableString(o.CustomerNote)
 
+	custEmail := nullableString(strings.ToLower(o.Billing.Email))
+	custPhone := nullableString(o.Billing.Phone)
+	custName := nullableString(strings.TrimSpace(o.Billing.FirstName) + " " + strings.TrimSpace(o.Billing.LastName))
+
 	// Look up existing.
 	var orderID string
 	existed := false
@@ -214,11 +218,15 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				tax_amount          = $8,
 				total               = $9,
 				notes               = $10,
-				created_at          = $11
+				created_at          = $11,
+				customer_email      = $12,
+				customer_phone      = $13,
+				customer_name       = $14
 			 WHERE id = $1`,
 			orderID, customerID, status, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
+			custEmail, custPhone, custName,
 		); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
@@ -232,12 +240,14 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 			INSERT INTO orders (
 				wc_order_id, customer_id, status, shipping_address_id,
 				subtotal, shipping_fee, discount_amount, tax_amount, total,
-				notes, created_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				notes, created_at,
+				customer_email, customer_phone, customer_name
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id, number`,
 			o.ID, customerID, status, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
+			custEmail, custPhone, custName,
 		).Scan(&orderID, &number); err != nil {
 			return fmt.Errorf("insert order: %w", err)
 		}
