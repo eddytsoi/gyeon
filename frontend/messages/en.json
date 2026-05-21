@@ -594,6 +594,7 @@
   "admin_orders_title": "Orders — Gyeon Admin",
   "admin_orders_heading": "Orders",
   "admin_orders_col_id": "Order ID",
+  "admin_orders_col_customer": "Customer",
   "admin_orders_col_date": "Date",
   "admin_orders_col_status": "Status",
   "admin_orders_col_total": "Total",
