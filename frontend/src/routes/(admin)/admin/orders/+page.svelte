@@ -9,6 +9,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import Pagination from '$lib/components/admin/Pagination.svelte';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
 
@@ -122,15 +123,18 @@
 
 <svelte:head><title>{m.admin_orders_title()}</title></svelte:head>
 
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-bold text-gray-900">{m.admin_orders_heading()}</h1>
-  <span class="text-sm text-gray-400">
-    {#if hasFilters}
-      {data.total === 1 ? m.admin_orders_count_match_one({ count: data.total }) : m.admin_orders_count_match_many({ count: data.total })}
-    {:else}
-      {m.admin_orders_count_total({ count: data.total })}
-    {/if}
-  </span>
+<div class="flex items-center justify-between mb-6 gap-3">
+  <div class="flex items-baseline gap-3 min-w-0">
+    <h1 class="text-2xl font-bold text-gray-900">{m.admin_orders_heading()}</h1>
+    <span class="text-sm text-gray-400">
+      {#if hasFilters}
+        {data.total === 1 ? m.admin_orders_count_match_one({ count: data.total }) : m.admin_orders_count_match_many({ count: data.total })}
+      {:else}
+        {m.admin_orders_count_total({ count: data.total })}
+      {/if}
+    </span>
+  </div>
+  <NewButton href="/admin/orders/new" label={m.admin_orders_new_button()} />
 </div>
 
 <!-- Filters -->
@@ -228,7 +232,7 @@
             {order.customer_name || '—'}
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
-            {new Date(order.created_at).toLocaleString('en-HK', { dateStyle: 'medium', timeStyle: 'short' })}
+            {new Date(order.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Hong_Kong', hour12: false })}
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium

@@ -223,6 +223,12 @@ export const adminGetOrders = (token: string, opts: AdminOrdersQuery = {}) => {
 export const adminGetOrder = (token: string, id: string) =>
   request<Order>(`/admin/orders/${id}`, token);
 
+// Admin-built order. Body shape mirrors AdminCreateRequest on the backend
+// (orders.admin_create.go) — kept loose here because the +page.server.ts
+// passes through what the form composes.
+export const adminCreateOrder = (token: string, body: Record<string, unknown>) =>
+  request<Order>('/admin/orders', token, { method: 'POST', body: JSON.stringify(body) });
+
 export const adminUpdateOrderStatus = (token: string, id: string, status: string, note?: string) =>
   request<Order>(`/admin/orders/${id}/status`, token, {
     method: 'POST',
@@ -449,6 +455,11 @@ export const adminGetCustomers = (token: string, limit = 50, offset = 0, q = '')
 
 export const adminGetCustomer = (token: string, id: string) =>
   request<Customer>(`/admin/customers/${id}`, token);
+
+// Used by the new-order page to render the saved-address radio list for a
+// chosen customer. Returns [] for guests with no profile addresses.
+export const adminGetCustomerAddresses = (token: string, id: string) =>
+  request<import('$lib/types').Address[]>(`/admin/customers/${id}/addresses`, token);
 
 export const adminGetCustomerOrders = (token: string, id: string) =>
   request<CustomerOrderSummary[]>(`/customers/me/orders`, token);

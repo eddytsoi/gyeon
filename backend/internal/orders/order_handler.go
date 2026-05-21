@@ -46,6 +46,7 @@ func (h *OrderHandler) PublicRoutes() chi.Router {
 func (h *OrderHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
+	r.Post("/", h.adminCreate)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
 	r.Delete("/{id}", h.delete)
@@ -286,6 +287,37 @@ func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, result)
+}
+
+// adminCreate backs POST /admin/orders — manually build a new order from
+// the admin panel (phone-in, walk-in, manual data entry from a customer
+// service ticket). See orders.AdminCreate for the payload contract.
+func (h *OrderHandler) adminCreate(w http.ResponseWriter, r *http.Request) {
+	var req AdminCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	order, err := h.svc.AdminCreate(r.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrAdminCreateNoItems),
+			errors.Is(err, ErrAdminCreateInvalidStatus),
+			errors.Is(err, ErrCustomerInfoRequired),
+			errors.Is(err, ErrShippingRequired):
+			respond.BadRequest(w, err.Error())
+		case errors.Is(err, ErrAdminCreateVariantNotFound):
+			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		case errors.Is(err, ErrAdminCreateInsufficientStock):
+			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		case errors.Is(err, ErrDefaultCarrierNotConfigured):
+			respond.BadRequest(w, "shipping defaults not configured")
+		default:
+			respond.Error(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	respond.JSON(w, http.StatusCreated, order)
 }
 
 func (h *OrderHandler) updateStatus(w http.ResponseWriter, r *http.Request) {

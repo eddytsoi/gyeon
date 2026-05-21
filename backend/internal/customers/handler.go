@@ -79,8 +79,22 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Get("/{id}", h.getByID)
+	r.Get("/{id}/addresses", h.adminListAddresses)
 	r.Post("/{id}/send-reset-password-email", h.sendResetPasswordEmail)
 	return r
+}
+
+// adminListAddresses returns a customer's saved addresses for the admin
+// create-order picker. Mirrors listAddresses but resolves the customer id
+// from the URL path instead of the customer JWT.
+func (h *Handler) adminListAddresses(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	addrs, err := h.svc.ListAddresses(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, addrs)
 }
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
