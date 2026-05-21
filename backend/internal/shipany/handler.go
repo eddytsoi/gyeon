@@ -3,7 +3,6 @@ package shipany
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net/http"
 
@@ -21,14 +20,16 @@ func NewHandler(svc *Service, cartSvc *orders.CartService) *Handler {
 	return &Handler{svc: svc, cartSvc: cartSvc}
 }
 
-// PublicRoutes — quote + pickup-point lookup for the storefront,
-// plus the webhook receiver. None of these require authentication.
+// PublicRoutes — quote + pickup-point lookup for the storefront.
+// None of these require authentication.
+//
+// ShipAny status updates do NOT arrive here — they go to the
+// /wp-json/wc/v3/orders/{id} shim (see backend/internal/wcshim).
 func (h *Handler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/quote", h.quote)
 	r.Get("/pickup-points", h.pickupPoints)
 	r.Get("/shipping-default", h.shippingDefault)
-	r.Post("/webhook", h.webhook)
 	return r
 }
 
@@ -142,38 +143,6 @@ func (h *Handler) pickupPoints(w http.ResponseWriter, r *http.Request) {
 // have learned from the previous quote-based picker.
 func (h *Handler) shippingDefault(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, h.svc.ShippingDefault(r.Context()))
-}
-
-func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
-	if err != nil {
-		respond.BadRequest(w, "cannot read body")
-		return
-	}
-
-	// Header name is a best guess until portal docs are confirmed —
-	// log on first hit so the implementer can compare.
-	sig := r.Header.Get("X-ShipAny-Signature")
-	if err := h.svc.VerifyWebhook(r.Context(), body, sig); err != nil {
-		log.Printf("shipany webhook signature failed (sig header=%q): %v", sig, err)
-		respond.Error(w, http.StatusUnauthorized, "invalid signature")
-		return
-	}
-
-	evt, err := ParseEvent(body)
-	if err != nil {
-		log.Printf("shipany webhook decode: %v body=%s", err, truncate(string(body), 256))
-		// Return 200 anyway so ShipAny stops retrying — body is logged.
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if err := h.svc.HandleTrackingEvent(r.Context(), *evt, body); err != nil {
-		log.Printf("shipany webhook handle %s: %v", evt.Event, err)
-		// Still 200: a 500 makes ShipAny retry, which can amplify a bug.
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }
 
 // ── Admin ──────────────────────────────────────────────────────────────

@@ -3,7 +3,6 @@ package shipany
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -381,76 +380,6 @@ func (s *Service) GetByOrderID(ctx context.Context, orderID string) (*DBShipment
 	return &sh, nil
 }
 
-// HandleTrackingEvent normalises ShipAny event strings to the local shipment
-// status taxonomy and advances the order status when the transition is allowed.
-// Idempotent: only flips status forward.
-func (s *Service) HandleTrackingEvent(ctx context.Context, evt TrackingEvent, raw []byte) error {
-	if evt.TrackingNumber == "" && evt.ShipmentID == "" {
-		return errors.New("event has neither tracking_number nor shipment_id")
-	}
-
-	var sh DBShipment
-	var err error
-	switch {
-	case evt.TrackingNumber != "":
-		err = s.db.QueryRowContext(ctx,
-			`SELECT id, order_id, status FROM shipments WHERE tracking_number=$1`,
-			evt.TrackingNumber).Scan(&sh.ID, &sh.OrderID, &sh.Status)
-	default:
-		err = s.db.QueryRowContext(ctx,
-			`SELECT id, order_id, status FROM shipments WHERE shipany_shipment_id=$1`,
-			evt.ShipmentID).Scan(&sh.ID, &sh.OrderID, &sh.Status)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("shipany webhook: no shipment matches event %+v", evt)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	nextStatus := normalizeEventStatus(evt.Event)
-	advanceOrder := nextStatus == "in_transit" || nextStatus == "delivered"
-
-	// Always persist the raw payload for forensics.
-	_, err = s.db.ExecContext(ctx,
-		`UPDATE shipments
-		   SET status = CASE WHEN $2 = '' THEN status ELSE $2 END,
-		       last_tracking_event = $3,
-		       tracking_number = COALESCE(NULLIF($4,''), tracking_number)
-		 WHERE id = $1`,
-		sh.ID, nextStatus, json.RawMessage(raw), evt.TrackingNumber)
-	if err != nil {
-		return err
-	}
-
-	if !advanceOrder {
-		return nil
-	}
-	order, err := s.orderSvc.GetByID(ctx, sh.OrderID)
-	if err != nil {
-		return err
-	}
-	target := orderStatusFor(nextStatus)
-	if target == "" {
-		return nil
-	}
-	if order.Status == target {
-		return nil // already there, idempotent
-	}
-	_, err = s.orderSvc.UpdateStatus(ctx, sh.OrderID, orders.UpdateStatusRequest{
-		Status: target,
-		Note:   strPtr("ShipAny tracking event: " + evt.Event),
-	})
-	if err != nil {
-		// Not all transitions are valid (e.g. delivered while still pending).
-		// Swallow — the shipment status is the source of truth and will be
-		// surfaced in the admin UI; manual reconciliation can fix the order.
-		log.Printf("shipany webhook: cannot advance order %s to %s: %v", sh.OrderID, target, err)
-	}
-	return nil
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────
 
 func (s *Service) read(ctx context.Context, key string) string {
@@ -548,37 +477,6 @@ func (s *Service) originAddress(ctx context.Context) Address {
 		Country:    "HK",
 		AddrType:   s.read(ctx, "shipany_origin_addr_type"),
 	}
-}
-
-// normalizeEventStatus maps ShipAny event strings (which we have to confirm
-// at integration time) to our small internal taxonomy. Unknown events return
-// "" so the caller leaves status unchanged.
-func normalizeEventStatus(eventName string) string {
-	switch strings.ToLower(strings.ReplaceAll(eventName, ".", "_")) {
-	case "shipment_created", "created":
-		return "created"
-	case "pickup_requested":
-		return "pickup_requested"
-	case "shipment_in_transit", "in_transit", "picked_up", "shipment_picked_up":
-		return "in_transit"
-	case "shipment_delivered", "delivered":
-		return "delivered"
-	case "shipment_exception", "exception", "failed", "shipment_failed":
-		return "exception"
-	}
-	return ""
-}
-
-// orderStatusFor returns the order status to advance to when a tracking
-// event of this normalized type fires. Empty = don't touch the order.
-func orderStatusFor(shipStatus string) orders.OrderStatus {
-	switch shipStatus {
-	case "in_transit":
-		return orders.StatusShipped
-	case "delivered":
-		return orders.StatusDelivered
-	}
-	return ""
 }
 
 // orderItemsForShipment builds the per-line shipany items slice from the
@@ -686,8 +584,6 @@ func ptrToString(p *string) string {
 	}
 	return *p
 }
-
-func strPtr(s string) *string { return &s }
 
 // shipanyExistingUIDPattern matches the result.details line ShipAny returns
 // when ext_order_id collides with an existing order:
