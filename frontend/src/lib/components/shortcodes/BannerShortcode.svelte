@@ -4,7 +4,8 @@
     resolveBleed,
     resolveBleedLg,
     resolveAspectRatio,
-    resolveHeight
+    resolveHeight,
+    resolveFitSize
   } from '$lib/shortcodes/banner';
   import type { ShortcodeAttrs } from '$lib/shortcodes/types';
 
@@ -22,6 +23,7 @@
   const aspectRatio = $derived(resolveAspectRatio(attrs['aspect-ratio']));
   const aspectRatioMobile = $derived(resolveAspectRatio(attrs['aspect-ratio-mobile']));
   const height = $derived(resolveHeight(attrs.height));
+  const fitSize = $derived(resolveFitSize(attrs['fit-size']));
 
   $effect(() => {
     warnIfBad('bleed', attrs.bleed, bleed);
@@ -29,6 +31,7 @@
     warnIfBad('aspect-ratio', attrs['aspect-ratio'], aspectRatio);
     warnIfBad('aspect-ratio-mobile', attrs['aspect-ratio-mobile'], aspectRatioMobile);
     warnIfBad('height', attrs.height, height);
+    warnIfBad('fit-size', attrs['fit-size'], fitSize);
     if (import.meta.env.DEV && attrs.image && (attrs.alt === undefined || attrs.alt === '')) {
       // eslint-disable-next-line no-console
       console.warn('[banner] missing alt="" — add alt text for accessibility or set alt="" explicitly if decorative');
@@ -47,6 +50,7 @@
     {aspectRatio}
     {aspectRatioMobile}
     {height}
+    {fitSize}
     class={attrs.class ?? ''}
   />
 {/if}
