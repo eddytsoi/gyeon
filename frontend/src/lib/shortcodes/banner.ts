@@ -6,6 +6,7 @@
 export type BannerBleed = 'full' | 'container';
 export type BannerAspect = number | 'auto';
 export type BannerHeight = number | 'auto';
+export type BannerFit = 'cover' | 'contain';
 
 export function resolveBleed(v: unknown): BannerBleed {
   return v === 'full' || v === 'container' ? v : 'full';
@@ -31,4 +32,9 @@ export function resolveHeight(v: unknown): BannerHeight {
   if (v === undefined || v === null || v === '' || v === 'auto') return 'auto';
   const n = Number(v);
   return Number.isFinite(n) && n >= 1 && n <= 2000 ? n : 'auto';
+}
+
+// 'contain' → 'contain'; anything else (including missing/invalid) → 'cover'.
+export function resolveFitSize(v: unknown): BannerFit {
+  return v === 'contain' ? 'contain' : 'cover';
 }

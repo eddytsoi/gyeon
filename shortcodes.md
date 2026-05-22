@@ -165,6 +165,7 @@ Edge-to-edge image banner, optionally hyperlinked. Renders as `<a>` if `href` is
 | `aspect-ratio` | no | positive number (e.g. `1.78`) or `auto` | `auto` |
 | `aspect-ratio-mobile` | no | positive number or `auto` | `auto` |
 | `height` | no | integer 1–2000 (px) or `auto` | `auto` |
+| `fit-size` | no | `cover` \| `contain` | `cover` |
 | `class` | no | any string | — |
 
 ```
@@ -173,6 +174,38 @@ Edge-to-edge image banner, optionally hyperlinked. Renders as `<a>` if `href` is
 ```
 
 If `image` is missing the shortcode renders nothing. In dev, a missing/empty `alt` logs a warning unless explicitly set to `alt=""` for decorative images.
+
+---
+
+### `[video]`
+
+Embedded streaming video (YouTube / Vimeo / Wistia) or a local `.mp4` / `.webm` file. Self-closing. The component auto-detects the source kind from the URL.
+
+| Attribute | Required | Allowed values | Default |
+|---|---|---|---|
+| `source` | yes | YouTube / Vimeo / Wistia URL **or** `.mp4` / `.webm` URL | — |
+| `autoplay` | no | `true` \| `false` | `true` |
+| `bleed` | no | `full` \| `container` | `full` |
+| `bleed-lg` | no | `full` \| `container` (overrides at ≥1024px) | _(inherits `bleed`)_ |
+| `aspect-ratio` | no | positive number (e.g. `1.78`) or `auto` | `auto` |
+| `aspect-ratio-xs` | no | positive number or `auto` (overrides at <640px) | _(inherits `aspect-ratio`)_ |
+| `aspect-ratio-lg` | no | positive number or `auto` (overrides at ≥1024px) | _(inherits `aspect-ratio`)_ |
+| `height` | no | integer 1–2000 (px) or `auto` | `auto` |
+| `fit-size` | no | `cover` \| `contain` | `cover` |
+| `class` | no | any string | — |
+
+```
+[video source="https://youtu.be/dQw4w9WgXcQ"]
+[video source="/uploads/promo.mp4" autoplay="false"]
+[video source="https://vimeo.com/123456789" aspect-ratio="1.78" aspect-ratio-xs="1" bleed="full" bleed-lg="container"]
+```
+
+Behavior notes:
+
+- Streaming URLs render as an `<iframe>`; local files render as `<video>`.
+- `autoplay="true"` on a local file plays muted + looped without controls; `autoplay="false"` shows native controls and no autoplay.
+- An explicit numeric `height` wins over any `aspect-ratio*` value.
+- If `source` is empty or the URL isn't a recognised provider / file extension, the shortcode renders nothing (and logs a `console.warn` in dev).
 
 ---
 

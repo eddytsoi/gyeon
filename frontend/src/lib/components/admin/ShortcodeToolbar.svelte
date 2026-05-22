@@ -36,6 +36,12 @@
       label: m.admin_shortcode_insert_banner,
       snippet:
         '[banner image="/uploads/your-banner.jpg" alt="Banner" aspect-ratio="2.5" bleed="full"]'
+    },
+    {
+      name: 'video',
+      label: m.admin_shortcode_insert_video,
+      snippet:
+        '[video source="https://www.youtube.com/watch?v=YOUR_VIDEO_ID" aspect-ratio="1.78"]'
     }
   ];
 

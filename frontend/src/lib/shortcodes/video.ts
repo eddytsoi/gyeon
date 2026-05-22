@@ -5,6 +5,7 @@
 export type VideoBleed = 'full' | 'container';
 export type VideoAspect = number | 'auto';
 export type VideoHeight = number | 'auto';
+export type VideoFit = 'cover' | 'contain';
 
 export function resolveBleed(v: unknown): VideoBleed {
   return v === 'full' || v === 'container' ? v : 'full';
@@ -45,4 +46,9 @@ export function resolveHeight(v: unknown): VideoHeight {
 export function resolveAutoplay(v: unknown): boolean {
   if (typeof v !== 'string') return true;
   return v.trim().toLowerCase() !== 'false';
+}
+
+// 'contain' → 'contain'; anything else (including missing/invalid) → 'cover'.
+export function resolveFitSize(v: unknown): VideoFit {
+  return v === 'contain' ? 'contain' : 'cover';
 }

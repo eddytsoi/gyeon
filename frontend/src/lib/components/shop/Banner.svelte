@@ -1,6 +1,6 @@
 <script lang="ts">
   import { buildResponsiveAttrs } from '$lib/image';
-  import type { BannerBleed, BannerAspect, BannerHeight } from '$lib/shortcodes/banner';
+  import type { BannerBleed, BannerAspect, BannerHeight, BannerFit } from '$lib/shortcodes/banner';
 
   let {
     image,
@@ -12,6 +12,7 @@
     aspectRatio = 'auto',
     aspectRatioMobile = 'auto',
     height = 'auto',
+    fitSize = 'cover',
     class: klass = ''
   }: {
     image: string;
@@ -23,6 +24,7 @@
     aspectRatio?: BannerAspect;
     aspectRatioMobile?: BannerAspect;
     height?: BannerHeight;
+    fitSize?: BannerFit;
     class?: string;
   } = $props();
 
@@ -38,7 +40,8 @@
     [
       height === 'auto' ? '' : `--banner-h:${height}px`,
       height === 'auto' && aspectRatio !== 'auto' ? `--banner-ar-desktop:${aspectRatio}` : '',
-      height === 'auto' && aspectRatioMobile !== 'auto' ? `--banner-ar-mobile:${aspectRatioMobile}` : ''
+      height === 'auto' && aspectRatioMobile !== 'auto' ? `--banner-ar-mobile:${aspectRatioMobile}` : '',
+      `--banner-fit:${fitSize}`
     ]
       .filter(Boolean)
       .join(';')
@@ -123,7 +126,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: var(--banner-fit, cover);
   }
   .banner[data-natural='true'] :global(picture > img) {
     height: auto;

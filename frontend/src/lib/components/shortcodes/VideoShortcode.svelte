@@ -5,7 +5,8 @@
     resolveAspectRatio,
     resolveAspectRatioBreakpoint,
     resolveHeight,
-    resolveAutoplay
+    resolveAutoplay,
+    resolveFitSize
   } from '$lib/shortcodes/video';
   import { detectStreamingVideoFromURL, buildEmbedURL, VIDEO_EXTS } from '$lib/media';
   import type { ShortcodeAttrs } from '$lib/shortcodes/types';
@@ -31,6 +32,7 @@
   const aspectRatioLg = $derived(resolveAspectRatioBreakpoint(attrs['aspect-ratio-lg']));
   const height = $derived(resolveHeight(attrs.height));
   const autoplay = $derived(resolveAutoplay(attrs.autoplay));
+  const fitSize = $derived(resolveFitSize(attrs['fit-size']));
 
   const embedSrc = $derived(streaming ? buildEmbedURL(streaming.provider, streaming.videoID, autoplay) : null);
 
@@ -42,7 +44,8 @@
       height === 'auto' ? '' : `--video-h:${height}px`,
       height === 'auto' && aspectRatio !== 'auto' ? `--video-ar:${aspectRatio}` : '',
       height === 'auto' && aspectRatioXs !== undefined && aspectRatioXs !== 'auto' ? `--video-ar-xs:${aspectRatioXs}` : '',
-      height === 'auto' && aspectRatioLg !== undefined && aspectRatioLg !== 'auto' ? `--video-ar-lg:${aspectRatioLg}` : ''
+      height === 'auto' && aspectRatioLg !== undefined && aspectRatioLg !== 'auto' ? `--video-ar-lg:${aspectRatioLg}` : '',
+      `--video-fit:${fitSize}`
     ]
       .filter(Boolean)
       .join(';')
@@ -79,6 +82,7 @@
     warnIfBad('aspect-ratio-xs', attrs['aspect-ratio-xs'], aspectRatioXs ?? '');
     warnIfBad('aspect-ratio-lg', attrs['aspect-ratio-lg'], aspectRatioLg ?? '');
     warnIfBad('height', attrs.height, height);
+    warnIfBad('fit-size', attrs['fit-size'], fitSize);
     if (import.meta.env.DEV && source && !isSupported) {
       // eslint-disable-next-line no-console
       console.warn(`[video] unsupported source "${source}" — expected .mp4/.webm file or YouTube/Vimeo/Wistia URL`);
@@ -122,7 +126,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: var(--video-fit, cover);
     border: 0;
   }
   .video[data-natural='true'] :global(video) {
