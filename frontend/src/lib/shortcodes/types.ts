@@ -82,7 +82,7 @@ export const EMPTY_REFS: ShortcodeRefs = {
   forms: {}
 };
 
-export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner', 'contact-form'] as const;
+export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner', 'contact-form', 'video'] as const;
 export type KnownShortcode = (typeof KNOWN_SHORTCODES)[number];
 
 export function isKnownShortcode(name: string): name is KnownShortcode {
