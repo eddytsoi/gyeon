@@ -152,6 +152,7 @@
   const LOCALE_KEYS = new Set(['site_locale']);
   const FAVICON_KEYS = new Set(['favicon_url']);
   const COMPANY_LOGO_KEYS = new Set(['company_logo_url', 'company_logo_height_px']);
+  const COMPANY_LOGO_FOOTER_KEYS = new Set(['company_logo_footer_url', 'company_logo_footer_height_px']);
   const COMPANY_INFO_KEYS = new Set([
     'company_address_line1',
     'company_address_line2',
@@ -321,6 +322,7 @@
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
         !COMPANY_LOGO_KEYS.has(s.key) &&
+        !COMPANY_LOGO_FOOTER_KEYS.has(s.key) &&
         !COMPANY_INFO_KEYS.has(s.key) &&
         !SITE_NOTICE_KEYS.has(s.key) &&
         !HOMEPAGE_KEYS.has(s.key) &&
@@ -362,6 +364,11 @@
   let companyLogoUrl = $state(companyLogoSetting?.value ?? '');
   const companyLogoHeightSetting = $derived(data.settings.find((s) => s.key === 'company_logo_height_px'));
   let companyLogoHeight = $state(companyLogoHeightSetting?.value ?? '40');
+
+  const companyLogoFooterSetting = $derived(data.settings.find((s) => s.key === 'company_logo_footer_url'));
+  let companyLogoFooterUrl = $state(companyLogoFooterSetting?.value ?? '');
+  const companyLogoFooterHeightSetting = $derived(data.settings.find((s) => s.key === 'company_logo_footer_height_px'));
+  let companyLogoFooterHeight = $state(companyLogoFooterHeightSetting?.value ?? '40');
 
   // ── reCAPTCHA (spam protection for contact forms) ───────────────
   let recaptchaOn = $state(
@@ -929,6 +936,37 @@
               <input id="company_logo_height_px" name="company_logo_height_px"
                      type="number" min="16" max="80" step="1"
                      bind:value={companyLogoHeight}
+                     class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              <span class="text-xs text-gray-400">px</span>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Company Logo (Footer) -->
+    {#if companyLogoFooterSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <MediaPicker
+          files={data.mediaFiles ?? []}
+          value={companyLogoFooterUrl}
+          onChange={(url) => (companyLogoFooterUrl = url)}
+          accept="image"
+          label={m.admin_settings_company_logo_footer_heading()}
+          description={m.admin_settings_company_logo_footer_subtitle()}
+        />
+        <input type="hidden" name="company_logo_footer_url" value={companyLogoFooterUrl} />
+
+        {#if companyLogoFooterHeightSetting}
+          <div class="flex flex-col gap-1.5 mt-4">
+            <label for="company_logo_footer_height_px" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_company_logo_footer_height_label()}
+            </label>
+            <div class="flex items-center gap-2">
+              <input id="company_logo_footer_height_px" name="company_logo_footer_height_px"
+                     type="number" min="16" max="80" step="1"
+                     bind:value={companyLogoFooterHeight}
                      class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                             focus:outline-none focus:ring-2 focus:ring-gray-900" />
               <span class="text-xs text-gray-400">px</span>
