@@ -45,6 +45,8 @@
   let saving = $state(false);
   let executing = $state(false);
   let showExecuteConfirm = $state(false);
+  let showDeleteConfirm = $state(false);
+  let deleting = $state(false);
   let conflicts = $state<StockMutationConflict[] | null>(null);
 
   let nextKey = items.length;
@@ -163,9 +165,14 @@
     }
   }
 
-  async function remove() {
+  function requestDelete() {
     if (isExecuted) return;
-    if (!confirm(m.admin_stock_mutations_confirm_delete({ id: initial.mutation_number }))) return;
+    showDeleteConfirm = true;
+  }
+
+  async function confirmDelete() {
+    if (isExecuted) return;
+    deleting = true;
     try {
       await adminDeleteStockMutation(token, initial.id);
       notify.success(m.admin_stock_mutations_deleted());
@@ -175,6 +182,8 @@
         m.admin_stock_mutations_delete_failure({ id: initial.mutation_number }),
         e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
       );
+    } finally {
+      deleting = false;
     }
   }
 
@@ -277,8 +286,8 @@
     {#if isExecuted}
       <button onclick={duplicate} class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">{m.admin_stock_mutations_action_duplicate()}</button>
     {:else}
-      <button onclick={remove}
-              class="px-4 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50">{m.admin_stock_mutations_action_delete()}</button>
+      <button onclick={requestDelete} disabled={deleting}
+              class="px-4 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50">{m.admin_stock_mutations_action_delete()}</button>
       <button onclick={duplicate}
               class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">{m.admin_stock_mutations_action_duplicate()}</button>
       <button onclick={save} disabled={saving || executing}
@@ -318,6 +327,21 @@
                 onclick={() => (showExecuteConfirm = false)} disabled={executing}>{m.admin_stock_mutations_cancel()}</button>
         <button class="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
                 onclick={confirmExecute} disabled={executing}>{executing ? '…' : m.admin_stock_mutations_confirm_execute_btn()}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showDeleteConfirm}
+  <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+      <h2 class="text-lg font-semibold">{m.admin_stock_mutations_delete_modal_title({ id: initial.mutation_number })}</h2>
+      <p class="text-sm text-gray-600">{m.admin_stock_mutations_delete_modal_body()}</p>
+      <div class="flex justify-end gap-2">
+        <button class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                onclick={() => (showDeleteConfirm = false)} disabled={deleting}>{m.admin_stock_mutations_cancel()}</button>
+        <button class="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                onclick={confirmDelete} disabled={deleting}>{deleting ? '…' : m.admin_stock_mutations_confirm_delete_btn()}</button>
       </div>
     </div>
   </div>
