@@ -19,6 +19,7 @@
 
   let deleteTarget = $state<StockMutationSummary | null>(null);
   let deleting = $state(false);
+  let executeTarget = $state<StockMutationSummary | null>(null);
   let executingId = $state<string | null>(null);
   let duplicatingId = $state<string | null>(null);
 
@@ -67,13 +68,14 @@
     }
   }
 
-  async function execute(row: StockMutationSummary) {
-    if (!data.token) return;
-    if (!confirm(m.admin_stock_mutations_confirm_execute({ id: row.mutation_number }))) return;
+  async function confirmExecute() {
+    if (!executeTarget || !data.token) return;
+    const row = executeTarget;
     executingId = row.id;
     try {
       await adminExecuteStockMutation(data.token, row.id);
       notify.success(m.admin_stock_mutations_executed_success({ id: row.mutation_number }));
+      executeTarget = null;
       await invalidateAll();
     } catch (e) {
       if (e instanceof StockMutationInsufficientStockError) {
@@ -81,6 +83,7 @@
           .map(c => `• ${c.product_name ?? c.variant_id} (${c.variant_sku ?? '—'}): ${m.admin_stock_mutations_conflict_line({ requested: String(c.requested), available: String(c.available) })}`)
           .join('\n');
         notify.error(m.admin_stock_mutations_insufficient_stock_title({ id: row.mutation_number }), lines);
+        executeTarget = null;
       } else {
         notify.error(
           m.admin_stock_mutations_execute_failure({ id: row.mutation_number }),
@@ -225,7 +228,7 @@
                     {#if row.status === 'draft'}
                       <button class="text-emerald-700 hover:underline disabled:opacity-50"
                               disabled={executingId === row.id}
-                              onclick={() => execute(row)}>
+                              onclick={() => (executeTarget = row)}>
                         {executingId === row.id ? '…' : m.admin_stock_mutations_action_execute()}
                       </button>
                       <button class="text-red-600 hover:underline" onclick={() => (deleteTarget = row)}>{m.admin_stock_mutations_action_delete()}</button>
@@ -258,6 +261,22 @@
                 onclick={() => (deleteTarget = null)} disabled={deleting}>{m.admin_stock_mutations_cancel()}</button>
         <button class="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                 onclick={confirmDelete} disabled={deleting}>{deleting ? '…' : m.admin_stock_mutations_confirm_delete_btn()}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if executeTarget}
+  {@const busy = executingId === executeTarget.id}
+  <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+      <h2 class="text-lg font-semibold">{m.admin_stock_mutations_execute_modal_title({ id: executeTarget.mutation_number })}</h2>
+      <p class="text-sm text-gray-600">{m.admin_stock_mutations_execute_modal_body()}</p>
+      <div class="flex justify-end gap-2">
+        <button class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                onclick={() => (executeTarget = null)} disabled={busy}>{m.admin_stock_mutations_cancel()}</button>
+        <button class="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                onclick={confirmExecute} disabled={busy}>{busy ? '…' : m.admin_stock_mutations_confirm_execute_btn()}</button>
       </div>
     </div>
   </div>
