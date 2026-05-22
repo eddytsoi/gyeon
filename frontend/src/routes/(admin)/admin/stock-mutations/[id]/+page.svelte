@@ -37,7 +37,7 @@
       productName: it.product_name ?? it.variant_id,
       sku: it.variant_sku ?? '',
       variantName: it.variant_name ?? null,
-      primaryImageUrl: null,
+      primaryImageUrl: it.image_url ?? null,
       quantity: it.quantity,
       currentStock: it.current_stock ?? null
     }))

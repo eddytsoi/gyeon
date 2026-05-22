@@ -116,7 +116,7 @@
       variant,
       productName: selectedProduct.name,
       productKind: selectedProduct.kind ?? 'simple',
-      primaryImageUrl: selectedProduct.primary_image_url ?? null,
+      primaryImageUrl: variant.image_url ?? selectedProduct.primary_image_url ?? null,
       quantity: qty,
       bundleItems: selectedProduct.kind === 'bundle' ? bundleItems : []
     });

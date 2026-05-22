@@ -1279,6 +1279,7 @@ export interface StockMutationItem {
   variant_name?: string;
   variant_sku?: string;
   current_stock?: number;
+  image_url?: string | null;
 }
 
 export interface StockMutation {

@@ -68,6 +68,9 @@ type MutationItem struct {
 	VariantName *string `json:"variant_name,omitempty"`
 	VariantSKU  *string `json:"variant_sku,omitempty"`
 	CurrentStock *int   `json:"current_stock,omitempty"`
+	// ImageURL resolves variant's own image first, falling back to the
+	// parent product's primary image.
+	ImageURL *string `json:"image_url,omitempty"`
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────
@@ -614,10 +617,15 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT i.id, i.mutation_id, i.variant_id, i.quantity, i.before_qty, i.after_qty, i.position,
-		        v.product_id, p.name, v.name, v.sku, v.stock_qty
+		        v.product_id, p.name, v.name, v.sku, v.stock_qty,
+		        COALESCE(vmf.url, vpi.url, pmf.url, ppi.url) AS image_url
 		   FROM stock_mutation_items i
-		   LEFT JOIN product_variants v ON v.id = i.variant_id
-		   LEFT JOIN products         p ON p.id = v.product_id
+		   LEFT JOIN product_variants v   ON v.id = i.variant_id
+		   LEFT JOIN products         p   ON p.id = v.product_id
+		   LEFT JOIN product_images   vpi ON vpi.variant_id = v.id
+		   LEFT JOIN media_files      vmf ON vmf.id = vpi.media_file_id
+		   LEFT JOIN product_images   ppi ON ppi.product_id = v.product_id AND ppi.is_primary = TRUE
+		   LEFT JOIN media_files      pmf ON pmf.id = ppi.media_file_id
 		  WHERE i.mutation_id = $1
 		  ORDER BY i.position, i.created_at`, id)
 	if err != nil {
@@ -628,10 +636,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 	for rows.Next() {
 		var it MutationItem
 		var beforeQty, afterQty, stockQty sql.NullInt64
-		var prodName, varName, sku sql.NullString
+		var prodName, varName, sku, imageURL sql.NullString
 		if err := rows.Scan(&it.ID, &it.MutationID, &it.VariantID, &it.Quantity,
 			&beforeQty, &afterQty, &it.Position,
-			&it.ProductID, &prodName, &varName, &sku, &stockQty); err != nil {
+			&it.ProductID, &prodName, &varName, &sku, &stockQty, &imageURL); err != nil {
 			return nil, err
 		}
 		if beforeQty.Valid {
@@ -660,6 +668,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 		if stockQty.Valid {
 			v := int(stockQty.Int64)
 			it.CurrentStock = &v
+		}
+		if imageURL.Valid {
+			v := imageURL.String
+			it.ImageURL = &v
 		}
 		m.Items = append(m.Items, it)
 	}
