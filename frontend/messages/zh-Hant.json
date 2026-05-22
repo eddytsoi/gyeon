@@ -2038,7 +2038,7 @@
   "admin_stock_mutations_confirm_change_type": "改變方向會清除所有 line items。繼續？",
   "admin_stock_mutations_confirm_delete": "刪除 {id}？此操作不能撤銷。",
   "admin_stock_mutations_delete_modal_title": "刪除 {id}？",
-  "admin_stock_mutations_delete_modal_body": "呢個操作不能撤銷。只有 draft 先可以刪除，已執行嘅進出單不能刪除。",
+  "admin_stock_mutations_delete_modal_body": "呢個操作不能撤銷。只有草稿先可以刪除，已執行嘅進出單不能刪除。",
   "admin_stock_mutations_execute_modal_title": "執行 {id}？",
   "admin_stock_mutations_execute_modal_body": "執行後不能撤銷或修改。",
   "admin_stock_mutations_confirm_execute_btn": "確定執行",
