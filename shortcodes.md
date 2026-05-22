@@ -205,6 +205,7 @@ Behavior notes:
 - Streaming URLs render as an `<iframe>`; local files render as `<video>`.
 - `autoplay="true"` on a local file plays muted + looped without controls; `autoplay="false"` shows native controls and no autoplay.
 - An explicit numeric `height` wins over any `aspect-ratio*` value.
+- `fit-size="cover"` on a streaming iframe assumes the embedded video is **16:9** and needs an explicit `aspect-ratio` to know how much to oversize the iframe (since iframes don't honour `object-fit` — the provider's own letterboxing is what we're fighting). Without `aspect-ratio`, the iframe is left at 100%×100% and the provider letterboxes inside. Local `.mp4`/`.webm` files use native `object-fit` and have no such constraint.
 - If `source` is empty or the URL isn't a recognised provider / file extension, the shortcode renders nothing (and logs a `console.warn` in dev).
 
 ---
