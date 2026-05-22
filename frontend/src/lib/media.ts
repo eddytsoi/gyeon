@@ -115,39 +115,30 @@ export function detectStreamingVideoFromURL(
 }
 
 /**
- * Returns the iframe src for a streaming video media row, or null if not
- * streaming. When `autoplay` is true, appends provider-specific params for
- * autoplay + muted + loop AND hides every player chrome element (controls,
- * branding, title, related videos, fullscreen button, keyboard shortcuts).
- * The autoplay flag falls back to the row's `video_autoplay` when not passed
- * explicitly.
+ * Builds the provider-specific iframe src for a known streaming provider +
+ * videoID pair. When `autoplay` is true, appends provider-specific params
+ * for autoplay + muted + loop AND hides every player chrome element
+ * (controls, branding, title, related videos, fullscreen button, keyboard
+ * shortcuts).
  */
-export function getEmbedURL(
-  input: { url?: string | null; mime_type?: string | null; video_autoplay?: boolean | null },
-  opts?: { autoplay?: boolean }
-): string | null {
-  const provider = getStreamingProvider(input);
-  if (!provider || !input.url) return null;
-  const detected = detectStreamingVideoFromURL(input.url);
-  if (!detected || detected.provider !== provider) return null;
-  const autoplay = opts?.autoplay ?? input.video_autoplay ?? false;
+export function buildEmbedURL(provider: StreamingProvider, videoID: string, autoplay: boolean): string {
   switch (provider) {
     case 'youtube': {
-      const base = `https://www.youtube.com/embed/${detected.videoID}`;
+      const base = `https://www.youtube.com/embed/${videoID}`;
       if (!autoplay) return base;
       // Loop on YouTube requires playlist={ID} pointing at the same video.
       // controls=0 hides the player bar; modestbranding=1 + rel=0 + iv_load_policy=3
       // strip the YouTube logo, related-videos overlay, and annotations;
       // disablekb=1 + fs=0 disable keyboard shortcuts and the fullscreen button.
       const params = [
-        'autoplay=1', 'mute=1', 'loop=1', `playlist=${detected.videoID}`,
+        'autoplay=1', 'mute=1', 'loop=1', `playlist=${videoID}`,
         'playsinline=1', 'controls=0', 'modestbranding=1', 'rel=0',
         'iv_load_policy=3', 'disablekb=1', 'fs=0'
       ].join('&');
       return `${base}?${params}`;
     }
     case 'vimeo': {
-      const [id, hash] = detected.videoID.split('/');
+      const [id, hash] = videoID.split('/');
       // dnt=1 disables Vimeo's session/analytics tracking, eliminating the
       // cross-origin fetches the player makes back to vimeo.com (which
       // produce CORS console warnings). Playback is unaffected.
@@ -160,7 +151,7 @@ export function getEmbedURL(
       return `https://player.vimeo.com/video/${id}?${params.join('&')}`;
     }
     case 'wistia': {
-      const base = `https://fast.wistia.net/embed/iframe/${detected.videoID}`;
+      const base = `https://fast.wistia.net/embed/iframe/${videoID}`;
       if (!autoplay) return base;
       const params = [
         'autoPlay=true', 'muted=true', 'endVideoBehavior=loop', 'playsinline=true',
@@ -171,6 +162,37 @@ export function getEmbedURL(
       return `${base}?${params}`;
     }
   }
+}
+
+/**
+ * Returns the iframe src for a streaming video media row, or null if not
+ * streaming. The autoplay flag falls back to the row's `video_autoplay`
+ * when not passed explicitly.
+ */
+export function getEmbedURL(
+  input: { url?: string | null; mime_type?: string | null; video_autoplay?: boolean | null },
+  opts?: { autoplay?: boolean }
+): string | null {
+  const provider = getStreamingProvider(input);
+  if (!provider || !input.url) return null;
+  const detected = detectStreamingVideoFromURL(input.url);
+  if (!detected || detected.provider !== provider) return null;
+  const autoplay = opts?.autoplay ?? input.video_autoplay ?? false;
+  return buildEmbedURL(provider, detected.videoID, autoplay);
+}
+
+/**
+ * Returns the iframe src for a raw streaming URL (no media row required),
+ * or null if the URL doesn't match YouTube/Vimeo/Wistia. Used by the
+ * [video] shortcode which carries only a `source="..."` URL.
+ */
+export function getEmbedURLFromSource(
+  source: string,
+  opts?: { autoplay?: boolean }
+): string | null {
+  const detected = detectStreamingVideoFromURL(source);
+  if (!detected) return null;
+  return buildEmbedURL(detected.provider, detected.videoID, opts?.autoplay ?? false);
 }
 
 export type VideoFit = 'contain' | 'cover';
