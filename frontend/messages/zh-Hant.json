@@ -2082,7 +2082,7 @@
   "admin_stock_mutations_meta_items_count": "{count} 項",
   "admin_stock_mutations_meta_total": "共 {qty}",
   "admin_stock_mutations_table_empty_title": "未有貨品",
-  "admin_stock_mutations_table_empty_hint": "用上面嘅搜尋加入 variant。",
+  "admin_stock_mutations_table_empty_hint": "用上面搜尋加入貨品。",
   "admin_stock_mutations_table_col_product": "產品",
   "admin_stock_mutations_table_col_current": "現有",
   "admin_stock_mutations_table_col_qty": "數量",
