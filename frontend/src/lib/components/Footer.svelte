@@ -6,8 +6,15 @@
 
   let {
     navItems = [],
-    socials = []
-  }: { navItems?: NavItem[]; socials?: SocialMediaEntry[] } = $props();
+    socials = [],
+    companyLogoFooterUrl = '',
+    companyLogoFooterHeight = 40
+  }: {
+    navItems?: NavItem[];
+    socials?: SocialMediaEntry[];
+    companyLogoFooterUrl?: string;
+    companyLogoFooterHeight?: number;
+  } = $props();
 
   // CMS nav URLs are admin-authored, but we still reject anything that isn't
   // a same-origin relative path or an http(s) absolute URL. Blocks
@@ -37,8 +44,16 @@
 
       <!-- Left: brand + footer nav -->
       <div class="flex-1 min-w-0">
-        <a href="/" class="font-display text-xl font-bold tracking-[0.18em] uppercase text-white">
-          {m.footer_logo()}
+        <a href="/" class="flex items-center" aria-label={m.footer_logo()}>
+          {#if companyLogoFooterUrl}
+            <img src={companyLogoFooterUrl} alt={m.footer_logo()}
+                 style="height: {companyLogoFooterHeight}px; width: auto;"
+                 class="object-contain" />
+          {:else}
+            <span class="font-display text-xl font-bold tracking-[0.18em] uppercase text-white">
+              {m.footer_logo()}
+            </span>
+          {/if}
         </a>
         <p class="mt-3 text-sm font-body leading-relaxed text-white/60 max-w-md">
           {m.footer_tagline()}

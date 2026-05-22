@@ -24,6 +24,13 @@
     Number(data.publicSettings?.find((s) => s.key === 'company_logo_height_px')?.value) || 40
   );
 
+  const companyLogoFooterUrl = $derived(
+    data.publicSettings?.find((s) => s.key === 'company_logo_footer_url')?.value ?? ''
+  );
+  const companyLogoFooterHeight = $derived(
+    Number(data.publicSettings?.find((s) => s.key === 'company_logo_footer_height_px')?.value) || 40
+  );
+
   onMount(async () => {
     initTracker(data.publicSettings ?? []);
     if ('serviceWorker' in navigator) {
@@ -86,5 +93,10 @@
   <main id="main-content" tabindex="-1" class="flex-1">
     {@render children()}
   </main>
-  <Footer navItems={data.footerNav?.items ?? []} socials={data.socials} />
+  <Footer
+    navItems={data.footerNav?.items ?? []}
+    socials={data.socials}
+    {companyLogoFooterUrl}
+    {companyLogoFooterHeight}
+  />
 </div>
