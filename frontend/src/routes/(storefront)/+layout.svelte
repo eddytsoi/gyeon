@@ -86,5 +86,5 @@
   <main id="main-content" tabindex="-1" class="flex-1">
     {@render children()}
   </main>
-  <Footer navItems={data.footerNav?.items ?? []} />
+  <Footer navItems={data.footerNav?.items ?? []} socials={data.socials} />
 </div>

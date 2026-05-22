@@ -50,6 +50,7 @@ var publicSettingKeys = []string{
 	"pwa_enabled",                // when 'false', storefront hides PWA tags and unregisters the service worker
 	"shipany_enabled",            // master toggle that drives the storefront logistics card (default-courier mode)
 	"pdp_taobao_layout_enabled",  // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
+	"social_media",               // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local
