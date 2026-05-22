@@ -784,9 +784,11 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	return products, total, nil
 }
 
-// overrideBundleStock replaces DefaultVariantStockQty for bundle products with
-// the derived stock (min over components/quantity). The list SQL surfaces the
-// bundle's synthetic variant stock which is not kept in sync with components.
+// overrideBundleStock replaces the stock fields for bundle products with the
+// derived stock (min over components/quantity). The list SQL surfaces the
+// bundle's synthetic variant stock which is not kept in sync with components,
+// so both DefaultVariantStockQty and MinPriceStock need patching — the latter
+// is what storefront cards key the "sold out" badge off of.
 func (s *ProductService) overrideBundleStock(ctx context.Context, products []ProductWithMeta) {
 	for i := range products {
 		if products[i].Kind != "bundle" {
@@ -797,6 +799,7 @@ func (s *ProductService) overrideBundleStock(ctx context.Context, products []Pro
 			continue
 		}
 		products[i].DefaultVariantStockQty = &derived
+		products[i].MinPriceStock = &derived
 	}
 }
 
