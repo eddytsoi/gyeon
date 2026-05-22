@@ -254,8 +254,10 @@
       <!-- Variant picker — shown for any non-bundle product with at least
            one active variant. With a single variant the chip is purely
            informational (the variant name is otherwise hidden behind the
-           SKU and admins lose track of which size/colour they're adding). -->
-      {#if (mode === 'variant-only' || selectedProduct.kind !== 'bundle') && variants.filter((v) => v.is_active).length >= 1}
+           SKU and admins lose track of which size/colour they're adding).
+           Bundles never show the chip: their "variant" is a wrapper around
+           the real stocked components, picked implicitly. -->
+      {#if selectedProduct.kind !== 'bundle' && variants.filter((v) => v.is_active).length >= 1}
         <div class="mb-3">
           <p class="text-xs font-medium text-gray-600 mb-1.5">{m.admin_order_create_items_select_variant()}</p>
           <div class="flex flex-wrap gap-1.5">
@@ -280,9 +282,12 @@
         </div>
       {/if}
 
-      <!-- Bundle components (read-only) — order mode only; stock mutations
-           operate on the variant level and ignore bundle composition. -->
-      {#if mode === 'order' && selectedProduct.kind === 'bundle' && bundleItems.length > 0}
+      <!-- Bundle components (read-only) — shown in both modes so admins
+           can preview what will be added. In order mode the bundle becomes
+           one parent line item with these nested under it. In variant-only
+           mode (進出單) each component becomes a child row whose qty is
+           perParentQuantity × bundle qty. -->
+      {#if selectedProduct.kind === 'bundle' && bundleItems.length > 0}
         <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {#each bundleItems as bi (bi.id)}
             <div class="flex items-center gap-2 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1.5">

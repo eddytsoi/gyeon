@@ -27,21 +27,57 @@
   const initial: StockMutation = data.mutation;
   const live = $derived(data.mutation);
   const isExecuted = $derived(live.status === 'executed');
+  // Bundle parent rows are display-only; the meta strip's item count + total
+  // qty should reflect actual stock impact, so skip them here too.
+  const leafItems = $derived(
+    live.items.filter((it) => !(it.kind === 'bundle' && !it.parent_item_id))
+  );
 
   let type = $state<StockMutationType>(initial.type);
   let note = $state(initial.note ?? '');
-  let items = $state<MutationItemRow[]>(
-    initial.items.map((it, i) => ({
-      key: `${it.variant_id}-${i}`,
-      variantId: it.variant_id,
-      productName: it.product_name ?? it.variant_id,
-      sku: it.variant_sku ?? '',
-      variantName: it.variant_name ?? null,
-      primaryImageUrl: it.image_url ?? null,
-      quantity: it.quantity,
-      currentStock: it.current_stock ?? null
-    }))
-  );
+
+  // Reconstruct the parent + nested-children tree from the server's flat
+  // items[] (rows ordered with parents first, components after, linked via
+  // parent_item_id). Same pattern as admin order detail (orders/[id]/+page.svelte:49-62).
+  function buildInitialRows(serverItems: typeof initial.items): MutationItemRow[] {
+    const parents = serverItems.filter((it) => !it.parent_item_id);
+    const childrenByParent: Record<string, typeof serverItems> = {};
+    for (const it of serverItems) {
+      if (it.parent_item_id) {
+        (childrenByParent[it.parent_item_id] ??= []).push(it);
+      }
+    }
+    return parents.map((p, i) => {
+      const isBundle = p.kind === 'bundle';
+      const childRows = childrenByParent[p.id] ?? [];
+      return {
+        key: `${p.variant_id}-${i}`,
+        variantId: p.variant_id,
+        productName: p.product_name ?? p.variant_id,
+        sku: p.variant_sku ?? '',
+        variantName: p.variant_name ?? null,
+        primaryImageUrl: p.image_url ?? null,
+        quantity: p.quantity,
+        currentStock: isBundle ? null : (p.current_stock ?? null),
+        kind: isBundle ? 'bundle' : 'simple',
+        components: isBundle
+          ? childRows.map((c) => ({
+              variantId: c.variant_id,
+              productName: c.product_name ?? c.variant_id,
+              sku: c.variant_sku ?? '',
+              variantName: c.variant_name ?? null,
+              primaryImageUrl: c.image_url ?? null,
+              // Recover the per-bundle qty (bundle_items.quantity); the
+              // child row's stored qty is already perParentQty × parent.qty.
+              perParentQuantity: p.quantity > 0 ? Math.round(c.quantity / p.quantity) : c.quantity,
+              currentStock: c.current_stock ?? null
+            }))
+          : undefined
+      };
+    });
+  }
+
+  let items = $state<MutationItemRow[]>(buildInitialRows(initial.items));
 
   let saving = $state(false);
   let executing = $state(false);
@@ -53,6 +89,9 @@
   let nextKey = items.length;
   function addItem(payload: ProductPickerAddPayload) {
     const v = payload.variant;
+    const isBundle = payload.productKind === 'bundle';
+    // Reject duplicate top-level variant — see new/+page.svelte for the
+    // full rationale (mirrors that page's addItem).
     if (items.some((it) => it.variantId === v.id)) {
       notify.error(
         m.admin_stock_mutations_duplicate_variant_title(),
@@ -71,7 +110,19 @@
         variantName: v.name,
         primaryImageUrl: payload.primaryImageUrl ?? null,
         quantity: payload.quantity,
-        currentStock: v.stock_qty ?? null
+        currentStock: isBundle ? null : (v.stock_qty ?? null),
+        kind: isBundle ? 'bundle' : 'simple',
+        components: isBundle
+          ? payload.bundleItems.map((bi) => ({
+              variantId: bi.component_variant_id,
+              productName: bi.display_name_override || bi.component_product_name || '',
+              sku: bi.component_sku || '',
+              variantName: bi.component_variant_name ?? null,
+              primaryImageUrl: bi.component_primary_image_url ?? null,
+              perParentQuantity: bi.quantity,
+              currentStock: bi.component_stock_qty ?? null
+            }))
+          : undefined
       }
     ];
   }
@@ -243,8 +294,8 @@
     </div>
     <div>
       <div class="text-gray-400 uppercase tracking-wide">{m.admin_stock_mutations_meta_items_qty()}</div>
-      <div class="text-gray-900 mt-0.5">{m.admin_stock_mutations_meta_items_count({ count: String(live.items.length) })}</div>
-      <div class="text-gray-500">{m.admin_stock_mutations_meta_total({ qty: String(live.items.reduce((s, i) => s + i.quantity, 0)) })}</div>
+      <div class="text-gray-900 mt-0.5">{m.admin_stock_mutations_meta_items_count({ count: String(leafItems.length) })}</div>
+      <div class="text-gray-500">{m.admin_stock_mutations_meta_total({ qty: String(leafItems.reduce((s, i) => s + i.quantity, 0)) })}</div>
     </div>
   </div>
 

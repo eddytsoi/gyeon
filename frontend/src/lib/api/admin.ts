@@ -1270,6 +1270,11 @@ export interface StockMutationItem {
   id: string;
   mutation_id: string;
   variant_id: string;
+  /** Set on bundle component rows; points at the bundle's parent row id. */
+  parent_item_id?: string | null;
+  /** 'simple' for stocked variants (and bundle children); 'bundle' for
+   *  display-only parent rows that wrap a bundle product. */
+  kind?: 'simple' | 'bundle';
   quantity: number;
   before_qty?: number;
   after_qty?: number;
