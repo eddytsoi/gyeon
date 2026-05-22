@@ -95,6 +95,7 @@
     class="video my-6 {bleedClass} {attrs.class ?? ''}"
     style={cssVars}
     data-natural={natural ? 'true' : undefined}
+    data-fit={fitSize}
   >
     {#if embedSrc}
       <iframe
@@ -133,14 +134,36 @@
     height: auto;
     object-fit: initial;
   }
+  /* Streaming iframes adapt their inner rendering to the iframe's box —
+   * object-fit on an iframe doesn't crop the embedded player. To get
+   * `cover` semantics, oversize the iframe so its 16:9 viewport overflows
+   * the container in the off-axis; the wrapper's overflow:hidden crops the
+   * excess. Assumes embedded video is 16:9 (the universal default for
+   * YouTube / Vimeo / Wistia). */
+  .video[data-fit='cover'] :global(iframe) {
+    --video-inner-ar: 1.7778;
+    --video-effective-ar: var(--video-ar, var(--video-inner-ar));
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, calc(var(--video-inner-ar) / var(--video-effective-ar) * 100%));
+    height: max(100%, calc(var(--video-effective-ar) / var(--video-inner-ar) * 100%));
+  }
   @media (max-width: 639.98px) {
     .video {
       aspect-ratio: var(--video-ar-xs, var(--video-ar, auto));
+    }
+    .video[data-fit='cover'] :global(iframe) {
+      --video-effective-ar: var(--video-ar-xs, var(--video-ar, var(--video-inner-ar)));
     }
   }
   @media (min-width: 1024px) {
     .video {
       aspect-ratio: var(--video-ar-lg, var(--video-ar, auto));
+    }
+    .video[data-fit='cover'] :global(iframe) {
+      --video-effective-ar: var(--video-ar-lg, var(--video-ar, var(--video-inner-ar)));
     }
   }
 </style>
