@@ -14,6 +14,7 @@
   import ProductPicker, { type ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
   import MutationItemsTable, { type MutationItemRow } from '$lib/components/admin/MutationItemsTable.svelte';
   import Spinner from '$lib/components/admin/Spinner.svelte';
+  import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import type { PageData } from './$types';
 
@@ -105,7 +106,7 @@
       {
         key: `${v.id}-${nextKey}`,
         variantId: v.id,
-        productName: payload.productName,
+        productName: productDisplayName(payload.productName, v.name, payload.productKind),
         sku: v.sku,
         variantName: v.name,
         primaryImageUrl: payload.primaryImageUrl ?? null,
@@ -115,7 +116,11 @@
         components: isBundle
           ? payload.bundleItems.map((bi) => ({
               variantId: bi.component_variant_id,
-              productName: bi.display_name_override || bi.component_product_name || '',
+              productName: productDisplayName(
+                bi.display_name_override || bi.component_product_name || '',
+                bi.component_variant_name,
+                'simple'
+              ),
               sku: bi.component_sku || '',
               variantName: bi.component_variant_name ?? null,
               primaryImageUrl: bi.component_primary_image_url ?? null,
