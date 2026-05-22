@@ -31,6 +31,10 @@
     Number(data.publicSettings?.find((s) => s.key === 'company_logo_footer_height_px')?.value) || 40
   );
 
+  const websiteSlogan = $derived(
+    data.publicSettings?.find((s) => s.key === 'website_slogan')?.value ?? ''
+  );
+
   onMount(async () => {
     initTracker(data.publicSettings ?? []);
     if ('serviceWorker' in navigator) {
@@ -98,5 +102,6 @@
     socials={data.socials}
     {companyLogoFooterUrl}
     {companyLogoFooterHeight}
+    slogan={websiteSlogan}
   />
 </div>

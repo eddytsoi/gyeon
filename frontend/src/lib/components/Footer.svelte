@@ -8,12 +8,14 @@
     navItems = [],
     socials = [],
     companyLogoFooterUrl = '',
-    companyLogoFooterHeight = 40
+    companyLogoFooterHeight = 40,
+    slogan = ''
   }: {
     navItems?: NavItem[];
     socials?: SocialMediaEntry[];
     companyLogoFooterUrl?: string;
     companyLogoFooterHeight?: number;
+    slogan?: string;
   } = $props();
 
   // CMS nav URLs are admin-authored, but we still reject anything that isn't
@@ -56,7 +58,7 @@
           {/if}
         </a>
         <p class="mt-3 text-sm font-body leading-relaxed text-white/60 max-w-md">
-          {m.footer_tagline()}
+          {slogan || m.footer_tagline()}
         </p>
 
         {#if navItems.length > 0}
