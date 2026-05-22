@@ -44,6 +44,7 @@
 
   let saving = $state(false);
   let executing = $state(false);
+  let showExecuteConfirm = $state(false);
   let conflicts = $state<StockMutationConflict[] | null>(null);
 
   let nextKey = items.length;
@@ -115,17 +116,21 @@
     }
   }
 
-  async function execute() {
+  function requestExecute() {
     if (isExecuted) return;
-    if (!confirm(m.admin_stock_mutations_confirm_execute({ id: initial.mutation_number }))) return;
+    if (items.length === 0) {
+      notify.error(m.admin_stock_mutations_no_items_title());
+      return;
+    }
+    showExecuteConfirm = true;
+  }
+
+  async function confirmExecute() {
+    if (isExecuted) return;
     // Save any pending edits first, then execute.
     executing = true;
     conflicts = null;
     try {
-      if (items.length === 0) {
-        notify.error(m.admin_stock_mutations_no_items_title());
-        return;
-      }
       await adminUpdateStockMutation(token, initial.id, {
         type,
         note: note.trim() || null,
@@ -134,10 +139,12 @@
       try {
         await adminExecuteStockMutation(token, initial.id);
         notify.success(m.admin_stock_mutations_executed_success({ id: initial.mutation_number }));
+        showExecuteConfirm = false;
         await invalidateAll();
       } catch (e) {
         if (e instanceof StockMutationInsufficientStockError) {
           conflicts = e.conflicts;
+          showExecuteConfirm = false;
           notify.error(
             m.admin_stock_mutations_insufficient_stock_not_executed(),
             m.admin_stock_mutations_insufficient_stock_see_below()
@@ -278,7 +285,7 @@
               class="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50">
         {saving ? '…' : m.admin_stock_mutations_action_save_draft()}
       </button>
-      <button onclick={execute} disabled={saving || executing}
+      <button onclick={requestExecute} disabled={saving || executing}
               class="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
         {executing ? '…' : m.admin_stock_mutations_action_save_execute()}
       </button>
@@ -300,3 +307,18 @@
     </section>
   {/if}
 </div>
+
+{#if showExecuteConfirm}
+  <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+      <h2 class="text-lg font-semibold">{m.admin_stock_mutations_execute_modal_title({ id: initial.mutation_number })}</h2>
+      <p class="text-sm text-gray-600">{m.admin_stock_mutations_execute_modal_body()}</p>
+      <div class="flex justify-end gap-2">
+        <button class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                onclick={() => (showExecuteConfirm = false)} disabled={executing}>{m.admin_stock_mutations_cancel()}</button>
+        <button class="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                onclick={confirmExecute} disabled={executing}>{executing ? '…' : m.admin_stock_mutations_confirm_execute_btn()}</button>
+      </div>
+    </div>
+  </div>
+{/if}
