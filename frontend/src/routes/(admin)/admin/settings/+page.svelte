@@ -180,6 +180,9 @@
   // Managed by the Social Media section (General tab). Same reason as above:
   // exclude from textSettings so we don't double-submit the social_media key.
   const SOCIAL_MEDIA_KEYS = new Set(['social_media']);
+  // Managed by the Website Slogan section (General tab). Excluded from
+  // textSettings so the generic loop doesn't double-render the input.
+  const WEBSITE_SLOGAN_KEYS = new Set(['website_slogan']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -317,6 +320,7 @@
         !SHIPPING_KEYS.has(s.key) &&
         !HIDDEN_PRODUCTS_KEYS.has(s.key) &&
         !SOCIAL_MEDIA_KEYS.has(s.key) &&
+        !WEBSITE_SLOGAN_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
@@ -896,6 +900,21 @@
             <span class="text-xs text-gray-400">px</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Website Slogan (storefront footer tagline) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-0.5">
+        <p class="text-sm font-semibold text-gray-900">{m.admin_settings_website_slogan_heading()}</p>
+        <p class="text-xs text-gray-400">{m.admin_settings_website_slogan_subtitle()}</p>
+      </div>
+      <div class="mt-5 flex flex-col gap-1.5">
+        <input id="website_slogan" name="website_slogan" type="text"
+               value={settingValue('website_slogan') || ''}
+               placeholder={m.admin_settings_website_slogan_placeholder()}
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
 

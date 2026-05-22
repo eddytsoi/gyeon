@@ -53,6 +53,7 @@ var publicSettingKeys = []string{
 	"shipany_enabled",            // master toggle that drives the storefront logistics card (default-courier mode)
 	"pdp_taobao_layout_enabled",  // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
 	"social_media",               // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
+	"website_slogan",             // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local
