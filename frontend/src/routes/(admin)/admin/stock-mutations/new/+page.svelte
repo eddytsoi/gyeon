@@ -25,8 +25,13 @@
   let nextKey = 0;
   function addItem(payload: ProductPickerAddPayload) {
     const variant = payload.variant;
-    // Reject duplicate variant — backend enforces UNIQUE(mutation_id, variant_id)
-    // anyway, but catching it here gives an immediate, friendlier UX.
+    const isBundle = payload.productKind === 'bundle';
+    // Reject duplicate top-level variant — the backend's partial unique
+    // index (mutation_id, variant_id) WHERE parent_item_id IS NULL enforces
+    // this for both kinds. A bundle's parent variant counts as a top-level
+    // variant, so picking the same bundle twice is also blocked here.
+    // (Components inside a bundle are still free to repeat across bundles —
+    // the partial index ignores child rows.)
     if (items.some((it) => it.variantId === variant.id)) {
       notify.error(
         m.admin_stock_mutations_duplicate_variant_title(),
@@ -45,7 +50,19 @@
         variantName: variant.name,
         primaryImageUrl: payload.primaryImageUrl ?? null,
         quantity: payload.quantity,
-        currentStock: variant.stock_qty ?? null
+        currentStock: isBundle ? null : (variant.stock_qty ?? null),
+        kind: isBundle ? 'bundle' : 'simple',
+        components: isBundle
+          ? payload.bundleItems.map((bi) => ({
+              variantId: bi.component_variant_id,
+              productName: bi.display_name_override || bi.component_product_name || '',
+              sku: bi.component_sku || '',
+              variantName: bi.component_variant_name ?? null,
+              primaryImageUrl: bi.component_primary_image_url ?? null,
+              perParentQuantity: bi.quantity,
+              currentStock: bi.component_stock_qty ?? null
+            }))
+          : undefined
       }
     ];
   }

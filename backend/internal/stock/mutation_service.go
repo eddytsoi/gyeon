@@ -54,20 +54,29 @@ type Mutation struct {
 
 // MutationItem is one variant line. quantity is always positive; the signed
 // stock delta is (quantity) for type=in or (-quantity) for type=out.
+//
+// Bundle support: a bundle product becomes one parent row (ParentItemID nil,
+// Kind = "bundle", VariantID = bundle's parent variant) followed by one
+// component row per bundle item (ParentItemID = parent's ID, Kind = "simple",
+// Quantity = per-bundle qty × parent qty). Execute applies stock changes
+// only to component rows + standalone simple rows; parent bundle rows have
+// no stock impact and leave BeforeQty / AfterQty NULL.
 type MutationItem struct {
-	ID          string  `json:"id"`
-	MutationID  string  `json:"mutation_id"`
-	VariantID   string  `json:"variant_id"`
-	Quantity    int     `json:"quantity"`
-	BeforeQty   *int    `json:"before_qty,omitempty"`
-	AfterQty    *int    `json:"after_qty,omitempty"`
-	Position    int     `json:"position"`
+	ID           string  `json:"id"`
+	MutationID   string  `json:"mutation_id"`
+	VariantID    string  `json:"variant_id"`
+	ParentItemID *string `json:"parent_item_id,omitempty"`
+	Quantity     int     `json:"quantity"`
+	BeforeQty    *int    `json:"before_qty,omitempty"`
+	AfterQty     *int    `json:"after_qty,omitempty"`
+	Position     int     `json:"position"`
 	// Display fields populated on read for UI convenience. Never persisted.
-	ProductID   *string `json:"product_id,omitempty"`
-	ProductName *string `json:"product_name,omitempty"`
-	VariantName *string `json:"variant_name,omitempty"`
-	VariantSKU  *string `json:"variant_sku,omitempty"`
-	CurrentStock *int   `json:"current_stock,omitempty"`
+	ProductID    *string `json:"product_id,omitempty"`
+	ProductName  *string `json:"product_name,omitempty"`
+	VariantName  *string `json:"variant_name,omitempty"`
+	VariantSKU   *string `json:"variant_sku,omitempty"`
+	CurrentStock *int    `json:"current_stock,omitempty"`
+	Kind         string  `json:"kind"` // "simple" | "bundle"; derived from products.kind
 	// ImageURL resolves variant's own image first, falling back to the
 	// parent product's primary image.
 	ImageURL *string `json:"image_url,omitempty"`
@@ -302,21 +311,86 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (*Mutation, err
 	return out, nil
 }
 
+// insertItems inserts top-level rows and — for bundle products — their
+// expanded component rows. Each top-level item is looked up against
+// product_variants → products to detect kind. Bundle children are pulled
+// from bundle_items and inserted with parent_item_id = parent.id, quantity
+// pre-multiplied by the parent qty. Mirrors orders.admin_create's bundle
+// expansion (admin_create.go:238–265).
 func insertItems(ctx context.Context, tx *sql.Tx, mutationID string, items []CreateRequestItem) error {
 	for i, it := range items {
-		if _, err := tx.ExecContext(ctx,
+		var kind string
+		var productID string
+		err := tx.QueryRowContext(ctx,
+			`SELECT p.kind, p.id
+			   FROM product_variants pv
+			   JOIN products p ON p.id = pv.product_id
+			  WHERE pv.id = $1`, it.VariantID,
+		).Scan(&kind, &productID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrVariantNotFound
+		}
+		if err != nil {
+			return err
+		}
+
+		var parentID string
+		if err := tx.QueryRowContext(ctx,
 			`INSERT INTO stock_mutation_items (mutation_id, variant_id, quantity, position)
-			 VALUES ($1, $2, $3, $4)`,
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id`,
 			mutationID, it.VariantID, it.Quantity, i,
-		); err != nil {
-			// Catch foreign-key violations as a friendlier error.
+		).Scan(&parentID); err != nil {
 			if strings.Contains(err.Error(), "stock_mutation_items_variant_id_fkey") {
 				return ErrVariantNotFound
 			}
-			if strings.Contains(err.Error(), "stock_mutation_items_mutation_id_variant_id_key") {
+			if strings.Contains(err.Error(), "stock_mutation_items_unique_top_level") {
 				return ErrDuplicateVariant
 			}
 			return err
+		}
+
+		if kind != "bundle" {
+			continue
+		}
+
+		// Expand bundle children — same query as orders.admin_create:240.
+		compRows, err := tx.QueryContext(ctx,
+			`SELECT bi.component_variant_id, bi.quantity
+			   FROM bundle_items bi
+			  WHERE bi.bundle_product_id = $1
+			  ORDER BY bi.sort_order ASC`, productID)
+		if err != nil {
+			return err
+		}
+		type childRow struct {
+			variantID string
+			qty       int
+		}
+		var children []childRow
+		for compRows.Next() {
+			var c childRow
+			if err := compRows.Scan(&c.variantID, &c.qty); err != nil {
+				compRows.Close()
+				return err
+			}
+			children = append(children, c)
+		}
+		compRows.Close()
+		if err := compRows.Err(); err != nil {
+			return err
+		}
+		for j, c := range children {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO stock_mutation_items (mutation_id, variant_id, quantity, position, parent_item_id)
+				 VALUES ($1, $2, $3, $4, $5)`,
+				mutationID, c.variantID, c.qty*it.Quantity, j, parentID,
+			); err != nil {
+				if strings.Contains(err.Error(), "stock_mutation_items_variant_id_fkey") {
+					return ErrVariantNotFound
+				}
+				return err
+			}
 		}
 	}
 	return nil
@@ -407,6 +481,11 @@ func (s *Service) Duplicate(ctx context.Context, id string) (*Mutation, error) {
 	}
 	req := CreateRequest{Type: src.Type, Note: src.Note}
 	for _, it := range src.Items {
+		// Skip bundle component rows — Create re-expands them server-side
+		// from the bundle definition.
+		if it.ParentItemID != nil {
+			continue
+		}
 		req.Items = append(req.Items, CreateRequestItem{VariantID: it.VariantID, Quantity: it.Quantity})
 	}
 	return s.Create(ctx, req)
@@ -442,18 +521,30 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 		return nil, ErrMutationExecuted
 	}
 
-	// Load items.
+	// Load items. Bundle parent rows (products.kind = 'bundle' AND no
+	// parent_item_id) are display-only: stock is moved on their children.
+	// Top-level simple rows + every component row are "leaf" rows that
+	// actually update product_variants.stock_qty on execute.
 	rows, err := tx.QueryContext(ctx,
-		`SELECT id, variant_id, quantity FROM stock_mutation_items
-		  WHERE mutation_id = $1 ORDER BY position, created_at`, id)
+		`SELECT si.id, si.variant_id, si.quantity, si.parent_item_id, p.kind
+		   FROM stock_mutation_items si
+		   JOIN product_variants v ON v.id = si.variant_id
+		   JOIN products         p ON p.id = v.product_id
+		  WHERE si.mutation_id = $1
+		  ORDER BY si.parent_item_id NULLS FIRST, si.position, si.created_at`, id)
 	if err != nil {
 		return nil, err
 	}
-	type rawItem struct{ id, variantID string; qty int }
+	type rawItem struct {
+		id, variantID string
+		qty           int
+		parentID      *string
+		kind          string
+	}
 	var items []rawItem
 	for rows.Next() {
 		var it rawItem
-		if err := rows.Scan(&it.id, &it.variantID, &it.qty); err != nil {
+		if err := rows.Scan(&it.id, &it.variantID, &it.qty, &it.parentID, &it.kind); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -466,6 +557,20 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 	if len(items) == 0 {
 		return nil, ErrNoItems
 	}
+
+	// Filter to leaf rows: bundle parents are skipped entirely; everything
+	// else (top-level simple, or any component row) gets the stock delta.
+	leafs := items[:0:len(items)]
+	for _, it := range items {
+		if it.parentID == nil && it.kind == "bundle" {
+			continue
+		}
+		leafs = append(leafs, it)
+	}
+	if len(leafs) == 0 {
+		return nil, ErrNoItems
+	}
+	items = leafs
 
 	// Lock each variant FOR UPDATE so concurrent mutations / checkouts can't
 	// race the validation → apply window.
@@ -484,15 +589,21 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 		variantStock[it.variantID] = stock
 	}
 
-	// For stock-out, pre-validate: every variant must have enough.
+	// For stock-out, pre-validate: every variant must have enough total
+	// stock to cover all of its leaf rows summed (two bundles sharing a
+	// component, or a top-level + component row of the same variant, etc.).
 	if mType == TypeOut {
-		var conflicts []StockConflict
+		needed := make(map[string]int, len(items))
 		for _, it := range items {
-			avail := variantStock[it.variantID]
-			if avail < it.qty {
+			needed[it.variantID] += it.qty
+		}
+		var conflicts []StockConflict
+		for varID, qty := range needed {
+			avail := variantStock[varID]
+			if avail < qty {
 				c := StockConflict{
-					VariantID: it.variantID,
-					Requested: it.qty,
+					VariantID: varID,
+					Requested: qty,
 					Available: avail,
 				}
 				// Enrich with product / sku for UI display.
@@ -501,7 +612,7 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 					`SELECT p.name, v.sku
 					   FROM product_variants v
 					   LEFT JOIN products p ON p.id = v.product_id
-					  WHERE v.id = $1`, it.variantID,
+					  WHERE v.id = $1`, varID,
 				).Scan(&pname, &sku)
 				if pname.Valid {
 					n := pname.String
@@ -520,7 +631,9 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 	}
 
 	// Apply each item: update variant stock + write inventory_history +
-	// snapshot before/after on the item row.
+	// snapshot before/after on the item row. variantStock is updated in
+	// place so successive leaf rows for the same variant see the running
+	// total (e.g. two bundle components hitting the same SKU).
 	for _, it := range items {
 		before := variantStock[it.variantID]
 		var after int
@@ -543,6 +656,7 @@ func (s *Service) Execute(ctx context.Context, id string) (*Mutation, error) {
 		note := mNumber
 		shop.RecordStockChange(ctx, tx, it.variantID, before, after,
 			"mutation.execute", nil, &mutID, &note)
+		variantStock[it.variantID] = after
 	}
 
 	// Mark executed.
@@ -616,8 +730,8 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT i.id, i.mutation_id, i.variant_id, i.quantity, i.before_qty, i.after_qty, i.position,
-		        v.product_id, p.name, v.name, v.sku, v.stock_qty,
+		`SELECT i.id, i.mutation_id, i.variant_id, i.parent_item_id, i.quantity, i.before_qty, i.after_qty, i.position,
+		        v.product_id, p.name, v.name, v.sku, v.stock_qty, p.kind,
 		        COALESCE(vmf.url, vpi.url, pmf.url, ppi.url) AS image_url
 		   FROM stock_mutation_items i
 		   LEFT JOIN product_variants v   ON v.id = i.variant_id
@@ -627,7 +741,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 		   LEFT JOIN product_images   ppi ON ppi.product_id = v.product_id AND ppi.is_primary = TRUE
 		   LEFT JOIN media_files      pmf ON pmf.id = ppi.media_file_id
 		  WHERE i.mutation_id = $1
-		  ORDER BY i.position, i.created_at`, id)
+		  ORDER BY i.parent_item_id NULLS FIRST, i.position, i.created_at`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -636,11 +750,16 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 	for rows.Next() {
 		var it MutationItem
 		var beforeQty, afterQty, stockQty sql.NullInt64
-		var prodName, varName, sku, imageURL sql.NullString
-		if err := rows.Scan(&it.ID, &it.MutationID, &it.VariantID, &it.Quantity,
+		var prodName, varName, sku, imageURL, kind sql.NullString
+		if err := rows.Scan(&it.ID, &it.MutationID, &it.VariantID, &it.ParentItemID, &it.Quantity,
 			&beforeQty, &afterQty, &it.Position,
-			&it.ProductID, &prodName, &varName, &sku, &stockQty, &imageURL); err != nil {
+			&it.ProductID, &prodName, &varName, &sku, &stockQty, &kind, &imageURL); err != nil {
 			return nil, err
+		}
+		if kind.Valid {
+			it.Kind = kind.String
+		} else {
+			it.Kind = "simple"
 		}
 		if beforeQty.Valid {
 			v := int(beforeQty.Int64)
@@ -652,7 +771,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Mutation, error) {
 		}
 		if prodName.Valid {
 			composed := prodName.String
-			if varName.Valid {
+			// For bundle parent rows the variant is just a wrapper (e.g.
+			// "Default") and appending it muddies the display — mirror
+			// orders.admin_create's handling.
+			if varName.Valid && it.Kind != "bundle" {
 				composed = shop.ProductDisplayName(prodName.String, varName.String)
 			}
 			it.ProductName = &composed
@@ -743,11 +865,17 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 		  LEFT JOIN admin_users cb ON cb.id = m.created_by_admin_id
 		  LEFT JOIN admin_users eb ON eb.id = m.executed_by_admin_id
 		  LEFT JOIN (
-		      SELECT mutation_id,
-		             COUNT(*)::int      AS item_count,
-		             SUM(quantity)::int AS total_qty
-		        FROM stock_mutation_items
-		       GROUP BY mutation_id
+		      -- Bundle parent rows are display-only; the real stock movement
+		      -- (and so the meaningful count + total qty) lives on the leaves:
+		      -- standalone simple rows + every component row.
+		      SELECT si.mutation_id,
+		             COUNT(*)::int        AS item_count,
+		             SUM(si.quantity)::int AS total_qty
+		        FROM stock_mutation_items si
+		        LEFT JOIN product_variants pv ON pv.id = si.variant_id
+		        LEFT JOIN products         p  ON p.id  = pv.product_id
+		       WHERE NOT (si.parent_item_id IS NULL AND p.kind = 'bundle')
+		       GROUP BY si.mutation_id
 		  ) agg ON agg.mutation_id = m.id
 		` + whereSQL + fmt.Sprintf(`
 		 ORDER BY m.created_at DESC
