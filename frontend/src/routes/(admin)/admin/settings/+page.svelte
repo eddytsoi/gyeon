@@ -187,7 +187,7 @@
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
   const FORM_UPLOAD_KEYS = new Set(['form_upload_hard_cap_mb']);
-  const ORDER_NUMBER_KEYS = new Set(['order_number_prefix']);
+  const ORDER_NUMBER_KEYS = new Set(['order_number_prefix', 'mutation_number_prefix']);
   const LOW_STOCK_KEYS = new Set(['low_stock_threshold_default', 'low_stock_alert_enabled']);
   const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
   const LOYALTY_KEYS = new Set(['loyalty_enabled', 'loyalty_points_per_hkd', 'loyalty_redeem_rate_hkd']);
