@@ -1,6 +1,27 @@
 import { getMyProfile, getNavMenu, getPublicSettings } from '$lib/api';
-import type { NavItem, NavMenu } from '$lib/types';
+import type { NavItem, NavMenu, SocialMediaEntry } from '$lib/types';
 import type { LayoutServerLoad } from './$types';
+
+function parseSocials(raw: string | undefined): SocialMediaEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (e): e is SocialMediaEntry =>
+          !!e && typeof e === 'object' && typeof e.icon === 'string' && typeof e.url === 'string'
+      )
+      .map((e) => ({
+        icon: e.icon,
+        url: e.url,
+        label: typeof e.label === 'string' ? e.label : undefined,
+        customSvgPath: typeof e.customSvgPath === 'string' ? e.customSvgPath : undefined
+      }));
+  } catch {
+    return [];
+  }
+}
 
 export const load: LayoutServerLoad = async ({ cookies }) => {
   const [headerNav, footerNav, settings] = await Promise.all([
@@ -13,6 +34,7 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
   const blogEnabled = settings.find((s) => s.key === 'blog_enabled')?.value !== 'false';
   // Default ON: an uninitialised install (no row, or fetch failure) keeps PWA active.
   const pwaEnabled = settings.find((s) => s.key === 'pwa_enabled')?.value !== 'false';
+  const socials = parseSocials(settings.find((s) => s.key === 'social_media')?.value);
 
   const stripBlogLinks = (menu: NavMenu | null): NavMenu | null => {
     if (!menu || blogEnabled) return menu;
@@ -33,6 +55,7 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
     blogEnabled,
     pwaEnabled,
     customer,
-    publicSettings: settings
+    publicSettings: settings,
+    socials
   };
 };

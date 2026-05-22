@@ -368,3 +368,10 @@ export interface CmsPost {
   created_at: string;
   updated_at: string;
 }
+
+export interface SocialMediaEntry {
+  icon: string;
+  url: string;
+  label?: string;
+  customSvgPath?: string;
+}

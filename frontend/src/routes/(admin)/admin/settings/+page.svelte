@@ -3,10 +3,13 @@
   import { enhance } from '$app/forms';
   import { replaceState } from '$app/navigation';
   import type { PageData } from './$types';
+  import type { SocialMediaEntry } from '$lib/types';
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import MediaPicker from '$lib/components/admin/MediaPicker.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import PasswordInput from '$lib/components/admin/PasswordInput.svelte';
+  import SocialIcon from '$lib/components/SocialIcon.svelte';
+  import { SOCIAL_ICONS, CUSTOM_ICON_KEY } from '$lib/components/social-icons';
   import { COUNTRIES } from '$lib/data/countries';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
@@ -173,6 +176,9 @@
   // textSettings so the generic catch-all loop doesn't render a second
   // <input name="hidden_category_ids"> that overwrites the real one on submit.
   const HIDDEN_PRODUCTS_KEYS = new Set(['hidden_category_ids']);
+  // Managed by the Social Media section (General tab). Same reason as above:
+  // exclude from textSettings so we don't double-submit the social_media key.
+  const SOCIAL_MEDIA_KEYS = new Set(['social_media']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -309,6 +315,7 @@
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
         !HIDDEN_PRODUCTS_KEYS.has(s.key) &&
+        !SOCIAL_MEDIA_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
@@ -420,6 +427,51 @@
   const categoryOptions = $derived(
     (data.categories ?? []).map((c) => ({ value: c.id, label: c.name }))
   );
+
+  // ── Social Media (storefront footer) ────────────────────────────
+  function parseSocialMedia(raw: string | undefined): SocialMediaEntry[] {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(
+          (e): e is SocialMediaEntry =>
+            !!e && typeof e === 'object' && typeof e.icon === 'string' && typeof e.url === 'string'
+        )
+        .map((e) => ({
+          icon: e.icon,
+          url: e.url,
+          label: typeof e.label === 'string' ? e.label : undefined,
+          customSvgPath: typeof e.customSvgPath === 'string' ? e.customSvgPath : undefined
+        }));
+    } catch {
+      return [];
+    }
+  }
+  let socialMedia = $state<SocialMediaEntry[]>(
+    parseSocialMedia(data.settings.find((s) => s.key === 'social_media')?.value)
+  );
+  const socialIconOptions = [
+    ...Object.entries(SOCIAL_ICONS).map(([value, def]) => ({ value, label: def.label })),
+    { value: CUSTOM_ICON_KEY, label: 'Custom SVG' }
+  ];
+  function addSocialEntry() {
+    socialMedia = [...socialMedia, { icon: 'facebook', url: '' }];
+  }
+  function removeSocialEntry(idx: number) {
+    socialMedia = socialMedia.filter((_, i) => i !== idx);
+  }
+  function moveSocialEntry(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= socialMedia.length) return;
+    const next = [...socialMedia];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    socialMedia = next;
+  }
+  function updateSocialEntry(idx: number, patch: Partial<SocialMediaEntry>) {
+    socialMedia = socialMedia.map((e, i) => (i === idx ? { ...e, ...patch } : e));
+  }
 
   // ── Payment ─────────────────────────────────────────────────────
   function settingValue(key: string): string {
@@ -955,6 +1007,146 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
       </div>
+    </div>
+
+    <!-- Social Media (storefront footer) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_social_media_heading()}</h2>
+      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_social_media_help()}</p>
+
+      {#if socialMedia.length === 0}
+        <p class="text-xs text-gray-400 italic mb-4">{m.admin_settings_social_media_empty()}</p>
+      {/if}
+
+      <ul class="flex flex-col gap-3">
+        {#each socialMedia as entry, idx (idx)}
+          {@const isCustom = entry.icon === CUSTOM_ICON_KEY}
+          <li class="border border-gray-200 rounded-xl p-4 bg-gray-50/40">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start">
+              <!-- Preview pill -->
+              <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-navy-900 text-white flex items-center justify-center">
+                <SocialIcon {entry} class="h-5 w-5" />
+              </div>
+
+              <div class="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div class="md:col-span-3 flex flex-col gap-1.5">
+                  <label for="social-icon-{idx}" class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    {m.admin_settings_social_media_icon_label()}
+                  </label>
+                  <select
+                    id="social-icon-{idx}"
+                    value={entry.icon}
+                    onchange={(e) => updateSocialEntry(idx, { icon: e.currentTarget.value })}
+                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  >
+                    {#each socialIconOptions as opt}
+                      <option value={opt.value}>{opt.label}</option>
+                    {/each}
+                  </select>
+                </div>
+
+                <div class="md:col-span-6 flex flex-col gap-1.5">
+                  <label for="social-url-{idx}" class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    {m.admin_settings_social_media_url_label()}
+                  </label>
+                  <input
+                    id="social-url-{idx}"
+                    type="url"
+                    placeholder="https://"
+                    value={entry.url}
+                    oninput={(e) => updateSocialEntry(idx, { url: e.currentTarget.value })}
+                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+
+                <div class="md:col-span-3 flex flex-col gap-1.5">
+                  <label for="social-label-{idx}" class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    {m.admin_settings_social_media_label_label()}
+                  </label>
+                  <input
+                    id="social-label-{idx}"
+                    type="text"
+                    placeholder={SOCIAL_ICONS[entry.icon]?.label ?? ''}
+                    value={entry.label ?? ''}
+                    oninput={(e) => updateSocialEntry(idx, { label: e.currentTarget.value || undefined })}
+                    class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                           focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                </div>
+
+                {#if isCustom}
+                  <div class="md:col-span-12 flex flex-col gap-1.5">
+                    <label for="social-custom-{idx}" class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                      {m.admin_settings_social_media_custom_svg_label()}
+                    </label>
+                    <textarea
+                      id="social-custom-{idx}"
+                      rows="2"
+                      placeholder="M12 2 L22 22 L2 22 Z"
+                      value={entry.customSvgPath ?? ''}
+                      oninput={(e) => updateSocialEntry(idx, { customSvgPath: e.currentTarget.value })}
+                      class="border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    ></textarea>
+                    <p class="text-[11px] text-gray-400">{m.admin_settings_social_media_custom_svg_help()}</p>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Row controls -->
+              <div class="flex md:flex-col items-center gap-1 md:gap-0.5 md:flex-shrink-0">
+                <button
+                  type="button"
+                  onclick={() => moveSocialEntry(idx, -1)}
+                  disabled={idx === 0}
+                  aria-label={m.admin_settings_social_media_move_up()}
+                  class="w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent inline-flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onclick={() => moveSocialEntry(idx, 1)}
+                  disabled={idx === socialMedia.length - 1}
+                  aria-label={m.admin_settings_social_media_move_down()}
+                  class="w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent inline-flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onclick={() => removeSocialEntry(idx)}
+                  aria-label={m.admin_settings_social_media_remove()}
+                  class="w-8 h-8 rounded-lg text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </li>
+        {/each}
+      </ul>
+
+      <button
+        type="button"
+        onclick={addSocialEntry}
+        class="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 border border-gray-200 rounded-xl hover:bg-gray-50"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        {m.admin_settings_social_media_add()}
+      </button>
+
+      <input type="hidden" name="social_media" value={JSON.stringify(socialMedia)} />
     </div>
 
     </div>
