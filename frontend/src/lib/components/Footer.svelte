@@ -104,9 +104,8 @@
     </div>
 
     <!-- Below-footer bar -->
-    <div class="mt-12 md:mt-16 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/50">
+    <div class="mt-12 md:mt-16 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-center gap-4 text-xs text-white/50">
       <p class="font-body">{m.footer_copyright({ year: new Date().getFullYear() })}</p>
-      <p class="font-display uppercase tracking-[0.18em]">HK · ZH-HANT</p>
     </div>
   </div>
 </footer>

@@ -186,6 +186,19 @@
   // Managed by the Site Name section (General tab). Excluded from
   // textSettings so the generic loop doesn't double-render the input.
   const SITE_NAME_KEYS = new Set(['site_name']);
+  // Managed by the PDP Sections / Labels / Layout cards (Commerce tab).
+  // Excluded from textSettings so the generic loop doesn't double-render
+  // any of these inputs (toggles, text overrides, or the layout select).
+  const PDP_SECTIONS_KEYS = new Set([
+    'pdp_show_specs_strip',
+    'pdp_show_complete_set',
+    'pdp_show_fbt',
+    'pdp_complete_set_kicker',
+    'pdp_complete_set_heading',
+    'pdp_fbt_kicker',
+    'pdp_fbt_heading',
+    'pdp_content_layout'
+  ]);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -325,6 +338,7 @@
         !SOCIAL_MEDIA_KEYS.has(s.key) &&
         !WEBSITE_SLOGAN_KEYS.has(s.key) &&
         !SITE_NAME_KEYS.has(s.key) &&
+        !PDP_SECTIONS_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
@@ -364,6 +378,15 @@
 
   const pdpTaobaoSetting = $derived(data.settings.find((s) => s.key === 'pdp_taobao_layout_enabled'));
   let pdpTaobaoOn = $state(pdpTaobaoSetting?.value === 'true');
+
+  // PDP section toggles — default ON when the row is missing or unset so
+  // an uninitialised install keeps every section visible.
+  const pdpShowSpecsSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_specs_strip'));
+  let pdpShowSpecsOn = $state(pdpShowSpecsSetting?.value !== 'false');
+  const pdpShowCompleteSetSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_complete_set'));
+  let pdpShowCompleteSetOn = $state(pdpShowCompleteSetSetting?.value !== 'false');
+  const pdpShowFbtSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_fbt'));
+  let pdpShowFbtOn = $state(pdpShowFbtSetting?.value !== 'false');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1457,6 +1480,155 @@
         {#if abandonedRunResult}
           <span class="text-xs text-gray-500">{abandonedRunResult}</span>
         {/if}
+      </div>
+    </div>
+
+    <!-- PDP Sections — toggle visibility of dark-blue specs strip,
+         complete-set BundleComposer, and frequently-bought-together. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_sections_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_sections_subtitle()}</p>
+      </div>
+
+      <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_specs_strip()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_specs_strip()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpShowSpecsOn = !pdpShowSpecsOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpShowSpecsOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpShowSpecsOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpShowSpecsOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_show_specs_strip" value={pdpShowSpecsOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_complete_set()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_complete_set()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpShowCompleteSetOn = !pdpShowCompleteSetOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpShowCompleteSetOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpShowCompleteSetOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpShowCompleteSetOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_show_complete_set" value={pdpShowCompleteSetOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_fbt()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_fbt()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpShowFbtOn = !pdpShowFbtOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpShowFbtOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpShowFbtOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpShowFbtOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_show_fbt" value={pdpShowFbtOn ? 'true' : 'false'} />
+      </div>
+    </div>
+
+    <!-- Complete Set labels (kicker + heading overrides). Empty falls back to i18n. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_complete_set_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_complete_set_subtitle()}</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_complete_set_kicker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_complete_set_kicker()}
+          </label>
+          <input id="pdp_complete_set_kicker" name="pdp_complete_set_kicker" type="text"
+                 value={settingValue('pdp_complete_set_kicker') || ''}
+                 placeholder={m.admin_settings_pdp_complete_set_kicker_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_complete_set_heading" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_complete_set_heading()}
+          </label>
+          <input id="pdp_complete_set_heading" name="pdp_complete_set_heading" type="text"
+                 value={settingValue('pdp_complete_set_heading') || ''}
+                 placeholder={m.admin_settings_pdp_complete_set_heading_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Frequently Bought Together labels (kicker + heading overrides). Empty falls back to i18n. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_fbt_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_fbt_subtitle()}</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_fbt_kicker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_fbt_kicker()}
+          </label>
+          <input id="pdp_fbt_kicker" name="pdp_fbt_kicker" type="text"
+                 value={settingValue('pdp_fbt_kicker') || ''}
+                 placeholder={m.admin_settings_pdp_fbt_kicker_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_fbt_heading" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_fbt_heading()}
+          </label>
+          <input id="pdp_fbt_heading" name="pdp_fbt_heading" type="text"
+                 value={settingValue('pdp_fbt_heading') || ''}
+                 placeholder={m.admin_settings_pdp_fbt_heading_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Product detail content layout — switches 內容 / 使用方法 / 適用表面
+         between tab page view (default) and navigation + list view. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_layout_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_layout_subtitle()}</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="pdp_content_layout" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_label_pdp_content_layout()}
+        </label>
+        <select id="pdp_content_layout" name="pdp_content_layout"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="tabs"
+                  selected={(settingValue('pdp_content_layout') || 'tabs') === 'tabs'}>
+            {m.admin_settings_pdp_layout_option_tabs()}
+          </option>
+          <option value="nav-list"
+                  selected={settingValue('pdp_content_layout') === 'nav-list'}>
+            {m.admin_settings_pdp_layout_option_navlist()}
+          </option>
+        </select>
       </div>
     </div>
 
