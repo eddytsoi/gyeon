@@ -2,9 +2,12 @@ package shop
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -2688,107 +2691,102 @@ func (s *ProductService) SetPromoBundles(ctx context.Context, parentProductID st
 // product_copurchase.
 const fbtCachePrefix = "shop:fbt:"
 
+// Tunables for the multi-algorithm FBT mix. Comment block lives here (rather
+// than the plan doc) so future readers can adjust without grepping for the
+// values. Pool caps stay larger than weights so the same source product yields
+// fresh picks day-over-day (different seed → different sample from the pool).
+const (
+	fbtSalesWindowDays   = 30 // bestseller + slow-mover lookback
+	fbtSlowMoverMaxSales = 2  // total units over the window classifying as "slow"
+	fbtSlowMoverMinStock = 5  // total active-variant stock to qualify as "has stock"
+	fbtPoolCapCopurchase = 12
+	fbtPoolCapBestseller = 20
+	fbtPoolCapSlowMover  = 20
+	fbtWeightCopurchase  = 2 // up to N picks per response
+	fbtWeightBestseller  = 1
+	fbtWeightSlowMover   = 1
+)
+
 // FrequentlyBoughtTogether returns up to `limit` publicly-visible, purchasable
-// products most often purchased in the same paid+ order as `productID`. Source
-// rows live in product_copurchase, which is rebuilt periodically by
-// RebuildCopurchase — so reads are a single indexed lookup and don't scan
-// the orders table. Products without a purchasable default variant (inactive,
-// no variants, or out-of-stock) are excluded so the FBT row only shows items
-// the customer can actually add to cart — bundles get filtered post-query
-// once their derived stock is computed (their synthetic variant always reads
-// stock_qty=0 in SQL).
+// products to display under the PDP. Three candidate pools are combined: paid+
+// co-purchase pairs (relevance), 30-day bestsellers (social proof, biased to
+// the source product's categories), and 30-day slow-movers with stock (gives
+// stagnant inventory a slot). The final pick is seeded by productID + UTC date
+// so the row is stable across refreshes within a day but rotates daily.
+//
+// Cache key includes the day; old entries fall out naturally as the date
+// advances. Bundle-component exclusion (when the source is a bundle) and
+// bundle derived-stock filtering carry over from the previous co-purchase-only
+// implementation.
 func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID, locale string, limit int) ([]ProductWithMeta, error) {
 	if limit <= 0 || limit > 12 {
 		limit = 4
 	}
-	args := []any{locale, limit, productID}
-	wheres := []string{
-		"p.status = 'active'",
-		"(p.kind = 'bundle' OR (defv.id IS NOT NULL AND defv.stock_qty > 0))",
-		// When the source product is a bundle, hide its own component products
-		// from the row — customers already get those inside the bundle and seeing
-		// them recommended underneath is confusing. For non-bundle sources the
-		// sub-select is empty so behaviour is unchanged.
-		`p.id NOT IN (
-		    SELECT pv.product_id
-		    FROM bundle_items bi
-		    JOIN product_variants pv ON pv.id = bi.component_variant_id
-		    WHERE bi.bundle_product_id = $3
-		)`,
-	}
-	var hiddenRaw string
-	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("%s%s:%s:%d:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw)
-	if v, ok := s.cache.Get(key); ok {
+	hiddenIDs, hiddenRaw := s.hiddenCategoryIDs(ctx)
+	day := time.Now().UTC().Format("2006-01-02")
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, day)
+	if v, ok := s.cache.Get(cacheKey); ok {
 		return v.([]ProductWithMeta), nil
 	}
 
-	query := `
-		SELECT p.id, p.number, p.category_id, p.slug,
-		       COALESCE(t.name,        p.name)        AS name,
-		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
-		       p.excerpt,
-		       COALESCE(t.description, p.description) AS description,
-		       p.how_to_use, p.compatible_surfaces,
-		       p.status, p.kind, p.created_at, p.updated_at,
-		       (SELECT COUNT(*) FROM product_variants pv
-		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
-		       (SELECT COALESCE(
-		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
-		            mf.webp_url, mf.url, pi.url)
-		        FROM product_images pi
-		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
-		        WHERE pi.product_id = p.id
-		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
-		        LIMIT 1) AS primary_image_url,
-		       defv.id   AS default_variant_id,
-		       defv.price AS default_variant_price,
-		       defv.compare_at_price AS default_variant_compare_at_price,
-		       defv.stock_qty AS default_variant_stock_qty,
-		       defv.name AS default_variant_name
-		FROM product_copurchase cp
-		JOIN products p ON p.id = cp.related_product_id` + productTranslationJoin + `
-		LEFT JOIN LATERAL (
-		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
-		    FROM product_variants pv
-		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
-		    ORDER BY pv.sort_order ASC, pv.created_at ASC
-		    LIMIT 1
-		) defv ON TRUE
-		WHERE cp.product_id = $3 AND ` + where + `
-		ORDER BY cp.together_order_count DESC, p.created_at DESC
-		LIMIT $2`
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	// Source metadata: kind drives bundle-component exclusion; categoryIDs
+	// drive same-category preference for bestsellers/slow-movers.
+	sourceCategoryIDs, err := s.fbtSourceCategoryIDs(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	products := make([]ProductWithMeta, 0)
-	for rows.Next() {
-		var pm ProductWithMeta
-		if err := rows.Scan(
-			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
-			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
-			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
-			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
-			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
-			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
-		); err != nil {
-			return nil, err
-		}
-		products = append(products, pm)
+	// Build the base exclude list: source product + (if source is bundle) its
+	// component products. Co-purchase already won't surface the source itself,
+	// but the bundle component exclusion is the carryover from v0.9.248.
+	baseExcludes := []string{productID}
+	if componentIDs, err := s.fbtBundleComponentProductIDs(ctx, productID); err == nil {
+		baseExcludes = append(baseExcludes, componentIDs...)
 	}
-	if err := rows.Err(); err != nil {
+
+	// Pool A: co-purchase pairs from product_copurchase.
+	poolA, err := s.fbtFetchCopurchasePool(ctx, productID, fbtPoolCapCopurchase, baseExcludes, hiddenIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pool B: bestsellers — same category first, top up storewide if short.
+	poolB, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapBestseller, baseExcludes, hiddenIDs, s.fbtFetchBestsellersPool)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pool C: slow-movers — same category first, top up storewide if short.
+	poolC, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapSlowMover, baseExcludes, hiddenIDs, s.fbtFetchSlowMoversPool)
+	if err != nil {
+		return nil, err
+	}
+
+	// Seeded selection: 2 co-purchase + 1 bestseller + 1 slow-mover, then
+	// backfill from whatever remains until limit (or pools are exhausted).
+	rng := rand.New(rand.NewSource(fbtDailySeed(productID, day)))
+	pickedIDs := fbtSelectMixed(rng, []fbtPool{
+		{ids: poolA, weight: fbtWeightCopurchase},
+		{ids: poolB, weight: fbtWeightBestseller},
+		{ids: poolC, weight: fbtWeightSlowMover},
+	}, limit)
+
+	if len(pickedIDs) == 0 {
+		empty := []ProductWithMeta{}
+		s.cache.Set(cacheKey, empty, s.ttl(ctx))
+		return empty, nil
+	}
+
+	products, err := s.fbtLoadProductsByIDs(ctx, pickedIDs, locale)
+	if err != nil {
 		return nil, err
 	}
 	s.overrideBundleStock(ctx, products)
-	// SQL kept bundles unconditionally because their synthetic variant always
-	// reads stock_qty=0; drop the ones whose derived stock is also 0 so the
-	// row only surfaces purchasable bundles.
+	// Bundles can sneak in with derived stock = 0 even after pool filtering
+	// (bundle_items may have changed mid-day, or a component sold out). Drop
+	// non-purchasable bundles so the storefront row never offers something the
+	// customer can't actually add to cart.
 	purchasable := products[:0]
 	for _, p := range products {
 		if p.Kind == "bundle" && (p.DefaultVariantStockQty == nil || *p.DefaultVariantStockQty <= 0) {
@@ -2798,69 +2796,294 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	}
 	products = purchasable
 
-	// Fallback: when the PDP is a bundle and copurchase data isn't enough to
-	// fill the row, top up with same-category active products so the section
-	// always shows `limit` items. Non-bundle PDPs keep their historical
-	// behaviour (short rows are fine — they reflect real copurchase signal).
-	if len(products) < limit {
-		extras, err := s.fbtBundleFallback(ctx, productID, locale, limit-len(products), products)
-		if err == nil && len(extras) > 0 {
-			products = append(products, extras...)
-		}
-	}
-
-	s.cache.Set(key, products, s.ttl(ctx))
+	s.cache.Set(cacheKey, products, s.ttl(ctx))
 	return products, nil
 }
 
-// fbtBundleFallback returns up to `need` extra products from the same category
-// as `productID`, used to pad the FBT row when a bundle's copurchase data is
-// too thin after excluding its own components. Returns no rows for non-bundle
-// products. The query mirrors the main FBT shape (active, purchasable, hidden-
-// category filtered, bundle exclusion of the source) so the appended items are
-// indistinguishable from a real copurchase row downstream. Ordered by
-// `created_at DESC` as the closest proxy for "hot / recent" in the absence of
-// a real bestsellers query.
-func (s *ProductService) fbtBundleFallback(ctx context.Context, productID, locale string, need int, existing []ProductWithMeta) ([]ProductWithMeta, error) {
-	if need <= 0 {
-		return nil, nil
-	}
-	var kind string
-	var categoryID sql.NullString
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT kind, category_id FROM products WHERE id = $1`, productID).
-		Scan(&kind, &categoryID); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
+// fbtPool is a candidate set for the weighted FBT picker.
+type fbtPool struct {
+	ids    []string
+	weight int
+}
+
+// fbtSelectMixed picks up to `limit` IDs from the pools using a seeded RNG.
+// Each pool first contributes up to its `weight` (shuffled, deduped against
+// previously-picked IDs). When all pools have taken their share but the picks
+// are still short of `limit`, remaining unpicked IDs across all pools are
+// shuffled together and pulled in order.
+func fbtSelectMixed(rng *rand.Rand, pools []fbtPool, limit int) []string {
+	picks := make([]string, 0, limit)
+	seen := make(map[string]bool)
+
+	for _, p := range pools {
+		if len(picks) >= limit {
+			break
 		}
+		avail := make([]string, 0, len(p.ids))
+		for _, id := range p.ids {
+			if !seen[id] {
+				avail = append(avail, id)
+			}
+		}
+		rng.Shuffle(len(avail), func(i, j int) { avail[i], avail[j] = avail[j], avail[i] })
+		take := p.weight
+		if take > len(avail) {
+			take = len(avail)
+		}
+		if take > limit-len(picks) {
+			take = limit - len(picks)
+		}
+		for i := 0; i < take; i++ {
+			picks = append(picks, avail[i])
+			seen[avail[i]] = true
+		}
+	}
+
+	if len(picks) >= limit {
+		return picks
+	}
+
+	backfill := make([]string, 0)
+	for _, p := range pools {
+		for _, id := range p.ids {
+			if !seen[id] {
+				backfill = append(backfill, id)
+				seen[id] = true
+			}
+		}
+	}
+	rng.Shuffle(len(backfill), func(i, j int) { backfill[i], backfill[j] = backfill[j], backfill[i] })
+	for _, id := range backfill {
+		if len(picks) >= limit {
+			break
+		}
+		picks = append(picks, id)
+	}
+	return picks
+}
+
+// fbtDailySeed produces a stable int64 seed from (productID, day) so picks are
+// consistent across refreshes within the same UTC day but rotate at midnight.
+func fbtDailySeed(productID, day string) int64 {
+	h := sha256.Sum256([]byte(productID + ":" + day))
+	return int64(binary.BigEndian.Uint64(h[:8]))
+}
+
+// fbtSourceCategoryIDs returns the source product's category set (primary +
+// any links from product_category_links). Used to bias bestsellers/slow-movers
+// toward the same departments. Returns nil if the product has no categories.
+func (s *ProductService) fbtSourceCategoryIDs(ctx context.Context, productID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT category_id FROM (
+		     SELECT category_id FROM products WHERE id = $1 AND category_id IS NOT NULL
+		     UNION
+		     SELECT category_id FROM product_category_links WHERE product_id = $1
+		 ) c`, productID)
+	if err != nil {
 		return nil, err
 	}
-	if kind != "bundle" || !categoryID.Valid {
+	defer rows.Close()
+	ids := make([]string, 0, 2)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// fbtBundleComponentProductIDs returns the distinct product IDs of components
+// of the source product if it's a bundle, otherwise an empty slice. Mirrors
+// the subselect from the pre-mix implementation (excludes a bundle's own
+// components from its FBT row).
+func (s *ProductService) fbtBundleComponentProductIDs(ctx context.Context, sourceProductID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT pv.product_id
+		 FROM bundle_items bi
+		 JOIN product_variants pv ON pv.id = bi.component_variant_id
+		 WHERE bi.bundle_product_id = $1`, sourceProductID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// fbtFetchPoolWithCategoryFallback runs `fetch` with the source's categories
+// first; if that yields fewer than `cap` IDs, it appends a storewide pass with
+// the same-category picks added to the exclude list. Both calls are cheap (top-
+// N indexed reads) so we always check the category-biased set first.
+func (s *ProductService) fbtFetchPoolWithCategoryFallback(
+	ctx context.Context,
+	categoryIDs []string,
+	cap int,
+	baseExcludes, hiddenIDs []string,
+	fetch func(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error),
+) ([]string, error) {
+	var ids []string
+	if len(categoryIDs) > 0 {
+		got, err := fetch(ctx, categoryIDs, cap, baseExcludes, hiddenIDs)
+		if err != nil {
+			return nil, err
+		}
+		ids = got
+	}
+	if len(ids) >= cap {
+		return ids, nil
+	}
+	exclSet := make([]string, 0, len(baseExcludes)+len(ids))
+	exclSet = append(exclSet, baseExcludes...)
+	exclSet = append(exclSet, ids...)
+	more, err := fetch(ctx, nil, cap-len(ids), exclSet, hiddenIDs)
+	if err != nil {
+		return nil, err
+	}
+	return append(ids, more...), nil
+}
+
+// fbtFetchCopurchasePool returns up to `cap` product IDs ranked by historical
+// co-purchase strength with the source product. Filters out excluded IDs (the
+// source itself + bundle components) and products in hidden categories.
+func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProductID string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+	query := `
+		SELECT p.id
+		FROM product_copurchase cp
+		JOIN products p ON p.id = cp.related_product_id
+		WHERE cp.product_id = $1
+		  AND p.status = 'active'
+		  AND p.id <> ALL($2::uuid[])
+		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
+		ORDER BY cp.together_order_count DESC, p.created_at DESC
+		LIMIT $4`
+	return s.fbtScanIDs(ctx, query, sourceProductID, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), cap)
+}
+
+// fbtFetchBestsellersPool returns up to `cap` product IDs ranked by units sold
+// over fbtSalesWindowDays in paid+ orders. Only top-level order_items count
+// (`parent_item_id IS NULL`) so bundles count once and components shipped as
+// part of a bundle don't double-credit the parent product. When `categoryIDs`
+// is non-empty, the result is restricted to products linked to any of those
+// categories.
+func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+	query := `
+		WITH sales AS (
+		    SELECT pv.product_id, SUM(oi.quantity)::bigint AS qty
+		    FROM order_items oi
+		    JOIN orders o            ON o.id  = oi.order_id
+		    JOIN product_variants pv ON pv.id = oi.variant_id
+		    WHERE oi.parent_item_id IS NULL
+		      AND o.status IN ('paid','processing','shipped','delivered')
+		      AND o.created_at >= NOW() - ($1 || ' days')::interval
+		    GROUP BY pv.product_id
+		)
+		SELECT p.id
+		FROM products p
+		JOIN sales s ON s.product_id = p.id
+		WHERE p.status = 'active'
+		  AND p.id <> ALL($2::uuid[])
+		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
+		  AND (cardinality($4::uuid[]) = 0 OR EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($4::uuid[])
+		  ))
+		ORDER BY s.qty DESC, p.created_at DESC
+		LIMIT $5`
+	return s.fbtScanIDs(ctx, query,
+		fbtSalesWindowDays, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), cap)
+}
+
+// fbtFetchSlowMoversPool returns up to `cap` simple products (bundles
+// excluded — their stock is derived) that have stock above
+// fbtSlowMoverMinStock and at most fbtSlowMoverMaxSales over the window.
+// Ranked stock-rich-first so the picks meaningfully move inventory.
+func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+	query := `
+		WITH sales AS (
+		    SELECT pv.product_id, COALESCE(SUM(oi.quantity), 0)::bigint AS qty
+		    FROM product_variants pv
+		    LEFT JOIN order_items oi ON oi.variant_id = pv.id AND oi.parent_item_id IS NULL
+		    LEFT JOIN orders o       ON o.id = oi.order_id
+		                            AND o.status IN ('paid','processing','shipped','delivered')
+		                            AND o.created_at >= NOW() - ($1 || ' days')::interval
+		    WHERE pv.is_active = TRUE
+		    GROUP BY pv.product_id
+		),
+		stock AS (
+		    SELECT pv.product_id, SUM(pv.stock_qty)::bigint AS total_stock
+		    FROM product_variants pv
+		    WHERE pv.is_active = TRUE
+		    GROUP BY pv.product_id
+		)
+		SELECT p.id
+		FROM products p
+		JOIN stock st ON st.product_id = p.id
+		LEFT JOIN sales s ON s.product_id = p.id
+		WHERE p.status = 'active'
+		  AND p.kind = 'simple'
+		  AND st.total_stock > $2
+		  AND COALESCE(s.qty, 0) <= $3
+		  AND p.id <> ALL($4::uuid[])
+		  AND (cardinality($5::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($5::uuid[]))
+		  AND (cardinality($6::uuid[]) = 0 OR EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($6::uuid[])
+		  ))
+		ORDER BY st.total_stock DESC, COALESCE(s.qty, 0) ASC, p.created_at DESC
+		LIMIT $7`
+	return s.fbtScanIDs(ctx, query,
+		fbtSalesWindowDays, fbtSlowMoverMinStock, fbtSlowMoverMaxSales,
+		fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), cap)
+}
+
+// fbtUUIDArray wraps pq.Array but guarantees an empty (non-NULL) Postgres
+// array when the input slice is nil. Pool queries use
+// `cardinality($N::uuid[]) = 0` to skip optional filters; with a NULL input
+// `cardinality` also returns NULL, which fails the WHERE clause and silently
+// drops all rows.
+func fbtUUIDArray(ids []string) interface{} {
+	if ids == nil {
+		ids = []string{}
+	}
+	return pq.Array(ids)
+}
+
+// fbtScanIDs runs a SELECT-id-only query and returns the result as a slice.
+// Tiny helper so each pool fetch reads as one expression instead of repeating
+// the rows-iterate boilerplate.
+func (s *ProductService) fbtScanIDs(ctx context.Context, query string, args ...any) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0, 16)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// fbtLoadProductsByIDs hydrates a list of product IDs into ProductWithMeta
+// rows in the order requested. Output order matters so the seeded picker can
+// guarantee the same display order across refreshes within a day.
+func (s *ProductService) fbtLoadProductsByIDs(ctx context.Context, ids []string, locale string) ([]ProductWithMeta, error) {
+	if len(ids) == 0 {
 		return nil, nil
 	}
-
-	excludeIDs := make([]string, 0, len(existing)+1)
-	excludeIDs = append(excludeIDs, productID)
-	for _, p := range existing {
-		excludeIDs = append(excludeIDs, p.ID)
-	}
-
-	args := []any{locale, need, productID, categoryID.String, pq.Array(excludeIDs)}
-	wheres := []string{
-		"p.status = 'active'",
-		"p.category_id = $4",
-		"p.id <> ALL($5)",
-		"(p.kind = 'bundle' OR (defv.id IS NOT NULL AND defv.stock_qty > 0))",
-		`p.id NOT IN (
-		    SELECT pv.product_id
-		    FROM bundle_items bi
-		    JOIN product_variants pv ON pv.id = bi.component_variant_id
-		    WHERE bi.bundle_product_id = $3
-		)`,
-	}
-	wheres, args, _ = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	where := strings.Join(wheres, " AND ")
-
 	query := `
 		SELECT p.id, p.number, p.category_id, p.slug,
 		       COALESCE(t.name,        p.name)        AS name,
@@ -2892,17 +3115,13 @@ func (s *ProductService) fbtBundleFallback(ctx context.Context, productID, local
 		    ORDER BY pv.sort_order ASC, pv.created_at ASC
 		    LIMIT 1
 		) defv ON TRUE
-		WHERE ` + where + `
-		ORDER BY p.created_at DESC
-		LIMIT $2`
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
+		WHERE p.id = ANY($2::uuid[])`
+	rows, err := s.db.QueryContext(ctx, query, locale, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
-	extras := make([]ProductWithMeta, 0, need)
+	byID := make(map[string]ProductWithMeta, len(ids))
 	for rows.Next() {
 		var pm ProductWithMeta
 		if err := rows.Scan(
@@ -2915,20 +3134,18 @@ func (s *ProductService) fbtBundleFallback(ctx context.Context, productID, local
 		); err != nil {
 			return nil, err
 		}
-		extras = append(extras, pm)
+		byID[pm.ID] = pm
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	s.overrideBundleStock(ctx, extras)
-	purchasable := extras[:0]
-	for _, p := range extras {
-		if p.Kind == "bundle" && (p.DefaultVariantStockQty == nil || *p.DefaultVariantStockQty <= 0) {
-			continue
+	ordered := make([]ProductWithMeta, 0, len(ids))
+	for _, id := range ids {
+		if pm, ok := byID[id]; ok {
+			ordered = append(ordered, pm)
 		}
-		purchasable = append(purchasable, p)
 	}
-	return purchasable, nil
+	return ordered, nil
 }
 
 // RebuildCopurchase replaces every row in product_copurchase with a fresh
