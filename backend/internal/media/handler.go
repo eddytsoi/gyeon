@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/lib/pq"
 	"gyeon/backend/internal/cloudflare"
 	"gyeon/backend/internal/respond"
 	"gyeon/backend/internal/settings"
@@ -88,6 +89,70 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Patch("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
 	return r
+}
+
+func (h *Handler) PublicRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/by-names", h.PublicLookupByNames)
+	return r
+}
+
+// Hard cap on names per request. The [photo-grid] shortcode is the only
+// caller today and realistic pages reference a handful of media. The cap
+// stops a malicious crafted URL from forcing an unbounded ANY() scan.
+const lookupByNamesCap = 50
+
+// PublicLookupByNames resolves a comma-separated list of media_files.original_name
+// values to their canonical /uploads/... URLs. Used by the storefront SSR
+// pipeline (scan/resolve) so [photo-grid source="a.jpg,b.jpg"] can reference
+// media by the same name the admin sees in the media library list.
+// Unknown names are simply absent from the response map.
+func (h *Handler) PublicLookupByNames(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("names")
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	names := make([]string, 0, len(parts))
+	for _, p := range parts {
+		n := strings.TrimSpace(p)
+		if n == "" {
+			continue
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		seen[n] = struct{}{}
+		names = append(names, n)
+		if len(names) >= lookupByNamesCap {
+			break
+		}
+	}
+
+	out := make(map[string]string, len(names))
+	if len(names) == 0 {
+		respond.JSON(w, http.StatusOK, out)
+		return
+	}
+
+	// Order by created_at DESC so a later upload with a duplicate
+	// original_name wins (last-writer semantics on the JSON map).
+	rows, err := h.db.QueryContext(r.Context(),
+		`SELECT original_name, url FROM media_files
+		 WHERE original_name = ANY($1)
+		 ORDER BY created_at ASC`, pq.Array(names))
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name, url string
+		if err := rows.Scan(&name, &url); err != nil {
+			respond.InternalError(w)
+			return
+		}
+		out[name] = url
+	}
+	respond.JSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {

@@ -16,7 +16,7 @@
   const chunks = $derived(parseShortcodes(content));
 
   function needsRefs(name: string): boolean {
-    return name === 'product' || name === 'products';
+    return name === 'product' || name === 'products' || name === 'photo-grid';
   }
 </script>
 

@@ -73,13 +73,19 @@ export type ShortcodeRefs = {
   // Forms keyed by slug — populated by +page.server.ts when the page
   // embeds one or more `[contact-form id="..."]` shortcodes.
   forms: Record<string, PublicForm>;
+  // Media-file URL keyed by media_files.original_name — populated when
+  // a page embeds `[photo-grid source="name-1.jpg,name-2.jpg"]`. Lets
+  // authors reference media by the same name the admin sees in the
+  // library list instead of pasting a canonical /uploads/ path.
+  mediaByName: Record<string, string>;
 };
 
 export const EMPTY_REFS: ShortcodeRefs = {
   products: {},
   productsByNumber: {},
   productsByCategory: {},
-  forms: {}
+  forms: {},
+  mediaByName: {}
 };
 
 export const KNOWN_SHORTCODES = ['product', 'products', 'button', 'note', 'section', 'banner', 'contact-form', 'video', 'photo-grid'] as const;

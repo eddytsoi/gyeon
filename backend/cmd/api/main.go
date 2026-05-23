@@ -574,6 +574,11 @@ func main() {
 		r.Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
 		r.Mount("/orders", orders.NewOrderHandler(orderSvc).PublicRoutes())
 
+		// Public media lookup — resolves [photo-grid] source names to canonical
+		// /uploads/... URLs during storefront SSR. Read-only, no auth: the
+		// returned URLs are already publicly fetchable at /uploads/.
+		r.Mount("/media", mediaHandler.PublicRoutes())
+
 		// Public CMS (published content only)
 		r.Mount("/cms/pages", pageHandler.PublicRoutes())
 		r.Mount("/cms/posts", postHandler.PublicRoutes())
