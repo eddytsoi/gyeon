@@ -62,6 +62,7 @@ var publicSettingKeys = []string{
 	"pdp_fbt_kicker",             // storefront PDP override for the FBT kicker; empty falls back to i18n
 	"pdp_fbt_heading",            // storefront PDP override for the FBT heading; empty falls back to i18n
 	"pdp_content_layout",         // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
+	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

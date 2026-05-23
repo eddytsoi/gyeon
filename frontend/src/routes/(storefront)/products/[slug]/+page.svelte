@@ -167,6 +167,7 @@
   const showSpecsStrip = $derived(pdpSettings['pdp_show_specs_strip'] !== 'false');
   const showCompleteSet = $derived(pdpSettings['pdp_show_complete_set'] !== 'false');
   const showFbt = $derived(pdpSettings['pdp_show_fbt'] !== 'false');
+  const showStockCount = $derived(pdpSettings['pdp_show_stock_count'] !== 'false');
   const completeSetKicker = $derived(pdpSettings['pdp_complete_set_kicker'] || undefined);
   const completeSetHeading = $derived(pdpSettings['pdp_complete_set_heading'] || undefined);
   const fbtKicker = $derived(pdpSettings['pdp_fbt_kicker'] || undefined);
@@ -821,9 +822,13 @@
         {#if inStock && selectedVariant}
           <p class="text-xs font-body text-ink-500 -mt-2">
             <span class="text-success font-semibold">●</span>
-            {data.product.kind === 'bundle'
-              ? m.product_detail_sets_in_stock({ count: selectedVariant.stock_qty })
-              : m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}
+            {#if showStockCount}
+              {data.product.kind === 'bundle'
+                ? m.product_detail_sets_in_stock({ count: selectedVariant.stock_qty })
+                : m.product_detail_units_in_stock({ count: selectedVariant.stock_qty })}
+            {:else}
+              {m.product_detail_in_stock()}
+            {/if}
           </p>
         {/if}
 

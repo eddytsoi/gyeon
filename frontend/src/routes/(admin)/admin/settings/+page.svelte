@@ -193,6 +193,7 @@
     'pdp_show_specs_strip',
     'pdp_show_complete_set',
     'pdp_show_fbt',
+    'pdp_show_stock_count',
     'pdp_complete_set_kicker',
     'pdp_complete_set_heading',
     'pdp_fbt_kicker',
@@ -387,6 +388,8 @@
   let pdpShowCompleteSetOn = $state(pdpShowCompleteSetSetting?.value !== 'false');
   const pdpShowFbtSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_fbt'));
   let pdpShowFbtOn = $state(pdpShowFbtSetting?.value !== 'false');
+  const pdpShowStockCountSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_stock_count'));
+  let pdpShowStockCountOn = $state(pdpShowStockCountSetting?.value !== 'false');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1543,6 +1546,24 @@
                        transition duration-200 {pdpShowFbtOn ? 'translate-x-5' : 'translate-x-0'}"></span>
         </button>
         <input type="hidden" name="pdp_show_fbt" value={pdpShowFbtOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_stock_count()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_stock_count()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpShowStockCountOn = !pdpShowStockCountOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpShowStockCountOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpShowStockCountOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpShowStockCountOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_show_stock_count" value={pdpShowStockCountOn ? 'true' : 'false'} />
       </div>
     </div>
 
