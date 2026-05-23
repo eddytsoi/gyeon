@@ -122,6 +122,11 @@
     display: grid;
     grid-template-columns: repeat(var(--photogrid-col, 2), minmax(0, 1fr));
     gap: var(--photogrid-gap, 8px);
+    /* Clip corner items to the wrapper's border so authors can apply
+       `class="rounded-2xl"` (or any rounded-*) and see the corners
+       actually round. Items never overflow the grid cells, so this
+       has no other visible effect. */
+    overflow: hidden;
   }
   .photo-grid__item {
     display: block;
