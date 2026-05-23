@@ -54,6 +54,14 @@ var publicSettingKeys = []string{
 	"pdp_taobao_layout_enabled",  // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
 	"social_media",               // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
 	"website_slogan",             // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
+	"pdp_show_specs_strip",       // storefront PDP toggle: dark-blue 4-points specs strip
+	"pdp_show_complete_set",      // storefront PDP toggle: "完成整套保護" related-products BundleComposer
+	"pdp_complete_set_kicker",    // storefront PDP override for the related-products kicker; empty falls back to i18n
+	"pdp_complete_set_heading",   // storefront PDP override for the related-products heading; empty falls back to i18n
+	"pdp_show_fbt",               // storefront PDP toggle: "其他客人都會買埋呢啲" frequently-bought-together BundleComposer
+	"pdp_fbt_kicker",             // storefront PDP override for the FBT kicker; empty falls back to i18n
+	"pdp_fbt_heading",            // storefront PDP override for the FBT heading; empty falls back to i18n
+	"pdp_content_layout",         // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

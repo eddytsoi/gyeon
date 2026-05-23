@@ -112,6 +112,25 @@
     data.variants.find((v) => v.id === selectedVariantID) ?? data.variants[0]
   );
 
+  // PDP section visibility / labels / layout — driven by site_settings
+  // (see migration 093). Defaults match prior hard-coded behavior so an
+  // uninitialised install keeps every section visible with i18n copy.
+  const pdpSettings = $derived<Record<string, string>>(
+    Object.fromEntries(
+      (page.data.publicSettings ?? []).map((s: { key: string; value: string }) => [s.key, s.value])
+    )
+  );
+  const showSpecsStrip = $derived(pdpSettings['pdp_show_specs_strip'] !== 'false');
+  const showCompleteSet = $derived(pdpSettings['pdp_show_complete_set'] !== 'false');
+  const showFbt = $derived(pdpSettings['pdp_show_fbt'] !== 'false');
+  const completeSetKicker = $derived(pdpSettings['pdp_complete_set_kicker'] || undefined);
+  const completeSetHeading = $derived(pdpSettings['pdp_complete_set_heading'] || undefined);
+  const fbtKicker = $derived(pdpSettings['pdp_fbt_kicker'] || undefined);
+  const fbtHeading = $derived(pdpSettings['pdp_fbt_heading'] || undefined);
+  const contentLayout = $derived(
+    pdpSettings['pdp_content_layout'] === 'nav-list' ? 'nav-list' : 'tabs'
+  );
+
   // SEO derivations (computed once per render)
   const seoOrigin = $derived(siteOrigin(page.data.publicSettings));
   const seoCanonical = $derived(`${seoOrigin}/products/${data.product.slug}`);
@@ -766,10 +785,9 @@
 
         <WishlistButton productID={data.product.id} variant="full" class="w-full sm:w-auto" />
 
-        <!-- Trust strip — three column promises -->
-        <ul class="grid grid-cols-3 gap-4 pt-6">
+        <!-- Trust strip — two column promises -->
+        <ul class="grid grid-cols-2 gap-4 pt-6">
           {#each [
-            { icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', label: m.product_detail_trust_genuine() },
             { icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', label: m.product_detail_trust_shipping() },
             { icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', label: m.product_detail_trust_returns() }
           ] as t}
@@ -791,6 +809,7 @@
 
 
 <!-- ── SPECS STRIP — gyeon-project-design-system §4.5 ──────────── -->
+{#if showSpecsStrip}
 <div class="bg-navy-900">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10">
@@ -828,6 +847,7 @@
     </div>
   </div>
 </div>
+{/if}
 
 <!-- ── HERO VIDEO (between specs strip and tabs) ──────────────── -->
 {#if data.product.video_id}
@@ -868,6 +888,7 @@
   <div class="bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
 
+      {#if contentLayout === 'tabs'}
       <!-- DESKTOP: horizontal tab strip with active navy underline -->
       <div class="hidden md:block">
         <div class="flex gap-0 border-b border-ink-300/60 mb-10" role="tablist" onkeydown={onTabKeydown}>
@@ -1020,6 +1041,86 @@
           </div>
         {/each}
       </div>
+      {:else}
+      <!-- NAV-LIST: top anchor nav + sections stacked vertically. Used on
+           both desktop and mobile (no accordion) so anchor links scroll to
+           the relevant section in document order. -->
+      <nav class="flex flex-wrap gap-0 border-b border-ink-300/60 mb-10"
+           aria-label={m.product_detail_sections_nav_label()}>
+        {#each availableTabs as id}
+          <a href="#pdp-section-{id}"
+             class="relative px-6 py-4 font-display text-sm font-bold uppercase tracking-[0.12em]
+                    text-ink-500 hover:text-navy-900 transition-colors
+                    after:absolute after:left-0 after:right-0 after:-bottom-px after:h-0.5
+                    after:bg-navy-500 after:scale-x-0 hover:after:scale-x-100
+                    after:transition-transform after:duration-300 after:ease-gy after:origin-center">
+            {tabLabels[id]}
+          </a>
+        {/each}
+      </nav>
+
+      {#each availableTabs as id}
+        <section id="pdp-section-{id}" class="scroll-mt-24 mb-16 last:mb-0">
+          <h3 class="font-display text-xl md:text-2xl font-bold uppercase tracking-[0.12em] text-navy-900 mb-6">
+            {tabLabels[id]}
+          </h3>
+          {#if id === 'content'}
+            <div class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
+              {#if data.product.banner_1_url}
+                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
+                  <img
+                    src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
+                    alt=""
+                    class="w-full h-auto rounded-lg"
+                    loading="lazy"
+                  />
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                    <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
+                  </div>
+                </div>
+              {:else}
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
+                </div>
+              {/if}
+            </div>
+          {:else if id === 'howto'}
+            <div class={data.product.banner_2_url ? '' : 'max-w-2xl'}>
+              {#if data.product.banner_2_url}
+                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
+                  <img
+                    src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
+                    alt=""
+                    class="w-full h-auto rounded-lg"
+                    loading="lazy"
+                  />
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                    <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
+                  </div>
+                </div>
+              {:else}
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
+                </div>
+              {/if}
+            </div>
+          {:else if id === 'surfaces'}
+            <div class="grid grid-cols-3 lg:grid-cols-6 gap-3">
+              {#each allSurfaces.filter(s => selected.has(s.key)) as surface}
+                <div class="flex flex-col items-center gap-3 p-5 rounded-lg border border-ink-300/60 hover:border-navy-500 hover:bg-paper transition-colors">
+                  <div class="w-10 h-10 rounded-md bg-navy-500 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d={surface.icon} />
+                    </svg>
+                  </div>
+                  <span class="font-display text-sm font-semibold text-ink-900 text-center">{surface.name}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/each}
+      {/if}
     </div>
   </div>
 {/if}
@@ -1045,14 +1146,20 @@
 {/if}
 
 <!-- ── BUNDLE COMPOSER (replaces flat related row, §4.7) ───────── -->
-<BundleComposer items={data.related} />
+{#if showCompleteSet}
+  <BundleComposer
+    items={data.related}
+    kicker={completeSetKicker}
+    heading={completeSetHeading}
+  />
+{/if}
 
 <!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->
-{#if data.frequentlyBoughtTogether.length > 0}
+{#if showFbt && data.frequentlyBoughtTogether.length > 0}
   <BundleComposer
     items={data.frequentlyBoughtTogether}
-    kicker={m.product_detail_fbt_kicker()}
-    heading={m.product_detail_fbt_heading()}
+    kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
+    heading={fbtHeading ?? m.product_detail_fbt_heading()}
   />
 {/if}
 
