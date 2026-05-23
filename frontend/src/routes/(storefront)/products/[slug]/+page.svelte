@@ -108,6 +108,50 @@
     tabButtons[next]?.focus();
   }
 
+  // Smooth-scroll the page to a section anchor used by the nav-list layout.
+  // Duration scales sub-linearly with distance (sqrt curve, clamped) so short
+  // hops feel snappy and long jumps don't drag. Respects prefers-reduced-motion.
+  function smoothScrollToSection(event: MouseEvent, sectionId: string) {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    event.preventDefault();
+
+    // Match the section's `scroll-mt-24` (24 × 4 = 96 px) so the heading
+    // lands below any sticky chrome instead of being clipped at the top.
+    const OFFSET_PX = 96;
+    const startY = window.scrollY;
+    const targetY = Math.max(0, target.getBoundingClientRect().top + startY - OFFSET_PX);
+    const distance = Math.abs(targetY - startY);
+
+    const reduceMotion =
+      typeof matchMedia === 'function' &&
+      matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion || distance < 4) {
+      window.scrollTo(0, targetY);
+      history.replaceState(null, '', `#${sectionId}`);
+      return;
+    }
+
+    // Sub-linear duration curve: distance 100 px → 280 ms (min); 1000 px →
+    // ~570 ms; 3000 px+ → 900 ms (cap). Tuned so the perceived speed feels
+    // consistent regardless of how much content sits between sections.
+    const duration = Math.min(900, Math.max(280, Math.sqrt(distance) * 18));
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const start = performance.now();
+    function step(now: number) {
+      const t = Math.min(1, (now - start) / duration);
+      window.scrollTo(0, startY + (targetY - startY) * easeInOutCubic(t));
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        history.replaceState(null, '', `#${sectionId}`);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
   const selectedVariant = $derived(
     data.variants.find((v) => v.id === selectedVariantID) ?? data.variants[0]
   );
@@ -1049,6 +1093,7 @@
            aria-label={m.product_detail_sections_nav_label()}>
         {#each availableTabs as id}
           <a href="#pdp-section-{id}"
+             onclick={(e) => smoothScrollToSection(e, `pdp-section-${id}`)}
              class="relative px-6 py-4 font-display text-sm font-bold uppercase tracking-[0.12em]
                     text-ink-500 hover:text-navy-900 transition-colors
                     after:absolute after:left-0 after:right-0 after:-bottom-px after:h-0.5
