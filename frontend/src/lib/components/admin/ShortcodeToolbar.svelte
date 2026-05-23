@@ -42,6 +42,12 @@
       label: m.admin_shortcode_insert_video,
       snippet:
         '[video source="https://www.youtube.com/watch?v=YOUR_VIDEO_ID" aspect-ratio="1.78"]'
+    },
+    {
+      name: 'photo-grid',
+      label: m.admin_shortcode_insert_photo_grid,
+      snippet:
+        '[photo-grid source="photo-1.jpg,photo-2.jpg,photo-3.jpg,photo-4.jpg" col="2" gap="8px"]'
     }
   ];
 

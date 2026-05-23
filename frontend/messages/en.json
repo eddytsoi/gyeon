@@ -1156,6 +1156,7 @@
   "admin_shortcode_insert_section_split": "Split section",
   "admin_shortcode_insert_banner": "Banner",
   "admin_shortcode_insert_video": "Video",
+  "admin_shortcode_insert_photo_grid": "Photo grid",
 
   "admin_cms_post_edit_new_title": "New Post — Gyeon Admin",
   "admin_cms_post_edit_edit_title": "Edit Post '{title}' — Gyeon Admin",
