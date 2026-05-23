@@ -2483,6 +2483,9 @@ func (s *ProductService) AddBundleItem(ctx context.Context, productID string, in
 	}
 
 	s.cache.DeleteByPrefix(productPrefix)
+	// FBT excludes this bundle's components; if the component set just changed,
+	// the cached FBT rows for this bundle are stale.
+	s.cache.DeleteByPrefix(fbtCachePrefix + productID + ":")
 	s.record(ctx, "product.bundle_item.upsert", "product_bundle_item", bi.ID, nil, bi)
 	return &bi, nil
 }
@@ -2502,6 +2505,7 @@ func (s *ProductService) RemoveBundleItem(ctx context.Context, productID, compon
 		return errProductNotFound
 	}
 	s.cache.DeleteByPrefix(productPrefix)
+	s.cache.DeleteByPrefix(fbtCachePrefix + productID + ":")
 	s.record(ctx, "product.bundle_item.delete", "product_bundle_item",
 		productID+":"+componentVariantID, nil, nil)
 	return nil
@@ -2563,6 +2567,7 @@ func (s *ProductService) SetBundleItems(ctx context.Context, productID string, i
 	}
 
 	s.cache.DeleteByPrefix(productPrefix)
+	s.cache.DeleteByPrefix(fbtCachePrefix + productID + ":")
 	after, err := s.GetBundleItems(ctx, productID)
 	if err != nil {
 		return nil, err
@@ -2700,6 +2705,16 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	wheres := []string{
 		"p.status = 'active'",
 		"(p.kind = 'bundle' OR (defv.id IS NOT NULL AND defv.stock_qty > 0))",
+		// When the source product is a bundle, hide its own component products
+		// from the row — customers already get those inside the bundle and seeing
+		// them recommended underneath is confusing. For non-bundle sources the
+		// sub-select is empty so behaviour is unchanged.
+		`p.id NOT IN (
+		    SELECT pv.product_id
+		    FROM bundle_items bi
+		    JOIN product_variants pv ON pv.id = bi.component_variant_id
+		    WHERE bi.bundle_product_id = $3
+		)`,
 	}
 	var hiddenRaw string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
@@ -2782,8 +2797,138 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 		purchasable = append(purchasable, p)
 	}
 	products = purchasable
+
+	// Fallback: when the PDP is a bundle and copurchase data isn't enough to
+	// fill the row, top up with same-category active products so the section
+	// always shows `limit` items. Non-bundle PDPs keep their historical
+	// behaviour (short rows are fine — they reflect real copurchase signal).
+	if len(products) < limit {
+		extras, err := s.fbtBundleFallback(ctx, productID, locale, limit-len(products), products)
+		if err == nil && len(extras) > 0 {
+			products = append(products, extras...)
+		}
+	}
+
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
+}
+
+// fbtBundleFallback returns up to `need` extra products from the same category
+// as `productID`, used to pad the FBT row when a bundle's copurchase data is
+// too thin after excluding its own components. Returns no rows for non-bundle
+// products. The query mirrors the main FBT shape (active, purchasable, hidden-
+// category filtered, bundle exclusion of the source) so the appended items are
+// indistinguishable from a real copurchase row downstream. Ordered by
+// `created_at DESC` as the closest proxy for "hot / recent" in the absence of
+// a real bestsellers query.
+func (s *ProductService) fbtBundleFallback(ctx context.Context, productID, locale string, need int, existing []ProductWithMeta) ([]ProductWithMeta, error) {
+	if need <= 0 {
+		return nil, nil
+	}
+	var kind string
+	var categoryID sql.NullString
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT kind, category_id FROM products WHERE id = $1`, productID).
+		Scan(&kind, &categoryID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if kind != "bundle" || !categoryID.Valid {
+		return nil, nil
+	}
+
+	excludeIDs := make([]string, 0, len(existing)+1)
+	excludeIDs = append(excludeIDs, productID)
+	for _, p := range existing {
+		excludeIDs = append(excludeIDs, p.ID)
+	}
+
+	args := []any{locale, need, productID, categoryID.String, pq.Array(excludeIDs)}
+	wheres := []string{
+		"p.status = 'active'",
+		"p.category_id = $4",
+		"p.id <> ALL($5)",
+		"(p.kind = 'bundle' OR (defv.id IS NOT NULL AND defv.stock_qty > 0))",
+		`p.id NOT IN (
+		    SELECT pv.product_id
+		    FROM bundle_items bi
+		    JOIN product_variants pv ON pv.id = bi.component_variant_id
+		    WHERE bi.bundle_product_id = $3
+		)`,
+	}
+	wheres, args, _ = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	where := strings.Join(wheres, " AND ")
+
+	query := `
+		SELECT p.id, p.number, p.category_id, p.slug,
+		       COALESCE(t.name,        p.name)        AS name,
+		       COALESCE(t.subtitle,    p.subtitle)    AS subtitle,
+		       p.excerpt,
+		       COALESCE(t.description, p.description) AS description,
+		       p.how_to_use, p.compatible_surfaces,
+		       p.status, p.kind, p.created_at, p.updated_at,
+		       (SELECT COUNT(*) FROM product_variants pv
+		        WHERE pv.product_id = p.id AND pv.is_active = TRUE) AS variant_count,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = p.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS primary_image_url,
+		       defv.id   AS default_variant_id,
+		       defv.price AS default_variant_price,
+		       defv.compare_at_price AS default_variant_compare_at_price,
+		       defv.stock_qty AS default_variant_stock_qty,
+		       defv.name AS default_variant_name
+		FROM products p` + productTranslationJoin + `
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
+		WHERE ` + where + `
+		ORDER BY p.created_at DESC
+		LIMIT $2`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	extras := make([]ProductWithMeta, 0, need)
+	for rows.Next() {
+		var pm ProductWithMeta
+		if err := rows.Scan(
+			&pm.ID, &pm.Number, &pm.CategoryID, &pm.Slug, &pm.Name, &pm.Subtitle,
+			&pm.Excerpt, &pm.Description, &pm.HowToUse, pq.Array(&pm.CompatibleSurfaces),
+			&pm.Status, &pm.Kind, &pm.CreatedAt, &pm.UpdatedAt,
+			&pm.VariantCount, &pm.PrimaryImageURL, &pm.DefaultVariantID,
+			&pm.DefaultVariantPrice, &pm.DefaultVariantCompareAtPrice,
+			&pm.DefaultVariantStockQty, &pm.DefaultVariantName,
+		); err != nil {
+			return nil, err
+		}
+		extras = append(extras, pm)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.overrideBundleStock(ctx, extras)
+	purchasable := extras[:0]
+	for _, p := range extras {
+		if p.Kind == "bundle" && (p.DefaultVariantStockQty == nil || *p.DefaultVariantStockQty <= 0) {
+			continue
+		}
+		purchasable = append(purchasable, p)
+	}
+	return purchasable, nil
 }
 
 // RebuildCopurchase replaces every row in product_copurchase with a fresh
