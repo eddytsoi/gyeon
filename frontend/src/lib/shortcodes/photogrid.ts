@@ -62,11 +62,16 @@ export function parseSourceList(v: unknown): string[] {
   return v.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-// Bare media name ("photo.jpg") → "/uploads/photo.jpg" so buildResponsiveAttrs
-// can rewrite it into a srcset. Absolute paths and full URLs pass through
-// unchanged.
-export function resolveMediaSrc(name: string): string {
-  if (!name) return '';
-  if (/^https?:\/\//i.test(name) || name.startsWith('/')) return name;
-  return `/uploads/${name}`;
+// Resolve a single `source` token to a /uploads/... URL. Tokens that already
+// look like a path or URL pass through verbatim (so authors can paste output
+// from the admin Media picker). Bare strings are treated as
+// media_files.original_name and looked up in the server-resolved refs map;
+// returns '' when there's no match so the caller can omit the slot.
+export function resolveSourceToken(
+  token: string,
+  mediaByName: Record<string, string>
+): string {
+  if (!token) return '';
+  if (token.startsWith('/') || /^https?:\/\//i.test(token)) return token;
+  return mediaByName[token] ?? '';
 }

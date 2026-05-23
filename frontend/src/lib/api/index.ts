@@ -295,6 +295,18 @@ export const getCmsPageBySlug = (slug: string) =>
 export const getCmsPageByID = (id: string) =>
   request<CmsPage>(`/cms/pages/by-id/${id}`);
 
+// Resolve a batch of media_files.original_name values to their canonical
+// /uploads/... URLs. Backs the [photo-grid] shortcode's server-side
+// resolve step. Unknown names are simply absent from the returned map;
+// an empty input skips the network call entirely.
+export const lookupMediaByNames = async (
+  names: string[]
+): Promise<Record<string, string>> => {
+  if (names.length === 0) return {};
+  const qs = new URLSearchParams({ names: names.join(',') });
+  return request<Record<string, string>>(`/media/by-names?${qs.toString()}`);
+};
+
 // Forms (CF7-style). getPublicForm fetches the public form spec (no admin
 // fields like mail templates); submitForm posts the user's data + grecaptcha
 // token to the backend.

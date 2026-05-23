@@ -4,7 +4,8 @@ import {
   getProductVariants,
   getProducts,
   getProductsByCategorySlug,
-  getPublicForm
+  getPublicForm,
+  lookupMediaByNames
 } from '$lib/api';
 import type { ShortcodeRefs, ShortcodeProductRef, PublicForm } from './types';
 import type { ShortcodeRefScan } from './scan';
@@ -100,5 +101,13 @@ export async function resolveShortcodeRefs(scan: ShortcodeRefScan): Promise<Shor
     });
   }
 
-  return { products, productsByNumber, productsByCategory, forms };
+  // 7. Resolve [photo-grid] media-name references in one bulk call. Names
+  //    that don't exist in media_files are simply absent from the map; the
+  //    component skips those slots without 500ing the page.
+  let mediaByName: Record<string, string> = {};
+  if (scan.mediaNames.length > 0) {
+    mediaByName = await lookupMediaByNames(scan.mediaNames).catch(() => ({}));
+  }
+
+  return { products, productsByNumber, productsByCategory, forms, mediaByName };
 }

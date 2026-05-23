@@ -8,11 +8,11 @@
     resolveGap,
     resolveGapBreakpoint,
     parseSourceList,
-    resolveMediaSrc
+    resolveSourceToken
   } from '$lib/shortcodes/photogrid';
-  import type { ShortcodeAttrs } from '$lib/shortcodes/types';
+  import { EMPTY_REFS, type ShortcodeAttrs, type ShortcodeRefs } from '$lib/shortcodes/types';
 
-  let { attrs }: { attrs: ShortcodeAttrs } = $props();
+  let { attrs, refs = EMPTY_REFS }: { attrs: ShortcodeAttrs; refs?: ShortcodeRefs } = $props();
 
   function warnIfBad(key: string, raw: string | undefined, resolved: unknown) {
     if (import.meta.env.DEV && raw !== undefined && raw !== '' && String(resolved) !== raw) {
@@ -21,9 +21,21 @@
     }
   }
 
-  const names = $derived(parseSourceList(attrs.source));
+  const tokens = $derived(parseSourceList(attrs.source));
   const items = $derived(
-    names.map((name) => ({ name, ...buildResponsiveAttrs(resolveMediaSrc(name)) }))
+    tokens
+      .map((token) => {
+        const url = resolveSourceToken(token, refs.mediaByName);
+        if (!url) {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn(`[photo-grid] unresolved source token "${token}" — no matching media_files.original_name`);
+          }
+          return null;
+        }
+        return { token, ...buildResponsiveAttrs(url) };
+      })
+      .filter((x): x is { token: string; src: string; srcset: string } => x !== null)
   );
 
   const bleed = $derived(resolveBleed(attrs.bleed));

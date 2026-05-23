@@ -6,7 +6,15 @@ export type ShortcodeRefScan = {
   productNumbers: number[];
   categorySlugs: string[];
   formSlugs: string[];
+  mediaNames: string[];
 };
+
+// Tokens that already look like a URL/path bypass the media-by-name lookup —
+// the [photo-grid] component will use them verbatim. Keeps backward compat
+// with authors who paste a /uploads/... path from the admin Media picker.
+function isUrlLikeMediaToken(token: string): boolean {
+  return token.startsWith('/') || /^https?:\/\//i.test(token);
+}
 
 function splitCsv(s: string | undefined): string[] {
   if (!s) return [];
@@ -23,6 +31,7 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
   const formSlugs = new Set<string>();
+  const mediaNames = new Set<string>();
 
   function walk(src: string | undefined | null) {
     const chunks = parseShortcodes(src);
@@ -48,6 +57,12 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
         formSlugs.add(c.attrs.id);
       }
 
+      if (c.name === 'photo-grid' && c.attrs.source) {
+        for (const token of splitCsv(c.attrs.source)) {
+          if (!isUrlLikeMediaToken(token)) mediaNames.add(token);
+        }
+      }
+
       if (c.body) walk(c.body);
     }
   }
@@ -58,7 +73,8 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
     categorySlugs: [...categorySlugs],
-    formSlugs: [...formSlugs]
+    formSlugs: [...formSlugs],
+    mediaNames: [...mediaNames]
   };
 }
 
@@ -68,17 +84,20 @@ export function scanShortcodeRefsMany(...mds: (string | undefined | null)[]): Sh
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
   const formSlugs = new Set<string>();
+  const mediaNames = new Set<string>();
   for (const md of mds) {
     const s = scanShortcodeRefs(md);
     for (const id of s.productIDs) productIDs.add(id);
     for (const n of s.productNumbers) productNumbers.add(n);
     for (const slug of s.categorySlugs) categorySlugs.add(slug);
     for (const slug of s.formSlugs) formSlugs.add(slug);
+    for (const name of s.mediaNames) mediaNames.add(name);
   }
   return {
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
     categorySlugs: [...categorySlugs],
-    formSlugs: [...formSlugs]
+    formSlugs: [...formSlugs],
+    mediaNames: [...mediaNames]
   };
 }
