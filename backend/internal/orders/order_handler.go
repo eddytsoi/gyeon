@@ -46,6 +46,7 @@ func (h *OrderHandler) PublicRoutes() chi.Router {
 func (h *OrderHandler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
+	r.Get("/carriers", h.listCarriers)
 	r.Post("/", h.adminCreate)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
@@ -221,6 +222,35 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 		f.HasUnread = true
 	}
 
+	// `role` is a comma-separated list (customer, installer). Unknown values
+	// are silently dropped — mirrors the status param contract.
+	if raw := q.Get("role"); raw != "" {
+		for _, s := range strings.Split(raw, ",") {
+			s = strings.TrimSpace(s)
+			if s == "customer" || s == "installer" {
+				f.Roles = append(f.Roles, s)
+			}
+		}
+	}
+
+	if raw := q.Get("carrier"); raw != "" {
+		f.Carrier = raw
+	}
+
+	switch q.Get("pickup") {
+	case "1", "true":
+		t := true
+		f.HasPickup = &t
+	case "0", "false":
+		fl := false
+		f.HasPickup = &fl
+	}
+
+	switch q.Get("has_notes") {
+	case "1", "true":
+		f.HasNotes = true
+	}
+
 	orders, total, err := h.svc.List(r.Context(), f, limit, offset)
 	if err != nil {
 		respond.InternalError(w)
@@ -230,6 +260,18 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 		"items": orders,
 		"total": total,
 	})
+}
+
+// listCarriers returns distinct selected_carrier values across all orders,
+// sorted by frequency. Used to populate the carrier filter dropdown in the
+// admin orders list without hardcoding the carrier set on the frontend.
+func (h *OrderHandler) listCarriers(w http.ResponseWriter, r *http.Request) {
+	carriers, err := h.svc.ListCarriers(r.Context())
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, carriers)
 }
 
 func isKnownStatus(s string) bool {

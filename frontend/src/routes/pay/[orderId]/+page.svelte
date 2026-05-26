@@ -68,7 +68,7 @@
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
   <h1 class="text-3xl font-bold text-gray-900 mb-2">{m.pay_heading()}</h1>
   <p class="text-sm text-gray-500 mb-8">
-    {m.pay_order_number_label()}<span class="font-mono text-gray-900">{order.id.slice(0, 8)}</span>
+    {m.pay_order_number_label()}<span class="font-mono text-gray-900">{order.order_number || `ORD-${order.number}`}</span>
   </p>
 
   <div class="flex flex-col gap-6">

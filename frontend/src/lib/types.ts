@@ -237,6 +237,7 @@ export interface Order {
   pickup_point_label?: string;
   items: OrderItem[];
   items_count?: number;
+  customer_role?: string;
   created_at: string;
 }
 

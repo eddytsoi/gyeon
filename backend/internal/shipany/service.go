@@ -265,7 +265,7 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 	created, err := s.client.CreateShipment(ctx, CreateShipmentRequest{
 		Carrier:        carrier,
 		Service:        service,
-		OrderRef:       fmt.Sprintf("ORD-%d", order.Number),
+		OrderRef:       order.OrderNumber,
 		ExtOrderID:     orderID,
 		Origin:         s.originAddress(ctx),
 		Destination:    dest,

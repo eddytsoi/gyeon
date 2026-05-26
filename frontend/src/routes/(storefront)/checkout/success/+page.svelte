@@ -57,7 +57,7 @@
     </div>
     <h1 class="text-3xl font-bold text-gray-900 mb-2">{m.checkout_success_heading()}</h1>
     <p class="text-gray-500">
-      {@html m.checkout_success_body({ orderNumber: `<strong class="text-gray-900">#${data.order.order_number || `ORD-${data.order.number}`}</strong>` })}
+      {@html m.checkout_success_body({ orderNumber: `<strong class="text-gray-900">${data.order.order_number || `ORD-${data.order.number}`}</strong>` })}
     </p>
   </div>
 
