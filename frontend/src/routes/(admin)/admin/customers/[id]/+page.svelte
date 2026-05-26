@@ -140,7 +140,7 @@
         </div>
         <SaveButton
           loading={savingRole}
-          class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+          class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
         >
           {m.admin_customer_role_save()}
         </SaveButton>

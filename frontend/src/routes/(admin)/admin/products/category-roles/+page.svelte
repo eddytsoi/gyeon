@@ -103,7 +103,11 @@
     use:enhance={() => {
       saving = true;
       return async ({ update }) => {
-        await update();
+        // reset:false → don't call form.reset() after the action. The default
+        // would blank every checkbox in the form to its initial DOM state,
+        // and Svelte's one-way checked={...} binding wouldn't re-sync because
+        // the underlying state values didn't change.
+        await update({ reset: false });
         saving = false;
       };
     }}
