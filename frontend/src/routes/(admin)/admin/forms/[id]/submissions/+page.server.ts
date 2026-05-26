@@ -2,6 +2,7 @@ import {
   adminGetForm,
   adminListFormSubmissions,
   adminDeleteFormSubmission,
+  adminImportFormSubmissions,
   type AdminForm,
   type FormSubmissionRow
 } from '$lib/api/admin';
@@ -34,5 +35,20 @@ export const actions: Actions = {
       return fail(500, { error: 'Failed to delete submission' });
     }
     return { ok: true };
+  },
+
+  import: async ({ request, params, cookies }) => {
+    const token = cookies.get('admin_token') ?? '';
+    const data = await request.formData();
+    const file = data.get('file') as File | null;
+    if (!file || file.size === 0) {
+      return fail(400, { importError: 'no file' });
+    }
+    try {
+      const result = await adminImportFormSubmissions(token, params.id, file);
+      return { importResult: result };
+    } catch (err) {
+      return fail(500, { importError: err instanceof Error ? err.message : 'Import failed' });
+    }
   }
 };

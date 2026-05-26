@@ -43,6 +43,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 
 	r.Get("/{id}/submissions", h.listSubmissions)
 	r.Get("/{id}/submissions.csv", h.exportSubmissionsCSV)
+	r.Post("/{id}/submissions/import", h.importSubmissions)
 	r.Get("/submissions/{sid}", h.getSubmission)
 	r.Delete("/submissions/{sid}", h.deleteSubmission)
 	r.Get("/submissions/{sid}/files/{fid}", h.downloadSubmissionFile)
@@ -324,6 +325,47 @@ func (h *Handler) exportSubmissionsCSV(w http.ResponseWriter, r *http.Request) {
 		_ = cw.Write(row)
 	}
 	cw.Flush()
+}
+
+// importSubmissions reads an uploaded CSV and bulk-creates form_submissions
+// rows for it, downloading any URL-valued file columns into the usual
+// uploads/forms/<sid>/ folder. Best-effort: per-row errors are returned in
+// the body alongside the success count, never as HTTP failure.
+func (h *Handler) importSubmissions(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// Same body ceiling as the live submit path — generous enough for a
+	// large CSV but not so large that a malicious upload fills the disk
+	// before the per-file cap kicks in inside the importer.
+	maxBody := h.svc.uploadHardCapBytes(r.Context()) * 8
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		respond.BadRequest(w, "could not parse multipart form")
+		return
+	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
+
+	fh, _, err := r.FormFile("file")
+	if err != nil {
+		respond.BadRequest(w, "missing 'file' field")
+		return
+	}
+	defer fh.Close()
+
+	result, err := h.svc.ImportSubmissions(r.Context(), id, fh)
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) getSubmission(w http.ResponseWriter, r *http.Request) {

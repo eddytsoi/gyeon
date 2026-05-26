@@ -1261,6 +1261,34 @@ export const adminDeleteFormSubmission = (token: string, sid: string) =>
 // blob and trigger a download via createObjectURL.
 export const adminFormSubmissionsCsvURL = (id: string) => `/admin/forms/${id}/submissions.csv`;
 
+export interface FormImportResult {
+  imported: number;
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+// adminImportFormSubmissions posts a CSV file as multipart/form-data. The
+// server treats the result as a success even when individual rows are
+// skipped — the count + errors live in the response body.
+export const adminImportFormSubmissions = async (
+  token: string,
+  id: string,
+  file: File
+): Promise<FormImportResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/forms/${id}/submissions/import`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
 // ── Stock Management (mutations) ─────────────────────────────────────────────
 
 export type StockMutationType = 'in' | 'out';

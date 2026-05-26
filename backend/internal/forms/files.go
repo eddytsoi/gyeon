@@ -1,9 +1,12 @@
 package forms
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,6 +82,96 @@ func saveSubmissionFile(submissionID string, u UploadedFile) (*storedFile, error
 	return &storedFile{
 		FieldName:    u.FieldName,
 		OriginalName: u.Header.Filename,
+		StoredPath:   dst,
+		StoredName:   name,
+		MimeType:     mime,
+		Size:         n,
+	}, nil
+}
+
+// importHTTPClient is the package-local HTTP client used by the CSV importer
+// to pull attachment URLs. 30s mirrors media.Service so behaviour is
+// consistent across upload paths.
+var importHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+// saveSubmissionFileFromURL fetches srcURL into the on-disk submission
+// folder and returns a storedFile the caller persists into the DB. Naming
+// matches saveSubmissionFile (`<unixNano>_<sanitized>.<ext>`) so admins
+// can't tell apart imported vs. live uploads by looking at the directory.
+//
+// `hardCap` caps the read at hardCap+1 bytes via http.MaxBytesReader; a
+// runaway response is truncated and returns an error so we never let a
+// single URL fill the disk.
+func saveSubmissionFileFromURL(ctx context.Context, submissionID, srcURL string, hardCap int64) (*storedFile, error) {
+	srcURL = strings.TrimSpace(srcURL)
+	if srcURL == "" {
+		return nil, fmt.Errorf("empty url")
+	}
+	u, err := url.Parse(srcURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, fmt.Errorf("invalid url %q", srcURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	resp, err := importHTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s: %w", srcURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch %s: status %d", srcURL, resp.StatusCode)
+	}
+
+	dir := filepath.Join(uploadsRoot, submissionID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("mkdir submission dir: %w", err)
+	}
+
+	// Derive a basename from the URL path; fall back to "file" if the
+	// path has none (e.g. `https://example.com/?id=42`).
+	urlBase := filepath.Base(u.Path)
+	if urlBase == "" || urlBase == "/" || urlBase == "." {
+		urlBase = "file"
+	}
+	name := timestampedName(urlBase)
+	dst := filepath.Join(dir, name)
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return nil, fmt.Errorf("create %q: %w", dst, err)
+	}
+
+	// Cap at hardCap+1 so the read errors when the body exceeds the cap,
+	// rather than silently truncating.
+	limited := io.LimitReader(resp.Body, hardCap+1)
+	n, copyErr := io.Copy(out, limited)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(dst)
+		return nil, fmt.Errorf("write %q: %w", dst, copyErr)
+	}
+	if closeErr != nil {
+		_ = os.Remove(dst)
+		return nil, fmt.Errorf("close %q: %w", dst, closeErr)
+	}
+	if n > hardCap {
+		_ = os.Remove(dst)
+		return nil, fmt.Errorf("file from %s exceeds cap (%d bytes)", srcURL, hardCap)
+	}
+
+	mime := resp.Header.Get("Content-Type")
+	if idx := strings.Index(mime, ";"); idx != -1 {
+		mime = strings.TrimSpace(mime[:idx])
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+
+	return &storedFile{
+		OriginalName: urlBase,
 		StoredPath:   dst,
 		StoredName:   name,
 		MimeType:     mime,
