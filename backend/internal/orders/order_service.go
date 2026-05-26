@@ -68,6 +68,8 @@ type Order struct {
 	PickupPointID     *string          `json:"pickup_point_id,omitempty"`
 	PickupPointLabel  *string          `json:"pickup_point_label,omitempty"`
 	Items             []OrderItem      `json:"items,omitempty"`
+	ItemsCount        *int             `json:"items_count,omitempty"`
+	CustomerRole      *string          `json:"customer_role,omitempty"`
 	CreatedAt         string           `json:"created_at"`
 	UpdatedAt         string           `json:"updated_at"`
 }
@@ -1697,6 +1699,10 @@ type ListFilters struct {
 	From      *time.Time    // inclusive lower bound on created_at
 	To        *time.Time    // exclusive upper bound on created_at (caller passes start-of-day-after to make a calendar-day range inclusive)
 	HasUnread bool          // only orders with at least one unread customer notice
+	Roles     []string      // OR — customers.role IN (...); empty = any
+	Carrier   string        // exact match on orders.selected_carrier
+	HasPickup *bool         // nil = ignore; true = pickup_point_id IS NOT NULL; false = IS NULL
+	HasNotes  bool          // true = notes IS NOT NULL AND notes <> ''
 }
 
 var orderSearchFields = []string{"COALESCE(order_number, '')", "COALESCE(customer_name, '')", "COALESCE(customer_email, '')", "COALESCE(customer_phone, '')"}
@@ -1730,24 +1736,49 @@ func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset in
 		// as "unread admin attention required".
 		conds = append(conds, `EXISTS (SELECT 1 FROM order_notices n WHERE n.order_id = orders.id AND n.role = 'customer' AND n.read_at IS NULL)`)
 	}
+	if len(f.Roles) > 0 {
+		conds = append(conds, fmt.Sprintf("c.role::text = ANY($%d::text[])", len(args)+1))
+		args = append(args, pq.Array(f.Roles))
+	}
+	if f.Carrier != "" {
+		conds = append(conds, fmt.Sprintf("orders.selected_carrier = $%d", len(args)+1))
+		args = append(args, f.Carrier)
+	}
+	if f.HasPickup != nil {
+		if *f.HasPickup {
+			conds = append(conds, "orders.pickup_point_id IS NOT NULL")
+		} else {
+			conds = append(conds, "orders.pickup_point_id IS NULL")
+		}
+	}
+	if f.HasNotes {
+		conds = append(conds, "orders.notes IS NOT NULL AND orders.notes <> ''")
+	}
 
 	whereSQL := ""
 	if len(conds) > 0 {
 		whereSQL = " WHERE " + strings.Join(conds, " AND ")
 	}
 
+	fromSQL := " FROM orders LEFT JOIN customers c ON c.id = orders.customer_id"
+
 	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders`+whereSQL, args...).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*)`+fromSQL+whereSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	listArgs := append(append([]any{}, args...), limit, offset)
 	limitIdx := len(args) + 1
 	offsetIdx := len(args) + 2
-	query := `SELECT id, number, COALESCE(order_number, ''), customer_id, status, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total,
-		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status,
-		        created_at, updated_at
-		 FROM orders` + whereSQL + fmt.Sprintf(` ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
+	query := `SELECT orders.id, orders.number, COALESCE(orders.order_number, ''), orders.customer_id, orders.status,
+		        orders.subtotal, orders.shipping_fee, orders.shipping_free, orders.discount_amount, orders.tax_amount, orders.total,
+		        orders.customer_email, orders.customer_phone, orders.customer_name, orders.payment_intent_id, orders.payment_status,
+		        orders.notes, orders.selected_carrier, orders.selected_service, orders.pickup_point_id, orders.pickup_point_label,
+		        orders.refund_amount, orders.refunded_at,
+		        c.role,
+		        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = orders.id AND oi.parent_item_id IS NULL) AS items_count,
+		        orders.created_at, orders.updated_at` +
+		fromSQL + whereSQL + fmt.Sprintf(` ORDER BY orders.created_at DESC LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
 
 	rows, err := s.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
@@ -1758,14 +1789,51 @@ func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset in
 	orders := make([]Order, 0)
 	for rows.Next() {
 		var o Order
-		rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status, &o.Subtotal,
-			&o.ShippingFee, &o.ShippingFree, &o.DiscountAmount, &o.TaxAmount, &o.Total,
-			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName,
-			&o.PaymentIntentID, &o.PaymentStatus,
-			&o.CreatedAt, &o.UpdatedAt)
+		if err := rows.Scan(&o.ID, &o.Number, &o.OrderNumber, &o.CustomerID, &o.Status,
+			&o.Subtotal, &o.ShippingFee, &o.ShippingFree, &o.DiscountAmount, &o.TaxAmount, &o.Total,
+			&o.CustomerEmail, &o.CustomerPhone, &o.CustomerName, &o.PaymentIntentID, &o.PaymentStatus,
+			&o.Notes, &o.SelectedCarrier, &o.SelectedService, &o.PickupPointID, &o.PickupPointLabel,
+			&o.RefundAmount, &o.RefundedAt,
+			&o.CustomerRole,
+			&o.ItemsCount,
+			&o.CreatedAt, &o.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
 		orders = append(orders, o)
 	}
 	return orders, total, rows.Err()
+}
+
+// CarrierOption is one entry in the carrier-filter dropdown.
+type CarrierOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+// ListCarriers returns the distinct, non-empty selected_carrier values across
+// all orders, sorted by frequency descending. Used to populate the admin
+// orders list carrier filter without hardcoding the carrier set on the client.
+func (s *OrderService) ListCarriers(ctx context.Context) ([]CarrierOption, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT selected_carrier, COUNT(*) FROM orders
+		  WHERE selected_carrier IS NOT NULL AND selected_carrier <> ''
+		  GROUP BY selected_carrier
+		  ORDER BY COUNT(*) DESC, selected_carrier ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]CarrierOption, 0)
+	for rows.Next() {
+		var c CarrierOption
+		if err := rows.Scan(&c.Value, &c.Count); err != nil {
+			return nil, err
+		}
+		c.Label = c.Value
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // GetIDByNumber resolves a sequential display number to its UUID.

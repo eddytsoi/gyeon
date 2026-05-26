@@ -21,6 +21,7 @@ type InventoryHistoryRow struct {
 	ActorID         *string `json:"actor_user_id,omitempty"`
 	ActorEmail      *string `json:"actor_email,omitempty"`
 	OrderID         *string `json:"order_id,omitempty"`
+	OrderNumber     *string `json:"order_number,omitempty"`
 	StockMutationID *string `json:"stock_mutation_id,omitempty"`
 	Note            *string `json:"note,omitempty"`
 	CreatedAt       string  `json:"created_at"`
@@ -34,7 +35,6 @@ type StockMovementRow struct {
 	ProductID      *string `json:"product_id,omitempty"`
 	ProductName    *string `json:"product_name,omitempty"`
 	VariantSKU     *string `json:"variant_sku,omitempty"`
-	OrderNumber    *string `json:"order_number,omitempty"`
 	MutationNumber *string `json:"mutation_number,omitempty"`
 }
 
@@ -122,9 +122,10 @@ func (s *ProductService) ListVariantHistory(ctx context.Context, variantID strin
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT h.id, h.variant_id, h.delta, h.before_qty, h.after_qty, h.reason,
-		        h.actor_user_id, u.email, h.order_id, h.stock_mutation_id, h.note, h.created_at
+		        h.actor_user_id, u.email, h.order_id, o.order_number, h.stock_mutation_id, h.note, h.created_at
 		   FROM inventory_history h
 		   LEFT JOIN admin_users u ON u.id = h.actor_user_id
+		   LEFT JOIN orders      o ON o.id = h.order_id
 		  WHERE h.variant_id = $1
 		  ORDER BY h.created_at DESC
 		  LIMIT $2`, variantID, limit)
@@ -136,9 +137,14 @@ func (s *ProductService) ListVariantHistory(ctx context.Context, variantID strin
 	out := make([]InventoryHistoryRow, 0)
 	for rows.Next() {
 		var r InventoryHistoryRow
+		var orderNumber sql.NullString
 		if err := rows.Scan(&r.ID, &r.VariantID, &r.Delta, &r.BeforeQty, &r.AfterQty, &r.Reason,
-			&r.ActorID, &r.ActorEmail, &r.OrderID, &r.StockMutationID, &r.Note, &r.CreatedAt); err != nil {
+			&r.ActorID, &r.ActorEmail, &r.OrderID, &orderNumber, &r.StockMutationID, &r.Note, &r.CreatedAt); err != nil {
 			return nil, err
+		}
+		if orderNumber.Valid && orderNumber.String != "" {
+			s := orderNumber.String
+			r.OrderNumber = &s
 		}
 		out = append(out, r)
 	}

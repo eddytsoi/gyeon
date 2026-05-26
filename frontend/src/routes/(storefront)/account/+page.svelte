@@ -58,11 +58,11 @@
       <div class="flex flex-col gap-3">
         {#each data.orders as order}
           <a
-            href="/account/orders/{order.id}"
+            href="/account/orders/ORD-{order.number}"
             class="flex items-center justify-between py-3 border-t border-gray-50 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
           >
             <div>
-              <p class="text-sm font-medium text-gray-900">#{order.id.slice(0, 8)}</p>
+              <p class="text-sm font-medium text-gray-900 font-mono">{order.order_number || `ORD-${order.number}`}</p>
               <p class="text-xs text-gray-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</p>
             </div>
             <div class="flex items-center gap-3">

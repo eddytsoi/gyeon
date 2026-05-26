@@ -1,4 +1,4 @@
-import { adminGetOrders, adminGetOrderNoticeUnreadCounts } from '$lib/api/admin';
+import { adminGetOrders, adminGetOrderNoticeUnreadCounts, adminGetOrderCarriers } from '$lib/api/admin';
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
@@ -7,6 +7,8 @@ const PAGE_SIZE = 50;
 const KNOWN_STATUSES = new Set([
   'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
 ]);
+
+const KNOWN_ROLES = new Set(['customer', 'installer']);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -32,7 +34,22 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const unreadParam = url.searchParams.get('unread') ?? '';
   const unread = unreadParam === '1' || unreadParam === 'true';
 
-  const [ordersRes, unreadCounts] = await Promise.all([
+  const roles = (url.searchParams.get('role') ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => KNOWN_ROLES.has(s));
+
+  const carrier = url.searchParams.get('carrier') ?? '';
+
+  const pickupParam = url.searchParams.get('pickup') ?? '';
+  let pickup: boolean | undefined;
+  if (pickupParam === '1' || pickupParam === 'true') pickup = true;
+  else if (pickupParam === '0' || pickupParam === 'false') pickup = false;
+
+  const hasNotesParam = url.searchParams.get('has_notes') ?? '';
+  const hasNotes = hasNotesParam === '1' || hasNotesParam === 'true';
+
+  const [ordersRes, unreadCounts, carriers] = await Promise.all([
     adminGetOrders(token, {
       limit: PAGE_SIZE,
       offset,
@@ -40,9 +57,14 @@ export const load: PageServerLoad = async ({ parent, url }) => {
       statuses,
       from,
       to,
-      unread
+      unread,
+      roles,
+      carrier,
+      pickup,
+      hasNotes
     }).catch(() => ({ items: [], total: 0 })),
-    adminGetOrderNoticeUnreadCounts(token).catch(() => ({} as Record<string, number>))
+    adminGetOrderNoticeUnreadCounts(token).catch(() => ({} as Record<string, number>)),
+    adminGetOrderCarriers(token).catch(() => [])
   ]);
   return {
     orders: ordersRes.items,
@@ -50,10 +72,15 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     page: pageNum,
     pageSize: PAGE_SIZE,
     unreadCounts,
+    carriers,
     q,
     statuses,
     from,
     to,
-    unread
+    unread,
+    roles,
+    carrier,
+    pickup,
+    hasNotes
   };
 };

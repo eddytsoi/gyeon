@@ -129,6 +129,7 @@ export interface VariantHistoryRow {
   actor_user_id?: string;
   actor_email?: string;
   order_id?: string;
+  order_number?: string;
   stock_mutation_id?: string;
   note?: string;
   created_at: string;
@@ -218,6 +219,10 @@ export interface AdminOrdersQuery {
   from?: string; // YYYY-MM-DD
   to?: string;   // YYYY-MM-DD (inclusive)
   unread?: boolean;
+  roles?: string[];
+  carrier?: string;
+  pickup?: boolean;
+  hasNotes?: boolean;
 }
 
 export const adminGetOrders = (token: string, opts: AdminOrdersQuery = {}) => {
@@ -230,8 +235,21 @@ export const adminGetOrders = (token: string, opts: AdminOrdersQuery = {}) => {
   if (opts.from) qs.set('from', opts.from);
   if (opts.to) qs.set('to', opts.to);
   if (opts.unread) qs.set('unread', '1');
+  if (opts.roles?.length) qs.set('role', opts.roles.join(','));
+  if (opts.carrier) qs.set('carrier', opts.carrier);
+  if (opts.pickup !== undefined) qs.set('pickup', opts.pickup ? '1' : '0');
+  if (opts.hasNotes) qs.set('has_notes', '1');
   return request<PagedResponse<Order>>(`/admin/orders?${qs.toString()}`, token);
 };
+
+export interface CarrierOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export const adminGetOrderCarriers = (token: string) =>
+  request<CarrierOption[]>('/admin/orders/carriers', token);
 
 export const adminGetOrder = (token: string, id: string) =>
   request<Order>(`/admin/orders/${id}`, token);
@@ -1025,7 +1043,6 @@ export interface StockMovementRow extends VariantHistoryRow {
   product_id?: string;
   product_name?: string;
   variant_sku?: string;
-  order_number?: string;
   mutation_number?: string;
 }
 

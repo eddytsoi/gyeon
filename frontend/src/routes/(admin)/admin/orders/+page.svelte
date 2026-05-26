@@ -24,6 +24,8 @@
 
   const NEEDS_ACTION = ['pending', 'paid', 'processing'] as const;
 
+  const ROLES = ['customer', 'installer'] as const;
+
   const statusColour: Record<string, string> = {
     pending:    'bg-amber-50 text-amber-700',
     paid:       'bg-blue-50 text-blue-700',
@@ -34,10 +36,23 @@
     refunded:   'bg-red-50 text-red-700',
   };
 
+  const roleColour: Record<string, string> = {
+    customer:  'bg-gray-50 text-gray-700',
+    installer: 'bg-orange-50 text-orange-700',
+  };
+
+  function roleLabel(role: string): string {
+    if (role === 'installer') return m.admin_orders_filter_role_installer();
+    if (role === 'customer') return m.admin_orders_filter_role_customer();
+    return role;
+  }
+
   // Selected status chips — derived from URL so back/forward stays in sync.
   const selectedStatuses = $derived(new Set(data.statuses));
+  const selectedRoles = $derived(new Set(data.roles));
   const hasFilters = $derived(
-    !!data.q || data.statuses.length > 0 || !!data.from || !!data.to || data.unread
+    !!data.q || data.statuses.length > 0 || !!data.from || !!data.to || data.unread ||
+    data.roles.length > 0 || !!data.carrier || data.pickup !== undefined || data.hasNotes
   );
   // "Needs action" highlights only when the selected set is exactly the
   // shortcut's three statuses — partial overlap is treated as a manual
@@ -90,6 +105,34 @@
     });
   }
 
+  function toggleRole(role: string) {
+    pushParams(p => {
+      const current = new Set((p.get('role') ?? '').split(',').filter(Boolean));
+      if (current.has(role)) current.delete(role);
+      else current.add(role);
+      if (current.size === 0) p.delete('role');
+      else p.set('role', [...current].join(','));
+    });
+  }
+
+  function setPickup(value: boolean | undefined) {
+    pushParams(p => {
+      if (value === undefined) p.delete('pickup');
+      else p.set('pickup', value ? '1' : '0');
+    });
+  }
+
+  function onCarrierChange(value: string) {
+    pushParams(p => { value ? p.set('carrier', value) : p.delete('carrier'); });
+  }
+
+  function toggleHasNotes() {
+    pushParams(p => {
+      if (data.hasNotes) p.delete('has_notes');
+      else p.set('has_notes', '1');
+    });
+  }
+
   function clearAll() {
     pushParams(p => {
       p.delete('q');
@@ -97,6 +140,10 @@
       p.delete('from');
       p.delete('to');
       p.delete('unread');
+      p.delete('role');
+      p.delete('carrier');
+      p.delete('pickup');
+      p.delete('has_notes');
     });
   }
 
@@ -198,6 +245,55 @@
       </button>
     {/each}
   </div>
+
+  <!-- Row 2: role / shipping / carrier / has-notes -->
+  <div class="flex flex-wrap items-center gap-2">
+    {#each ROLES as role}
+      {@const active = selectedRoles.has(role)}
+      <button type="button" onclick={() => toggleRole(role)}
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                     {active
+                       ? `${roleColour[role]} border-current`
+                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+        {roleLabel(role)}
+      </button>
+    {/each}
+    <span class="h-4 w-px bg-gray-200 mx-1" aria-hidden="true"></span>
+    <button type="button" onclick={() => setPickup(data.pickup === false ? undefined : false)}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {data.pickup === false
+                     ? 'bg-sky-50 text-sky-700 border-current'
+                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+      {m.admin_orders_filter_shipping_address()}
+    </button>
+    <button type="button" onclick={() => setPickup(data.pickup === true ? undefined : true)}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {data.pickup === true
+                     ? 'bg-teal-50 text-teal-700 border-current'
+                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+      {m.admin_orders_filter_shipping_pickup()}
+    </button>
+    {#if data.carriers.length > 0}
+      <select value={data.carrier}
+              onchange={(e) => onCarrierChange((e.currentTarget as HTMLSelectElement).value)}
+              class="text-xs px-2.5 py-1 rounded-full border border-gray-200 bg-white text-gray-700
+                     focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
+        <option value="">{m.admin_orders_filter_carrier_all()}</option>
+        {#each data.carriers as c}
+          <option value={c.value}>{c.label} ({c.count})</option>
+        {/each}
+      </select>
+    {/if}
+    <span class="h-4 w-px bg-gray-200 mx-1" aria-hidden="true"></span>
+    <button type="button" onclick={toggleHasNotes}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors inline-flex items-center gap-1.5
+                   {data.hasNotes
+                     ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                     : 'bg-white text-gray-700 border-gray-200 hover:border-yellow-400'}">
+      <span aria-hidden="true">💬</span>
+      {m.admin_orders_filter_has_notes()}
+    </button>
+  </div>
 </div>
 
 <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
@@ -207,7 +303,10 @@
       <tr>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_orders_col_customer()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_phone()}</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_items()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_orders_col_date()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_shipping()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_total()}</th>
         <th class="px-5 py-3"></th>
@@ -226,13 +325,44 @@
                   {data.unreadCounts[order.id]}
                 </span>
               {/if}
+              {#if order.notes}
+                <span title={m.admin_orders_has_notes_indicator_tooltip()} aria-hidden="true"
+                      class="text-yellow-600 text-[11px]">💬</span>
+              {/if}
             </span>
           </td>
           <td class="px-5 py-3 text-gray-700 hidden md:table-cell">
-            {order.customer_name || '—'}
+            <span class="inline-flex items-center gap-1.5">
+              {order.customer_name || '—'}
+              {#if order.customer_role === 'installer'}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {roleColour.installer}">
+                  {roleLabel('installer')}
+                </span>
+              {/if}
+            </span>
+          </td>
+          <td class="px-5 py-3 text-gray-500 hidden lg:table-cell font-mono text-xs">
+            {order.customer_phone || '—'}
+          </td>
+          <td class="px-5 py-3 text-right text-gray-700 hidden lg:table-cell tabular-nums">
+            {order.items_count ?? '—'}
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
             {new Date(order.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Hong_Kong', hour12: false })}
+          </td>
+          <td class="px-5 py-3 text-gray-700 hidden lg:table-cell text-xs">
+            {#if order.pickup_point_label}
+              <span class="inline-flex items-center gap-1">
+                <span class="text-teal-600">📍</span>
+                <span class="truncate max-w-[200px]">{order.pickup_point_label}</span>
+              </span>
+            {:else if order.selected_carrier || order.selected_service}
+              <span class="text-gray-600">
+                {[order.selected_carrier, order.selected_service].filter(Boolean).join(' · ')}
+              </span>
+            {:else}
+              <span class="text-gray-300">—</span>
+            {/if}
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -241,7 +371,13 @@
             </span>
           </td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">
-            HK${order.total.toFixed(2)}
+            <span class="inline-flex items-center gap-1.5 justify-end">
+              HK${order.total.toFixed(2)}
+              {#if order.refunded_at}
+                <span title={m.admin_orders_refund_tooltip({ amount: (order.refund_amount ?? 0).toFixed(2) })}
+                      class="text-red-500 text-[11px]" aria-hidden="true">↩</span>
+              {/if}
+            </span>
           </td>
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-1">
@@ -269,7 +405,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="6" class="px-5 py-10 text-center text-gray-400">
+          <td colspan="9" class="px-5 py-10 text-center text-gray-400">
             {#if hasFilters}
               <p class="font-medium text-gray-700 mb-1">{m.admin_orders_empty_no_match()}</p>
               <p class="text-xs">{m.admin_orders_empty_no_match_hint()}</p>

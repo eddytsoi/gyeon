@@ -2385,7 +2385,9 @@
                     {#if h.actor_email}
                       {h.actor_email}
                     {:else if h.order_id}
-                      <span class="font-mono text-xs">order ·{h.order_id.slice(0, 8)}</span>
+                      <a class="text-gray-900 hover:underline font-mono text-xs" href={`/admin/orders/${h.order_id}`}>
+                        {h.order_number || `ORD-${h.order_id.slice(0, 8)}`}
+                      </a>
                     {:else}
                       —
                     {/if}

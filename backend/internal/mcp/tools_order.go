@@ -18,6 +18,7 @@ import (
 // NOT echo back any customer or address PII the caller already supplied.
 type checkoutResult struct {
 	OrderID        string  `json:"order_id"`
+	OrderNumber    string  `json:"order_number"`
 	Status         string  `json:"status"`
 	Total          float64 `json:"total"`
 	ClientSecret   string  `json:"client_secret"`
@@ -169,6 +170,7 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 		// never return the full Order struct.
 		result := checkoutResult{
 			OrderID:        order.ID,
+			OrderNumber:    order.OrderNumber,
 			Status:         string(order.Status),
 			Total:          order.Total,
 			ClientSecret:   checkoutResp.ClientSecret,
