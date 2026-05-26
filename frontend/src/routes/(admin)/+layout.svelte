@@ -158,9 +158,10 @@
           label: m.admin_nav_products(),
           icon: 'M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z',
           children: [
-            { href: '/admin/products/categories', label: m.admin_nav_products_categories() },
-            { href: '/admin/stock-mutations',     label: m.admin_nav_stock_mutations(), minRole: 'admin' },
-            { href: '/admin/stock-history',       label: m.admin_nav_stock_history() },
+            { href: '/admin/products/categories',      label: m.admin_nav_products_categories() },
+            { href: '/admin/products/category-roles',  label: m.admin_nav_products_category_roles(), minRole: 'admin' },
+            { href: '/admin/stock-mutations',          label: m.admin_nav_stock_mutations(), minRole: 'admin' },
+            { href: '/admin/stock-history',            label: m.admin_nav_stock_history() },
           ]
         },
         {

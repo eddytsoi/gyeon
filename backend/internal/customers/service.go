@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -25,8 +26,28 @@ type Customer struct {
 	LastName  string  `json:"last_name"`
 	Phone     *string `json:"phone,omitempty"`
 	IsActive  bool    `json:"is_active"`
+	Role      string  `json:"role"` // customer_role enum: 'customer' | 'installer'
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
+}
+
+// RoleCustomer is the storefront default and what anonymous visitors are
+// treated as. RoleInstaller is the elevated tier admins can grant.
+const (
+	RoleCustomer  = "customer"
+	RoleInstaller = "installer"
+)
+
+// NormalizeRole maps any incoming role string (admin form value, WC role, …)
+// to a canonical enum value. Unknown values fall through to "customer" so a
+// typo never escalates privileges or breaks a column NOT NULL constraint.
+func NormalizeRole(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case RoleInstaller, "installerv2":
+		return RoleInstaller
+	default:
+		return RoleCustomer
+	}
 }
 
 type Address struct {
@@ -129,9 +150,9 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*Customer,
 	err = s.db.QueryRowContext(ctx,
 		`INSERT INTO customers (email, password_hash, first_name, last_name, phone)
 		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, email, first_name, last_name, phone, is_active, created_at, updated_at`,
+		 RETURNING id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`,
 		req.Email, string(hash), req.FirstName, req.LastName, req.Phone).
-		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -142,9 +163,9 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error
 	var c Customer
 	var hash sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, created_at, updated_at
+		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers WHERE email=$1 AND is_active=TRUE`, req.Email).
-		Scan(&c.ID, &c.Email, &hash, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &hash, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrInvalidCredentials
 	}
@@ -195,21 +216,38 @@ func (s *Service) IncrementTokenVersion(ctx context.Context, customerID string) 
 func (s *Service) GetByID(ctx context.Context, id string) (*Customer, error) {
 	var c Customer
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		`SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers WHERE id=$1`, id).
-		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	return &c, err
 }
 
+// GetRole returns just the role for a customer ID. Used by the storefront
+// product / cart queries to apply per-role visibility & purchase rules
+// without pulling the full Customer row on every request. Returns
+// RoleCustomer on lookup failure (anonymous / deleted customers) so the
+// caller never has to special-case errors.
+func (s *Service) GetRole(ctx context.Context, customerID string) string {
+	if customerID == "" {
+		return RoleCustomer
+	}
+	var role string
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT role::text FROM customers WHERE id=$1`, customerID).Scan(&role); err != nil {
+		return RoleCustomer
+	}
+	return NormalizeRole(role)
+}
+
 func (s *Service) GetByEmail(ctx context.Context, email string) (*Customer, error) {
 	var c Customer
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		`SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers WHERE email=$1`, email).
-		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -227,9 +265,9 @@ func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfil
 	err := s.db.QueryRowContext(ctx,
 		`UPDATE customers SET first_name=$2, last_name=$3, phone=$4
 		 WHERE id=$1
-		 RETURNING id, email, first_name, last_name, phone, is_active, created_at, updated_at`,
+		 RETURNING id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`,
 		id, req.FirstName, req.LastName, req.Phone).
-		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -237,6 +275,36 @@ func (s *Service) UpdateProfile(ctx context.Context, id string, req UpdateProfil
 		return nil, err
 	}
 	s.record(ctx, "customer.update_profile", "customer", c.ID, before, c)
+	return &c, nil
+}
+
+// UpdateRole sets the customer's role to the given value. Caller is expected
+// to have passed the new role through NormalizeRole so invalid input is
+// rejected at the API boundary rather than caught by the column's enum
+// constraint here. Audited under a distinct action so role escalations stand
+// out in the log.
+func (s *Service) UpdateRole(ctx context.Context, id, role string) (*Customer, error) {
+	role = NormalizeRole(role)
+	var before *Customer
+	if s.audit != nil {
+		if prev, err := s.GetByID(ctx, id); err == nil {
+			before = prev
+		}
+	}
+	var c Customer
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE customers SET role = $2::customer_role
+		 WHERE id = $1
+		 RETURNING id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`,
+		id, role).
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "customer.update_role", "customer", c.ID, before, c)
 	return &c, nil
 }
 
@@ -261,10 +329,10 @@ func (s *Service) List(ctx context.Context, search string, limit, offset int) ([
 	}
 
 	args := []any{limit, offset}
-	query := `SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+	query := `SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`
 	if clause, arg := util.BuildSearchClause(search, customerSearchFields, 3); clause != "" {
-		query = `SELECT id, email, first_name, last_name, phone, is_active, created_at, updated_at
+		query = `SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers WHERE ` + clause + ` ORDER BY created_at DESC LIMIT $1 OFFSET $2`
 		args = append(args, arg)
 	}
@@ -279,7 +347,7 @@ func (s *Service) List(ctx context.Context, search string, limit, offset int) ([
 	for rows.Next() {
 		var c Customer
 		if err := rows.Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			&c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		customers = append(customers, c)
@@ -434,17 +502,17 @@ func (s *Service) UpsertGuest(ctx context.Context, email, firstName, lastName st
 	var c Customer
 	var pwHash sql.NullString
 	err = tx.QueryRowContext(ctx,
-		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, created_at, updated_at
+		`SELECT id, email, password_hash, first_name, last_name, phone, is_active, role::text, created_at, updated_at
 		 FROM customers WHERE email=$1`, email).
-		Scan(&c.ID, &c.Email, &pwHash, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		Scan(&c.ID, &c.Email, &pwHash, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		err = tx.QueryRowContext(ctx,
 			`INSERT INTO customers (email, first_name, last_name, phone)
 			 VALUES ($1, $2, $3, $4)
-			 RETURNING id, email, first_name, last_name, phone, is_active, created_at, updated_at`,
+			 RETURNING id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`,
 			email, firstName, lastName, phone).
-			Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+			Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
 		if err != nil {
 			return nil, false, err
 		}

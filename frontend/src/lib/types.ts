@@ -324,6 +324,8 @@ export interface NavMenu {
   updated_at: string;
 }
 
+export type CustomerRole = 'customer' | 'installer';
+
 export interface Customer {
   id: string;
   email: string;
@@ -331,8 +333,16 @@ export interface Customer {
   last_name: string;
   phone?: string;
   is_active: boolean;
+  role: CustomerRole;
   created_at: string;
   updated_at: string;
+}
+
+export interface CategoryRule {
+  role: CustomerRole;
+  category_id: string;
+  can_view: boolean;
+  can_purchase: boolean;
 }
 
 export interface Address {

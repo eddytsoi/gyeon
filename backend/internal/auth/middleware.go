@@ -11,9 +11,33 @@ import (
 type contextKey string
 
 const (
-	customerIDKey contextKey = "customer_id"
-	adminUserIDKey contextKey = "admin_user_id"
+	customerIDKey   contextKey = "customer_id"
+	customerRoleKey contextKey = "customer_role"
+	adminUserIDKey  contextKey = "admin_user_id"
 )
+
+// CustomerRoleFromContext returns the storefront role attached by
+// CustomerMiddleware or OptionalCustomerMiddleware. Defaults to "customer"
+// when no middleware ran (anonymous request) so handlers don't need to
+// special-case the empty value.
+func CustomerRoleFromContext(ctx context.Context) string {
+	role, _ := ctx.Value(customerRoleKey).(string)
+	if role == "" {
+		return "customer"
+	}
+	return role
+}
+
+// WithCustomerRole returns a new context with the role attached. Used by
+// downstream callers (e.g. cart handler) that want to record a role looked
+// up from somewhere other than the JWT — typically from the cart's
+// customer_id, since cart routes aren't behind the customer middleware.
+func WithCustomerRole(ctx context.Context, role string) context.Context {
+	if role == "" {
+		role = "customer"
+	}
+	return context.WithValue(ctx, customerRoleKey, role)
+}
 
 // TokenVersionStore exposes the live token_version counter that backs the
 // "sign out everywhere" feature. Implementations are expected to cache;
@@ -92,6 +116,49 @@ func Middleware(secret string) func(http.Handler) http.Handler {
 				return
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RoleResolver resolves a storefront role from a customer ID. Implemented
+// by customers.Service.GetRole. Kept as an interface here so the auth
+// package doesn't pull in a customers import (which would create a cycle).
+type RoleResolver interface {
+	GetRole(ctx context.Context, customerID string) string
+}
+
+// OptionalCustomerMiddleware sits on public storefront routes that need
+// per-role gating (product list, PDP, category nav). It never rejects:
+//
+//   - No bearer token        → request continues, role defaults to "customer".
+//   - Invalid / expired tok. → same, treated as anonymous.
+//   - Valid customer token   → customer_id + resolved role are plumbed.
+//
+// resolver may be nil during early startup / tests; in that case only the
+// customer_id is plumbed and role stays at the default.
+func OptionalCustomerMiddleware(secret string, resolver RoleResolver) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			header := r.Header.Get("Authorization")
+			if !strings.HasPrefix(header, "Bearer ") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			tokenStr := strings.TrimPrefix(header, "Bearer ")
+			claims, err := ValidateToken(tokenStr, secret)
+			if err != nil || claims.Role != "customer" || claims.CustomerID == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if !checkTokenVersion(r.Context(), false, claims.CustomerID, claims.TokenVersion) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := context.WithValue(r.Context(), customerIDKey, claims.CustomerID)
+			if resolver != nil {
+				ctx = WithCustomerRole(ctx, resolver.GetRole(ctx, claims.CustomerID))
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
