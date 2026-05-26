@@ -12,6 +12,8 @@
   import MultiSelect from '$lib/components/MultiSelect.svelte';
   import {
     isVideo,
+    isImage,
+    isLink,
     isStreamingVideo,
     detectStreamingVideoFromURL,
     checkMediaSize,
@@ -410,6 +412,20 @@
   let showAddImage = $state(false);
   let addImageSelectedId = $state<string | null>(null);
   let addImageTab = $state<'upload' | 'library'>('upload');
+  type AddImageFilter = 'all' | 'image' | 'video' | 'link';
+  let addImageFilter = $state<AddImageFilter>('all');
+  let addImageSearch = $state('');
+
+  const filteredAddImageMedia = $derived.by(() => {
+    const q = addImageSearch.trim().toLowerCase();
+    return imageMedia.filter((f) => {
+      if (addImageFilter === 'image' && !isImage(f)) return false;
+      if (addImageFilter === 'video' && !isVideo(f)) return false;
+      if (addImageFilter === 'link'  && !isLink(f))  return false;
+      if (q && !f.original_name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  });
 
   // Upload tab state
   type UploadFile = {
@@ -428,6 +444,8 @@
     showAddImage = false;
     addImageSelectedId = null;
     addImageTab = 'upload';
+    addImageFilter = 'all';
+    addImageSearch = '';
     for (const f of uploadFiles) URL.revokeObjectURL(f.preview);
     uploadFiles = [];
     uploadDragOver = false;
@@ -2159,8 +2177,42 @@
           {#if imageMedia.length === 0}
             <p class="text-sm text-gray-400 py-6 text-center">{m.admin_product_edit_add_media_no_media()}</p>
           {:else}
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+              <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                {#each (['all', 'image', 'video', 'link'] as const) as tab}
+                  <button type="button"
+                          onclick={() => (addImageFilter = tab)}
+                          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {addImageFilter === tab
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'}">
+                    {tab === 'all' ? m.admin_media_filter_all() : tab === 'image' ? m.admin_media_filter_image() : tab === 'video' ? m.admin_media_filter_video() : m.admin_media_filter_link()}
+                  </button>
+                {/each}
+              </div>
+              <div class="relative flex-1 min-w-[140px]">
+                <input type="search"
+                       bind:value={addImageSearch}
+                       placeholder={m.admin_product_edit_add_media_search_placeholder()}
+                       class="w-full border border-gray-200 rounded-xl pl-3 pr-8 py-1.5 text-sm
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                {#if addImageSearch}
+                  <button type="button"
+                          onclick={() => (addImageSearch = '')}
+                          aria-label={m.admin_modal_close()}
+                          class="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                {/if}
+              </div>
+            </div>
+
+            {#if filteredAddImageMedia.length === 0}
+              <p class="text-sm text-gray-400 py-6 text-center">{m.admin_product_edit_add_media_no_results()}</p>
+            {:else}
             <div class="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2 max-h-80 overflow-y-auto mb-4 pr-1">
-              {#each imageMedia as mf}
+              {#each filteredAddImageMedia as mf}
                 <button type="button"
                         onclick={() => addImageSelectedId = addImageSelectedId === mf.id ? null : mf.id}
                         class="relative aspect-square rounded-xl overflow-hidden border-2 transition-colors
@@ -2193,6 +2245,7 @@
                 </button>
               {/each}
             </div>
+            {/if}
           {/if}
 
           <div class="flex flex-col gap-1.5 mb-5">
