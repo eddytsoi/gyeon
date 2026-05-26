@@ -110,6 +110,36 @@ func TestParseForm_DefaultValue(t *testing.T) {
 	}
 }
 
+func TestParseForm_SelectDefaultIndex(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"first option", `[select color default:1 "Red|r" "Green|g" "Blue|b"]`, "r"},
+		{"zero = none", `[select color default:0 "Red|r" "Green|g"]`, ""},
+		{"index after options", `[select color "Red|r" "Green|g" default:2]`, "g"},
+		{"out of range", `[select color default:99 "Red|r"]`, ""},
+		{"works on radio", `[radio pick default:2 "A|a" "B|b"]`, "b"},
+		{"non-numeric falls through", `[select color default:user_login "Red|r"]`, ""},
+		{"ignored on non-choice field", `[text foo default:1]`, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fields, errs := ParseForm(c.src)
+			if len(errs) != 0 {
+				t.Fatalf("unexpected parse errors: %+v", errs)
+			}
+			if len(fields) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(fields))
+			}
+			if fields[0].Default != c.want {
+				t.Errorf("default = %q want %q", fields[0].Default, c.want)
+			}
+		})
+	}
+}
+
 func TestParseForm_FileFieldConstraints(t *testing.T) {
 	fields, errs := ParseForm(`[file* receipt filetypes:pdf|jpg|PNG limit:2mb]`)
 	if len(errs) != 0 {
