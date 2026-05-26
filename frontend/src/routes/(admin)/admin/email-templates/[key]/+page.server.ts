@@ -32,7 +32,7 @@ export const actions: Actions = {
       const msg = err instanceof Error ? err.message : 'Failed to save';
       return fail(500, { error: msg });
     }
-    return { success: true };
+    redirect(303, `/admin/email-templates/${params.key}`);
   },
   reset: async ({ params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
