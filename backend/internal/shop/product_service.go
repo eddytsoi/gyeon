@@ -2707,17 +2707,18 @@ const (
 	fbtWeightSlowMover   = 1
 )
 
-// FrequentlyBoughtTogether returns up to `limit` publicly-visible, purchasable
-// products to display under the PDP. Three candidate pools are combined: paid+
-// co-purchase pairs (relevance), 30-day bestsellers (social proof, biased to
-// the source product's categories), and 30-day slow-movers with stock (gives
-// stagnant inventory a slot). The final pick is seeded by productID + UTC date
-// so the row is stable across refreshes within a day but rotates daily.
+// FrequentlyBoughtTogether returns up to `limit` simple, in-stock products to
+// display under the PDP. Three candidate pools are combined: paid+ co-purchase
+// pairs (relevance), 30-day bestsellers (social proof, biased to the source
+// product's categories), and 30-day slow-movers with stock (gives stagnant
+// inventory a slot). Each pool's SQL restricts to `kind = 'simple'` and at
+// least one in-stock active variant, so the row never offers a bundle or a
+// sold-out tile. The final pick is seeded by productID + UTC date so the row
+// is stable across refreshes within a day but rotates daily.
 //
 // Cache key includes the day; old entries fall out naturally as the date
-// advances. Bundle-component exclusion (when the source is a bundle) and
-// bundle derived-stock filtering carry over from the previous co-purchase-only
-// implementation.
+// advances. Bundle-component exclusion (when the source is a bundle) carries
+// over from the previous co-purchase-only implementation.
 func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID, locale string, limit int) ([]ProductWithMeta, error) {
 	if limit <= 0 || limit > 12 {
 		limit = 4
@@ -2782,19 +2783,6 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	if err != nil {
 		return nil, err
 	}
-	s.overrideBundleStock(ctx, products)
-	// Bundles can sneak in with derived stock = 0 even after pool filtering
-	// (bundle_items may have changed mid-day, or a component sold out). Drop
-	// non-purchasable bundles so the storefront row never offers something the
-	// customer can't actually add to cart.
-	purchasable := products[:0]
-	for _, p := range products {
-		if p.Kind == "bundle" && (p.DefaultVariantStockQty == nil || *p.DefaultVariantStockQty <= 0) {
-			continue
-		}
-		purchasable = append(purchasable, p)
-	}
-	products = purchasable
 
 	s.cache.Set(cacheKey, products, s.ttl(ctx))
 	return products, nil
@@ -2951,9 +2939,11 @@ func (s *ProductService) fbtFetchPoolWithCategoryFallback(
 	return append(ids, more...), nil
 }
 
-// fbtFetchCopurchasePool returns up to `cap` product IDs ranked by historical
-// co-purchase strength with the source product. Filters out excluded IDs (the
-// source itself + bundle components) and products in hidden categories.
+// fbtFetchCopurchasePool returns up to `cap` simple, in-stock product IDs
+// ranked by historical co-purchase strength with the source product. Bundles
+// and sold-out products are filtered at SQL so the row never offers something
+// the customer can't add to cart. Also drops excluded IDs (source + bundle
+// components) and products in hidden categories.
 func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProductID string, cap int, excludes, hiddenIDs []string) ([]string, error) {
 	query := `
 		SELECT p.id
@@ -2961,6 +2951,13 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 		JOIN products p ON p.id = cp.related_product_id
 		WHERE cp.product_id = $1
 		  AND p.status = 'active'
+		  AND p.kind = 'simple'
+		  AND EXISTS (
+		      SELECT 1 FROM product_variants pv
+		      WHERE pv.product_id = p.id
+		        AND pv.is_active = TRUE
+		        AND pv.stock_qty > 0
+		  )
 		  AND p.id <> ALL($2::uuid[])
 		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
 		ORDER BY cp.together_order_count DESC, p.created_at DESC
@@ -2968,12 +2965,13 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 	return s.fbtScanIDs(ctx, query, sourceProductID, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), cap)
 }
 
-// fbtFetchBestsellersPool returns up to `cap` product IDs ranked by units sold
-// over fbtSalesWindowDays in paid+ orders. Only top-level order_items count
-// (`parent_item_id IS NULL`) so bundles count once and components shipped as
-// part of a bundle don't double-credit the parent product. When `categoryIDs`
-// is non-empty, the result is restricted to products linked to any of those
-// categories.
+// fbtFetchBestsellersPool returns up to `cap` simple, in-stock product IDs
+// ranked by units sold over fbtSalesWindowDays in paid+ orders. Only top-level
+// order_items count (`parent_item_id IS NULL`) so components shipped as part of
+// a bundle don't double-credit the parent product. Bundles and sold-out
+// products are filtered at SQL so every result is purchasable. When
+// `categoryIDs` is non-empty, the result is restricted to products linked to
+// any of those categories.
 func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error) {
 	query := `
 		WITH sales AS (
@@ -2990,6 +2988,13 @@ func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryID
 		FROM products p
 		JOIN sales s ON s.product_id = p.id
 		WHERE p.status = 'active'
+		  AND p.kind = 'simple'
+		  AND EXISTS (
+		      SELECT 1 FROM product_variants pv
+		      WHERE pv.product_id = p.id
+		        AND pv.is_active = TRUE
+		        AND pv.stock_qty > 0
+		  )
 		  AND p.id <> ALL($2::uuid[])
 		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
 		  AND (cardinality($4::uuid[]) = 0 OR EXISTS (

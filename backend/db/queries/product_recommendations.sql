@@ -9,6 +9,9 @@
 --   B. Bestsellers  — top sales over the last N days
 --   C. Slow-movers  — products with stock but few/no sales over the last N days
 --
+-- All three pools restrict to `p.kind = 'simple'` with at least one in-stock
+-- active variant so the FBT row never offers a bundle or sold-out tile.
+--
 -- Caller passes:
 --   $1 :: text[]  — product IDs to exclude (source product + already-seen pool IDs)
 --   $2 :: int     — pool cap (e.g. 20)
@@ -18,10 +21,10 @@
 
 -- name: ListBestsellersPool :many
 -- Top sellers over the last $3 days. Counts only top-level order_items
--- (`parent_item_id IS NULL`) so bundles count once and components shipped
--- as part of a bundle don't double-count toward the parent product. Bundles
--- are eligible; their derived stock is patched downstream by
--- overrideBundleStock so the storefront row only shows purchasable items.
+-- (`parent_item_id IS NULL`) so components shipped as part of a bundle don't
+-- double-count toward the parent product. Restricted to simple products with
+-- at least one in-stock active variant so bundles and sold-out items never
+-- enter the pool.
 WITH sales AS (
     SELECT pv.product_id, SUM(oi.quantity)::bigint AS qty
     FROM order_items oi
@@ -36,6 +39,13 @@ SELECT p.id
 FROM products p
 JOIN sales s ON s.product_id = p.id
 WHERE p.status = 'active'
+  AND p.kind = 'simple'
+  AND EXISTS (
+      SELECT 1 FROM product_variants pv
+      WHERE pv.product_id = p.id
+        AND pv.is_active = TRUE
+        AND pv.stock_qty > 0
+  )
   AND p.id <> ALL($1::uuid[])
   AND (cardinality($4::uuid[]) = 0 OR EXISTS (
       SELECT 1 FROM product_category_links pcl
@@ -86,11 +96,19 @@ LIMIT $2;
 -- name: ListCoPurchasePool :many
 -- Same shape as ListFrequentlyBoughtTogether but returns only IDs + accepts
 -- an exclude list, so the Go side can dedupe across pools before hydration.
+-- Restricted to simple products with at least one in-stock active variant.
 SELECT p.id
 FROM product_copurchase cp
 JOIN products p ON p.id = cp.related_product_id
 WHERE cp.product_id = $3                    -- source product
   AND p.status = 'active'
+  AND p.kind = 'simple'
+  AND EXISTS (
+      SELECT 1 FROM product_variants pv
+      WHERE pv.product_id = p.id
+        AND pv.is_active = TRUE
+        AND pv.stock_qty > 0
+  )
   AND p.id <> ALL($1::uuid[])
 ORDER BY cp.together_order_count DESC, p.created_at DESC
 LIMIT $2;
