@@ -2,12 +2,16 @@
   import { enhance } from '$app/forms';
   import { browser } from '$app/environment';
   import type { PageData } from './$types';
-  import type { FormSubmissionRow, SubmissionFileRow } from '$lib/api/admin';
+  import type { FormSubmissionRow, SubmissionFileRow, FormImportResult } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
   let viewing = $state<FormSubmissionRow | null>(null);
+  let fileInputEl = $state<HTMLInputElement | null>(null);
+  let importFormEl = $state<HTMLFormElement | null>(null);
+  let importing = $state(false);
+  let importErrors = $state<FormImportResult['errors']>(undefined);
 
   // The list endpoint omits `files` to keep the table view lean. When the
   // admin opens the detail modal we lazily fetch the full row through a
@@ -90,6 +94,11 @@
   function fmt(date: string): string {
     return new Date(date).toLocaleString();
   }
+
+  function onImportFileChange() {
+    if (!fileInputEl?.files?.length || !importFormEl) return;
+    importFormEl.requestSubmit();
+  }
 </script>
 
 <svelte:head><title>{m.admin_forms_submissions_title({ title: data.form.title })}</title></svelte:head>
@@ -106,6 +115,54 @@
     <a href="/admin/forms/{data.form.id}" class="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-2">
       {m.admin_forms_submissions_edit_form()}
     </a>
+
+    <form
+      bind:this={importFormEl}
+      method="POST"
+      action="?/import"
+      enctype="multipart/form-data"
+      use:enhance={() => {
+        importing = true;
+        return async ({ result, update }) => {
+          importing = false;
+          if (fileInputEl) fileInputEl.value = '';
+          if (result.type === 'success' || result.type === 'failure') {
+            const r = (result.data as { importResult?: FormImportResult; importError?: string } | undefined);
+            if (r?.importResult) {
+              const { imported, skipped, errors } = r.importResult;
+              if (skipped > 0) {
+                notify.error(m.admin_forms_submissions_import_partial({ ok: imported, skip: skipped }));
+                importErrors = errors;
+              } else {
+                notify.success(m.admin_forms_submissions_import_success({ n: imported }));
+                importErrors = undefined;
+              }
+              await update();
+            } else {
+              notify.error(m.admin_forms_submissions_import_failure(), r?.importError ?? '');
+            }
+          }
+        };
+      }}
+    >
+      <input
+        type="file"
+        name="file"
+        accept=".csv,text/csv"
+        class="hidden"
+        bind:this={fileInputEl}
+        onchange={onImportFileChange}
+      />
+      <button
+        type="button"
+        onclick={() => fileInputEl?.click()}
+        disabled={importing}
+        class="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+      >
+        {importing ? '…' : m.admin_forms_submissions_import()}
+      </button>
+    </form>
+
     <button
       type="button"
       onclick={downloadCsv}
@@ -236,6 +293,28 @@
         <input type="hidden" name="sid" value={viewing.id} />
         <button type="submit" class="text-sm text-red-500 hover:text-red-700">{m.admin_forms_submissions_delete()}</button>
       </form>
+    </div>
+  </div>
+{/if}
+
+{#if importErrors && importErrors.length > 0}
+  <div
+    class="fixed inset-0 z-40 bg-black/50 flex items-end md:items-center justify-center p-4"
+    onclick={() => (importErrors = undefined)}
+    onkeydown={(e) => { if (e.key === 'Escape') importErrors = undefined; }}
+    role="button"
+    tabindex="-1"
+  >
+    <div class="bg-white rounded-2xl p-6 max-w-xl w-full max-h-[80vh] overflow-auto" onclick={(e) => e.stopPropagation()} onkeydown={() => {}} role="dialog" tabindex="-1">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">{m.admin_forms_submissions_import_errors_heading()}</h3>
+        <button onclick={() => (importErrors = undefined)} class="text-gray-400 hover:text-gray-700">✕</button>
+      </div>
+      <ul class="space-y-2 text-sm">
+        {#each importErrors as e}
+          <li class="text-gray-700">{m.admin_forms_submissions_import_row({ row: e.row, msg: e.message })}</li>
+        {/each}
+      </ul>
     </div>
   </div>
 {/if}

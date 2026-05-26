@@ -211,6 +211,22 @@ type SubmitResponse struct {
 	Message string `json:"message"`
 }
 
+// ImportResult is the response body for the admin CSV-import endpoint. The
+// importer is best-effort: bad rows are skipped and reported here while
+// good rows commit, so this struct always carries useful info on 200 OK.
+type ImportResult struct {
+	Imported int            `json:"imported"`
+	Skipped  int            `json:"skipped"`
+	Errors   []ImportRowErr `json:"errors,omitempty"`
+}
+
+// ImportRowErr identifies a CSV row by its 1-based line number (header is
+// line 1, first data row is line 2) and the reason it was skipped.
+type ImportRowErr struct {
+	Row     int    `json:"row"`
+	Message string `json:"message"`
+}
+
 // ValidationErrors maps field name → human-readable error message. Returned
 // in the 422 response so the frontend can highlight invalid inputs.
 type ValidationErrors map[string]string

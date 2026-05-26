@@ -3,14 +3,17 @@ package forms
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/mail"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 	"gyeon/backend/internal/email"
@@ -611,6 +614,272 @@ func (s *Service) DeleteSubmission(ctx context.Context, id string) error {
 		log.Printf("forms: delete submission %s: cleanup of uploads dir failed: %v", id, rmErr)
 	}
 	return nil
+}
+
+// ──────────────────────── CSV import ────────────────────────
+
+// importMetaCreatedAt and importMetaIP are the reserved column names the
+// importer treats as submission metadata instead of CF7 field values. They
+// match the columns the export writer emits at handler.go.
+const (
+	importMetaCreatedAt = "created_at"
+	importMetaIP        = "ip"
+)
+
+// importColKind tags how the importer should treat each CSV column.
+type importColKind int
+
+const (
+	importColIgnore importColKind = iota
+	importColData
+	importColFile
+	importColCreatedAt
+	importColIP
+)
+
+// ImportSubmissions reads a CSV body, auto-matches headers against the form's
+// fields, downloads any URL-valued cells whose column maps to a file field,
+// and inserts one row per CSV line. Best-effort: each row commits or rolls
+// back independently so a single bad URL doesn't abort the whole batch.
+//
+// `created_at` / `ip` columns in the CSV override the defaults when present
+// and parseable. Email dispatch is deliberately skipped — these are historical
+// records, not new submissions.
+func (s *Service) ImportSubmissions(ctx context.Context, formID string, csvReader io.Reader) (*ImportResult, error) {
+	form, err := s.GetByID(ctx, formID)
+	if err != nil {
+		return nil, err
+	}
+
+	r := csv.NewReader(csvReader)
+	r.FieldsPerRecord = -1 // tolerate ragged rows; we tolerate missing trailing cells
+	header, err := r.Read()
+	if err == io.EOF {
+		return &ImportResult{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read header: %w", err)
+	}
+
+	// Strip a UTF-8 BOM from the very first header cell — Excel-exported
+	// CSVs commonly carry one and would otherwise silently break the
+	// meta-column name match.
+	if len(header) > 0 {
+		header[0] = strings.TrimPrefix(header[0], "\ufeff")
+	}
+
+	// Classify each column once. fileCols carries the index of every header
+	// that names a file-type field — those values are URLs and need to be
+	// downloaded; everything else lands in the data map as-is.
+	fieldsByName := make(map[string]FormField, len(form.Fields))
+	for _, f := range form.Fields {
+		if f.Type == FieldSubmit {
+			continue
+		}
+		fieldsByName[f.Name] = f
+	}
+	kinds := make([]importColKind, len(header))
+	for i, h := range header {
+		name := strings.TrimSpace(h)
+		switch name {
+		case "":
+			kinds[i] = importColIgnore
+		case importMetaCreatedAt:
+			kinds[i] = importColCreatedAt
+		case importMetaIP:
+			kinds[i] = importColIP
+		default:
+			if f, ok := fieldsByName[name]; ok {
+				if f.Type == FieldFile {
+					kinds[i] = importColFile
+				} else {
+					kinds[i] = importColData
+				}
+			} else {
+				// Unknown column — silently ignored. Lets exports from
+				// other systems (extra metadata like `updated_at`) round-
+				// trip without tripping the unknown-field validator.
+				kinds[i] = importColIgnore
+			}
+		}
+	}
+
+	hardCap := s.uploadHardCapBytes(ctx)
+	result := &ImportResult{}
+
+	rowNum := 1 // header was line 1
+	for {
+		rec, rerr := r.Read()
+		if rerr == io.EOF {
+			break
+		}
+		rowNum++
+		if rerr != nil {
+			result.Skipped++
+			result.Errors = append(result.Errors, ImportRowErr{Row: rowNum, Message: rerr.Error()})
+			continue
+		}
+		if rowIsBlank(rec) {
+			continue
+		}
+		if rowErr := s.importOneRow(ctx, form, header, kinds, rec, hardCap); rowErr != nil {
+			result.Skipped++
+			result.Errors = append(result.Errors, ImportRowErr{Row: rowNum, Message: rowErr.Error()})
+			continue
+		}
+		result.Imported++
+	}
+	return result, nil
+}
+
+// importOneRow inserts a single CSV row's submission + downloaded files in
+// one transaction. On any error the transaction rolls back and the on-disk
+// folder is unlinked so partial state never persists.
+func (s *Service) importOneRow(ctx context.Context, form *Form, header []string, kinds []importColKind, rec []string, hardCap int64) error {
+	data := map[string]string{}
+	var (
+		createdAt sql.NullTime
+		ip        sql.NullString
+		fileURLs  []fileURLCol
+	)
+	for i, h := range header {
+		if i >= len(rec) {
+			break
+		}
+		val := rec[i]
+		switch kinds[i] {
+		case importColCreatedAt:
+			if t, ok := parseCSVTime(val); ok {
+				createdAt = sql.NullTime{Time: t, Valid: true}
+			}
+		case importColIP:
+			if v := strings.TrimSpace(val); v != "" {
+				ip = sql.NullString{String: v, Valid: true}
+			}
+		case importColFile:
+			if u := strings.TrimSpace(val); u != "" {
+				fileURLs = append(fileURLs, fileURLCol{FieldName: strings.TrimSpace(h), URL: u})
+			}
+		case importColData:
+			data[strings.TrimSpace(h)] = val
+		}
+	}
+
+	if verrs := validatePayloadAllowingFiles(form.Fields, data); verrs != nil {
+		return verrs
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// dataJSON is rebuilt after file downloads so the original filename of
+	// each attachment shows up in the JSONB blob (matches live submit
+	// behaviour at SubmitWithFiles).
+	dataJSON, _ := json.Marshal(data)
+
+	var subID string
+	var subCreatedAt time.Time
+
+	// Two flavours of INSERT: with or without an explicit created_at, so
+	// the column default fires when the CSV didn't supply one.
+	var ipArg any
+	if ip.Valid {
+		ipArg = ip.String
+	}
+	if createdAt.Valid {
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO form_submissions (form_id, data, ip, mail_sent, created_at)
+			VALUES ($1, $2, $3, FALSE, $4)
+			RETURNING id, created_at`,
+			form.ID, dataJSON, ipArg, createdAt.Time,
+		).Scan(&subID, &subCreatedAt)
+	} else {
+		err = tx.QueryRowContext(ctx, `
+			INSERT INTO form_submissions (form_id, data, ip, mail_sent)
+			VALUES ($1, $2, $3, FALSE)
+			RETURNING id, created_at`,
+			form.ID, dataJSON, ipArg,
+		).Scan(&subID, &subCreatedAt)
+	}
+	if err != nil {
+		return fmt.Errorf("insert submission: %w", err)
+	}
+
+	if len(fileURLs) > 0 {
+		for _, fc := range fileURLs {
+			sf, dlErr := saveSubmissionFileFromURL(ctx, subID, fc.URL, hardCap)
+			if dlErr != nil {
+				_ = removeSubmissionDir(subID)
+				return fmt.Errorf("download %s: %w", fc.FieldName, dlErr)
+			}
+			sf.FieldName = fc.FieldName
+			if _, ierr := tx.ExecContext(ctx, `
+				INSERT INTO form_submission_files
+					(submission_id, field_name, original_name, stored_filename, mime_type, size_bytes)
+				VALUES ($1, $2, $3, $4, $5, $6)`,
+				subID, sf.FieldName, sf.OriginalName, sf.StoredName, sf.MimeType, sf.Size,
+			); ierr != nil {
+				_ = removeSubmissionDir(subID)
+				return fmt.Errorf("insert submission file: %w", ierr)
+			}
+			data[fc.FieldName] = sf.OriginalName
+		}
+		// Refresh data JSON now that downloaded filenames are in place.
+		dataJSON, _ = json.Marshal(data)
+		if _, uerr := tx.ExecContext(ctx,
+			`UPDATE form_submissions SET data = $2 WHERE id = $1`, subID, dataJSON); uerr != nil {
+			_ = removeSubmissionDir(subID)
+			return fmt.Errorf("update submission data: %w", uerr)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = removeSubmissionDir(subID)
+		return fmt.Errorf("commit submission: %w", err)
+	}
+	return nil
+}
+
+// fileURLCol pairs a file field name with the URL pulled from a CSV cell.
+type fileURLCol struct {
+	FieldName string
+	URL       string
+}
+
+// rowIsBlank reports whether every cell in `rec` is empty/whitespace, which
+// is treated as a soft skip (Excel CSVs often trail with empty rows).
+func rowIsBlank(rec []string) bool {
+	for _, v := range rec {
+		if strings.TrimSpace(v) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// parseCSVTime accepts the format the exporter writes plus a couple of
+// permissive fallbacks (plain date, RFC3339 nano). Returns ok=false for
+// unparseable input so the caller can fall back to the column default.
+func parseCSVTime(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range []string{
+		"2006-01-02T15:04:05Z07:00",
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // ──────────────────────── Helpers ────────────────────────
