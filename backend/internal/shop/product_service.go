@@ -20,11 +20,12 @@ import (
 )
 
 // RoleRulesProvider returns the category IDs a storefront role isn't allowed
-// to see. Implemented by categoryrules.Service — kept as an interface here so
-// the shop package doesn't depend directly on categoryrules (the wiring
-// graph is shop → categoryrules-by-interface, set from main.go).
+// to see or purchase. Implemented by categoryrules.Service — kept as an
+// interface here so the shop package doesn't depend directly on categoryrules
+// (the wiring graph is shop → categoryrules-by-interface, set from main.go).
 type RoleRulesProvider interface {
 	BlockedViewCategoryIDs(ctx context.Context, role string) []string
+	BlockedPurchaseCategoryIDs(ctx context.Context, role string) []string
 }
 
 // defaultBundleSKU returns the auto-generated SKU for a bundle product's
@@ -43,6 +44,11 @@ func defaultBundleSKU(productID string) string {
 // noisy on substring match and slow without a trigram index.
 var productSearchFields = []string{"p.name", "p.slug", "p.number::text"}
 
+// Purchasable on Product reflects whether the current request's storefront
+// role is allowed to add this product to cart. False when at least one of
+// the product's categories is in the role's blocked-purchase set. Annotated
+// in Go after the SQL query (see annotateProductsPurchasable); defaults to
+// true for any path where roleRules is not wired (admin reads, tests).
 type Product struct {
 	ID                 string   `json:"id"`
 	Number             int64    `json:"number"`
@@ -84,6 +90,7 @@ type Product struct {
 	Media4WebpURL      *string  `json:"media_4_webp_url,omitempty"`
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"
+	Purchasable        bool     `json:"purchasable"`
 	// UseTaobaoLayout overrides the site-wide `pdp_taobao_layout_enabled`
 	// flag for this single product: nil = follow site default,
 	// true = force taobao modal layout, false = force classic layout.
@@ -450,6 +457,118 @@ func (s *ProductService) appendRoleVisibilityFilter(ctx context.Context, wheres 
 	return wheres, args, "role:" + role + ":" + strings.Join(blocked, ",")
 }
 
+// annotatePurchasableMeta sets Purchasable on each row of a ProductWithMeta
+// slice. Implemented as a single batched lookup against product_category_links
+// so a list page costs one extra round-trip regardless of how many products
+// it returns. When the role has no blocked-purchase rules (the common case
+// out of the box), the function just stamps true on every row without
+// touching the DB. This must run before caching so cached entries already
+// reflect role state — the cache key includes the role, so different roles
+// won't share an entry.
+func (s *ProductService) annotatePurchasableMeta(ctx context.Context, products []ProductWithMeta) {
+	for i := range products {
+		products[i].Purchasable = true
+	}
+	if s.roleRules == nil || len(products) == 0 {
+		return
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedPurchaseCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return
+	}
+	ids := make([]string, len(products))
+	idx := make(map[string]int, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+		idx[p.ID] = i
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT product_id::text
+		 FROM product_category_links
+		 WHERE product_id = ANY($1::uuid[]) AND category_id = ANY($2::uuid[])`,
+		pq.Array(ids), pq.Array(blocked))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		if i, ok := idx[id]; ok {
+			products[i].Purchasable = false
+		}
+	}
+}
+
+// annotatePurchasable is the []Product counterpart to annotatePurchasableMeta.
+// Two variants exist because Product and ProductWithMeta don't share a useful
+// supertype the caller could pass through.
+func (s *ProductService) annotatePurchasable(ctx context.Context, products []Product) {
+	for i := range products {
+		products[i].Purchasable = true
+	}
+	if s.roleRules == nil || len(products) == 0 {
+		return
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedPurchaseCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return
+	}
+	ids := make([]string, len(products))
+	idx := make(map[string]int, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+		idx[p.ID] = i
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT product_id::text
+		 FROM product_category_links
+		 WHERE product_id = ANY($1::uuid[]) AND category_id = ANY($2::uuid[])`,
+		pq.Array(ids), pq.Array(blocked))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		if i, ok := idx[id]; ok {
+			products[i].Purchasable = false
+		}
+	}
+}
+
+// annotateSinglePurchasable sets Purchasable on a single product. Used by
+// PDP paths (GetBySlug). Defaults to true and only flips when at least one
+// of the product's categories is in the role's blocked-purchase set.
+func (s *ProductService) annotateSinglePurchasable(ctx context.Context, p *Product) {
+	p.Purchasable = true
+	if s.roleRules == nil {
+		return
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedPurchaseCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return
+	}
+	var hit int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM product_category_links
+		 WHERE product_id = $1::uuid AND category_id = ANY($2::uuid[])`,
+		p.ID, pq.Array(blocked)).Scan(&hit); err != nil {
+		return
+	}
+	if hit > 0 {
+		p.Purchasable = false
+	}
+}
+
 // roleBlocksProductCategories returns true when at least one of the
 // product's categories is in the role's blocked-view set. Used by
 // GetBySlug / GetByID to 404 a direct-URL PDP hit for a hidden product —
@@ -757,6 +876,7 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	s.annotatePurchasable(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
@@ -897,6 +1017,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		return nil, 0, err
 	}
 	s.overrideBundleStock(ctx, products)
+	s.annotatePurchasableMeta(ctx, products)
 	return products, total, nil
 }
 
@@ -999,6 +1120,7 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		return nil, err
 	}
 	s.overrideBundleStock(ctx, products)
+	s.annotatePurchasableMeta(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
@@ -1087,6 +1209,7 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		return nil, err
 	}
 	s.overrideBundleStock(ctx, products)
+	s.annotatePurchasableMeta(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
@@ -1133,6 +1256,7 @@ func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categor
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	s.annotatePurchasable(ctx, products)
 	s.cache.Set(key, products, s.ttl(ctx))
 	return products, nil
 }
@@ -1301,6 +1425,7 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 		p.CategoryIDs = ids
 	}
 	s.hydrateMediaURLs(ctx, &p)
+	s.annotateSinglePurchasable(ctx, &p)
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }

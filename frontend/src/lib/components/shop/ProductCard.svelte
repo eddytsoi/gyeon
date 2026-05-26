@@ -96,7 +96,10 @@
         {product.name}
       </h3>
 
-      {#if variant}
+      {#if product.purchasable === false}
+        <!-- Role isn't allowed to buy from this product's categories — price
+             is hidden alongside the disabled add-to-cart on the PDP. -->
+      {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
           <span class="font-display text-base md:text-lg font-bold tabular-nums text-ink-900">
             HK${variant.price.toFixed(2)}
