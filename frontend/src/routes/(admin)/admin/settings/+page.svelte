@@ -200,6 +200,10 @@
     'pdp_fbt_heading',
     'pdp_content_layout'
   ]);
+  // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
+  // from textSettings so the generic "Other" loop doesn't double-render
+  // its <input>.
+  const FBT_EXCLUDED_KEYS = new Set(['fbt_excluded_category_slugs']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
@@ -340,6 +344,7 @@
         !WEBSITE_SLOGAN_KEYS.has(s.key) &&
         !SITE_NAME_KEYS.has(s.key) &&
         !PDP_SECTIONS_KEYS.has(s.key) &&
+        !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
@@ -1624,6 +1629,25 @@
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
+      </div>
+    </div>
+
+    <!-- FBT excluded category slugs — JSON array of slugs. Products linked
+         to any of these categories are dropped from all three FBT pools. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_fbt_excluded_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_fbt_excluded_subtitle()}</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="fbt_excluded_category_slugs" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {m.admin_settings_label_fbt_excluded_category_slugs()}
+        </label>
+        <input id="fbt_excluded_category_slugs" name="fbt_excluded_category_slugs" type="text"
+               value={settingValue('fbt_excluded_category_slugs') || ''}
+               placeholder={m.admin_settings_fbt_excluded_placeholder()}
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white font-mono
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
 

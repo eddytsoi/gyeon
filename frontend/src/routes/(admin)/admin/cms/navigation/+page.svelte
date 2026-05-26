@@ -23,12 +23,16 @@
   let fLabel = $state('');
   let fUrl = $state('');
   let fTarget = $state('_self');
+  let fHideCustomer = $state(false);
+  let fHideInstaller = $state(false);
 
   function openAddItem() {
     editingItem = null;
     fLabel = '';
     fUrl = '';
     fTarget = '_self';
+    fHideCustomer = false;
+    fHideInstaller = false;
     showItemForm = true;
   }
 
@@ -37,6 +41,9 @@
     fLabel = item.label;
     fUrl = item.url;
     fTarget = item.target;
+    const hidden = item.hidden_for_roles ?? [];
+    fHideCustomer = hidden.includes('customer');
+    fHideInstaller = hidden.includes('installer');
     showItemForm = true;
   }
 
@@ -271,6 +278,25 @@
             <option value="_self">{m.admin_cms_navigation_open_same()}</option>
             <option value="_blank">{m.admin_cms_navigation_open_new()}</option>
           </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            {m.admin_cms_navigation_label_hide_for_roles()}
+          </label>
+          <div class="flex flex-col gap-2 px-3.5 py-3 rounded-xl border border-gray-200 bg-white">
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" name="hide_customer" value="1" bind:checked={fHideCustomer}
+                     class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+              {m.admin_role_customer()}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" name="hide_installer" value="1" bind:checked={fHideInstaller}
+                     class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+              {m.admin_role_installer()}
+            </label>
+          </div>
+          <p class="mt-1.5 text-xs text-gray-400">{m.admin_cms_navigation_hide_for_roles_hint()}</p>
         </div>
 
         <div class="flex gap-3 pt-2">

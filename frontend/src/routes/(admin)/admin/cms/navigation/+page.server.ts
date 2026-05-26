@@ -32,6 +32,13 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
   return { menus: sortedMenus, selected, selectedID };
 };
 
+function extractHiddenRoles(data: FormData): string[] {
+  const roles: string[] = [];
+  if (data.get('hide_customer')) roles.push('customer');
+  if (data.get('hide_installer')) roles.push('installer');
+  return roles;
+}
+
 export const actions: Actions = {
   addItem: async ({ request, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
@@ -43,7 +50,8 @@ export const actions: Actions = {
         url: (data.get('url') as string).trim(),
         target: (data.get('target') as string) || '_self',
         sort_order: parseInt(data.get('sort_order') as string) || 0,
-        parent_id: (data.get('parent_id') as string) || undefined
+        parent_id: (data.get('parent_id') as string) || undefined,
+        hidden_for_roles: extractHiddenRoles(data)
       });
       return { success: true };
     } catch {
@@ -62,7 +70,8 @@ export const actions: Actions = {
         url: (data.get('url') as string).trim(),
         target: (data.get('target') as string) || '_self',
         sort_order: parseInt(data.get('sort_order') as string) || 0,
-        parent_id: (data.get('parent_id') as string) || undefined
+        parent_id: (data.get('parent_id') as string) || undefined,
+        hidden_for_roles: extractHiddenRoles(data)
       });
       return { success: true };
     } catch {

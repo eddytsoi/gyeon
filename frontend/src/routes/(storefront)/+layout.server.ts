@@ -24,9 +24,13 @@ function parseSocials(raw: string | undefined): SocialMediaEntry[] {
 }
 
 export const load: LayoutServerLoad = async ({ cookies }) => {
+  // Read first so both nav fetches can be filtered by the customer's
+  // role. Anonymous visitors pass token=null and the backend treats
+  // them as "customer".
+  const token = cookies.get('customer_token') ?? null;
   const [headerNav, footerNav, settings] = await Promise.all([
-    getNavMenu('header').catch(() => null as NavMenu | null),
-    getNavMenu('footer').catch(() => null as NavMenu | null),
+    getNavMenu('header', token).catch(() => null as NavMenu | null),
+    getNavMenu('footer', token).catch(() => null as NavMenu | null),
     getPublicSettings().catch(() => [])
   ]);
   const mcpEnabled = settings.find((s) => s.key === 'mcp_enabled')?.value === 'true';
@@ -45,7 +49,6 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
     return { ...menu, items: filter(menu.items) };
   };
 
-  const token = cookies.get('customer_token') ?? null;
   const customer = token ? await getMyProfile(token).catch(() => null) : null;
 
   return {

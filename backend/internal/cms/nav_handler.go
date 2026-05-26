@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/respond"
 )
 
@@ -62,7 +64,11 @@ func (h *NavHandler) getMenuByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *NavHandler) getByHandle(w http.ResponseWriter, r *http.Request) {
 	handle := chi.URLParam(r, "handle")
-	menu, err := h.svc.GetMenuByHandle(r.Context(), handle)
+	// Anonymous visitors land here with role="" → CustomerRoleFromContext
+	// defaults them to "customer", which is what we want so anonymous
+	// shares visibility with logged-in customers.
+	role := auth.CustomerRoleFromContext(r.Context())
+	menu, err := h.svc.GetMenuByHandle(r.Context(), handle, role)
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
 		return
@@ -82,6 +88,10 @@ func (h *NavHandler) addItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.svc.AddItem(r.Context(), menuID, req)
+	if errors.Is(err, ErrInvalidNavRole) {
+		respond.BadRequest(w, err.Error())
+		return
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return
@@ -99,6 +109,10 @@ func (h *NavHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	item, err := h.svc.UpdateItem(r.Context(), itemID, req)
 	if errors.Is(err, ErrNotFound) {
 		respond.NotFound(w)
+		return
+	}
+	if errors.Is(err, ErrInvalidNavRole) {
+		respond.BadRequest(w, err.Error())
 		return
 	}
 	if err != nil {
