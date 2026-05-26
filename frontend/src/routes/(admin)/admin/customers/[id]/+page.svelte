@@ -124,7 +124,7 @@
           <tbody class="divide-y divide-gray-50">
             {#each data.orders as order}
               <tr class="hover:bg-gray-50 transition-colors">
-                <td class="px-5 py-3 font-mono text-xs text-gray-500">{order.id.slice(0, 8)}…</td>
+                <td class="px-5 py-3 font-mono text-xs text-gray-500">{order.order_number || `ORD-${order.number}`}</td>
                 <td class="px-5 py-3">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                                {statusColour[order.status] ?? 'bg-gray-100 text-gray-600'}">

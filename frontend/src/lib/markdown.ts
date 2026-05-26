@@ -92,31 +92,61 @@ export function renderMarkdown(md: string | undefined | null): string {
 
   const out: string[] = [];
   let pBuf: string[] = [];
-  let listType: 'ul' | 'ol' | null = null;
-  let listItems: string[] = [];
+  type ListLevel = { type: 'ul' | 'ol'; depth: number; items: string[] };
+  const listStack: ListLevel[] = [];
 
   // Paragraphs use <br /> for hard line breaks within a single block,
-  // so a "title\nbody" pair still groups under one <p>. Lists are
-  // properly wrapped so consecutive `- ` lines collapse into one <ul>.
+  // so a "title\nbody" pair still groups under one <p>. Lists support
+  // nesting via the four-space rule — every 4 leading spaces (or one
+  // tab) opens a deeper sub-list under the previous item.
 
   const flushParagraph = () => {
     if (pBuf.length === 0) return;
     out.push(`<p class="${PARAGRAPH_CLASS}">${pBuf.join('<br />')}</p>`);
     pBuf = [];
   };
+  const closeListLevel = () => {
+    const level = listStack.pop();
+    if (!level) return;
+    const cls = level.type === 'ul' ? LIST_UL_CLASS : LIST_OL_CLASS;
+    const inner = level.items.map((it) => `<li class="${LIST_ITEM_CLASS}">${it}</li>`).join('');
+    const html = `<${level.type} class="${cls}">${inner}</${level.type}>`;
+    if (listStack.length > 0) {
+      const parent = listStack[listStack.length - 1];
+      if (parent.items.length > 0) {
+        parent.items[parent.items.length - 1] += html;
+      } else {
+        out.push(html);
+      }
+    } else {
+      out.push(html);
+    }
+  };
   const flushList = () => {
-    if (!listType) return;
-    const cls = listType === 'ul' ? LIST_UL_CLASS : LIST_OL_CLASS;
-    const items = listItems.map((it) => `<li class="${LIST_ITEM_CLASS}">${it}</li>`).join('');
-    out.push(`<${listType} class="${cls}">${items}</${listType}>`);
-    listType = null;
-    listItems = [];
+    while (listStack.length > 0) closeListLevel();
+  };
+  const pushListItem = (type: 'ul' | 'ol', depth: number, content: string) => {
+    while (listStack.length > 0 && listStack[listStack.length - 1].depth > depth) {
+      closeListLevel();
+    }
+    if (
+      listStack.length > 0 &&
+      listStack[listStack.length - 1].depth === depth &&
+      listStack[listStack.length - 1].type !== type
+    ) {
+      closeListLevel();
+    }
+    if (listStack.length === 0 || listStack[listStack.length - 1].depth < depth) {
+      const parentDepth = listStack.length > 0 ? listStack[listStack.length - 1].depth : -1;
+      listStack.push({ type, depth: Math.min(depth, parentDepth + 1), items: [] });
+    }
+    listStack[listStack.length - 1].items.push(content);
   };
 
   const headingRe = /^(#{1,4})\s+(.+)$/;
   const quoteRe = /^>\s+(.+)$/;
-  const ulRe = /^-\s+(.+)$/;
-  const olRe = /^\d+\.\s+(.+)$/;
+  const ulIndentRe = /^([ \t]*)-\s+(.+)$/;
+  const olIndentRe = /^([ \t]*)\d+\.\s+(.+)$/;
 
   for (const raw of lines) {
     const trimmed = raw.trim();
@@ -159,23 +189,17 @@ export function renderMarkdown(md: string | undefined | null): string {
       continue;
     }
 
-    if ((m = ulRe.exec(trimmed))) {
-      flushParagraph();
-      if (listType !== 'ul') {
-        flushList();
-        listType = 'ul';
-      }
-      listItems.push(renderInline(m[1]));
-      continue;
+    let listMatch = ulIndentRe.exec(raw);
+    let listKind: 'ul' | 'ol' | null = listMatch ? 'ul' : null;
+    if (!listMatch) {
+      listMatch = olIndentRe.exec(raw);
+      if (listMatch) listKind = 'ol';
     }
-
-    if ((m = olRe.exec(trimmed))) {
+    if (listMatch && listKind) {
       flushParagraph();
-      if (listType !== 'ol') {
-        flushList();
-        listType = 'ol';
-      }
-      listItems.push(renderInline(m[1]));
+      const indent = listMatch[1].replace(/\t/g, '    ');
+      const depth = Math.floor(indent.length / 4);
+      pushListItem(listKind, depth, renderInline(listMatch[2]));
       continue;
     }
 
