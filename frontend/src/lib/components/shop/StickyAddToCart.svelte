@@ -15,7 +15,9 @@
     onAdd,
     inStock,
     adding,
-    added
+    added,
+    cannotPurchase = false,
+    cannotPurchaseLabel = ''
   }: {
     ctaEl: HTMLElement | undefined;
     product: Product;
@@ -25,6 +27,9 @@
     inStock: boolean;
     adding: boolean;
     added: boolean;
+    /** Role can't buy from this product. Hides price; button shows the role label. */
+    cannotPurchase?: boolean;
+    cannotPurchaseLabel?: string;
   } = $props();
 
   let visible = $state(false);
@@ -61,7 +66,7 @@
 
   <div class="flex-1 min-w-0">
     <p class="font-display text-sm font-medium text-ink-500 line-clamp-1">{product.name}</p>
-    {#if variant}
+    {#if variant && !cannotPurchase}
       <p class="font-display text-sm font-bold tabular-nums text-ink-900">
         HK${variant.price.toFixed(2)}
       </p>
@@ -79,6 +84,10 @@
                ? 'bg-success'
                : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
   >
-    {added ? '已加入' : adding ? '加入中' : '加入'}
+    {#if cannotPurchase}
+      {cannotPurchaseLabel || '不可購買'}
+    {:else}
+      {added ? '已加入' : adding ? '加入中' : '加入'}
+    {/if}
   </button>
 </div>

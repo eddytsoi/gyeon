@@ -355,7 +355,18 @@
     data.variants.some((v) => v.stock_qty > 0) ||
     (data.promoBundles ?? []).some((b) => b.stock_qty > 0)
   );
-  const ctaAvailable = $derived(data.useTaobaoLayout ? anyAvailable : inStock);
+  // The current storefront role can't buy from any of this product's
+  // categories. The backend stamps purchasable=false on the product based
+  // on customer_role_category_rules. UI hides price + replaces the CTA
+  // with a disabled role-specific message — sale flow is unreachable for
+  // this visitor.
+  const cannotPurchase = $derived(data.product?.purchasable === false);
+  const ctaAvailable = $derived(!cannotPurchase && (data.useTaobaoLayout ? anyAvailable : inStock));
+  const cannotPurchaseLabel = $derived(
+    m.product_detail_role_cannot_purchase({
+      role: data.customer?.role === 'installer' ? m.admin_role_installer() : m.admin_role_customer()
+    })
+  );
   const hasDiscount = $derived(
     selectedVariant?.compare_at_price != null &&
     selectedVariant.compare_at_price > selectedVariant.price
@@ -668,8 +679,10 @@
           </p>
         {/if}
 
-        <!-- Price -->
-        {#if selectedVariant}
+        <!-- Price — hidden entirely when the role can't purchase, so we don't
+             tease a number the visitor can't act on. The disabled CTA below
+             carries the role-specific explanation. -->
+        {#if selectedVariant && !cannotPurchase}
           <div class="flex items-baseline gap-3 flex-wrap">
             <span class="font-display text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-ink-900">
               HK${selectedVariant.price.toFixed(2)}
@@ -806,7 +819,9 @@
                        ? 'bg-success'
                        : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
           >
-            {#if !ctaAvailable}
+            {#if cannotPurchase}
+              {cannotPurchaseLabel}
+            {:else if !ctaAvailable}
               {m.product_detail_out_of_stock()}
             {:else if adding}
               {m.product_detail_adding()}
@@ -1223,6 +1238,8 @@
   inStock={ctaAvailable}
   adding={adding}
   added={added}
+  cannotPurchase={cannotPurchase}
+  cannotPurchaseLabel={cannotPurchaseLabel}
 />
 
 <RecentlyViewed excludeID={data.product.id} />

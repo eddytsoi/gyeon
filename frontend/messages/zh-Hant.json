@@ -125,6 +125,7 @@
   "product_detail_options_label_multi": "選項",
   "product_detail_options_label_single": "現貨供應",
   "product_detail_add_to_cart": "加入購物車",
+  "product_detail_role_cannot_purchase": "{role}不能購買該產品",
   "product_detail_adding": "加入中…",
   "product_detail_added": "✓ 已加入購物車",
   "product_detail_out_of_stock": "已售完",

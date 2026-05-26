@@ -48,6 +48,11 @@ export interface Product {
   media_4_webp_url?: string | null;
   status: string;
   kind?: string; // 'simple' | 'bundle'
+  // True when the current request's storefront role is allowed to add this
+  // product to cart. False means at least one of the product's categories
+  // is blocked-for-purchase for the role — price + add-to-cart should hide.
+  // Defaults to true when omitted (older clients, untouched admin paths).
+  purchasable?: boolean;
   // Per-product override of the site-wide `pdp_taobao_layout_enabled`
   // flag. null/undefined = follow site default, true = force taobao
   // modal, false = force classic inline PDP.
@@ -325,6 +330,16 @@ export interface NavMenu {
 }
 
 export type CustomerRole = 'customer' | 'installer';
+
+/**
+ * Map a CustomerRole to its localised label. Reuses the admin role labels
+ * so we don't duplicate the same translation in two namespaces. Anonymous
+ * visitors (no role) are treated as `customer`, matching backend behaviour.
+ */
+import * as m from '$lib/paraglide/messages';
+export function customerRoleLabel(role: CustomerRole | string | null | undefined): string {
+  return role === 'installer' ? m.admin_role_installer() : m.admin_role_customer();
+}
 
 export interface Customer {
   id: string;
