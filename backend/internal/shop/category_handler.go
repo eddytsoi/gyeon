@@ -7,12 +7,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/respond"
 )
 
 type CategoryHandler struct {
 	svc      *CategoryService
 	hiddenFn HiddenCategoryIDsFunc
+	roleFn   RoleBlockedCategoryIDsFunc
 }
 
 // HiddenCategoryIDsFunc returns the category UUIDs that should be excluded
@@ -20,8 +22,19 @@ type CategoryHandler struct {
 // pull in a settings dep directly. Returning nil disables filtering.
 type HiddenCategoryIDsFunc func(ctx context.Context) []string
 
+// RoleBlockedCategoryIDsFunc returns the category UUIDs the storefront role
+// isn't allowed to see. Implemented by categoryrules.Service.
+// BlockedViewCategoryIDs. nil disables role-based filtering.
+type RoleBlockedCategoryIDsFunc func(ctx context.Context, role string) []string
+
 func NewCategoryHandler(svc *CategoryService, hiddenFn HiddenCategoryIDsFunc) *CategoryHandler {
 	return &CategoryHandler{svc: svc, hiddenFn: hiddenFn}
+}
+
+// SetRoleBlockedFn wires the per-role category filter. Call from main after
+// categoryrules.Service exists.
+func (h *CategoryHandler) SetRoleBlockedFn(fn RoleBlockedCategoryIDsFunc) {
+	h.roleFn = fn
 }
 
 func (h *CategoryHandler) Routes() chi.Router {
@@ -72,17 +85,24 @@ func (h *CategoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	// Public callers (storefront) get categories minus the hidden set so
-	// the nav + category pages don't expose private SKUs. Admin opts out
-	// via ?include_hidden=true so it can still assign products to / pick
-	// from hidden categories.
-	if r.URL.Query().Get("include_hidden") != "true" && h.hiddenFn != nil {
-		hidden := h.hiddenFn(r.Context())
-		if len(hidden) > 0 {
-			hide := make(map[string]struct{}, len(hidden))
-			for _, id := range hidden {
+	// Public callers (storefront) get categories minus the hidden set + the
+	// per-role blocked set so the nav + category pages don't expose private
+	// SKUs. Admin opts out via ?include_hidden=true so it can still assign
+	// products to / pick from hidden categories.
+	if r.URL.Query().Get("include_hidden") != "true" {
+		hide := map[string]struct{}{}
+		if h.hiddenFn != nil {
+			for _, id := range h.hiddenFn(r.Context()) {
 				hide[id] = struct{}{}
 			}
+		}
+		if h.roleFn != nil {
+			role := auth.CustomerRoleFromContext(r.Context())
+			for _, id := range h.roleFn(r.Context(), role) {
+				hide[id] = struct{}{}
+			}
+		}
+		if len(hide) > 0 {
 			// Allocate a fresh slice — `cats` aliases the cached list's
 			// backing array, so writing through `cats[:0]` would mutate
 			// the cache and a later `include_hidden=true` read would

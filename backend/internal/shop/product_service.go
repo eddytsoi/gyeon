@@ -13,10 +13,19 @@ import (
 
 	"github.com/lib/pq"
 
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/cache"
 	"gyeon/backend/internal/settings"
 	"gyeon/backend/internal/util"
 )
+
+// RoleRulesProvider returns the category IDs a storefront role isn't allowed
+// to see. Implemented by categoryrules.Service — kept as an interface here so
+// the shop package doesn't depend directly on categoryrules (the wiring
+// graph is shop → categoryrules-by-interface, set from main.go).
+type RoleRulesProvider interface {
+	BlockedViewCategoryIDs(ctx context.Context, role string) []string
+}
 
 // defaultBundleSKU returns the auto-generated SKU for a bundle product's
 // default variant. Computed in Go (rather than via SQL `SUBSTRING($1::text, …)`)
@@ -407,6 +416,61 @@ type ProductService struct {
 	thumbnail   ThumbnailEnsurer
 	settingsSvc *settings.Service
 	audit       AuditRecorder
+	roleRules   RoleRulesProvider
+}
+
+// SetRoleRules wires in the per-role category visibility rules. Optional —
+// nil keeps the listing queries role-agnostic (same as before the feature
+// was added). Call from main during setup.
+func (s *ProductService) SetRoleRules(p RoleRulesProvider) { s.roleRules = p }
+
+// appendRoleVisibilityFilter appends a NOT EXISTS clause that hides any
+// product linked (via product_category_links) to a category the storefront
+// role isn't allowed to see. Role is read from request context, defaulting
+// to "customer" for anonymous visitors. No-op when roleRules is not wired
+// or the role has no blocked categories.
+//
+// Returns the (possibly-extended) wheres + args plus a cache scope string
+// that includes the role + blocked-id set, so two roles never share a
+// cached page.
+func (s *ProductService) appendRoleVisibilityFilter(ctx context.Context, wheres []string, args []any) ([]string, []any, string) {
+	if s.roleRules == nil {
+		return wheres, args, ""
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedViewCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return wheres, args, "role:" + role
+	}
+	args = append(args, pq.Array(blocked))
+	wheres = append(wheres, fmt.Sprintf(
+		`NOT EXISTS (SELECT 1 FROM product_category_links pcl
+		             WHERE pcl.product_id = p.id
+		               AND pcl.category_id = ANY($%d::uuid[]))`, len(args)))
+	return wheres, args, "role:" + role + ":" + strings.Join(blocked, ",")
+}
+
+// roleBlocksProductCategories returns true when at least one of the
+// product's categories is in the role's blocked-view set. Used by
+// GetBySlug / GetByID to 404 a direct-URL PDP hit for a hidden product —
+// the public list filter alone isn't enough since direct links bypass it.
+func (s *ProductService) roleBlocksProductCategories(ctx context.Context, productID string) bool {
+	if s.roleRules == nil {
+		return false
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedViewCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return false
+	}
+	var hit int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM product_category_links
+		 WHERE product_id = $1::uuid AND category_id = ANY($2::uuid[])`,
+		productID, pq.Array(blocked)).Scan(&hit); err != nil {
+		return false
+	}
+	return hit > 0
 }
 
 func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time.Duration, settingsSvc *settings.Service) *ProductService {
@@ -666,10 +730,11 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw string
+	var hiddenRaw, roleScope string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
 
-	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d:%s", locale, search, limit, offset, hiddenRaw)
+	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d:%s:%s", locale, search, limit, offset, hiddenRaw, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
@@ -746,6 +811,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		wheres = append(wheres, fmt.Sprintf("%s <= $%d", minPriceSQ, len(args)))
 	}
 	wheres, args, _ = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	wheres, args, _ = s.appendRoleVisibilityFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
 	orderBy := "p.created_at DESC"
@@ -864,11 +930,12 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw string
+	var hiddenRaw, roleScope string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d:%s", locale, search, limit, offset, hiddenRaw)
+	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d:%s:%s", locale, search, limit, offset, hiddenRaw, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -951,11 +1018,12 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw string
+	var hiddenRaw, roleScope string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, hiddenRaw)
+	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d:%s:%s", locale, categorySlug, search, limit, offset, hiddenRaw, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -1037,11 +1105,12 @@ func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categor
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw string
+	var hiddenRaw, roleScope string
 	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
+	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, hiddenRaw)
+	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d:%s:%s", locale, categorySlug, search, limit, offset, hiddenRaw, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
@@ -1210,7 +1279,8 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 // from the public listing. Returns sql.ErrNoRows when the slug doesn't
 // match an active product.
 func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*Product, error) {
-	key := fmt.Sprintf("shop:products:slug:%s:%s", slug, locale)
+	role := auth.CustomerRoleFromContext(ctx)
+	key := fmt.Sprintf("shop:products:slug:%s:%s:%s", slug, locale, role)
 	if v, ok := s.cache.Get(key); ok {
 		p := v.(Product)
 		return &p, nil
@@ -1219,6 +1289,13 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 		productSelect+` WHERE p.slug = $2 AND p.status = 'active'`, locale, slug))
 	if err != nil {
 		return nil, err
+	}
+	// Role-based visibility applies to direct PDP hits too — surfacing a
+	// product through a deep link that the role can't add to cart would be
+	// a confusing dead end. hidden_category_ids stays bypassed (admin-only
+	// hides) but role rules don't.
+	if s.roleBlocksProductCategories(ctx, p.ID) {
+		return nil, sql.ErrNoRows
 	}
 	if ids, err := s.loadCategoryIDs(ctx, p.ID); err == nil {
 		p.CategoryIDs = ids

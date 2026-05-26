@@ -10,6 +10,15 @@
   let confirmOpen = $state(false);
   let sending = $state(false);
   let successMessage = $state<string | null>(null);
+  let savingRole = $state(false);
+  // Track the selected role locally so the <select> reflects unsaved edits.
+  // Falls back to the loaded customer role; re-syncs after a successful save.
+  let roleDraft = $state<'customer' | 'installer'>(data.customer?.role ?? 'customer');
+  $effect(() => {
+    if (form?.roleSaved && form.role) {
+      roleDraft = form.role as 'customer' | 'installer';
+    }
+  });
 
   function openConfirm() {
     successMessage = null;
@@ -101,6 +110,47 @@
           <p class="text-sm text-gray-900">{new Date(data.customer.created_at).toLocaleDateString('en-HK')}</p>
         </div>
       </div>
+
+      <!-- Role select. customer = default storefront tier; installer = elevated.
+           Changing role does NOT bump the customer's JWT — they'll see the new
+           pricing / visibility on their next request. -->
+      <form
+        method="POST"
+        action="?/updateRole"
+        use:enhance={() => {
+          savingRole = true;
+          return async ({ update }) => {
+            await update();
+            savingRole = false;
+          };
+        }}
+        class="mt-5 pt-5 border-t border-gray-100 flex items-end gap-3"
+      >
+        <div class="flex-1 max-w-xs">
+          <label for="customer-role" class="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{m.admin_customer_label_role()}</label>
+          <select
+            id="customer-role"
+            name="role"
+            bind:value={roleDraft}
+            class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+          >
+            <option value="customer">{m.admin_role_customer()}</option>
+            <option value="installer">{m.admin_role_installer()}</option>
+          </select>
+        </div>
+        <SaveButton
+          loading={savingRole}
+          class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+        >
+          {m.admin_customer_role_save()}
+        </SaveButton>
+        {#if form?.roleSaved}
+          <span class="text-xs text-green-600">{m.admin_customer_role_saved()}</span>
+        {/if}
+        {#if form?.roleError}
+          <span class="text-xs text-red-600">{form.roleError}</span>
+        {/if}
+      </form>
     </div>
 
     <!-- Order History -->

@@ -70,6 +70,10 @@ func (h *CartHandler) addItem(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusConflict, "insufficient stock")
 		return
 	}
+	if errors.Is(err, ErrCannotPurchase) {
+		respond.Error(w, http.StatusForbidden, "this product is not available for your account")
+		return
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return

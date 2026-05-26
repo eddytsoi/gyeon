@@ -18,6 +18,7 @@ import (
 	"gyeon/backend/internal/audit"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/cache"
+	"gyeon/backend/internal/categoryrules"
 	"gyeon/backend/internal/cms"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/db"
@@ -278,6 +279,9 @@ func main() {
 	cartSvc := orders.NewCartService(conn)
 	pricingSvc := pricing.NewService(conn)
 	customerSvc := customers.NewService(conn)
+	roleRulesSvc := categoryrules.NewService(conn)
+	productSvc.SetRoleRules(roleRulesSvc)
+	cartSvc.SetPurchaseGuard(roleRulesSvc, customerSvc)
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)
 	emailTemplateStore := email.NewStore(conn)
@@ -567,11 +571,19 @@ func main() {
 		w.Write([]byte(`{"mcp_endpoint":"` + baseURL + `/mcp/sse","name":"Gyeon Storefront","description":"Browse products, manage cart, validate coupons, and place orders. Checkout accepts customer and shipping details and returns a Stripe PaymentIntent client_secret for the client to confirm payment."}`))
 	})
 
+	// Optional middleware that plumbs the storefront customer role into
+	// context when a Bearer token is present. Used to gate public product /
+	// category listings by per-role rules without forcing auth on anonymous
+	// browsing.
+	optionalCustomerMW := auth.OptionalCustomerMiddleware(customerJWTSecret, customerSvc)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public storefront
-		r.Mount("/categories", shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs).Routes())
-		r.Mount("/products", productHandler.Routes())
-		r.Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
+		categoryHandler := shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs)
+		categoryHandler.SetRoleBlockedFn(roleRulesSvc.BlockedViewCategoryIDs)
+		r.With(optionalCustomerMW).Mount("/categories", categoryHandler.Routes())
+		r.With(optionalCustomerMW).Mount("/products", productHandler.Routes())
+		r.With(optionalCustomerMW).Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
 		r.Mount("/orders", orders.NewOrderHandler(orderSvc).PublicRoutes())
 
 		// Public media lookup — resolves [photo-grid] source names to canonical
@@ -686,6 +698,9 @@ func main() {
 
 				// Customer management
 				r.Mount("/admin/customers", customerHandler.AdminRoutes())
+
+				// Per-role category visibility / purchase rules (matrix UI).
+				r.Mount("/admin/category-rules", categoryrules.NewHandler(roleRulesSvc).AdminRoutes())
 
 				// Loyalty (P3 #24): per-customer balance + ledger + manual adjust
 				r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())

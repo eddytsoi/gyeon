@@ -197,6 +197,18 @@ export const adminReorderCategories = (token: string, ids: string[]) =>
     body: JSON.stringify({ ids })
   });
 
+// Per-(role, category) visibility / purchase rules. The matrix UI loads the
+// full ruleset, edits it locally, and PUTs the complete state — partial
+// deltas would make "no row" ambiguous (default-allowed vs unchanged).
+export const adminGetCategoryRules = (token: string) =>
+  request<{ rules: import('$lib/types').CategoryRule[] }>(`/admin/category-rules`, token);
+
+export const adminSaveCategoryRules = (token: string, rules: import('$lib/types').CategoryRule[]) =>
+  request<void>(`/admin/category-rules`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ rules })
+  });
+
 // Orders
 export interface AdminOrdersQuery {
   limit?: number;
@@ -456,6 +468,15 @@ export const adminGetCustomers = (token: string, limit = 50, offset = 0, q = '')
 
 export const adminGetCustomer = (token: string, id: string) =>
   request<Customer>(`/admin/customers/${id}`, token);
+
+// Set a customer's storefront role. The body shape mirrors the backend's
+// PUT /admin/customers/{id}/role — passing an unknown role normalises to
+// "customer" server-side.
+export const adminUpdateCustomerRole = (token: string, id: string, role: import('$lib/types').CustomerRole) =>
+  request<Customer>(`/admin/customers/${id}/role`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ role })
+  });
 
 // Used by the new-order page to render the saved-address radio list for a
 // chosen customer. Returns [] for guests with no profile addresses.

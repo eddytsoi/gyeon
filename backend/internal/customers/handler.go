@@ -79,9 +79,35 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
 	r.Get("/{id}", h.getByID)
+	r.Put("/{id}/role", h.adminUpdateRole)
 	r.Get("/{id}/addresses", h.adminListAddresses)
 	r.Post("/{id}/send-reset-password-email", h.sendResetPasswordEmail)
 	return r
+}
+
+// adminUpdateRole sets a customer's storefront role (customer | installer).
+// Body: {"role": "installer"}. Unknown roles fall back to "customer" via
+// NormalizeRole rather than 400-ing — the admin UI ships a closed dropdown,
+// so a bad value here means a buggy caller, not a user typo.
+func (h *Handler) adminUpdateRole(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Role string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	customer, err := h.svc.UpdateRole(r.Context(), id, req.Role)
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, customer)
 }
 
 // adminListAddresses returns a customer's saved addresses for the admin

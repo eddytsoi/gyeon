@@ -60,13 +60,38 @@ type UpdateItemRequest struct {
 
 var ErrInsufficientStock = errors.New("insufficient stock")
 var ErrCartNotFound = errors.New("cart not found")
+var ErrCannotPurchase = errors.New("product not purchasable for this customer")
+
+// PurchaseGuard answers "may this role buy this variant?" — implemented by
+// categoryrules.Service. Kept as an interface so the orders package doesn't
+// import categoryrules directly (avoids forcing the dep on every consumer
+// of CartService).
+type PurchaseGuard interface {
+	VariantPurchasable(ctx context.Context, variantID, role string) bool
+}
+
+// RoleResolver returns the storefront role for a customer ID, used to look
+// up the role of the cart owner. customers.Service satisfies this.
+type RoleResolver interface {
+	GetRole(ctx context.Context, customerID string) string
+}
 
 type CartService struct {
-	db *sql.DB
+	db       *sql.DB
+	guard    PurchaseGuard
+	roleLkup RoleResolver
 }
 
 func NewCartService(db *sql.DB) *CartService {
 	return &CartService{db: db}
+}
+
+// SetPurchaseGuard wires in the per-role purchasability check. Optional —
+// nil leaves AddItem behaving exactly as before. Call from main.go after
+// both services exist.
+func (s *CartService) SetPurchaseGuard(g PurchaseGuard, r RoleResolver) {
+	s.guard = g
+	s.roleLkup = r
 }
 
 func (s *CartService) GetOrCreate(ctx context.Context, sessionToken string, customerID *string) (*Cart, error) {
@@ -232,6 +257,24 @@ func (s *CartService) ChildrenForCart(ctx context.Context, cartID string) ([]Car
 func (s *CartService) AddItem(ctx context.Context, cartID string, req AddItemRequest) (*CartItem, error) {
 	if req.Quantity <= 0 {
 		req.Quantity = 1
+	}
+
+	// Per-role purchase rules. Look up the cart owner's role (or "customer"
+	// for guest carts) and ask the guard whether this variant is allowed.
+	// Bail before stock check so the customer gets a precise error.
+	if s.guard != nil {
+		role := "customer"
+		if s.roleLkup != nil {
+			var customerID sql.NullString
+			_ = s.db.QueryRowContext(ctx,
+				`SELECT customer_id FROM carts WHERE id = $1`, cartID).Scan(&customerID)
+			if customerID.Valid && customerID.String != "" {
+				role = s.roleLkup.GetRole(ctx, customerID.String)
+			}
+		}
+		if !s.guard.VariantPurchasable(ctx, req.VariantID, role) {
+			return nil, ErrCannotPurchase
+		}
 	}
 
 	// check stock — for bundle products use derived stock instead of variant stock_qty

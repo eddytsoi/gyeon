@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
 )
 
@@ -218,6 +219,10 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 
 	first, last := resolveName(wc)
 	phone := nullableString(wc.Billing.Phone)
+	// WC custom roles "installer" and "installerv2" both map to Gyeon's
+	// "installer" role; everything else is treated as a regular customer.
+	// See customers.NormalizeRole for the canonical mapping.
+	role := customers.NormalizeRole(wc.Role)
 
 	var customerID string
 	existed := false
@@ -248,8 +253,8 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 
 	if existed {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE customers SET first_name=$2, last_name=$3, phone=$4 WHERE id=$1`,
-			customerID, first, last, phone); err != nil {
+			`UPDATE customers SET first_name=$2, last_name=$3, phone=$4, role=$5::customer_role WHERE id=$1`,
+			customerID, first, last, phone, role); err != nil {
 			return "", fmt.Errorf("update customer: %w", err)
 		}
 		p.UpdatedCustomers++
@@ -260,10 +265,10 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 	}
 
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO customers (email, first_name, last_name, phone, wc_customer_id)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO customers (email, first_name, last_name, phone, wc_customer_id, role)
+		 VALUES ($1, $2, $3, $4, $5, $6::customer_role)
 		 RETURNING id`,
-		wc.Email, first, last, phone, wc.ID).Scan(&customerID); err != nil {
+		wc.Email, first, last, phone, wc.ID, role).Scan(&customerID); err != nil {
 		return "", fmt.Errorf("insert customer: %w", err)
 	}
 	p.ImportedCustomers++
