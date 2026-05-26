@@ -153,6 +153,8 @@ func (h *ProductHandler) listAll(w http.ResponseWriter, r *http.Request) {
 		r.URL.Query().Get("q"),
 		r.URL.Query().Get("category"),
 		r.URL.Query().Get("kind"),
+		r.URL.Query().Get("stock"),
+		r.URL.Query().Get("sort"),
 		limit, offset)
 	if err != nil {
 		respond.InternalError(w)

@@ -39,17 +39,10 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     .map(s => s.trim())
     .filter(s => KNOWN_ROLES.has(s));
 
-  const carrier = url.searchParams.get('carrier') ?? '';
-
-  const pickupParam = url.searchParams.get('pickup') ?? '';
-  let pickup: boolean | undefined;
-  if (pickupParam === '1' || pickupParam === 'true') pickup = true;
-  else if (pickupParam === '0' || pickupParam === 'false') pickup = false;
-
   const hasNotesParam = url.searchParams.get('has_notes') ?? '';
   const hasNotes = hasNotesParam === '1' || hasNotesParam === 'true';
 
-  const [ordersRes, unreadCounts, carriers] = await Promise.all([
+  const [ordersRes, unreadCounts] = await Promise.all([
     adminGetOrders(token, {
       limit: PAGE_SIZE,
       offset,
@@ -59,12 +52,9 @@ export const load: PageServerLoad = async ({ parent, url }) => {
       to,
       unread,
       roles,
-      carrier,
-      pickup,
       hasNotes
     }).catch(() => ({ items: [], total: 0 })),
-    adminGetOrderNoticeUnreadCounts(token).catch(() => ({} as Record<string, number>)),
-    adminGetOrderCarriers(token).catch(() => [])
+    adminGetOrderNoticeUnreadCounts(token).catch(() => ({} as Record<string, number>))
   ]);
   return {
     orders: ordersRes.items,
@@ -72,15 +62,12 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     page: pageNum,
     pageSize: PAGE_SIZE,
     unreadCounts,
-    carriers,
     q,
     statuses,
     from,
     to,
     unread,
     roles,
-    carrier,
-    pickup,
     hasNotes
   };
 };

@@ -15,73 +15,261 @@
 
   let deleteTarget = $state<Product | null>(null);
 
+  const KINDS = ['simple', 'bundle'] as const;
+  const STOCK_STATES = ['in_stock', 'low_stock', 'out_of_stock'] as const;
+
+  const kindLabel: Record<string, string> = {
+    simple: m.admin_products_filter_kind_simple(),
+    bundle: m.admin_products_filter_kind_bundle(),
+  };
+  const stockLabel: Record<string, string> = {
+    in_stock:     m.admin_products_filter_stock_in(),
+    low_stock:    m.admin_products_filter_stock_low(),
+    out_of_stock: m.admin_products_filter_stock_out(),
+  };
+  const stockChipColour: Record<string, string> = {
+    in_stock:     'bg-green-50 text-green-700',
+    low_stock:    'bg-amber-50 text-amber-700',
+    out_of_stock: 'bg-red-50 text-red-700',
+  };
+
+  const SORT_OPTIONS = [
+    'updated_desc', 'updated_asc',
+    'created_desc', 'created_asc',
+    'name_asc',     'name_desc',
+    'price_asc',    'price_desc',
+    'stock_asc',    'stock_desc',
+  ] as const;
+  const sortLabel: Record<string, string> = {
+    updated_desc: m.admin_products_sort_updated_desc(),
+    updated_asc:  m.admin_products_sort_updated_asc(),
+    created_desc: m.admin_products_sort_created_desc(),
+    created_asc:  m.admin_products_sort_created_asc(),
+    name_asc:     m.admin_products_sort_name_asc(),
+    name_desc:    m.admin_products_sort_name_desc(),
+    price_asc:    m.admin_products_sort_price_asc(),
+    price_desc:   m.admin_products_sort_price_desc(),
+    stock_asc:    m.admin_products_sort_stock_asc(),
+    stock_desc:   m.admin_products_sort_stock_desc(),
+  };
+
+  const hasFilters = $derived(
+    !!data.q || !!data.category || !!data.kind || !!data.stock || (!!data.sort && data.sort !== 'updated_desc')
+  );
+
   // Filter changes reset to page 1 — otherwise narrowing the result set
   // could leave you stranded on an empty page.
-  function onSearch(q: string) {
+  function pushParams(mutate: (p: URLSearchParams) => void) {
     const url = new URL(page.url);
-    if (q) url.searchParams.set('q', q);
-    else url.searchParams.delete('q');
+    mutate(url.searchParams);
     url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
-  function onCategoryChange(e: Event) {
-    const slug = (e.currentTarget as HTMLSelectElement).value;
-    const url = new URL(page.url);
-    if (slug) url.searchParams.set('category', slug);
-    else url.searchParams.delete('category');
-    url.searchParams.delete('page');
-    goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
+  function onSearch(q: string) {
+    pushParams(p => { q ? p.set('q', q) : p.delete('q'); });
+  }
+
+  function onCategoryChange(slug: string) {
+    pushParams(p => { slug ? p.set('category', slug) : p.delete('category'); });
+  }
+
+  function setKind(kind: string) {
+    pushParams(p => { kind ? p.set('kind', kind) : p.delete('kind'); });
+  }
+
+  function setStock(state: string) {
+    pushParams(p => { state ? p.set('stock', state) : p.delete('stock'); });
+  }
+
+  function setSort(value: string) {
+    pushParams(p => {
+      // Treat empty + the default ("updated_desc") the same so the URL
+      // stays clean unless the admin explicitly picks something else.
+      if (!value || value === 'updated_desc') p.delete('sort');
+      else p.set('sort', value);
+    });
+  }
+
+  function clearAll() {
+    pushParams(p => {
+      p.delete('q');
+      p.delete('category');
+      p.delete('kind');
+      p.delete('stock');
+      p.delete('sort');
+    });
+  }
+
+  function formatPrice(value: number): string {
+    return `HK$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
   }
 </script>
 
 <svelte:head><title>{m.admin_products_title()}</title></svelte:head>
 
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-bold text-gray-900">{m.admin_products_heading()}</h1>
+<div class="flex items-center justify-between mb-6 gap-3">
+  <div class="flex items-baseline gap-3 min-w-0">
+    <h1 class="text-2xl font-bold text-gray-900">{m.admin_products_heading()}</h1>
+    <span class="text-sm text-gray-400">{data.total}</span>
+  </div>
   <NewButton label={m.admin_products_new()} href="/admin/products/new" />
 </div>
 
-<div class="mb-4 flex flex-col sm:flex-row gap-3 sm:items-center">
-  <SearchInput value={data.q} placeholder={m.admin_products_search_placeholder()} onChange={onSearch} />
-  <select
-    value={data.category}
-    onchange={onCategoryChange}
-    aria-label={m.admin_products_filter_category_aria()}
-    class="sm:w-auto sm:min-w-[12rem] border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white
-           focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
-    <option value="">{m.admin_products_filter_category_all()}</option>
-    {#each data.categories as c}
-      <option value={c.slug}>{c.name}</option>
+<!-- Filters -->
+<div class="mb-4 space-y-3">
+  <div class="flex flex-wrap items-center gap-3">
+    <SearchInput value={data.q} placeholder={m.admin_products_search_placeholder()} onChange={onSearch} />
+
+    <select
+      value={data.category}
+      onchange={(e) => onCategoryChange((e.currentTarget as HTMLSelectElement).value)}
+      aria-label={m.admin_products_filter_category_aria()}
+      class="text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white
+             focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
+      <option value="">{m.admin_products_filter_category_all()}</option>
+      {#each data.categories as c}
+        <option value={c.slug}>{c.name}</option>
+      {/each}
+    </select>
+
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-gray-500" for="products-sort">{m.admin_products_sort_label()}</label>
+      <select
+        id="products-sort"
+        value={data.sort || 'updated_desc'}
+        onchange={(e) => setSort((e.currentTarget as HTMLSelectElement).value)}
+        class="text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white
+               focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900">
+        {#each SORT_OPTIONS as opt}
+          <option value={opt}>{sortLabel[opt]}</option>
+        {/each}
+      </select>
+    </div>
+
+    {#if hasFilters}
+      <button type="button" onclick={clearAll}
+              class="text-xs text-gray-500 hover:text-gray-900 underline-offset-2 hover:underline">
+        {m.admin_products_filter_clear()}
+      </button>
+    {/if}
+  </div>
+
+  <!-- Row 2: kind + stock chips -->
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="button" onclick={() => setKind('')}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {data.kind === ''
+                     ? 'bg-gray-900 text-white border-gray-900'
+                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+      {m.admin_products_filter_kind_all()}
+    </button>
+    {#each KINDS as k}
+      <button type="button" onclick={() => setKind(k)}
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                     {data.kind === k
+                       ? 'bg-indigo-50 text-indigo-700 border-current'
+                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+        {kindLabel[k]}
+      </button>
     {/each}
-  </select>
+
+    <span class="h-4 w-px bg-gray-200 mx-1" aria-hidden="true"></span>
+
+    <button type="button" onclick={() => setStock('')}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                   {data.stock === ''
+                     ? 'bg-gray-900 text-white border-gray-900'
+                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+      {m.admin_products_filter_stock_all()}
+    </button>
+    {#each STOCK_STATES as s}
+      <button type="button" onclick={() => setStock(s)}
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors
+                     {data.stock === s
+                       ? `${stockChipColour[s]} border-current`
+                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}">
+        {stockLabel[s]}
+      </button>
+    {/each}
+  </div>
 </div>
 
 <!-- Products table -->
-<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+<div class="bg-white rounded-2xl border border-gray-100 overflow-x-auto"
      use:spotlight={{ selector: '.js-row' }}>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 w-[72px]" aria-label={m.admin_products_col_image()}></th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_products_col_product()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_products_col_category()}</th>
-        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_products_col_variants()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_products_col_variants()}</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_products_col_price()}</th>
+        <th class="text-right px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_products_col_stock()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_products_col_status()}</th>
         <th class="px-5 py-3"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
       {#each data.products as product}
+        {@const stockQty = product.default_variant_stock_qty}
+        {@const isOut = stockQty === 0}
+        {@const isLow = stockQty != null && stockQty > 0 && stockQty < 5}
+        {@const hasMulti = (product.variant_count ?? 0) > 1}
+        {@const priceValue = hasMulti ? product.min_price : product.default_variant_price}
+        {@const compareAt = hasMulti ? product.min_compare_at_price : product.default_variant_compare_at_price}
         <tr class="js-row transition-colors">
           <td class="px-5 py-3">
-            <p class="font-medium text-gray-900">{product.name}</p>
+            <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+              {#if product.primary_image_url}
+                <img src={product.primary_image_url} alt={product.name}
+                     class="w-full h-full object-cover" loading="lazy" />
+              {:else}
+                <svg class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                </svg>
+              {/if}
+            </div>
+          </td>
+          <td class="px-5 py-3">
+            <a href="/admin/products/{product.id}"
+               class="font-medium text-gray-900 hover:text-indigo-700 hover:underline underline-offset-2">
+              {product.name}
+            </a>
             <p class="text-xs text-gray-400 font-mono">PRD-{product.number}</p>
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
             {data.categories.find(c => c.id === product.category_id)?.name ?? m.admin_products_dash()}
           </td>
-          <td class="px-5 py-3 text-gray-500 hidden md:table-cell">
-            {product.variant_count === 1 ? m.admin_products_variants_one({ count: product.variant_count }) : m.admin_products_variants_many({ count: product.variant_count })}
+          <td class="px-5 py-3 text-gray-500 hidden lg:table-cell">
+            {product.variant_count === 1 ? m.admin_products_variants_one({ count: product.variant_count }) : m.admin_products_variants_many({ count: product.variant_count ?? 0 })}
+          </td>
+          <td class="px-5 py-3 text-right tabular-nums hidden sm:table-cell">
+            {#if priceValue != null}
+              <span class="inline-flex items-baseline gap-1.5">
+                <span class="font-medium text-gray-900">
+                  {hasMulti ? m.admin_products_price_from({ price: formatPrice(priceValue) }) : formatPrice(priceValue)}
+                </span>
+                {#if compareAt != null && compareAt > priceValue}
+                  <span class="line-through text-gray-400 text-xs">{formatPrice(compareAt)}</span>
+                {/if}
+              </span>
+            {:else}
+              <span class="text-gray-300">{m.admin_products_dash()}</span>
+            {/if}
+          </td>
+          <td class="px-5 py-3 text-right tabular-nums hidden sm:table-cell">
+            {#if stockQty == null}
+              <span class="text-gray-300">{m.admin_products_dash()}</span>
+            {:else if isOut}
+              <span class="text-gray-400 text-xs uppercase tracking-wide">{m.admin_products_stock_out()}</span>
+            {:else if isLow}
+              <span class="text-red-600 font-medium">{stockQty}</span>
+            {:else}
+              <span class="text-gray-700">{stockQty}</span>
+            {/if}
           </td>
           <td class="px-5 py-3">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
@@ -124,7 +312,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="5" class="px-5 py-10 text-center text-gray-400">
+          <td colspan="8" class="px-5 py-10 text-center text-gray-400">
             {data.q ? m.admin_products_no_match({ query: data.q }) : m.admin_products_empty()}
           </td>
         </tr>
