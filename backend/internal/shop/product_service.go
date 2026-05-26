@@ -529,6 +529,53 @@ func (s *ProductService) hiddenCategoryIDs(ctx context.Context) ([]string, strin
 	return cleaned, st.Value
 }
 
+// fbtExcludedCategoryIDs reads the fbt_excluded_category_slugs site setting,
+// resolves the slugs to category UUIDs in a single SELECT, and returns
+// (ids, rawSettingValue). Used by FBT pool queries to drop products linked
+// to service-only categories (coating, ppf-film, installers, …) via
+// product_category_links — different from hiddenCategoryIDs which uses UUIDs
+// and only checks products.category_id. Returns empty + "" on any error so a
+// misconfigured setting just stops excluding rather than breaking FBT.
+func (s *ProductService) fbtExcludedCategoryIDs(ctx context.Context) ([]string, string) {
+	if s.settingsSvc == nil {
+		return nil, ""
+	}
+	st, err := s.settingsSvc.Get(ctx, "fbt_excluded_category_slugs")
+	if err != nil || st == nil || strings.TrimSpace(st.Value) == "" {
+		return nil, ""
+	}
+	var slugs []string
+	if err := json.Unmarshal([]byte(st.Value), &slugs); err != nil {
+		return nil, ""
+	}
+	cleaned := make([]string, 0, len(slugs))
+	for _, sl := range slugs {
+		sl = strings.TrimSpace(sl)
+		if sl != "" {
+			cleaned = append(cleaned, sl)
+		}
+	}
+	if len(cleaned) == 0 {
+		return nil, st.Value
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id FROM categories WHERE slug = ANY($1::text[]) AND is_active = TRUE`,
+		pq.Array(cleaned))
+	if err != nil {
+		return nil, st.Value
+	}
+	defer rows.Close()
+	ids := make([]string, 0, len(cleaned))
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, st.Value
+		}
+		ids = append(ids, id)
+	}
+	return ids, st.Value
+}
+
 // appendHiddenCategoryFilter appends `p.category_id NOT IN ($N, ...)` to
 // wheres when at least one hidden category is configured. When no hidden
 // categories are set the inputs are returned unchanged.
@@ -2725,8 +2772,9 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	}
 
 	hiddenIDs, hiddenRaw := s.hiddenCategoryIDs(ctx)
+	excludedCatIDs, excludedCatRaw := s.fbtExcludedCategoryIDs(ctx)
 	day := time.Now().UTC().Format("2006-01-02")
-	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, day)
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, excludedCatRaw, day)
 	if v, ok := s.cache.Get(cacheKey); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -2747,19 +2795,19 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	}
 
 	// Pool A: co-purchase pairs from product_copurchase.
-	poolA, err := s.fbtFetchCopurchasePool(ctx, productID, fbtPoolCapCopurchase, baseExcludes, hiddenIDs)
+	poolA, err := s.fbtFetchCopurchasePool(ctx, productID, fbtPoolCapCopurchase, baseExcludes, hiddenIDs, excludedCatIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	// Pool B: bestsellers — same category first, top up storewide if short.
-	poolB, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapBestseller, baseExcludes, hiddenIDs, s.fbtFetchBestsellersPool)
+	poolB, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapBestseller, baseExcludes, hiddenIDs, excludedCatIDs, s.fbtFetchBestsellersPool)
 	if err != nil {
 		return nil, err
 	}
 
 	// Pool C: slow-movers — same category first, top up storewide if short.
-	poolC, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapSlowMover, baseExcludes, hiddenIDs, s.fbtFetchSlowMoversPool)
+	poolC, err := s.fbtFetchPoolWithCategoryFallback(ctx, sourceCategoryIDs, fbtPoolCapSlowMover, baseExcludes, hiddenIDs, excludedCatIDs, s.fbtFetchSlowMoversPool)
 	if err != nil {
 		return nil, err
 	}
@@ -2915,12 +2963,12 @@ func (s *ProductService) fbtFetchPoolWithCategoryFallback(
 	ctx context.Context,
 	categoryIDs []string,
 	cap int,
-	baseExcludes, hiddenIDs []string,
-	fetch func(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error),
+	baseExcludes, hiddenIDs, excludedCatIDs []string,
+	fetch func(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error),
 ) ([]string, error) {
 	var ids []string
 	if len(categoryIDs) > 0 {
-		got, err := fetch(ctx, categoryIDs, cap, baseExcludes, hiddenIDs)
+		got, err := fetch(ctx, categoryIDs, cap, baseExcludes, hiddenIDs, excludedCatIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -2932,7 +2980,7 @@ func (s *ProductService) fbtFetchPoolWithCategoryFallback(
 	exclSet := make([]string, 0, len(baseExcludes)+len(ids))
 	exclSet = append(exclSet, baseExcludes...)
 	exclSet = append(exclSet, ids...)
-	more, err := fetch(ctx, nil, cap-len(ids), exclSet, hiddenIDs)
+	more, err := fetch(ctx, nil, cap-len(ids), exclSet, hiddenIDs, excludedCatIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -2944,7 +2992,7 @@ func (s *ProductService) fbtFetchPoolWithCategoryFallback(
 // and sold-out products are filtered at SQL so the row never offers something
 // the customer can't add to cart. Also drops excluded IDs (source + bundle
 // components) and products in hidden categories.
-func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProductID string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProductID string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		SELECT p.id
 		FROM product_copurchase cp
@@ -2960,9 +3008,14 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 		  )
 		  AND p.id <> ALL($2::uuid[])
 		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
+		  AND NOT EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id
+		        AND pcl.category_id = ANY($4::uuid[])
+		  )
 		ORDER BY cp.together_order_count DESC, p.created_at DESC
-		LIMIT $4`
-	return s.fbtScanIDs(ctx, query, sourceProductID, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), cap)
+		LIMIT $5`
+	return s.fbtScanIDs(ctx, query, sourceProductID, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(excludedCatIDs), cap)
 }
 
 // fbtFetchBestsellersPool returns up to `cap` simple, in-stock product IDs
@@ -2972,7 +3025,7 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 // products are filtered at SQL so every result is purchasable. When
 // `categoryIDs` is non-empty, the result is restricted to products linked to
 // any of those categories.
-func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		WITH sales AS (
 		    SELECT pv.product_id, SUM(oi.quantity)::bigint AS qty
@@ -3001,17 +3054,22 @@ func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryID
 		      SELECT 1 FROM product_category_links pcl
 		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($4::uuid[])
 		  ))
+		  AND NOT EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id
+		        AND pcl.category_id = ANY($5::uuid[])
+		  )
 		ORDER BY s.qty DESC, p.created_at DESC
-		LIMIT $5`
+		LIMIT $6`
 	return s.fbtScanIDs(ctx, query,
-		fbtSalesWindowDays, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), cap)
+		fbtSalesWindowDays, fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), fbtUUIDArray(excludedCatIDs), cap)
 }
 
 // fbtFetchSlowMoversPool returns up to `cap` simple products (bundles
 // excluded — their stock is derived) that have stock above
 // fbtSlowMoverMinStock and at most fbtSlowMoverMaxSales over the window.
 // Ranked stock-rich-first so the picks meaningfully move inventory.
-func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs []string) ([]string, error) {
+func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		WITH sales AS (
 		    SELECT pv.product_id, COALESCE(SUM(oi.quantity), 0)::bigint AS qty
@@ -3043,11 +3101,16 @@ func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs
 		      SELECT 1 FROM product_category_links pcl
 		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($6::uuid[])
 		  ))
+		  AND NOT EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id
+		        AND pcl.category_id = ANY($7::uuid[])
+		  )
 		ORDER BY st.total_stock DESC, COALESCE(s.qty, 0) ASC, p.created_at DESC
-		LIMIT $7`
+		LIMIT $8`
 	return s.fbtScanIDs(ctx, query,
 		fbtSalesWindowDays, fbtSlowMoverMinStock, fbtSlowMoverMaxSales,
-		fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), cap)
+		fbtUUIDArray(excludes), fbtUUIDArray(hiddenIDs), fbtUUIDArray(categoryIDs), fbtUUIDArray(excludedCatIDs), cap)
 }
 
 // fbtUUIDArray wraps pq.Array but guarantees an empty (non-NULL) Postgres
