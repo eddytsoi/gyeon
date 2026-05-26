@@ -1096,6 +1096,8 @@
   "admin_product_edit_add_media_attach_failed": "附加失敗（{status}）",
   "admin_product_edit_add_media_done": "完成",
   "admin_product_edit_add_media_no_media": "媒體庫尚無任何媒體。",
+  "admin_product_edit_add_media_no_results": "沒有符合條件的媒體。",
+  "admin_product_edit_add_media_search_placeholder": "搜尋媒體名稱",
   "admin_product_edit_add_media_label_primary": "設為主要？",
   "admin_product_edit_add_media_primary_no": "否",
   "admin_product_edit_add_media_primary_yes": "是",

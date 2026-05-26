@@ -1096,6 +1096,8 @@
   "admin_product_edit_add_media_attach_failed": "Failed to attach ({status})",
   "admin_product_edit_add_media_done": "Done",
   "admin_product_edit_add_media_no_media": "No media in the library yet.",
+  "admin_product_edit_add_media_no_results": "No media match your filters.",
+  "admin_product_edit_add_media_search_placeholder": "Search by name",
   "admin_product_edit_add_media_label_primary": "Set as Primary?",
   "admin_product_edit_add_media_primary_no": "No",
   "admin_product_edit_add_media_primary_yes": "Yes",
