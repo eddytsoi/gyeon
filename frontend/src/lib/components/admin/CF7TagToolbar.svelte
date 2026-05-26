@@ -13,7 +13,7 @@
     { name: 'email',    label: m.admin_forms_tag_email,    snippet: '[email* your-email placeholder "you@example.com"]' },
     { name: 'tel',      label: m.admin_forms_tag_tel,      snippet: '[tel your-phone placeholder "+1 555 0100"]' },
     { name: 'textarea', label: m.admin_forms_tag_textarea, snippet: '[textarea* your-message placeholder "Your message"]' },
-    { name: 'select',   label: m.admin_forms_tag_select,   snippet: '[select your-choice "Option 1" "Option 2|value-2"]' },
+    { name: 'select',   label: m.admin_forms_tag_select,   snippet: '[select your-choice default:1 "Option 1" "Option 2|value-2"]' },
     { name: 'checkbox', label: m.admin_forms_tag_checkbox, snippet: '[checkbox your-options "Yes|yes" "No|no"]' },
     { name: 'radio',    label: m.admin_forms_tag_radio,    snippet: '[radio your-choice "Option A|a" "Option B|b"]' },
     { name: 'file',     label: m.admin_forms_tag_file,     snippet: '[file your-file filetypes:pdf|jpg|png limit:2mb]' },

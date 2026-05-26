@@ -166,6 +166,11 @@ func parseTag(body string, pos int) (*FormField, *ParseError) {
 	f.Name = name
 	idx++
 
+	// `default:N` on a choice field selects the N-th option (1-based, 0 = none).
+	// The options list is only complete at end of loop, so we record the index
+	// here and resolve it after the loop runs.
+	defaultIdx := -1
+
 	// Walk remaining tokens applying attr semantics. Quoted strings either
 	// follow a flag like `placeholder` / `default` (consumed there) or accumulate
 	// as options for choice fields / default for plain inputs.
@@ -191,6 +196,14 @@ func parseTag(body string, pos int) (*FormField, *ParseError) {
 		// whose value is the next quoted token, or an unrecognised flag we
 		// drop.
 		if k, v, ok := splitKV(t.text); ok {
+			if strings.EqualFold(k, "default") {
+				if n, err := strconv.Atoi(v); err == nil {
+					defaultIdx = n
+					continue
+				}
+				// Non-numeric default:foo (e.g. CF7 dynamic defaults) falls
+				// through; applyKV ignores unknown keys.
+			}
 			applyKV(&f, k, v)
 			continue
 		}
@@ -212,6 +225,12 @@ func parseTag(body string, pos int) (*FormField, *ParseError) {
 			// Unknown flag — ignore; admins will eventually see it in the
 			// raw editor and can remove it.
 		}
+	}
+
+	// `default:N` is 1-based. 0 = no default. Out-of-range and non-choice
+	// fields are silently ignored to match CF7's forgiving parser.
+	if defaultIdx > 0 && isChoiceField(ft) && defaultIdx <= len(f.Options) {
+		f.Default = f.Options[defaultIdx-1].Value
 	}
 
 	if f.Label == "" {
