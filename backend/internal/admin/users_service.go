@@ -19,6 +19,7 @@ var ErrUserNotFound = errors.New("admin user not found")
 var ErrEmailTaken = errors.New("email already registered")
 var ErrInvalidCredentials = errors.New("invalid email or password")
 var ErrSelfModification = errors.New("cannot demote, deactivate, or delete yourself")
+var ErrPasswordTooShort = errors.New("password must be at least 8 characters")
 
 type AdminUser struct {
 	ID        string `json:"id"`
@@ -270,6 +271,43 @@ func (s *UserService) IncrementTokenVersion(ctx context.Context, userID string) 
 		return 0, ErrUserNotFound
 	}
 	return tv, err
+}
+
+// SetPassword overwrites the target admin's password and bumps token_version
+// to invalidate every previously issued JWT for that user. The caller is
+// responsible for the super_admin role gate — this method does not re-check.
+//
+// Self-password change is allowed (no lockout risk; unlike demote/deactivate
+// which can leave a tenant with no active super_admin).
+func (s *UserService) SetPassword(ctx context.Context, id, newPassword string) error {
+	if len(newPassword) < 8 {
+		return ErrPasswordTooShort
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	prev, prevErr := s.getByID(ctx, id)
+	if errors.Is(prevErr, ErrUserNotFound) {
+		return ErrUserNotFound
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE admin_users SET password_hash=$2 WHERE id=$1`, id, string(hash))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrUserNotFound
+	}
+	// Force sign-out everywhere on the target so any active sessions die
+	// immediately rather than continuing on the stale password.
+	if _, err := s.IncrementTokenVersion(ctx, id); err != nil {
+		return err
+	}
+	auth.InvalidateAdminVersion(id)
+	// Audit without leaking either the old hash or the new plaintext.
+	s.record(ctx, "admin_user.set_password", id, prev, nil)
+	return nil
 }
 
 // SeedSuperAdmin creates the first super_admin if no admin users exist.

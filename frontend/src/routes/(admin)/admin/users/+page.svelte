@@ -10,14 +10,20 @@
   import AdminModal from '$lib/components/admin/AdminModal.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
+  import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   let showCreate = $state(false);
   let editingUser = $state<AdminUser | null>(null);
+  let passwordUser = $state<AdminUser | null>(null);
   let creating = $state(false);
   let updating = $state(false);
+  let settingPassword = $state(false);
+  let newPassword = $state('');
+  let confirmPassword = $state('');
+  let passwordError = $state('');
 
   function onSearch(q: string) {
     const url = new URL(page.url);
@@ -100,6 +106,16 @@
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round"
                       d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                  </svg>
+                </button>
+                <!-- Change Password -->
+                <button onclick={() => { passwordUser = user; newPassword = ''; confirmPassword = ''; passwordError = ''; }}
+                        title={m.admin_users_tip_change_password()}
+                        aria-label={m.admin_users_aria_change_password()}
+                        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z"/>
                   </svg>
                 </button>
                 <!-- Delete -->
@@ -232,6 +248,69 @@
           {m.admin_users_save()}
         </SaveButton>
         <button type="button" onclick={() => editingUser = null}
+                class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
+                       hover:border-gray-400 transition-colors">
+          {m.admin_users_cancel()}
+        </button>
+      </div>
+    </form>
+  {/if}
+</AdminModal>
+
+<!-- ── Change Password Modal ── -->
+<AdminModal open={!!passwordUser} onClose={() => passwordUser = null}>
+  {#if passwordUser}
+    <h3 class="font-semibold text-gray-900 mb-1">{m.admin_users_modal_password_title()}</h3>
+    <p class="text-xs text-gray-500 mb-4">{m.admin_users_password_for({ name: passwordUser.name })}</p>
+    <form method="POST" action="?/setPassword"
+          use:enhance={() => {
+            if (settingPassword) return;
+            if (newPassword !== confirmPassword) {
+              passwordError = m.admin_users_password_mismatch();
+              return ({ cancel }) => cancel();
+            }
+            passwordError = '';
+            settingPassword = true;
+            const targetName = passwordUser?.name ?? '';
+            return async ({ update, result }) => {
+              await update({ reset: false });
+              settingPassword = false;
+              if (result.type === 'success') {
+                notify.success(
+                  m.admin_users_modal_password_title(),
+                  m.admin_users_password_changed({ name: targetName })
+                );
+                passwordUser = null;
+                newPassword = '';
+                confirmPassword = '';
+              }
+            };
+          }}>
+      <input type="hidden" name="id" value={passwordUser.id} />
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_users_label_new_password()} *</label>
+          <input name="password" type="password" required minlength="8" bind:value={newPassword}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_users_label_confirm_password()} *</label>
+          <input type="password" required minlength="8" bind:value={confirmPassword}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        {#if passwordError}
+          <p class="text-xs text-red-600">{passwordError}</p>
+        {/if}
+      </div>
+      <div class="flex gap-3 mt-5">
+        <SaveButton loading={settingPassword}
+                class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900 text-white
+                       text-sm font-medium rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50">
+          {m.admin_users_change_password()}
+        </SaveButton>
+        <button type="button" onclick={() => passwordUser = null}
                 class="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm rounded-xl
                        hover:border-gray-400 transition-colors">
           {m.admin_users_cancel()}

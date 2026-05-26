@@ -636,6 +636,8 @@ func main() {
 			r.Use(adminMW)
 			r.Use(auditInfoMW)
 
+			// ── Tier 1: editor + admin + super_admin ──────────────────────
+			// Content-editing surface. Editor role is restricted to these.
 			r.Get("/admin/stats", statsHandler.Get)
 
 			// Sign out everywhere — bumps the calling admin's token_version,
@@ -659,83 +661,90 @@ func main() {
 			// Cross-product stock movement log (進出記錄).
 			r.Mount("/admin/stock-history", productHandler.AdminStockHistoryRoutes())
 
-			// Stock Management — batch mutation documents (draft → executed).
-			r.Mount("/admin/stock-mutations", stockHandler.AdminRoutes())
-
 			// CMS admin
 			r.Mount("/admin/cms/pages", pageHandler.AdminRoutes())
 			r.Mount("/admin/cms/posts", postHandler.AdminRoutes())
 			r.Mount("/admin/cms/post-categories", postCatHandler.AdminRoutes())
 			r.Mount("/admin/cms/nav", navHandler.AdminRoutes())
 
-			// Settings admin
-			r.Mount("/admin/settings", settingsHandler.AdminRoutes())
-
 			// Media library
 			r.Mount("/admin/media", mediaHandler.AdminRoutes())
-
-			// Customer management
-			r.Mount("/admin/customers", customerHandler.AdminRoutes())
-
-			// Order admin — list / get / status / delete / refund. Public /orders
-			// only exposes checkout + PI-authorized read-back.
-			r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
-
-			// PDF receipt for admin: /admin/orders/{id}/receipt.pdf. Registered
-			// directly (not as a sibling Mount) because chi disallows two
-			// handlers rooted at the same path.
-			r.Mount("/admin/order-receipts", receiptHandler.AdminRoutes())
-
-			// Admin-side order notices
-			r.Mount("/admin/order-notices", noticeHandler.AdminRoutes())
-
-			// ShipAny admin: test connection, create shipment, request pickup
-			r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
-
-			// Admin user management — super_admin only. Lower-privileged admins
-			// (editor / viewer) must not be able to create new accounts, change
-			// roles, or deactivate others, since that would let them escalate.
-			r.With(auth.RequireRole(jwtSecret, "super_admin")).
-				Mount("/admin/users", adminUserHandler.AdminRoutes())
-
-			// Pricing: campaigns and coupons
-			r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
-
-			// Redirects (P2 #22): admin CRUD; public match endpoint is mounted above
-			r.Mount("/admin/redirects", redirectsHandler.AdminRoutes())
-
-			// Audit log (P2 #17): list-only — entries are inserted by services
-			r.Mount("/admin/audit-log", auditHandler.AdminRoutes())
-
-			// SMTP log (v0.9.136): every outbound email attempt with rendered body + resend
-			r.Mount("/admin/smtp-log", smtplog.NewHandler(smtpLogStore, queueSvc).AdminRoutes())
-
-			// Queue jobs viewer (v0.9.136): debug pending/dead jobs and retry
-			r.Mount("/admin/queue-jobs", queue.NewHandler(queueSvc).AdminRoutes())
-
-			// Email templates (P2 #20): admin-editable overrides for the
-			// hardcoded transactional emails
-			r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
 
 			// Contact-form admin (CF7-style) — CRUD + submissions viewer
 			r.Mount("/admin/forms", formsHandler.AdminRoutes())
 
-			// Loyalty (P3 #24): per-customer balance + ledger + manual adjust
-			r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())
+			// ── Tier 2: admin + super_admin (block editor) ────────────────
+			// Financial, fulfillment, customer PII, system settings.
+			r.Group(func(r chi.Router) {
+				r.Use(auth.RequireRole(jwtSecret, "admin", "super_admin"))
 
-			// Abandoned cart recovery (list + manual run; external cron may also POST run)
-			abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
-			r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
+				// Stock Management — batch mutation documents (draft → executed).
+				r.Mount("/admin/stock-mutations", stockHandler.AdminRoutes())
 
-			// WooCommerce import
-			r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)
-			r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
-			r.Post("/admin/import/woocommerce/test", importHandler.Test)
-			r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
-			r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
-			r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
-			r.Post("/admin/import/woocommerce/orders/test", importHandler.OrdersTest)
-			r.Post("/admin/import/woocommerce/orders/stream", importHandler.OrdersImportStream)
+				// Settings admin
+				r.Mount("/admin/settings", settingsHandler.AdminRoutes())
+
+				// Customer management
+				r.Mount("/admin/customers", customerHandler.AdminRoutes())
+
+				// Loyalty (P3 #24): per-customer balance + ledger + manual adjust
+				r.Mount("/admin/customers/{id}/loyalty", loyaltyHandler.AdminRoutes())
+
+				// Order admin — list / get / status / delete / refund. Public /orders
+				// only exposes checkout + PI-authorized read-back.
+				r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+
+				// PDF receipt for admin: /admin/orders/{id}/receipt.pdf. Registered
+				// directly (not as a sibling Mount) because chi disallows two
+				// handlers rooted at the same path.
+				r.Mount("/admin/order-receipts", receiptHandler.AdminRoutes())
+
+				// Admin-side order notices
+				r.Mount("/admin/order-notices", noticeHandler.AdminRoutes())
+
+				// ShipAny admin: test connection, create shipment, request pickup
+				r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
+
+				// Pricing: campaigns and coupons
+				r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
+
+				// Redirects (P2 #22): admin CRUD; public match endpoint is mounted above
+				r.Mount("/admin/redirects", redirectsHandler.AdminRoutes())
+
+				// Audit log (P2 #17): list-only — entries are inserted by services
+				r.Mount("/admin/audit-log", auditHandler.AdminRoutes())
+
+				// SMTP log (v0.9.136): every outbound email attempt with rendered body + resend
+				r.Mount("/admin/smtp-log", smtplog.NewHandler(smtpLogStore, queueSvc).AdminRoutes())
+
+				// Queue jobs viewer (v0.9.136): debug pending/dead jobs and retry
+				r.Mount("/admin/queue-jobs", queue.NewHandler(queueSvc).AdminRoutes())
+
+				// Email templates (P2 #20): admin-editable overrides for the
+				// hardcoded transactional emails
+				r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
+
+				// Abandoned cart recovery (list + manual run; external cron may also POST run)
+				abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
+				r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
+
+				// WooCommerce import
+				r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)
+				r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
+				r.Post("/admin/import/woocommerce/test", importHandler.Test)
+				r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
+				r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
+				r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
+				r.Post("/admin/import/woocommerce/orders/test", importHandler.OrdersTest)
+				r.Post("/admin/import/woocommerce/orders/stream", importHandler.OrdersImportStream)
+			})
+
+			// ── Tier 3: super_admin only ──────────────────────────────────
+			// Admin user management — lower-privileged admins must not be able
+			// to create accounts, change roles, deactivate others, or reset
+			// passwords, since that would let them escalate.
+			r.With(auth.RequireRole(jwtSecret, "super_admin")).
+				Mount("/admin/users", adminUserHandler.AdminRoutes())
 		})
 	})
 

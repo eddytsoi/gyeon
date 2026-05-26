@@ -57,6 +57,7 @@ func (h *UserHandler) AdminRoutes() chi.Router {
 	r.Post("/", h.create)
 	r.Put("/{id}", h.update)
 	r.Delete("/{id}", h.delete)
+	r.Put("/{id}/password", h.setPassword)
 	return r
 }
 
@@ -133,6 +134,30 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, user)
+}
+
+func (h *UserHandler) setPassword(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if err := h.svc.SetPassword(r.Context(), id, req.Password); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			respond.NotFound(w)
+			return
+		}
+		if errors.Is(err, ErrPasswordTooShort) {
+			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respond.InternalError(w)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
