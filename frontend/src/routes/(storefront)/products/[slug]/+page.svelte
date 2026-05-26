@@ -65,7 +65,12 @@
       price: v?.price ?? 0
     });
   });
-  let activeImageID = $state<string | undefined>(undefined);
+  // When the product has any video media, the first video (lowest sort_order)
+  // becomes the initial active media so it autoplays on page entry — set as the
+  // initial state value so SSR and the first client render agree (no flash).
+  let activeImageID = $state<string | undefined>(
+    data.images.find((i) => isVideo(i))?.id
+  );
 
   type TabId = 'content' | 'howto' | 'surfaces';
   const availableTabs: TabId[] = (() => {
@@ -247,12 +252,16 @@
       history.replaceState(history.state, '', url);
     }
   }
+  const firstVideo = $derived(data.images.find((i) => isVideo(i)));
   const activeImage = $derived<ProductImage | undefined>(
     data.images.find((i) => i.id === activeImageID) ??
     data.images.find((i) => i.variant_id != null && i.variant_id === selectedVariant?.id) ??
     data.images.find((i) => i.is_primary) ??
     data.images[0]
   );
+  // Drives the "force autoplay+loop on first video" behavior on the streaming
+  // iframe path. Local <video> tags already hardcode autoplay/loop/muted.
+  const isActiveFirstVideo = $derived(!!firstVideo && activeImage?.id === firstVideo.id);
 
   const imageCount = $derived(data.images.length);
   const activeIndex = $derived(
@@ -493,22 +502,22 @@
                 in:slide={{ dir: direction === 'next' ? 1 : -1 }}
                 out:slide={{ dir: direction === 'next' ? -1 : 1 }}
               >
-                {#if isStreamingVideo(activeImage) && getEmbedURL(activeImage)}
+                {#if isStreamingVideo(activeImage) && getEmbedURL(activeImage, isActiveFirstVideo ? { autoplay: true } : undefined)}
                   {#if activeImage.video_fit === 'cover'}
                     <iframe
-                      src={getEmbedURL(activeImage) ?? ''}
+                      src={getEmbedURL(activeImage, isActiveFirstVideo ? { autoplay: true } : undefined) ?? ''}
                       title={activeImage.alt_text ?? data.product.name}
                       class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 min-w-full min-h-full aspect-video {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
-                      allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
+                      allow={(activeImage.video_autoplay || isActiveFirstVideo) ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
                       allowfullscreen
                       frameborder="0"
                     ></iframe>
                   {:else}
                     <iframe
-                      src={getEmbedURL(activeImage) ?? ''}
+                      src={getEmbedURL(activeImage, isActiveFirstVideo ? { autoplay: true } : undefined) ?? ''}
                       title={activeImage.alt_text ?? data.product.name}
                       class="w-full h-full {!iframeUnlocked ? '[@media(pointer:coarse)]:pointer-events-none' : ''}"
-                      allow={activeImage.video_autoplay ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
+                      allow={(activeImage.video_autoplay || isActiveFirstVideo) ? 'autoplay; encrypted-media; picture-in-picture' : 'encrypted-media; picture-in-picture'}
                       allowfullscreen
                       frameborder="0"
                     ></iframe>
@@ -516,7 +525,7 @@
                   {#if !iframeUnlocked}
                     <button
                       type="button"
-                      aria-label={activeImage.video_autoplay
+                      aria-label={(activeImage.video_autoplay || isActiveFirstVideo)
                         ? 'Tap to interact with video; swipe to change media'
                         : 'Tap to play video; swipe to change media'}
                       class="absolute inset-0 z-[5] hidden [@media(pointer:coarse)]:block bg-transparent
@@ -524,7 +533,7 @@
                       ontouchstart={onOverlayTouchStart}
                       ontouchend={onOverlayTouchEnd}
                     >
-                      {#if !activeImage.video_autoplay}
+                      {#if !activeImage.video_autoplay && !isActiveFirstVideo}
                         <span aria-hidden="true" class="absolute inset-0 flex items-center justify-center">
                           <span class="w-16 h-16 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white">
                             <svg class="w-7 h-7 ml-1" fill="currentColor" viewBox="0 0 24 24">
