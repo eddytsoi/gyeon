@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { adminGetUsers, adminCreateUser, adminUpdateUser, adminDeleteUser } from '$lib/api/admin';
+import { adminGetUsers, adminCreateUser, adminUpdateUser, adminDeleteUser, adminSetUserPassword } from '$lib/api/admin';
 
 const PAGE_SIZE = 50;
 
@@ -73,5 +73,26 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to delete user' });
     }
     return { success: true };
+  },
+
+  setPassword: async ({ request, cookies }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+
+    const form = await request.formData();
+    const id = form.get('id')?.toString() ?? '';
+    const password = form.get('password')?.toString() ?? '';
+    if (password.length < 8) {
+      return fail(422, { error: 'Password must be at least 8 characters' });
+    }
+    try {
+      await adminSetUserPassword(token, id, password);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('404')) return fail(404, { error: 'User not found' });
+      if (msg.includes('422')) return fail(422, { error: 'Password must be at least 8 characters' });
+      return fail(400, { error: 'Failed to set password' });
+    }
+    return { success: true, passwordChangedFor: id };
   }
 };

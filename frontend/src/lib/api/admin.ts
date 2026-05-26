@@ -677,6 +677,12 @@ export const adminUpdateUser = (token: string, id: string, body: { name: string;
 export const adminDeleteUser = (token: string, id: string) =>
   request(`/admin/users/${id}`, token, { method: 'DELETE' });
 
+export const adminSetUserPassword = (token: string, id: string, password: string) =>
+  request(`/admin/users/${id}/password`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ password })
+  });
+
 // ── Media ─────────────────────────────────────────────────────────────────────
 
 export interface MediaRef {
