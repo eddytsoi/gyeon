@@ -1271,8 +1271,8 @@ type adminListPage struct {
 	Total int
 }
 
-func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug, kind string, limit, offset int) ([]ProductWithMeta, int, error) {
-	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%s:%d:%d", locale, search, categorySlug, kind, limit, offset)
+func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySlug, kind, stockState, sort string, limit, offset int) ([]ProductWithMeta, int, error) {
+	key := fmt.Sprintf("shop:products:all:%s:%s:%s:%s:%s:%s:%d:%d", locale, search, categorySlug, kind, stockState, sort, limit, offset)
 	if v, ok := s.cache.Get(key); ok {
 		page := v.(adminListPage)
 		return page.Items, page.Total, nil
@@ -1296,9 +1296,49 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 		args = append(args, kind)
 		wheres = append(wheres, fmt.Sprintf("p.kind = $%d", len(args)))
 	}
+	// Stock-state filter operates on the default variant's stock_qty (the
+	// same number the admin Stock column displays). Bundle products have
+	// synthetic stock here — overrideBundleStock() corrects display values
+	// after the fetch, but filtering happens pre-override, so bundle stock
+	// filtering is approximate (acceptable for now; v1 trade-off).
+	switch stockState {
+	case "in_stock":
+		wheres = append(wheres, `defv.stock_qty > 0`)
+	case "low_stock":
+		wheres = append(wheres, `defv.stock_qty > 0 AND defv.stock_qty < 5`)
+	case "out_of_stock":
+		wheres = append(wheres, `COALESCE(defv.stock_qty, 0) = 0`)
+	}
 	where := ""
 	if len(wheres) > 0 {
 		where = ` WHERE ` + strings.Join(wheres, ` AND `)
+	}
+	// Sort clause — secondary sort by p.id keeps pagination stable when the
+	// primary column has ties. price/stock use cheapest.price + defv.stock_qty
+	// (consistent with the columns the UI shows) and NULLS LAST so products
+	// without active variants sink to the bottom.
+	orderBy := ""
+	switch sort {
+	case "updated_asc":
+		orderBy = ` ORDER BY p.updated_at ASC, p.id ASC`
+	case "created_desc":
+		orderBy = ` ORDER BY p.created_at DESC, p.id DESC`
+	case "created_asc":
+		orderBy = ` ORDER BY p.created_at ASC, p.id ASC`
+	case "name_asc":
+		orderBy = ` ORDER BY name ASC, p.id ASC`
+	case "name_desc":
+		orderBy = ` ORDER BY name DESC, p.id DESC`
+	case "price_asc":
+		orderBy = ` ORDER BY cheapest.price ASC NULLS LAST, p.id ASC`
+	case "price_desc":
+		orderBy = ` ORDER BY cheapest.price DESC NULLS LAST, p.id DESC`
+	case "stock_asc":
+		orderBy = ` ORDER BY defv.stock_qty ASC NULLS LAST, p.id ASC`
+	case "stock_desc":
+		orderBy = ` ORDER BY defv.stock_qty DESC NULLS LAST, p.id DESC`
+	default: // "updated_desc" + empty
+		orderBy = ` ORDER BY p.updated_at DESC, p.id DESC`
 	}
 	// `variant_count` and `total` are computed inline so the admin list
 	// page renders without N+1 follow-ups: previously the SvelteKit
@@ -1351,8 +1391,8 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
 		    ORDER BY pv.sort_order ASC, pv.created_at ASC
 		    LIMIT 1
-		) defv ON TRUE` + where +
-		` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`
+		) defv ON TRUE` + where + orderBy +
+		` LIMIT $2 OFFSET $3`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
@@ -1385,8 +1425,18 @@ func (s *ProductService) ListAll(ctx context.Context, locale, search, categorySl
 	// COUNT so the UI's "Page X of N" math stays sane. Reuse `args` so
 	// the parameter numbering in `where` keeps matching ($1=locale even
 	// though we drop the translation join here, $2/$3 are unused).
-	if len(products) == 0 && (offset > 0 || search != "" || categorySlug != "") {
-		countQuery := `SELECT COUNT(*) FROM products p` + productTranslationJoin + where
+	// The defv LATERAL join is included so a stock-state WHERE clause
+	// referencing defv.stock_qty resolves; the planner prunes it
+	// otherwise.
+	if len(products) == 0 && (offset > 0 || search != "" || categorySlug != "" || kind != "" || stockState != "") {
+		countQuery := `SELECT COUNT(*) FROM products p` + productTranslationJoin + `
+			LEFT JOIN LATERAL (
+			    SELECT pv.id, pv.stock_qty
+			    FROM product_variants pv
+			    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+			    ORDER BY pv.sort_order ASC, pv.created_at ASC
+			    LIMIT 1
+			) defv ON TRUE` + where
 		_ = s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	}
 	// Bundles store a synthetic variant stock that isn't kept in sync with
