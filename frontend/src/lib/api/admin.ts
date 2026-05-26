@@ -416,6 +416,10 @@ export interface NavItem {
   url: string;
   target: string;
   sort_order: number;
+  // Customer-role values this item should be hidden from on the
+  // storefront. Missing/empty = visible to everyone. Anonymous
+  // visitors are filtered as if they were "customer".
+  hidden_for_roles?: string[];
   children: NavItem[];
 }
 

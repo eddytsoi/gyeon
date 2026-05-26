@@ -367,8 +367,12 @@ export const submitFormMultipart = (
     xhr.send(formData);
   });
 
-export const getNavMenu = (handle: string) =>
-  request<NavMenu>(`/cms/nav/by-handle/${handle}`);
+// Token is optional — anonymous storefront visitors don't have one,
+// and the backend treats them as "customer". When a logged-in customer
+// hits this, forwarding the token lets the backend filter nav items
+// per their actual role (customer / installer).
+export const getNavMenu = (handle: string, token?: string | null) =>
+  request<NavMenu>(`/cms/nav/by-handle/${handle}`, token ? authed(token) : undefined);
 
 // Public read of an order, authorized via a Stripe payment_intent returned
 // from the checkout redirect. The backend confirms PI matches the order

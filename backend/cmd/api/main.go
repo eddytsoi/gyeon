@@ -595,7 +595,10 @@ func main() {
 		r.Mount("/cms/pages", pageHandler.PublicRoutes())
 		r.Mount("/cms/posts", postHandler.PublicRoutes())
 		r.Mount("/cms/post-categories", postCatHandler.PublicRoutes())
-		r.Mount("/cms/nav", navHandler.PublicRoutes())
+		// optionalCustomerMW attaches the storefront role (defaults to
+		// "customer") so per-role nav-item visibility filtering works for
+		// both logged-in and anonymous visitors.
+		r.With(optionalCustomerMW).Mount("/cms/nav", navHandler.PublicRoutes())
 
 		// Public settings (storefront config)
 		r.Mount("/settings", settingsHandler.PublicRoutes())
