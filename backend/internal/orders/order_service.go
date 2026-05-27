@@ -3,6 +3,7 @@ package orders
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -35,43 +36,112 @@ const (
 	StatusRefunded   OrderStatus = "refunded"
 )
 
+// OrderAppliedPromotion is the per-order snapshot of one campaign or coupon
+// that contributed to discount_amount. Kept on the order so the success
+// page / account order detail can show "why" the discount was applied even
+// after the underlying campaign or coupon is edited or removed.
+type OrderAppliedPromotion struct {
+	Kind        string  `json:"kind"` // "campaign" | "coupon"
+	ID          string  `json:"id"`
+	Name        string  `json:"name"` // campaign name OR coupon code
+	Description *string `json:"description,omitempty"`
+	Amount      float64 `json:"amount"`
+}
+
+// buildAppliedPromotions converts a pricing.DiscountResult into the order's
+// snapshot shape. Order: campaigns in the order they applied, then the
+// coupon (if any).
+func buildAppliedPromotions(d pricing.DiscountResult) []OrderAppliedPromotion {
+	out := make([]OrderAppliedPromotion, 0, len(d.AppliedCampaigns)+1)
+	for _, c := range d.AppliedCampaigns {
+		out = append(out, OrderAppliedPromotion{
+			Kind:        "campaign",
+			ID:          c.ID,
+			Name:        c.Name,
+			Description: c.Description,
+			Amount:      c.Amount,
+		})
+	}
+	if d.AppliedCoupon != nil {
+		out = append(out, OrderAppliedPromotion{
+			Kind:        "coupon",
+			ID:          d.AppliedCoupon.ID,
+			Name:        d.AppliedCoupon.Code,
+			Description: d.AppliedCoupon.Description,
+			Amount:      d.AppliedCoupon.Amount,
+		})
+	}
+	return out
+}
+
+// marshalAppliedPromotions serialises the snapshot for the JSONB column.
+// Always returns a valid JSON array ("[]" when empty) so the orders table's
+// CHECK constraint never trips.
+func marshalAppliedPromotions(promos []OrderAppliedPromotion) []byte {
+	if len(promos) == 0 {
+		return []byte("[]")
+	}
+	b, err := json.Marshal(promos)
+	if err != nil {
+		// json.Marshal on a slice of structs cannot fail; fall back to [] so
+		// we never violate the CHECK constraint.
+		return []byte("[]")
+	}
+	return b
+}
+
+// scanAppliedPromotions decodes a JSONB column read into []byte. Tolerates
+// NULL / empty input by returning an empty slice — keeps imported / pre-
+// migration orders renderable instead of erroring out.
+func scanAppliedPromotions(raw []byte) []OrderAppliedPromotion {
+	if len(raw) == 0 {
+		return nil
+	}
+	var out []OrderAppliedPromotion
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
 type Order struct {
-	ID                string           `json:"id"`
-	Number            int64            `json:"number"`
-	OrderNumber       string           `json:"order_number"`
-	CustomerID        *string          `json:"customer_id,omitempty"`
-	Status            OrderStatus      `json:"status"`
-	ShippingAddressID *string          `json:"shipping_address_id,omitempty"`
-	ShippingAddress   *ShippingAddress `json:"shipping_address,omitempty"`
-	Subtotal          float64          `json:"subtotal"`
-	ShippingFee       float64          `json:"shipping_fee"`
-	ShippingFree      bool             `json:"shipping_free"`
-	DiscountAmount    float64          `json:"discount_amount"`
-	TaxAmount         float64          `json:"tax_amount"`
-	Total             float64          `json:"total"`
-	Notes             *string          `json:"notes,omitempty"`
-	CustomerEmail     *string          `json:"customer_email,omitempty"`
-	CustomerPhone     *string          `json:"customer_phone,omitempty"`
-	CustomerName      *string          `json:"customer_name,omitempty"`
-	PaymentIntentID   *string          `json:"payment_intent_id,omitempty"`
-	PaymentStatus     *string          `json:"payment_status,omitempty"`
-	PaymentMethod     *string          `json:"payment_method,omitempty"`
-	CardBrand         *string          `json:"card_brand,omitempty"`
-	CardLast4         *string          `json:"card_last4,omitempty"`
-	PaidAt            *string          `json:"paid_at,omitempty"`
-	RefundAmount      float64          `json:"refund_amount"`
-	RefundReason      *string          `json:"refund_reason,omitempty"`
-	RefundedAt        *string          `json:"refunded_at,omitempty"`
-	StripeRefundID    *string          `json:"stripe_refund_id,omitempty"`
-	SelectedCarrier   *string          `json:"selected_carrier,omitempty"`
-	SelectedService   *string          `json:"selected_service,omitempty"`
-	PickupPointID     *string          `json:"pickup_point_id,omitempty"`
-	PickupPointLabel  *string          `json:"pickup_point_label,omitempty"`
-	Items             []OrderItem      `json:"items,omitempty"`
-	ItemsCount        *int             `json:"items_count,omitempty"`
-	CustomerRole      *string          `json:"customer_role,omitempty"`
-	CreatedAt         string           `json:"created_at"`
-	UpdatedAt         string           `json:"updated_at"`
+	ID                string                  `json:"id"`
+	Number            int64                   `json:"number"`
+	OrderNumber       string                  `json:"order_number"`
+	CustomerID        *string                 `json:"customer_id,omitempty"`
+	Status            OrderStatus             `json:"status"`
+	ShippingAddressID *string                 `json:"shipping_address_id,omitempty"`
+	ShippingAddress   *ShippingAddress        `json:"shipping_address,omitempty"`
+	Subtotal          float64                 `json:"subtotal"`
+	ShippingFee       float64                 `json:"shipping_fee"`
+	ShippingFree      bool                    `json:"shipping_free"`
+	DiscountAmount    float64                 `json:"discount_amount"`
+	AppliedPromotions []OrderAppliedPromotion `json:"applied_promotions"`
+	TaxAmount         float64                 `json:"tax_amount"`
+	Total             float64                 `json:"total"`
+	Notes             *string                 `json:"notes,omitempty"`
+	CustomerEmail     *string                 `json:"customer_email,omitempty"`
+	CustomerPhone     *string                 `json:"customer_phone,omitempty"`
+	CustomerName      *string                 `json:"customer_name,omitempty"`
+	PaymentIntentID   *string                 `json:"payment_intent_id,omitempty"`
+	PaymentStatus     *string                 `json:"payment_status,omitempty"`
+	PaymentMethod     *string                 `json:"payment_method,omitempty"`
+	CardBrand         *string                 `json:"card_brand,omitempty"`
+	CardLast4         *string                 `json:"card_last4,omitempty"`
+	PaidAt            *string                 `json:"paid_at,omitempty"`
+	RefundAmount      float64                 `json:"refund_amount"`
+	RefundReason      *string                 `json:"refund_reason,omitempty"`
+	RefundedAt        *string                 `json:"refunded_at,omitempty"`
+	StripeRefundID    *string                 `json:"stripe_refund_id,omitempty"`
+	SelectedCarrier   *string                 `json:"selected_carrier,omitempty"`
+	SelectedService   *string                 `json:"selected_service,omitempty"`
+	PickupPointID     *string                 `json:"pickup_point_id,omitempty"`
+	PickupPointLabel  *string                 `json:"pickup_point_label,omitempty"`
+	Items             []OrderItem             `json:"items,omitempty"`
+	ItemsCount        *int                    `json:"items_count,omitempty"`
+	CustomerRole      *string                 `json:"customer_role,omitempty"`
+	CreatedAt         string                  `json:"created_at"`
+	UpdatedAt         string                  `json:"updated_at"`
 }
 
 // ShippingAddress is the snapshot of the shipping address attached to an order.
@@ -835,17 +905,20 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		servicePtr = &defaultService
 	}
 
+	appliedPromos := buildAppliedPromotions(discountResult)
+	appliedJSON := marshalAppliedPromotions(appliedPromos)
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
+		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'requires_payment_method', $13, $14, $15, $16, $17)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, 'requires_payment_method', $14, $15, $16, $17, $18)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, taxAmount, total, req.Notes,
+		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr,
 		carrierPtr, servicePtr, nil, nil, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
@@ -857,6 +930,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	if err != nil {
 		return nil, err
 	}
+	order.AppliedPromotions = appliedPromos
 
 	// Format the customer-facing order number using the configurable
 	// prefix and the auto-assigned sequential `number`. Persist it back
@@ -1652,9 +1726,10 @@ func (s *OrderService) GetByIDForPaymentIntent(ctx context.Context, orderID, pay
 
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
+	var appliedPromosRaw []byte
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		        subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
+		        subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        card_brand, card_last4,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
@@ -1662,7 +1737,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &appliedPromosRaw, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.CardBrand, &order.CardLast4,
@@ -1675,6 +1750,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	if err != nil {
 		return nil, err
 	}
+	order.AppliedPromotions = scanAppliedPromotions(appliedPromosRaw)
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, order_id, variant_id, parent_item_id, product_name, variant_sku, unit_price, quantity, line_total

@@ -33,6 +33,13 @@ func (h *OrderHandler) PublicRoutes() chi.Router {
 	// natural target for card-testing / abuse. Throttle per-IP.
 	checkoutRL := ratelimit.Middleware(10, time.Minute)
 	r.With(checkoutRL).Post("/checkout", h.checkout)
+	// /quote is the storefront's per-cart-change pricing preview. Read-only
+	// (no DB writes, no Stripe), but it scans discount_campaigns + reads
+	// product_variants for every cart line so we still throttle — at a
+	// higher rate than /checkout since the checkout page calls it on every
+	// cart / coupon mutation.
+	quoteRL := ratelimit.Middleware(60, time.Minute)
+	r.With(quoteRL).Post("/quote", h.quote)
 	r.Get("/{id}", h.getPublic)
 	r.Get("/{id}/payment-info", h.paymentInfo)
 	r.Post("/{id}/setup-token", h.createSetupToken)
@@ -295,6 +302,31 @@ func (h *OrderHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, order)
+}
+
+// quote backs POST /orders/quote — returns a pre-payment pricing breakdown
+// for a cart so the storefront can show the discount line + promotion
+// descriptions before the customer pays. Read-only.
+func (h *OrderHandler) quote(w http.ResponseWriter, r *http.Request) {
+	var req QuoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.CartID == "" {
+		respond.BadRequest(w, "cart_id is required")
+		return
+	}
+	res, err := h.svc.Quote(r.Context(), req)
+	if errors.Is(err, ErrCartNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, res)
 }
 
 func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {

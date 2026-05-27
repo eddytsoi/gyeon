@@ -283,6 +283,46 @@ export const validateCoupon = (
     }
   );
 
+export interface QuoteAppliedCampaign {
+  id: string;
+  name: string;
+  description?: string | null;
+  amount: number;
+}
+
+export interface QuoteAppliedCoupon {
+  id: string;
+  code: string;
+  description?: string | null;
+  amount: number;
+}
+
+export interface QuoteResult {
+  subtotal: number;
+  applied_campaigns: QuoteAppliedCampaign[];
+  applied_coupon?: QuoteAppliedCoupon | null;
+  total_discount: number;
+  tax_amount: number;
+  tax_inclusive: boolean;
+  shipping_free: boolean;
+  total: number;
+  coupon_error?: string;
+  coupon_error_code?: string;
+}
+
+export const quoteOrder = (
+  cartID: string,
+  options: { couponCode?: string; customerID?: string } = {}
+) =>
+  request<QuoteResult>('/orders/quote', {
+    method: 'POST',
+    body: JSON.stringify({
+      cart_id: cartID,
+      coupon_code: options.couponCode ?? null,
+      customer_id: options.customerID ?? null
+    })
+  });
+
 export const getPaymentConfig = () => request<PaymentConfig>('/payments/config');
 
 // ── ShipAny logistics ───────────────────────────────────────────
