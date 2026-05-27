@@ -905,6 +905,15 @@
 </div>
 {/if}
 
+<!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->
+{#if showFbt && data.frequentlyBoughtTogether.length > 0}
+  <BundleComposer
+    items={data.frequentlyBoughtTogether}
+    kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
+    heading={fbtHeading ?? m.product_detail_fbt_heading()}
+  />
+{/if}
+
 <!-- ── HERO VIDEO (between specs strip and tabs) ──────────────── -->
 {#if data.product.video_id}
   <div class="bg-white">
@@ -1208,15 +1217,6 @@
     items={data.related}
     kicker={completeSetKicker}
     heading={completeSetHeading}
-  />
-{/if}
-
-<!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->
-{#if showFbt && data.frequentlyBoughtTogether.length > 0}
-  <BundleComposer
-    items={data.frequentlyBoughtTogether}
-    kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
-    heading={fbtHeading ?? m.product_detail_fbt_heading()}
   />
 {/if}
 
