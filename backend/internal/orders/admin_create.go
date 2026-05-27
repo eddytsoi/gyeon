@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
 	"gyeon/backend/internal/shop"
@@ -106,6 +107,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 	customerEmail := ""
 	customerPhone := ""
 	customerName := ""
+	customerRole := customers.RoleCustomer
 
 	if customerID != nil && *customerID != "" {
 		c, err := s.customerSvc.GetByID(ctx, *customerID)
@@ -115,6 +117,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 			if c.Phone != nil {
 				customerPhone = *c.Phone
 			}
+			customerRole = customers.NormalizeRole(c.Role)
 		}
 		if req.CustomerInfo != nil {
 			if req.CustomerInfo.Email != "" {
@@ -303,7 +306,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		}
 	}
 
-	shippingFree := s.shippingFreeFor(ctx, subtotal-discountAmount)
+	shippingFree := s.shippingFreeFor(ctx, customerRole, subtotal-discountAmount)
 	shippingFee := 0.0
 	if req.ShippingFeeOverride != nil {
 		shippingFee = *req.ShippingFeeOverride

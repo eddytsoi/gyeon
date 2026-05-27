@@ -5,19 +5,17 @@
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
+  import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
   import type { PageData } from './$types';
 
   // publicSettings flows in from the (storefront) layout load.
   let { data }: { data: PageData } = $props();
 
-  const freeShippingEnabled = $derived(
-    (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_enabled')?.value === 'true'
+  const resolvedFreeShipping = $derived(
+    resolveFreeShippingThreshold(data.publicSettings ?? [], data.customer?.role ?? null)
   );
-  const freeShippingThreshold = $derived(() => {
-    const raw = (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+  const freeShippingEnabled = $derived(resolvedFreeShipping.enabled);
+  const freeShippingThreshold = $derived(() => resolvedFreeShipping.threshold);
   const shippingFree = $derived(
     freeShippingEnabled && freeShippingThreshold() > 0 && cartStore.subtotal >= freeShippingThreshold()
   );
@@ -31,7 +29,7 @@
   <h1 class="text-3xl font-bold text-gray-900 mb-6">{m.cart_heading()}</h1>
 
   <div class="mb-6">
-    <FreeShippingBanner settings={data.publicSettings ?? []} showUnlocked />
+    <FreeShippingBanner settings={data.publicSettings ?? []} role={data.customer?.role ?? null} showUnlocked />
   </div>
 
   {#if cartStore.loading && !cartStore.cart}

@@ -5,17 +5,22 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
+  import { customerRoleLabel } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
 
-  function onSearch(q: string) {
+  // Synthesise a URL update preserving other params. Filter changes always
+  // reset to page 1 so the user lands on the first page of the new slice.
+  function setParam(name: string, value: string) {
     const url = new URL(page.url);
-    if (q) url.searchParams.set('q', q);
-    else url.searchParams.delete('q');
+    if (value) url.searchParams.set(name, value);
+    else url.searchParams.delete(name);
     url.searchParams.delete('page');
     goto(url.pathname + url.search, { replaceState: true, keepFocus: true, noScroll: true });
   }
+
+  function onSearch(q: string) { setParam('q', q); }
 </script>
 
 <svelte:head><title>{m.admin_customers_title()}</title></svelte:head>
@@ -32,8 +37,33 @@
     </span>
   </div>
 
-  <div class="mb-4">
+  <div class="mb-3">
     <SearchInput value={data.q} placeholder={m.admin_customers_search_placeholder()} onChange={onSearch} />
+  </div>
+
+  <div class="mb-4 flex flex-wrap items-center gap-2">
+    <label class="flex items-center gap-2 text-xs text-gray-500">
+      <span class="font-semibold uppercase tracking-wide">{m.admin_customers_filter_status_label()}</span>
+      <select
+        value={data.active}
+        onchange={(e) => setParam('active', (e.currentTarget as HTMLSelectElement).value)}
+        class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <option value="">{m.admin_customers_filter_status_all()}</option>
+        <option value="active">{m.admin_customers_status_active()}</option>
+        <option value="inactive">{m.admin_customers_status_inactive()}</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-2 text-xs text-gray-500">
+      <span class="font-semibold uppercase tracking-wide">{m.admin_customers_filter_role_label()}</span>
+      <select
+        value={data.role}
+        onchange={(e) => setParam('role', (e.currentTarget as HTMLSelectElement).value)}
+        class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <option value="">{m.admin_customers_filter_role_all()}</option>
+        <option value="customer">{m.admin_role_customer()}</option>
+        <option value="installer">{m.admin_role_installer()}</option>
+      </select>
+    </label>
   </div>
 
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
@@ -61,6 +91,7 @@
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_customers_col_customer()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">{m.admin_customers_col_email()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">{m.admin_customers_col_joined()}</th>
+            <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_customers_col_role()}</th>
             <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_customers_col_status()}</th>
             <th class="px-5 py-3"></th>
           </tr>
@@ -75,6 +106,12 @@
               <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">{customer.email}</td>
               <td class="px-5 py-3 text-gray-400 text-xs hidden md:table-cell">
                 {new Date(customer.created_at).toLocaleDateString('en-HK')}
+              </td>
+              <td class="px-5 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                             {customer.role === 'installer' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}">
+                  {customerRoleLabel(customer.role)}
+                </span>
               </td>
               <td class="px-5 py-3">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium

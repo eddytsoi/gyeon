@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -315,27 +316,59 @@ var customerSearchFields = []string{
 	"(first_name || ' ' || last_name)",
 }
 
-func (s *Service) List(ctx context.Context, search string, limit, offset int) ([]Customer, int, error) {
-	whereSQL := ""
-	countArgs := []any{}
-	if clause, arg := util.BuildSearchClause(search, customerSearchFields, 1); clause != "" {
-		whereSQL = ` WHERE ` + clause
-		countArgs = append(countArgs, arg)
+// ListFilters captures the optional admin-list filters applied on top of
+// the free-text search. Empty fields mean "no filter on this dimension".
+type ListFilters struct {
+	// Active filters by is_active. "active" → is_active=true,
+	// "inactive" → is_active=false, "" → no filter.
+	Active string
+	// Role filters by the customer_role enum. "" → no filter.
+	Role string
+}
+
+// buildListWhere assembles the WHERE clause and positional args for List.
+// Placeholders are numbered starting at startIdx so the caller can reserve
+// earlier slots for LIMIT/OFFSET.
+func buildListWhere(search string, filters ListFilters, startIdx int) (string, []any) {
+	var parts []string
+	var args []any
+	idx := startIdx
+	if clause, arg := util.BuildSearchClause(search, customerSearchFields, idx); clause != "" {
+		parts = append(parts, clause)
+		args = append(args, arg)
+		idx++
 	}
+	if filters.Active == "active" || filters.Active == "inactive" {
+		parts = append(parts, fmt.Sprintf("is_active = $%d", idx))
+		args = append(args, filters.Active == "active")
+		idx++
+	}
+	if filters.Role != "" {
+		parts = append(parts, fmt.Sprintf("role = $%d::customer_role", idx))
+		args = append(args, NormalizeRole(filters.Role))
+		idx++
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return " WHERE " + strings.Join(parts, " AND "), args
+}
+
+func (s *Service) List(ctx context.Context, search string, filters ListFilters, limit, offset int) ([]Customer, int, error) {
+	countWhere, countArgs := buildListWhere(search, filters, 1)
 	var total int
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM customers`+whereSQL, countArgs...).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM customers`+countWhere, countArgs...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	args := []any{limit, offset}
+	// SELECT reserves $1=limit, $2=offset and renumbers filter placeholders
+	// from $3 onwards. countArgs and selectArgs hold the same values; only
+	// the placeholder numbering inside the SQL differs.
+	selectWhere, selectArgs := buildListWhere(search, filters, 3)
 	query := `SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
-		 FROM customers ORDER BY created_at DESC LIMIT $1 OFFSET $2`
-	if clause, arg := util.BuildSearchClause(search, customerSearchFields, 3); clause != "" {
-		query = `SELECT id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at
-		 FROM customers WHERE ` + clause + ` ORDER BY created_at DESC LIMIT $1 OFFSET $2`
-		args = append(args, arg)
-	}
+		 FROM customers` + selectWhere + ` ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	args := append([]any{limit, offset}, selectArgs...)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

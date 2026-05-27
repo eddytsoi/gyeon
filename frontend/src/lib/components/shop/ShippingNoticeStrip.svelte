@@ -9,9 +9,9 @@
   import { onMount } from 'svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
   import * as m from '$lib/paraglide/messages';
+  import { resolveFreeShippingThreshold, type SiteSetting } from '$lib/shippingThreshold';
 
-  interface Setting { key: string; value: string }
-  let { settings = [] }: { settings?: Setting[] } = $props();
+  let { settings = [], role = null }: { settings?: SiteSetting[]; role?: string | null } = $props();
 
   const STORAGE_KEY = 'gy.shippingNotice.dismissed';
 
@@ -31,11 +31,9 @@
     return (settings.find((s) => s.key === key)?.value ?? '').trim();
   }
 
-  const enabled = $derived(settingValue('free_shipping_threshold_enabled') === 'true');
-  const threshold = $derived(() => {
-    const n = Number(settingValue('free_shipping_threshold_hkd'));
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+  const resolved = $derived(resolveFreeShippingThreshold(settings, role));
+  const enabled = $derived(resolved.enabled);
+  const threshold = $derived(() => resolved.threshold);
   const belowBgColor = $derived(settingValue('shipping_notice_bg_color') || '#1F4E3D');
   const belowTextColor = $derived(settingValue('shipping_notice_text_color') || '#FFFFFF');
   const eligibleBgColor = $derived(settingValue('shipping_notice_eligible_bg_color') || belowBgColor);

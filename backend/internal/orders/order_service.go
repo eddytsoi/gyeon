@@ -368,13 +368,25 @@ func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orde
 	return nil
 }
 
-// freeShippingThresholdHKD reads the admin-configured threshold (P3 #29).
-// Returns 0 when disabled or unparseable, which the caller treats as "always
-// charge shipping_fee as quoted".
-func (s *OrderService) freeShippingThresholdHKD(ctx context.Context) float64 {
+// freeShippingThresholdKeys picks the (enabled, amount) site_settings keys
+// for the given customer role. Installers (施工店) have their own pair so
+// admins can offer a different free-shipping bar without touching the
+// default that applies to guests + role=customer.
+func freeShippingThresholdKeys(role string) (enabledKey, amountKey string) {
+	if role == customers.RoleInstaller {
+		return "free_shipping_threshold_installer_enabled", "free_shipping_threshold_installer_hkd"
+	}
+	return "free_shipping_threshold_enabled", "free_shipping_threshold_hkd"
+}
+
+// freeShippingThresholdHKD reads the admin-configured threshold (P3 #29)
+// for the given customer role. Returns 0 when disabled or unparseable,
+// which the caller treats as "always charge shipping_fee as quoted".
+func (s *OrderService) freeShippingThresholdHKD(ctx context.Context, role string) float64 {
+	_, amountKey := freeShippingThresholdKeys(role)
 	var raw string
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT value FROM site_settings WHERE key = 'free_shipping_threshold_hkd'`,
+		`SELECT value FROM site_settings WHERE key = $1`, amountKey,
 	).Scan(&raw); err != nil {
 		return 0
 	}
@@ -386,18 +398,24 @@ func (s *OrderService) freeShippingThresholdHKD(ctx context.Context) float64 {
 }
 
 // shippingFreeFor mirrors the shipany free/COD decision: the merchant
-// absorbs SF Express shipping only when the threshold feature is enabled,
-// the configured threshold is > 0, and the post-discount subtotal meets it.
-// Used at checkout to freeze the outcome onto orders.shipping_free.
-func (s *OrderService) shippingFreeFor(ctx context.Context, subtotalAfterDiscount float64) bool {
+// absorbs SF Express shipping only when the role-specific threshold
+// feature is enabled, the configured threshold is > 0, and the
+// post-discount subtotal meets it. Used at checkout to freeze the
+// outcome onto orders.shipping_free.
+//
+// Each role's threshold is independent — a disabled or zero installer
+// threshold does NOT fall back to the default. Guests (no logged-in
+// customer) use the default ("customer") threshold.
+func (s *OrderService) shippingFreeFor(ctx context.Context, role string, subtotalAfterDiscount float64) bool {
+	enabledKey, _ := freeShippingThresholdKeys(role)
 	var enabledRaw string
 	_ = s.db.QueryRowContext(ctx,
-		`SELECT value FROM site_settings WHERE key = 'free_shipping_threshold_enabled'`,
+		`SELECT value FROM site_settings WHERE key = $1`, enabledKey,
 	).Scan(&enabledRaw)
 	if strings.TrimSpace(enabledRaw) != "true" {
 		return false
 	}
-	threshold := s.freeShippingThresholdHKD(ctx)
+	threshold := s.freeShippingThresholdHKD(ctx, role)
 	return threshold > 0 && subtotalAfterDiscount >= threshold
 }
 
@@ -509,6 +527,9 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	customerEmail := ""
 	customerPhone := ""
 	customerName := ""
+	// Guests + role=customer share the default free-shipping threshold;
+	// installers have their own. Default to RoleCustomer for guests.
+	customerRole := customers.RoleCustomer
 
 	if customerID != nil && *customerID != "" {
 		c, err := s.customerSvc.GetByID(ctx, *customerID)
@@ -518,6 +539,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			if c.Phone != nil {
 				customerPhone = *c.Phone
 			}
+			customerRole = customers.NormalizeRole(c.Role)
 		}
 		// Form-supplied customer_info overrides for this order's snapshot
 		if req.CustomerInfo != nil {
@@ -722,7 +744,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	// onto the order so the receipt / account page / email can render the
 	// correct SF carrier label months later even if the threshold settings
 	// change in the meantime.
-	shippingFree := s.shippingFreeFor(ctx, subtotal-discountAmount)
+	shippingFree := s.shippingFreeFor(ctx, customerRole, subtotal-discountAmount)
 	shippingFee := req.ShippingFee
 	if shippingFree {
 		shippingFee = 0
