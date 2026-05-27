@@ -117,12 +117,38 @@ type LineItem struct {
 	Quantity   int
 }
 
+// AppliedCampaign is one campaign that actually contributed to a discount,
+// hydrated with the customer-facing name + description so the storefront
+// can render "why" the shopper got the discount. Amount is the post-cap
+// contribution; the sum of Amounts equals DiscountResult.CampaignDiscount.
+type AppliedCampaign struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Amount      float64 `json:"amount"`
+}
+
+// AppliedCoupon mirrors AppliedCampaign for the coupon side.
+type AppliedCoupon struct {
+	ID          string  `json:"id"`
+	Code        string  `json:"code"`
+	Description *string `json:"description,omitempty"`
+	Amount      float64 `json:"amount"`
+}
+
 // DiscountResult breaks down all discounts applied at checkout.
 type DiscountResult struct {
 	CampaignDiscount float64
 	CouponDiscount   float64
 	TotalDiscount    float64
 	CouponID         *string
+	// AppliedCampaigns lists each campaign that contributed, with the amount
+	// it actually applied (after per-row cap against remaining subtotal). The
+	// storefront uses these to surface promotion names + descriptions on the
+	// checkout summary; the order_service persists them as a snapshot so the
+	// receipt / account page can render the same later.
+	AppliedCampaigns []AppliedCampaign
+	AppliedCoupon    *AppliedCoupon
 }
 
 type Service struct {
@@ -471,8 +497,10 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 
 	// Fetch active campaigns scoped to the shopper. Filter happens in SQL
 	// for guests/role membership so we don't pull rows we'd just discard.
+	// name + description are pulled too so AppliedCampaigns can be hydrated
+	// without a second round-trip.
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, discount_type, discount_value, target_type, target_ids, min_order_amount
+		`SELECT id, name, description, discount_type, discount_value, target_type, target_ids, min_order_amount
 		 FROM discount_campaigns
 		 WHERE is_active = TRUE
 		   AND ($1::bool AND allow_guests
@@ -485,17 +513,20 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 	defer rows.Close()
 
 	var campaignDiscount float64
+	remaining := subtotal // clamp each campaign's amount so the per-row Amounts sum to CampaignDiscount
 	seen := make(map[string]bool) // avoid double-applying the same campaign
+	var applied []AppliedCampaign
 
 	for rows.Next() {
-		var id string
+		var id, name string
+		var description *string
 		var dtype DiscountType
 		var value float64
 		var ttype TargetType
 		var targetIDs pq.StringArray
 		var minOrder *float64
 
-		if err := rows.Scan(&id, &dtype, &value, &ttype, &targetIDs, &minOrder); err != nil {
+		if err := rows.Scan(&id, &name, &description, &dtype, &value, &ttype, &targetIDs, &minOrder); err != nil {
 			return result, err
 		}
 		if seen[id] {
@@ -542,16 +573,31 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 		case DiscountFixed:
 			d = math.Min(value, applicable)
 		}
+		// Clamp to subtotal headroom in declaration order so multiple
+		// stacked campaigns can never push the discount past the cart total
+		// — and so the per-row Amount reconciles with CampaignDiscount.
+		if d > remaining {
+			d = remaining
+		}
+		if d <= 0 {
+			continue
+		}
+		applied = append(applied, AppliedCampaign{
+			ID:          id,
+			Name:        name,
+			Description: description,
+			Amount:      d,
+		})
 		campaignDiscount += d
+		remaining -= d
 		seen[id] = true
 	}
 	if err := rows.Err(); err != nil {
 		return result, err
 	}
 
-	// Cap campaign discount at subtotal
-	campaignDiscount = math.Min(campaignDiscount, subtotal)
 	result.CampaignDiscount = campaignDiscount
+	result.AppliedCampaigns = applied
 
 	discountedSubtotal := subtotal - campaignDiscount
 
@@ -571,6 +617,14 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 		}
 		result.CouponDiscount = couponDiscount
 		result.CouponID = &coupon.ID
+		if couponDiscount > 0 {
+			result.AppliedCoupon = &AppliedCoupon{
+				ID:          coupon.ID,
+				Code:        coupon.Code,
+				Description: coupon.Description,
+				Amount:      couponDiscount,
+			}
+		}
 	}
 
 	result.TotalDiscount = result.CampaignDiscount + result.CouponDiscount

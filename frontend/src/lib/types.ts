@@ -208,6 +208,14 @@ export interface ShippingAddress {
   country: string;
 }
 
+export interface OrderAppliedPromotion {
+  kind: 'campaign' | 'coupon';
+  id: string;
+  name: string;
+  description?: string | null;
+  amount: number;
+}
+
 export interface Order {
   id: string;
   number: number;
@@ -220,6 +228,7 @@ export interface Order {
   shipping_fee: number;
   shipping_free?: boolean;
   discount_amount: number;
+  applied_promotions?: OrderAppliedPromotion[];
   tax_amount?: number;
   total: number;
   notes?: string;

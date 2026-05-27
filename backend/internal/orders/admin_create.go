@@ -406,17 +406,20 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		paymentStatus = "requires_payment_method"
 	}
 
+	appliedPromos := buildAppliedPromotions(discountResult)
+	appliedJSON := marshalAppliedPromotions(appliedPromos)
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO orders (customer_id, shipping_address_id, status, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
+		`INSERT INTO orders (customer_id, shipping_address_id, status, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, status, subtotal, shippingFee, shippingFree, discountAmount, taxAmount, total, req.Notes,
+		customerID, shippingAddressID, status, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
 		emailPtr, phonePtr, namePtr, paymentStatus,
 		carrierPtr, servicePtr, nil, nil).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
@@ -428,6 +431,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 	if err != nil {
 		return nil, err
 	}
+	order.AppliedPromotions = appliedPromos
 
 	order.OrderNumber = fmt.Sprintf("%s-%04d", s.orderNumberPrefix(ctx), order.Number)
 	if _, err := tx.ExecContext(ctx,

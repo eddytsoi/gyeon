@@ -4,6 +4,7 @@
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -220,6 +221,7 @@
         <span>{m.account_order_total()}</span>
         <span>HK${order.total.toFixed(2)}</span>
       </div>
+      <AppliedPromotions promotions={order.applied_promotions ?? []} />
     </div>
   </div>
 

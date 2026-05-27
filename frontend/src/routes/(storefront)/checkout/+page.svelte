@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { checkout, getVariantByID, validateCoupon } from '$lib/api';
+  import { checkout, getVariantByID, quoteOrder, type QuoteResult } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
   import type { SavedPaymentMethod, Variant } from '$lib/types';
@@ -10,6 +10,7 @@
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import { productDisplayName } from '$lib/variant';
   import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
+  import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -52,12 +53,12 @@
   let notes = $state('');
 
   // ── Coupon ────────────────────────────────────────────────────
+  // couponCode is the user's input field; appliedCouponCode is the code
+  // we've actually submitted to the backend's /orders/quote. Splitting
+  // them lets the user keep editing without re-quoting until they click
+  // Apply. Empty applied code means "no coupon" — campaigns still apply.
   let couponCode = $state('');
-  let couponResult = $state<{
-    valid: boolean;
-    discount_amount?: number;
-    message?: string;
-  } | null>(null);
+  let appliedCouponCode = $state('');
   let validatingCoupon = $state(false);
 
   // ── Saved cards (section 4) ──────────────────────────────────
@@ -90,23 +91,108 @@
 
   const activeCart = $derived(cartStore.cart);
 
-  const subtotal = $derived(
+  // ── Server quote ──────────────────────────────────────────────
+  // The backend's POST /orders/quote runs the exact same pricing rules as
+  // Checkout (campaigns + coupon + free-shipping threshold + tax) and
+  // returns the breakdown so this page can show the discount line and
+  // promotion descriptions BEFORE payment. Falls back to the client-side
+  // subtotal only until the first quote arrives, to avoid a "—" flash.
+  let quote = $state<QuoteResult | null>(null);
+  let quoteVersion = 0;
+
+  const clientSubtotal = $derived(
     activeCart?.items?.reduce((sum, item) => {
       const v = variantMap[item.variant_id];
       return sum + (v ? v.price * item.quantity : 0);
     }, 0) ?? 0
   );
-  const discount = $derived(couponResult?.valid ? (couponResult.discount_amount ?? 0) : 0);
-  const total = $derived(subtotal - discount);
+  const subtotal = $derived(quote?.subtotal ?? clientSubtotal);
+  const discount = $derived(quote?.total_discount ?? 0);
+  const total = $derived(quote?.total ?? subtotal - discount);
 
+  // Coupon UI state derives from the quote. If we've applied a code and
+  // the server returned an applied_coupon (no coupon_error), it's valid.
+  const couponValid = $derived(
+    appliedCouponCode !== '' && !!quote?.applied_coupon && !(quote?.coupon_error)
+  );
+  const couponDiscountAmount = $derived(quote?.applied_coupon?.amount ?? 0);
+  const couponErrorMsg = $derived(() => {
+    if (appliedCouponCode === '' || !quote || !quote.coupon_error) return null;
+    if (quote.coupon_error_code === 'wrong_role') return m.storefront_coupon_wrong_role();
+    return quote.coupon_error || m.checkout_invalid_coupon();
+  });
+
+  // Build the merged promotions list for the description block. Campaigns
+  // first (the order they applied), coupon last. Each item gets the kind
+  // the AppliedPromotions component will use to label it generically.
+  const appliedPromotionsList = $derived(
+    [
+      ...(quote?.applied_campaigns ?? []).map((c) => ({
+        kind: 'campaign',
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        amount: c.amount
+      })),
+      ...(quote?.applied_coupon
+        ? [
+            {
+              kind: 'coupon',
+              id: quote.applied_coupon.id,
+              name: quote.applied_coupon.code,
+              description: quote.applied_coupon.description,
+              amount: quote.applied_coupon.amount
+            }
+          ]
+        : [])
+    ]
+  );
+
+  // Fallback free-shipping decision used only until the first quote loads.
+  // This client-side calc uses pre-discount subtotal (legacy behaviour);
+  // once quote arrives we use the server's post-discount value so the
+  // displayed SF label matches what the order will actually be charged.
   const resolvedFreeShipping = $derived(
     resolveFreeShippingThreshold(data.publicSettings ?? [], data.customer?.role ?? null)
   );
   const freeShippingEnabled = $derived(resolvedFreeShipping.enabled);
   const freeShippingThreshold = $derived(() => resolvedFreeShipping.threshold);
-  const shippingFree = $derived(
+  const clientShippingFree = $derived(
     freeShippingEnabled && freeShippingThreshold() > 0 && subtotal >= freeShippingThreshold()
   );
+  const shippingFree = $derived(quote?.shipping_free ?? clientShippingFree);
+
+  async function refreshQuote() {
+    const cart = cartStore.cart;
+    if (!cart || cart.items.length === 0) {
+      quote = null;
+      return;
+    }
+    const v = ++quoteVersion;
+    try {
+      const res = await quoteOrder(cart.id, {
+        couponCode: appliedCouponCode || undefined,
+        customerID: data.customer?.id ?? undefined
+      });
+      // Race-guard: if a newer quote was kicked off while this was in
+      // flight, drop this stale response.
+      if (v === quoteVersion) quote = res;
+    } catch {
+      // Network blip — keep the last good quote rather than flashing the
+      // client-side fallback.
+    }
+  }
+
+  $effect(() => {
+    // Track the cart items signature + applied coupon so any change to
+    // either re-quotes. Reads are intentional: they register dependencies.
+    const items = cartStore.cart?.items ?? [];
+    const sig = items.map((i) => `${i.variant_id}:${i.quantity}`).join('|');
+    void sig;
+    void appliedCouponCode;
+    const t = setTimeout(refreshQuote, 200);
+    return () => clearTimeout(t);
+  });
 
   const customerValid = $derived(
     firstName.trim() !== '' &&
@@ -145,29 +231,23 @@
   });
 
   async function applyCoupon() {
-    if (!couponCode.trim()) return;
+    const code = couponCode.trim();
+    if (!code) return;
     validatingCoupon = true;
-    couponResult = null;
     try {
-      const res = await validateCoupon(
-        couponCode.trim(),
-        subtotal,
-        data.customer?.role ?? undefined,
-        !data.customer
-      );
-      const wrongRoleMsg = res.message_code === 'wrong_role' ? m.storefront_coupon_wrong_role() : null;
-      couponResult = res.valid
-        ? { valid: true, discount_amount: res.discount_amount }
-        : { valid: false, message: wrongRoleMsg ?? res.message ?? m.checkout_invalid_coupon() };
-    } catch {
-      couponResult = { valid: false, message: m.checkout_coupon_validate_failed() };
+      // Set the applied code first so refreshQuote sends it to the
+      // backend. The /orders/quote response carries validity + the
+      // discount amount, replacing the old standalone /validate-coupon
+      // call.
+      appliedCouponCode = code;
+      await refreshQuote();
     } finally {
       validatingCoupon = false;
     }
   }
   function removeCoupon() {
     couponCode = '';
-    couponResult = null;
+    appliedCouponCode = '';
   }
 
   // Step 1: create the order + PaymentIntent, mount Payment Element
@@ -207,7 +287,7 @@
             : undefined,
         saveAddress: addressMode === 'new' && saveAddress,
         shippingFee: 0,
-        couponCode: couponResult?.valid ? couponCode.trim() : undefined,
+        couponCode: couponValid ? appliedCouponCode : undefined,
         notes: notes.trim() || undefined,
         saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
         savedPaymentMethodId: selectedCard?.stripe_pm_id
@@ -636,11 +716,11 @@
 
           <!-- Coupon -->
           <div class="border-t border-gray-100 pt-3">
-            {#if couponResult?.valid}
+            {#if couponValid}
               <div class="flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-3 py-2">
                 <div>
-                  <p class="text-xs font-medium text-green-800">{couponCode.trim()}</p>
-                  <p class="text-[11px] text-green-600 tabular-nums">−HK${(couponResult.discount_amount ?? 0).toFixed(2)}</p>
+                  <p class="text-xs font-medium text-green-800">{appliedCouponCode}</p>
+                  <p class="text-[11px] text-green-600 tabular-nums">−HK${couponDiscountAmount.toFixed(2)}</p>
                 </div>
                 <button type="button" onclick={removeCoupon} class="text-xs text-green-600 hover:text-green-900">{m.checkout_coupon_remove()}</button>
               </div>
@@ -656,8 +736,8 @@
                   {validatingCoupon ? m.checkout_coupon_applying() : m.checkout_coupon_apply()}
                 </button>
               </div>
-              {#if couponResult && !couponResult.valid}
-                <p class="mt-1.5 text-xs text-red-500">{couponResult.message}</p>
+              {#if couponErrorMsg()}
+                <p class="mt-1.5 text-xs text-red-500">{couponErrorMsg()}</p>
               {/if}
             {/if}
           </div>
@@ -684,6 +764,7 @@
               <span>{m.checkout_summary_total()}</span>
               <span class="tabular-nums">{loadingVariants ? '—' : `HK$${total.toFixed(2)}`}</span>
             </div>
+            <AppliedPromotions promotions={appliedPromotionsList} />
           </div>
 
           <a href="/cart" class="text-center text-sm text-gray-400 hover:text-gray-700 transition-colors">

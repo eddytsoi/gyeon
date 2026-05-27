@@ -5,6 +5,7 @@
   import { trackPurchase } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -114,6 +115,7 @@
         <span>{m.checkout_success_total()}</span>
         <span>${data.order.total.toFixed(2)}</span>
       </div>
+      <AppliedPromotions promotions={data.order.applied_promotions ?? []} />
     </div>
   </div>
 
