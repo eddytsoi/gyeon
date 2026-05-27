@@ -100,6 +100,10 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "select at least one eligible account type")
 		return
 	}
+	if req.MinOrderAmount != nil && req.MaxOrderAmount != nil && *req.MaxOrderAmount < *req.MinOrderAmount {
+		respond.BadRequest(w, "max_order_amount must be greater than or equal to min_order_amount")
+		return
+	}
 	campaign, err := h.svc.CreateCampaign(r.Context(), req)
 	if err != nil {
 		respond.InternalError(w)
@@ -117,6 +121,10 @@ func (h *Handler) updateCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
 		respond.BadRequest(w, "select at least one eligible account type")
+		return
+	}
+	if req.MinOrderAmount != nil && req.MaxOrderAmount != nil && *req.MaxOrderAmount < *req.MinOrderAmount {
+		respond.BadRequest(w, "max_order_amount must be greater than or equal to min_order_amount")
 		return
 	}
 	campaign, err := h.svc.UpdateCampaign(r.Context(), id, req)
@@ -195,6 +203,10 @@ func (h *Handler) createCoupon(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "select at least one eligible account type")
 		return
 	}
+	if req.MinOrderAmount != nil && req.MaxOrderAmount != nil && *req.MaxOrderAmount < *req.MinOrderAmount {
+		respond.BadRequest(w, "max_order_amount must be greater than or equal to min_order_amount")
+		return
+	}
 	coupon, err := h.svc.CreateCoupon(r.Context(), req)
 	if err != nil {
 		respond.InternalError(w)
@@ -212,6 +224,10 @@ func (h *Handler) updateCoupon(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
 		respond.BadRequest(w, "select at least one eligible account type")
+		return
+	}
+	if req.MinOrderAmount != nil && req.MaxOrderAmount != nil && *req.MaxOrderAmount < *req.MinOrderAmount {
+		respond.BadRequest(w, "max_order_amount must be greater than or equal to min_order_amount")
 		return
 	}
 	coupon, err := h.svc.UpdateCoupon(r.Context(), id, req)
@@ -290,6 +306,8 @@ func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
 			msg = "coupon usage limit reached"
 		case errors.Is(err, ErrCouponMinOrder):
 			msg = "order amount below coupon minimum"
+		case errors.Is(err, ErrCouponMaxOrder):
+			msg = "order amount above coupon maximum"
 		case errors.Is(err, ErrCouponWrongRole):
 			msg = "This coupon is not valid for your account"
 			code = "wrong_role"
