@@ -3242,8 +3242,12 @@ func (s *ProductService) fbtFetchPoolWithCategoryFallback(
 // fbtFetchCopurchasePool returns up to `cap` simple, in-stock product IDs
 // ranked by historical co-purchase strength with the source product. Bundles
 // and sold-out products are filtered at SQL so the row never offers something
-// the customer can't add to cart. Also drops excluded IDs (source + bundle
-// components) and products in hidden categories.
+// the customer can't add to cart. "In-stock" here means the *default* variant
+// (first active by sort_order, created_at) — same row the FBT card displays
+// and adds to cart — so a product whose default variant is OOS but a sibling
+// variant has stock is excluded rather than rendered as a disabled tile.
+// Also drops excluded IDs (source + bundle components) and products in hidden
+// categories.
 func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProductID string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		SELECT p.id
@@ -3253,10 +3257,15 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 		  AND p.status = 'active'
 		  AND p.kind = 'simple'
 		  AND EXISTS (
-		      SELECT 1 FROM product_variants pv
-		      WHERE pv.product_id = p.id
-		        AND pv.is_active = TRUE
-		        AND pv.stock_qty > 0
+		      SELECT 1 FROM (
+		          SELECT pv.stock_qty
+		          FROM product_variants pv
+		          WHERE pv.product_id = p.id
+		            AND pv.is_active = TRUE
+		          ORDER BY pv.sort_order ASC, pv.created_at ASC
+		          LIMIT 1
+		      ) defv
+		      WHERE defv.stock_qty > 0
 		  )
 		  AND p.id <> ALL($2::uuid[])
 		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
@@ -3274,9 +3283,10 @@ func (s *ProductService) fbtFetchCopurchasePool(ctx context.Context, sourceProdu
 // ranked by units sold over fbtSalesWindowDays in paid+ orders. Only top-level
 // order_items count (`parent_item_id IS NULL`) so components shipped as part of
 // a bundle don't double-credit the parent product. Bundles and sold-out
-// products are filtered at SQL so every result is purchasable. When
-// `categoryIDs` is non-empty, the result is restricted to products linked to
-// any of those categories.
+// products are filtered at SQL so every result is purchasable. "In-stock" here
+// means the *default* variant has stock (see fbtFetchCopurchasePool for the
+// rationale). When `categoryIDs` is non-empty, the result is restricted to
+// products linked to any of those categories.
 func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		WITH sales AS (
@@ -3295,10 +3305,15 @@ func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryID
 		WHERE p.status = 'active'
 		  AND p.kind = 'simple'
 		  AND EXISTS (
-		      SELECT 1 FROM product_variants pv
-		      WHERE pv.product_id = p.id
-		        AND pv.is_active = TRUE
-		        AND pv.stock_qty > 0
+		      SELECT 1 FROM (
+		          SELECT pv.stock_qty
+		          FROM product_variants pv
+		          WHERE pv.product_id = p.id
+		            AND pv.is_active = TRUE
+		          ORDER BY pv.sort_order ASC, pv.created_at ASC
+		          LIMIT 1
+		      ) defv
+		      WHERE defv.stock_qty > 0
 		  )
 		  AND p.id <> ALL($2::uuid[])
 		  AND (cardinality($3::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($3::uuid[]))
@@ -3321,6 +3336,11 @@ func (s *ProductService) fbtFetchBestsellersPool(ctx context.Context, categoryID
 // excluded — their stock is derived) that have stock above
 // fbtSlowMoverMinStock and at most fbtSlowMoverMaxSales over the window.
 // Ranked stock-rich-first so the picks meaningfully move inventory.
+//
+// The total_stock threshold defines "slow mover with real inventory", but the
+// FBT card only offers the *default* variant — so we additionally require the
+// default variant itself to have stock. Otherwise a product with one fat
+// non-default variant and an OOS default would render as a disabled tile.
 func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs []string, cap int, excludes, hiddenIDs, excludedCatIDs []string) ([]string, error) {
 	query := `
 		WITH sales AS (
@@ -3346,6 +3366,17 @@ func (s *ProductService) fbtFetchSlowMoversPool(ctx context.Context, categoryIDs
 		WHERE p.status = 'active'
 		  AND p.kind = 'simple'
 		  AND st.total_stock > $2
+		  AND EXISTS (
+		      SELECT 1 FROM (
+		          SELECT pv.stock_qty
+		          FROM product_variants pv
+		          WHERE pv.product_id = p.id
+		            AND pv.is_active = TRUE
+		          ORDER BY pv.sort_order ASC, pv.created_at ASC
+		          LIMIT 1
+		      ) defv
+		      WHERE defv.stock_qty > 0
+		  )
 		  AND COALESCE(s.qty, 0) <= $3
 		  AND p.id <> ALL($4::uuid[])
 		  AND (cardinality($5::uuid[]) = 0 OR p.category_id IS NULL OR p.category_id <> ALL($5::uuid[]))
