@@ -6,6 +6,7 @@
    */
   import type { Product, ProductImage, Variant } from '$lib/types';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+  import { isVideo } from '$lib/media';
 
   let {
     ctaEl,
@@ -56,10 +57,21 @@
   aria-hidden={!visible}
 >
   {#if primaryImage}
-    <ResponsiveImage src={primaryImage.url}
-                     alt={primaryImage.alt_text ?? product.name}
-                     widths={[160, 320]} sizes="48px"
-                     class="w-12 h-12 rounded-md object-cover bg-paper" />
+    {#if isVideo(primaryImage)}
+      {#if primaryImage.thumbnail_url}
+        <ResponsiveImage src={primaryImage.thumbnail_url}
+                         alt={primaryImage.alt_text ?? product.name}
+                         widths={[160, 320]} sizes="48px"
+                         class="w-12 h-12 rounded-md object-cover bg-black" />
+      {:else}
+        <div class="w-12 h-12 rounded-md bg-black"></div>
+      {/if}
+    {:else}
+      <ResponsiveImage src={primaryImage.url}
+                       alt={primaryImage.alt_text ?? product.name}
+                       widths={[160, 320]} sizes="48px"
+                       class="w-12 h-12 rounded-md object-cover bg-paper" />
+    {/if}
   {:else}
     <div class="w-12 h-12 rounded-md bg-paper"></div>
   {/if}
