@@ -3,6 +3,7 @@
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import AnnouncementStrip from '$lib/components/shop/AnnouncementStrip.svelte';
+  import ShippingNoticeStrip from '$lib/components/shop/ShippingNoticeStrip.svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { registerStorefrontTools } from '$lib/webmcp';
@@ -102,6 +103,7 @@
 
 <div class="min-h-screen flex flex-col bg-white">
   <AnnouncementStrip settings={data.publicSettings ?? []} />
+  <ShippingNoticeStrip settings={data.publicSettings ?? []} />
   <Header
     navItems={data.headerNav?.items ?? []}
     customer={data.customer}

@@ -45,6 +45,9 @@ var publicSettingKeys = []string{
 	"site_notice_bg_color",       // storefront announcement strip background color
 	"site_notice_text_color",     // storefront announcement strip text color
 	"site_notice_text_size",      // storefront announcement strip font size (px)
+	"shipping_notice_bg_color",   // storefront shipping notice strip background color
+	"shipping_notice_text_color", // storefront shipping notice strip text color
+	"shipping_notice_text_size",  // storefront shipping notice strip font size (px)
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
 	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
