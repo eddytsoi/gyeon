@@ -1,12 +1,14 @@
 import {
+  adminImportStockMutationCSV,
   adminListStockMutations,
   type StockMutationFilters,
+  type StockMutationImportResult,
   type StockMutationList,
   type StockMutationStatus,
   type StockMutationType
 } from '$lib/api/admin';
-import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
+import { fail, redirect } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
 
 const PAGE_SIZE = 50;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -55,4 +57,29 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     from,
     to
   };
+};
+
+async function doImport(
+  request: Request,
+  cookies: { get: (k: string) => string | undefined },
+  type: StockMutationType
+): Promise<{ importResult: StockMutationImportResult } | ReturnType<typeof fail>> {
+  const token = cookies.get('admin_token') ?? '';
+  if (!token) return fail(401, { importError: 'not signed in' });
+  const data = await request.formData();
+  const file = data.get('file') as File | null;
+  if (!file || file.size === 0) {
+    return fail(400, { importError: 'no file' });
+  }
+  try {
+    const result = await adminImportStockMutationCSV(token, type, file);
+    return { importResult: result };
+  } catch (err) {
+    return fail(500, { importError: err instanceof Error ? err.message : 'Import failed' });
+  }
+}
+
+export const actions: Actions = {
+  importIn: ({ request, cookies }) => doImport(request, cookies, 'in'),
+  importOut: ({ request, cookies }) => doImport(request, cookies, 'out')
 };

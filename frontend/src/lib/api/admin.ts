@@ -1484,6 +1484,35 @@ export const adminDeleteStockMutation = (token: string, id: string) =>
 export const adminDuplicateStockMutation = (token: string, id: string) =>
   request<StockMutation>(`/admin/stock-mutations/${id}/duplicate`, token, { method: 'POST' });
 
+export interface StockMutationImportResult {
+  mutation: StockMutation | null;
+  imported: number;
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+/** Upload a CSV to create one draft mutation. The body's `mutation` is null
+ *  when zero rows resolved to valid line items (no draft is created in that
+ *  case). Per-row errors are always in `errors`. */
+export const adminImportStockMutationCSV = async (
+  token: string,
+  type: StockMutationType,
+  file: File
+): Promise<StockMutationImportResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/stock-mutations/import?type=${type}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
 /** Execute a draft mutation. Re-thrown as StockMutationInsufficientStockError
  *  when the server returns 422 with a conflicts payload (stock-out only). */
 export const adminExecuteStockMutation = async (token: string, id: string): Promise<StockMutation> => {
