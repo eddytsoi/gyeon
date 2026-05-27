@@ -590,6 +590,18 @@ func decodeSlug(s string) string {
 	return s
 }
 
+// fetchCustomer returns a single customer by its WooCommerce ID. Used by
+// the single-customer import path so an admin can re-sync one row without
+// paging through the whole store; the multi-customer path uses
+// fetchCustomers with pagination.
+func (c *wcClient) fetchCustomer(id int) (wcCustomer, error) {
+	var cust wcCustomer
+	if err := c.get(fmt.Sprintf("/wp-json/wc/v3/customers/%d", id), nil, &cust); err != nil {
+		return wcCustomer{}, fmt.Errorf("customer %d: %w", id, err)
+	}
+	return cust, nil
+}
+
 // fetchCustomerTotal returns the total number of customers via the
 // X-WP-Total header. Returns 0 on any error — caller treats a missing
 // total as "unknown" rather than failing the whole import.

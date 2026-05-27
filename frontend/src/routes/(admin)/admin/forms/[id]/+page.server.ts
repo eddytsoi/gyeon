@@ -2,6 +2,7 @@ import {
   adminGetForm,
   adminCreateForm,
   adminUpdateForm,
+  adminGetPages,
   type AdminForm,
   type FormParseError,
   type UpsertFormBody
@@ -11,17 +12,30 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
   const token = cookies.get('admin_token') ?? '';
+  // Pages drive the success/error redirect dropdowns. 200 is generous —
+  // sites with more than that should switch to a search-driven picker,
+  // but for now a flat list keeps the UI dead simple.
+  const pagesPromise = adminGetPages(token, 200, 0).catch(() => ({ items: [], total: 0 }));
   if (params.id === 'new') {
-    return { form: null as AdminForm | null };
+    const pages = await pagesPromise;
+    return { form: null as AdminForm | null, pages: pages.items };
   }
-  const form = await adminGetForm(token, params.id).catch(() => null);
-  return { form };
+  const [form, pages] = await Promise.all([
+    adminGetForm(token, params.id).catch(() => null),
+    pagesPromise
+  ]);
+  return { form, pages: pages.items };
 };
 
 export const actions: Actions = {
   save: async ({ request, params, cookies }) => {
     const token = cookies.get('admin_token') ?? '';
     const data = await request.formData();
+
+    const successMode = (data.get('success_mode') as string) === 'redirect' ? 'redirect' : 'message';
+    const errorMode = (data.get('error_mode') as string) === 'redirect' ? 'redirect' : 'message';
+    const rawSuccessPageID = ((data.get('success_page_id') as string) || '').trim();
+    const rawErrorPageID = ((data.get('error_page_id') as string) || '').trim();
 
     const body: UpsertFormBody = {
       slug: ((data.get('slug') as string) || '').trim(),
@@ -42,7 +56,12 @@ export const actions: Actions = {
 
       success_message: ((data.get('success_message') as string) || '').trim(),
       error_message: ((data.get('error_message') as string) || '').trim(),
-      recaptcha_action: ((data.get('recaptcha_action') as string) || 'contact_form').trim()
+      recaptcha_action: ((data.get('recaptcha_action') as string) || 'contact_form').trim(),
+
+      success_mode: successMode,
+      error_mode: errorMode,
+      success_page_id: successMode === 'redirect' && rawSuccessPageID ? rawSuccessPageID : null,
+      error_page_id: errorMode === 'redirect' && rawErrorPageID ? rawErrorPageID : null
     };
 
     const result =

@@ -149,11 +149,27 @@
     uploadProgress = 0;
 
     if ('ok' in result && result.ok) {
+      // Redirect mode: hop to the pre-resolved page instead of toggling
+      // the inline success banner. The URL is empty when the referenced
+      // page was unpublished/deleted — fall back to the message in that
+      // case so the submitter still sees confirmation.
+      if (form.success_mode === 'redirect' && form.success_redirect_url) {
+        window.location.assign(form.success_redirect_url);
+        return;
+      }
       submitted = true;
       return;
     }
     const err = result as { error?: string; fields?: Record<string, string> };
     if (err.fields) fieldErrors = err.fields;
+    // Redirect-on-error is a deliberate UX choice (e.g. send users to a
+    // dedicated "we couldn't accept your message" page). Field-level
+    // validation errors still navigate away — preserving them inline
+    // would defeat the point of opting into a redirect.
+    if (form.error_mode === 'redirect' && form.error_redirect_url) {
+      window.location.assign(form.error_redirect_url);
+      return;
+    }
     formError = err.error || form.error_message;
   }
 

@@ -183,9 +183,11 @@ func (s *Service) Create(ctx context.Context, req UpsertFormRequest) (*Form, []P
 			slug, title, markup, fields,
 			mail_to, mail_from, mail_subject, mail_body, mail_reply_to,
 			reply_enabled, reply_to_field, reply_from, reply_subject, reply_body,
-			success_message, error_message, recaptcha_action
+			success_message, error_message, recaptcha_action,
+			success_mode, error_mode, success_page_id, error_page_id
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+			$18,$19,$20,$21
 		)
 		RETURNING `+formColumns,
 		req.Slug, req.Title, req.Markup, fieldsJSON,
@@ -194,6 +196,9 @@ func (s *Service) Create(ctx context.Context, req UpsertFormRequest) (*Form, []P
 		defaultStr(req.SuccessMessage, "Thank you for your message."),
 		defaultStr(req.ErrorMessage, "There was an error. Please try again."),
 		defaultStr(req.RecaptchaAction, "contact_form"),
+		canonResponseMode(req.SuccessMode), canonResponseMode(req.ErrorMode),
+		nullablePageID(req.SuccessMode, req.SuccessPageID),
+		nullablePageID(req.ErrorMode, req.ErrorPageID),
 	)
 	f, err := scanForm(row)
 	if err != nil {
@@ -220,6 +225,7 @@ func (s *Service) Update(ctx context.Context, id string, req UpsertFormRequest) 
 			mail_to=$6, mail_from=$7, mail_subject=$8, mail_body=$9, mail_reply_to=$10,
 			reply_enabled=$11, reply_to_field=$12, reply_from=$13, reply_subject=$14, reply_body=$15,
 			success_message=$16, error_message=$17, recaptcha_action=$18,
+			success_mode=$19, error_mode=$20, success_page_id=$21, error_page_id=$22,
 			updated_at=NOW()
 		WHERE id=$1
 		RETURNING `+formColumns,
@@ -229,6 +235,9 @@ func (s *Service) Update(ctx context.Context, id string, req UpsertFormRequest) 
 		defaultStr(req.SuccessMessage, "Thank you for your message."),
 		defaultStr(req.ErrorMessage, "There was an error. Please try again."),
 		defaultStr(req.RecaptchaAction, "contact_form"),
+		canonResponseMode(req.SuccessMode), canonResponseMode(req.ErrorMode),
+		nullablePageID(req.SuccessMode, req.SuccessPageID),
+		nullablePageID(req.ErrorMode, req.ErrorPageID),
 	)
 	f, err := scanForm(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -888,20 +897,24 @@ const formColumns = `id, slug, title, markup, fields,
 	mail_to, mail_from, mail_subject, mail_body, mail_reply_to,
 	reply_enabled, reply_to_field, reply_from, reply_subject, reply_body,
 	success_message, error_message, recaptcha_action,
+	success_mode, error_mode, success_page_id, error_page_id,
 	created_at, updated_at`
 
 const formSelect = `SELECT ` + formColumns + ` FROM forms`
 
 func scanForm(row interface{ Scan(...any) error }) (Form, error) {
 	var (
-		f          Form
-		fieldsJSON []byte
+		f             Form
+		fieldsJSON    []byte
+		successPageID sql.NullString
+		errorPageID   sql.NullString
 	)
 	err := row.Scan(
 		&f.ID, &f.Slug, &f.Title, &f.Markup, &fieldsJSON,
 		&f.MailTo, &f.MailFrom, &f.MailSubject, &f.MailBody, &f.MailReplyTo,
 		&f.ReplyEnabled, &f.ReplyToField, &f.ReplyFrom, &f.ReplySubject, &f.ReplyBody,
 		&f.SuccessMessage, &f.ErrorMessage, &f.RecaptchaAction,
+		&f.SuccessMode, &f.ErrorMode, &successPageID, &errorPageID,
 		&f.CreatedAt, &f.UpdatedAt,
 	)
 	if err != nil {
@@ -912,6 +925,14 @@ func scanForm(row interface{ Scan(...any) error }) (Form, error) {
 	}
 	if f.Fields == nil {
 		f.Fields = []FormField{}
+	}
+	if successPageID.Valid {
+		v := successPageID.String
+		f.SuccessPageID = &v
+	}
+	if errorPageID.Valid {
+		v := errorPageID.String
+		f.ErrorPageID = &v
 	}
 	return f, nil
 }
@@ -1139,6 +1160,45 @@ var cfPlaceholderRE = regexp.MustCompile(`\[[a-zA-Z][a-zA-Z0-9_-]*\]`)
 func defaultStr(v, fallback string) string {
 	if strings.TrimSpace(v) == "" {
 		return fallback
+	}
+	return v
+}
+
+// LookupPageSlug returns the storefront slug for a cms_pages.id. Empty
+// string when the id is empty, unparseable, unpublished, or the row is
+// missing — the storefront treats an empty redirect URL as "fall back to
+// the inline message", so a stale page id never strands the form.
+func (s *Service) LookupPageSlug(ctx context.Context, id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ""
+	}
+	var slug string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT slug FROM cms_pages WHERE id = $1 AND is_published = TRUE`, id).
+		Scan(&slug)
+	if err != nil {
+		return ""
+	}
+	return slug
+}
+
+// nullablePageID returns the page id to persist for a given outcome mode.
+// In "message" mode we forcibly null the column so a redirect target left
+// over from an earlier save can't surprise the admin after they switch
+// back to message mode. In "redirect" mode an empty/whitespace id also
+// stores NULL — the storefront falls back to message behaviour when the
+// redirect URL is empty, matching canonResponseMode's safety bias.
+func nullablePageID(mode string, id *string) any {
+	if canonResponseMode(mode) != ResponseModeRedirect {
+		return nil
+	}
+	if id == nil {
+		return nil
+	}
+	v := strings.TrimSpace(*id)
+	if v == "" {
+		return nil
 	}
 	return v
 }

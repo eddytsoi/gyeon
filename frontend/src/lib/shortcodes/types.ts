@@ -57,6 +57,15 @@ export type PublicForm = {
   fields: FormField[];
   success_message: string;
   error_message: string;
+  // Per-outcome behaviour. "message" = show success_message / error_message
+  // inline (historical default); "redirect" = navigate to the corresponding
+  // pre-resolved redirect URL. The backend leaves the URL empty when the
+  // referenced page is unpublished / missing, so the storefront still falls
+  // back to the message in that case.
+  success_mode: 'message' | 'redirect';
+  error_mode: 'message' | 'redirect';
+  success_redirect_url?: string;
+  error_redirect_url?: string;
   recaptcha_action: string;
 };
 

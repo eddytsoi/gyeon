@@ -111,6 +111,15 @@ type Form struct {
 	SuccessMessage string `json:"success_message"`
 	ErrorMessage   string `json:"error_message"`
 
+	// Per-outcome response behaviour. Each is "message" (default — show the
+	// success_message / error_message inline) or "redirect" (send the user
+	// to success_page_id / error_page_id). Stored as TEXT so we can add new
+	// modes without a migration; service-side defaultMode() canonicalises.
+	SuccessMode   string  `json:"success_mode"`
+	ErrorMode     string  `json:"error_mode"`
+	SuccessPageID *string `json:"success_page_id,omitempty"`
+	ErrorPageID   *string `json:"error_page_id,omitempty"`
+
 	RecaptchaAction string `json:"recaptcha_action"`
 
 	CreatedAt time.Time `json:"created_at"`
@@ -121,16 +130,21 @@ type Form struct {
 // admin-only and never reach the client. `Markup` is the layout template the
 // storefront renders verbatim, substituting each `[type* name ...]` tag with
 // its input element (CF7-style); `Fields` drives state, validation, and the
-// per-field error map.
+// per-field error map. Redirect URLs are pre-resolved server-side so the
+// client doesn't need a second round-trip to look up a page slug.
 type PublicForm struct {
-	ID              string      `json:"id"`
-	Slug            string      `json:"slug"`
-	Title           string      `json:"title"`
-	Markup          string      `json:"markup"`
-	Fields          []FormField `json:"fields"`
-	SuccessMessage  string      `json:"success_message"`
-	ErrorMessage    string      `json:"error_message"`
-	RecaptchaAction string      `json:"recaptcha_action"`
+	ID                 string      `json:"id"`
+	Slug               string      `json:"slug"`
+	Title              string      `json:"title"`
+	Markup             string      `json:"markup"`
+	Fields             []FormField `json:"fields"`
+	SuccessMessage     string      `json:"success_message"`
+	ErrorMessage       string      `json:"error_message"`
+	SuccessMode        string      `json:"success_mode"`
+	ErrorMode          string      `json:"error_mode"`
+	SuccessRedirectURL string      `json:"success_redirect_url,omitempty"`
+	ErrorRedirectURL   string      `json:"error_redirect_url,omitempty"`
+	RecaptchaAction    string      `json:"recaptcha_action"`
 }
 
 func (f Form) Public() PublicForm {
@@ -142,8 +156,28 @@ func (f Form) Public() PublicForm {
 		Fields:          f.Fields,
 		SuccessMessage:  f.SuccessMessage,
 		ErrorMessage:    f.ErrorMessage,
+		SuccessMode:     canonResponseMode(f.SuccessMode),
+		ErrorMode:       canonResponseMode(f.ErrorMode),
 		RecaptchaAction: f.RecaptchaAction,
 	}
+}
+
+// ResponseMode constants for the per-outcome success/error behaviour.
+const (
+	ResponseModeMessage  = "message"
+	ResponseModeRedirect = "redirect"
+)
+
+// canonResponseMode normalises whatever string is in the DB (or in an
+// UpsertFormRequest body) into one of the two canonical values. Anything
+// unrecognised — including empty — falls back to "message" so the
+// storefront keeps the safer default of showing the inline message rather
+// than redirecting to nowhere.
+func canonResponseMode(m string) string {
+	if m == ResponseModeRedirect {
+		return ResponseModeRedirect
+	}
+	return ResponseModeMessage
 }
 
 // Submission is one row in form_submissions. `Data` is a flat map of field
@@ -194,9 +228,13 @@ type UpsertFormRequest struct {
 	ReplySubject string `json:"reply_subject"`
 	ReplyBody    string `json:"reply_body"`
 
-	SuccessMessage  string `json:"success_message"`
-	ErrorMessage    string `json:"error_message"`
-	RecaptchaAction string `json:"recaptcha_action"`
+	SuccessMessage  string  `json:"success_message"`
+	ErrorMessage    string  `json:"error_message"`
+	SuccessMode     string  `json:"success_mode"`
+	ErrorMode       string  `json:"error_mode"`
+	SuccessPageID   *string `json:"success_page_id,omitempty"`
+	ErrorPageID     *string `json:"error_page_id,omitempty"`
+	RecaptchaAction string  `json:"recaptcha_action"`
 }
 
 // SubmitRequest is the JSON body the storefront posts to /forms/{slug}/submit.

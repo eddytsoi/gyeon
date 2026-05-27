@@ -31,6 +31,11 @@ type CustomersImportRequest struct {
 	WCSecret string `json:"wc_secret"`
 	// Limit caps the run. 0 = no cap (full sync).
 	Limit int `json:"limit"`
+	// CustomerID, when > 0, limits the run to a single WooCommerce customer
+	// (fetched via /wc/v3/customers/{id}). Skips the page loop and the
+	// CustomerTotal call entirely. Mutually exclusive with Limit — when
+	// both are set CustomerID wins.
+	CustomerID int `json:"customer_id"`
 	// SetupEmailMode controls who receives the setup-password email:
 	//   "skip"         — never send (silent import).
 	//   "passwordless" — send iff password_hash IS NULL AND setup_email_sent_at IS NULL.
@@ -67,14 +72,21 @@ func (s *Service) CustomerTotal(req CustomersImportRequest) int {
 
 // RunCustomersStreaming pages through /wc/v3/customers and upserts each
 // row into local customers + addresses, calling send() with progress after
-// each customer. The final call always has Done = true.
+// each customer. The final call always has Done = true. When req.CustomerID
+// is set, the page loop is skipped and just that one customer is fetched
+// + upserted.
 func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImportRequest, send func(CustomersProgressUpdate)) {
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := CustomersProgressUpdate{Errors: []string{}}
 
-	p.TotalCustomers = wc.fetchCustomerTotal()
-	if req.Limit > 0 && (p.TotalCustomers == 0 || p.TotalCustomers > req.Limit) {
-		p.TotalCustomers = req.Limit
+	if req.CustomerID > 0 {
+		// Single-customer run: denominator is always 1, no count call.
+		p.TotalCustomers = 1
+	} else {
+		p.TotalCustomers = wc.fetchCustomerTotal()
+		if req.Limit > 0 && (p.TotalCustomers == 0 || p.TotalCustomers > req.Limit) {
+			p.TotalCustomers = req.Limit
+		}
 	}
 	send(p)
 
@@ -83,54 +95,63 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 	// to push the latest value out via the SSE frame.
 	var emailsQueued int64
 
-pages:
-	for page := 1; ; page++ {
-		batch, err := wc.fetchCustomers(page)
-		if err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("fetch customers page %d: %v", page, err))
-			break
-		}
-		if len(batch) == 0 {
-			break
-		}
-		for _, c := range batch {
-			if req.Limit > 0 && p.ProcessedCustomers >= req.Limit {
-				break pages
-			}
-			// Skip rows we cannot key on. WC will sometimes emit user accounts
-			// without an email (deleted users, role-only entries) — there is
-			// no useful local identity for those.
-			if strings.TrimSpace(c.Email) == "" {
-				p.Failed++
-				p.Errors = append(p.Errors, fmt.Sprintf("customer id=%d skipped: missing email", c.ID))
-				p.ProcessedCustomers++
-				send(p)
-				continue
-			}
-			p.CurrentCustomer = displayName(c)
-			send(p)
-
-			customerID, err := s.upsertCustomer(ctx, c, &p)
-			if err != nil {
-				p.Errors = append(p.Errors, fmt.Sprintf("customer %s: %v", c.Email, err))
-				p.Failed++
-			} else if customerID != "" && s.shouldSendSetupEmail(ctx, customerID, req.SetupEmailMode) {
-				// Mark first so concurrent / repeat runs don't re-send. If the
-				// SMTP send fails the customer stays "marked"; admin can use
-				// "force" mode to retry. Fire-and-forget after marking — SMTP
-				// is slow and we don't want to block the import. Failures get
-				// logged server-side; emailsQueued counts dispatches.
-				if _, uerr := s.db.ExecContext(ctx,
-					`UPDATE customers SET setup_email_sent_at = NOW() WHERE id=$1`, customerID); uerr != nil {
-					p.Errors = append(p.Errors, fmt.Sprintf("mark setup email %s: %v", c.Email, uerr))
-				} else {
-					go s.sendSetupPasswordEmail(c, customerID, &emailsQueued)
-				}
-			}
-			p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
+	// processOne owns the per-customer work — email gate, upsert, setup-email
+	// dispatch, progress counters. Shared between the single-id branch and
+	// the paginated loop so the two paths stay byte-for-byte identical from
+	// the SSE consumer's point of view.
+	processOne := func(c wcCustomer) {
+		if strings.TrimSpace(c.Email) == "" {
+			p.Failed++
+			p.Errors = append(p.Errors, fmt.Sprintf("customer id=%d skipped: missing email", c.ID))
 			p.ProcessedCustomers++
-			p.CurrentCustomer = ""
 			send(p)
+			return
+		}
+		p.CurrentCustomer = displayName(c)
+		send(p)
+
+		customerID, err := s.upsertCustomer(ctx, c, &p)
+		if err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("customer %s: %v", c.Email, err))
+			p.Failed++
+		} else if customerID != "" && s.shouldSendSetupEmail(ctx, customerID, req.SetupEmailMode) {
+			if _, uerr := s.db.ExecContext(ctx,
+				`UPDATE customers SET setup_email_sent_at = NOW() WHERE id=$1`, customerID); uerr != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("mark setup email %s: %v", c.Email, uerr))
+			} else {
+				go s.sendSetupPasswordEmail(c, customerID, &emailsQueued)
+			}
+		}
+		p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
+		p.ProcessedCustomers++
+		p.CurrentCustomer = ""
+		send(p)
+	}
+
+	if req.CustomerID > 0 {
+		cust, err := wc.fetchCustomer(req.CustomerID)
+		if err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("fetch customer %d: %v", req.CustomerID, err))
+		} else {
+			processOne(cust)
+		}
+	} else {
+	pages:
+		for page := 1; ; page++ {
+			batch, err := wc.fetchCustomers(page)
+			if err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("fetch customers page %d: %v", page, err))
+				break
+			}
+			if len(batch) == 0 {
+				break
+			}
+			for _, c := range batch {
+				if req.Limit > 0 && p.ProcessedCustomers >= req.Limit {
+					break pages
+				}
+				processOne(c)
+			}
 		}
 	}
 

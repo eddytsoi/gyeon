@@ -272,6 +272,7 @@
   let customersErrorMsg = $state('');
   let customersProgress = $state<CustomersProgress | null>(null);
   let customersLimit = $state<number | null>(null);
+  let wcCustomerId = $state<number | null>(null);
   let customersSetupEmailMode = $state<CustomersSetupEmailMode>('skip');
 
   const customersPct = $derived(
@@ -325,6 +326,7 @@
           wc_key: wcKey,
           wc_secret: wcSecret,
           limit: customersLimit && customersLimit > 0 ? Math.floor(customersLimit) : 0,
+          customer_id: wcCustomerId && wcCustomerId > 0 ? Math.floor(wcCustomerId) : 0,
           setup_email_mode: customersSetupEmailMode
         })
       });
@@ -370,6 +372,7 @@
     customersStep = 'idle';
     customersErrorMsg = '';
     customersProgress = null;
+    wcCustomerId = null;
   }
 
   // ── Orders import (parallel state machine) ───────────────────────
@@ -1218,6 +1221,21 @@
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
             {#if customersLimit && customersLimit > 0}
               <p class="text-xs text-amber-600 mt-1">{m.admin_import_limit_warning()}</p>
+            {/if}
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_customer_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_label_customer_id()}
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_customer_id_hint()}</p>
+            <input id="wc_customer_id" type="number" min="1" step="1"
+                   placeholder={m.admin_import_customer_id_placeholder()}
+                   bind:value={wcCustomerId}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            {#if wcCustomerId && wcCustomerId > 0}
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_customer_id_warning()}</p>
             {/if}
           </div>
 
