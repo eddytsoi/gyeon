@@ -1535,6 +1535,8 @@
   "admin_settings_shipping_notice_bg_color": "背景顏色",
   "admin_settings_shipping_notice_text_color": "文字顏色",
   "admin_settings_shipping_notice_text_size": "文字大小",
+  "admin_settings_shipping_notice_below_threshold_heading": "未達門檻時",
+  "admin_settings_shipping_notice_eligible_heading": "已達免運費門檻時",
   "shop_shipping_notice_threshold": "訂單滿 HK${amount} 免運費，下單後第二個工作天發貨。",
   "shop_shipping_notice_eligible": "訂單已免運費，下單後第二個工作天發貨。",
   "admin_settings_website_slogan_heading": "網站口號",

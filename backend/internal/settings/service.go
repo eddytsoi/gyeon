@@ -48,6 +48,8 @@ var publicSettingKeys = []string{
 	"shipping_notice_bg_color",   // storefront shipping notice strip background color
 	"shipping_notice_text_color", // storefront shipping notice strip text color
 	"shipping_notice_text_size",  // storefront shipping notice strip font size (px)
+	"shipping_notice_eligible_bg_color",   // strip background once cart subtotal hits the free-shipping threshold
+	"shipping_notice_eligible_text_color", // strip text color once cart subtotal hits the free-shipping threshold
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
 	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template

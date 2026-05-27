@@ -36,11 +36,15 @@
     const n = Number(settingValue('free_shipping_threshold_hkd'));
     return Number.isFinite(n) && n > 0 ? n : 0;
   });
-  const bgColor = $derived(settingValue('shipping_notice_bg_color') || '#1F4E3D');
-  const textColor = $derived(settingValue('shipping_notice_text_color') || '#FFFFFF');
+  const belowBgColor = $derived(settingValue('shipping_notice_bg_color') || '#1F4E3D');
+  const belowTextColor = $derived(settingValue('shipping_notice_text_color') || '#FFFFFF');
+  const eligibleBgColor = $derived(settingValue('shipping_notice_eligible_bg_color') || belowBgColor);
+  const eligibleTextColor = $derived(settingValue('shipping_notice_eligible_text_color') || belowTextColor);
   const textSizePx = $derived(Number(settingValue('shipping_notice_text_size')) || 14);
 
   const eligible = $derived(threshold() > 0 && cartStore.subtotal >= threshold());
+  const bgColor = $derived(eligible ? eligibleBgColor : belowBgColor);
+  const textColor = $derived(eligible ? eligibleTextColor : belowTextColor);
   const message = $derived(
     eligible
       ? m.shop_shipping_notice_eligible()
