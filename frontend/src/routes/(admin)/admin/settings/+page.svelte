@@ -169,6 +169,11 @@
     'site_notice_text_color',
     'site_notice_text_size',
   ]);
+  const SHIPPING_NOTICE_KEYS = new Set([
+    'shipping_notice_bg_color',
+    'shipping_notice_text_color',
+    'shipping_notice_text_size',
+  ]);
   const HOMEPAGE_KEYS = new Set(['homepage_page_id']);
   const CURRENCY_KEYS = new Set(['currency']);
   const FREE_SHIPPING_KEYS = new Set(['free_shipping_threshold_hkd', 'free_shipping_threshold_enabled']);
@@ -353,6 +358,7 @@
         !COMPANY_LOGO_FOOTER_KEYS.has(s.key) &&
         !COMPANY_INFO_KEYS.has(s.key) &&
         !SITE_NOTICE_KEYS.has(s.key) &&
+        !SHIPPING_NOTICE_KEYS.has(s.key) &&
         !HOMEPAGE_KEYS.has(s.key) &&
         !TAX_KEYS.has(s.key) &&
         !LOYALTY_KEYS.has(s.key) &&
@@ -423,6 +429,14 @@
   );
   let siteNoticeTextColor = $state(
     data.settings.find((s) => s.key === 'site_notice_text_color')?.value || '#1A1A1A'
+  );
+
+  // ── Shipping Notice (storefront free-shipping strip) ────────────
+  let shippingNoticeBgColor = $state(
+    data.settings.find((s) => s.key === 'shipping_notice_bg_color')?.value || '#1F4E3D'
+  );
+  let shippingNoticeTextColor = $state(
+    data.settings.find((s) => s.key === 'shipping_notice_text_color')?.value || '#FFFFFF'
   );
   // Sanitize free-text hex input to the canonical "#RRGGBB" form, leaving
   // partial entries (e.g. "#ED") untouched so the user can keep typing.
@@ -930,6 +944,74 @@
             <input id="site_notice_text_size" name="site_notice_text_size"
                    type="number" min="8" max="48" step="1"
                    value={settingValue('site_notice_text_size') || '16'}
+                   class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            <span class="text-xs text-gray-400">px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shipping Notice (free-shipping strip styling) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-0.5">
+        <p class="text-sm font-semibold text-gray-900">{m.admin_settings_shipping_notice_heading()}</p>
+        <p class="text-xs text-gray-400">{m.admin_settings_shipping_notice_subtitle()}</p>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="shipping_notice_bg_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_shipping_notice_bg_color()}
+          </label>
+          <div class="flex items-stretch gap-2">
+            <label for="shipping_notice_bg_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {shippingNoticeBgColor}">
+              <input id="shipping_notice_bg_color" name="shipping_notice_bg_color"
+                     type="color"
+                     bind:value={shippingNoticeBgColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_shipping_notice_bg_color()}
+                   value={shippingNoticeBgColor}
+                   oninput={(e) => (shippingNoticeBgColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="shipping_notice_text_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_shipping_notice_text_color()}
+          </label>
+          <div class="flex items-stretch gap-2">
+            <label for="shipping_notice_text_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {shippingNoticeTextColor}">
+              <input id="shipping_notice_text_color" name="shipping_notice_text_color"
+                     type="color"
+                     bind:value={shippingNoticeTextColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_shipping_notice_text_color()}
+                   value={shippingNoticeTextColor}
+                   oninput={(e) => (shippingNoticeTextColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="shipping_notice_text_size" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_shipping_notice_text_size()}
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="shipping_notice_text_size" name="shipping_notice_text_size"
+                   type="number" min="8" max="48" step="1"
+                   value={settingValue('shipping_notice_text_size') || '14'}
                    class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
             <span class="text-xs text-gray-400">px</span>
