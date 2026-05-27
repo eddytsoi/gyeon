@@ -6,23 +6,21 @@
    */
   import { cartStore } from '$lib/stores/cart.svelte';
   import * as m from '$lib/paraglide/messages';
+  import { resolveFreeShippingThreshold, type SiteSetting } from '$lib/shippingThreshold';
 
   interface Props {
-    settings: Array<{ key: string; value: string }>;
+    settings: SiteSetting[];
+    /** Customer role — picks the installer threshold when 'installer'. */
+    role?: string | null;
     /** When true (cart page), show even after the threshold is met as a "you've unlocked" banner. */
     showUnlocked?: boolean;
   }
 
-  let { settings, showUnlocked = false }: Props = $props();
+  let { settings, role = null, showUnlocked = false }: Props = $props();
 
-  const enabled = $derived(
-    settings.find((s) => s.key === 'free_shipping_threshold_enabled')?.value === 'true'
-  );
-  const threshold = $derived(() => {
-    const raw = settings.find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+  const resolved = $derived(resolveFreeShippingThreshold(settings, role));
+  const enabled = $derived(resolved.enabled);
+  const threshold = $derived(() => resolved.threshold);
 
   const remaining = $derived(Math.max(0, threshold() - cartStore.subtotal));
   const progress = $derived(

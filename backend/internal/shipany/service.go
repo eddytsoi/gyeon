@@ -247,18 +247,14 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		customerNote = *order.Notes
 	}
 
-	// paid_by_rcvr (SF freight-collect) is computed per order:
-	//   • threshold off → always recipient-pays (matches "順豐速運（到付）" everywhere)
-	//   • threshold on + subtotal ≥ threshold → merchant absorbs shipping
-	//   • threshold on + subtotal < threshold → recipient still pays
-	// The old admin shipany_paid_by_receiver toggle is now UI-display-only; this
-	// decision overrides it.
-	thresholdEnabled := s.read(ctx, "free_shipping_threshold_enabled") == "true"
-	threshold, _ := strconv.ParseFloat(s.read(ctx, "free_shipping_threshold_hkd"), 64)
-	paidByReceiver := true
-	if thresholdEnabled && threshold > 0 && order.Subtotal >= threshold {
-		paidByReceiver = false
-	}
+	// paid_by_rcvr (SF freight-collect) follows the frozen shipping_free flag
+	// the order service stamped at checkout — which is already role-aware
+	// (installer vs default threshold). Consuming the frozen flag avoids
+	// re-deriving the decision from live settings (which would diverge from
+	// the receipt if admins change the threshold post-checkout) and keeps
+	// the installer-specific behaviour correct without re-loading the
+	// customer's role here.
+	paidByReceiver := !order.ShippingFree
 
 	items := s.orderItemsForShipment(ctx, orderID, order)
 

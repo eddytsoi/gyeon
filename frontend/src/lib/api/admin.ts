@@ -465,6 +465,7 @@ export interface Customer {
   last_name: string;
   phone?: string;
   is_active: boolean;
+  role: import('$lib/types').CustomerRole;
   created_at: string;
   updated_at: string;
 }
@@ -493,9 +494,17 @@ export interface CustomerOrderSummary {
   created_at: string;
 }
 
-export const adminGetCustomers = (token: string, limit = 50, offset = 0, q = '') => {
+export const adminGetCustomers = (
+  token: string,
+  limit = 50,
+  offset = 0,
+  q = '',
+  filters: { active?: 'active' | 'inactive'; role?: import('$lib/types').CustomerRole } = {}
+) => {
   const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) qs.set('q', q);
+  if (filters.active) qs.set('active', filters.active);
+  if (filters.role) qs.set('role', filters.role);
   return request<PagedResponse<Customer>>(`/admin/customers?${qs.toString()}`, token);
 };
 

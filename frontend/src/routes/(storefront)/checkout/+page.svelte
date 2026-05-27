@@ -9,6 +9,7 @@
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import { productDisplayName } from '$lib/variant';
+  import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -98,14 +99,11 @@
   const discount = $derived(couponResult?.valid ? (couponResult.discount_amount ?? 0) : 0);
   const total = $derived(subtotal - discount);
 
-  const freeShippingEnabled = $derived(
-    (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_enabled')?.value === 'true'
+  const resolvedFreeShipping = $derived(
+    resolveFreeShippingThreshold(data.publicSettings ?? [], data.customer?.role ?? null)
   );
-  const freeShippingThreshold = $derived(() => {
-    const raw = (data.publicSettings ?? []).find((s) => s.key === 'free_shipping_threshold_hkd')?.value;
-    const n = raw ? Number(raw) : 0;
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+  const freeShippingEnabled = $derived(resolvedFreeShipping.enabled);
+  const freeShippingThreshold = $derived(() => resolvedFreeShipping.threshold);
   const shippingFree = $derived(
     freeShippingEnabled && freeShippingThreshold() > 0 && subtotal >= freeShippingThreshold()
   );

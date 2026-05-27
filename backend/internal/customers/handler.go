@@ -378,7 +378,11 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	customers, total, err := h.svc.List(r.Context(), r.URL.Query().Get("q"), limit, offset)
+	filters := ListFilters{
+		Active: r.URL.Query().Get("active"),
+		Role:   r.URL.Query().Get("role"),
+	}
+	customers, total, err := h.svc.List(r.Context(), r.URL.Query().Get("q"), filters, limit, offset)
 	if err != nil {
 		respond.InternalError(w)
 		return

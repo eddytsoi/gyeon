@@ -103,7 +103,7 @@
 
 <div class="min-h-screen flex flex-col bg-white">
   <AnnouncementStrip settings={data.publicSettings ?? []} />
-  <ShippingNoticeStrip settings={data.publicSettings ?? []} />
+  <ShippingNoticeStrip settings={data.publicSettings ?? []} role={data.customer?.role ?? null} />
   <Header
     navItems={data.headerNav?.items ?? []}
     customer={data.customer}
