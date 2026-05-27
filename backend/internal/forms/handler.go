@@ -63,7 +63,20 @@ func (h *Handler) publicGet(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, f.Public())
+	pub := f.Public()
+	// Pre-resolve redirect URLs so the storefront doesn't need a second
+	// round-trip to look up a page slug after a successful/failed submit.
+	if pub.SuccessMode == ResponseModeRedirect && f.SuccessPageID != nil {
+		if s := h.svc.LookupPageSlug(r.Context(), *f.SuccessPageID); s != "" {
+			pub.SuccessRedirectURL = "/pages/" + s
+		}
+	}
+	if pub.ErrorMode == ResponseModeRedirect && f.ErrorPageID != nil {
+		if s := h.svc.LookupPageSlug(r.Context(), *f.ErrorPageID); s != "" {
+			pub.ErrorRedirectURL = "/pages/" + s
+		}
+	}
+	respond.JSON(w, http.StatusOK, pub)
 }
 
 func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {

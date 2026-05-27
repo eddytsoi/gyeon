@@ -1246,6 +1246,11 @@ export interface AdminForm {
   error_message: string;
   recaptcha_action: string;
 
+  success_mode: 'message' | 'redirect';
+  error_mode: 'message' | 'redirect';
+  success_page_id?: string | null;
+  error_page_id?: string | null;
+
   created_at: string;
   updated_at: string;
 }

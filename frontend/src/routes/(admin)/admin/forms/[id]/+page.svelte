@@ -45,6 +45,24 @@
   );
   let recaptchaAction = $state(get('recaptcha_action', initial?.recaptcha_action ?? 'contact_form'));
 
+  // Per-outcome response behaviour. "message" shows the inline success /
+  // error_message; "redirect" navigates to a CMS page picked from the
+  // dropdown below. Defaults preserve the historical message-only flow.
+  let successMode = $state<'message' | 'redirect'>(
+    (get('success_mode', initial?.success_mode ?? 'message') as 'message' | 'redirect')
+  );
+  let errorMode = $state<'message' | 'redirect'>(
+    (get('error_mode', initial?.error_mode ?? 'message') as 'message' | 'redirect')
+  );
+  let successPageID = $state(
+    get('success_page_id', initial?.success_page_id ?? '')
+  );
+  let errorPageID = $state(
+    get('error_page_id', initial?.error_page_id ?? '')
+  );
+
+  const pageOptions = $derived(data.pages ?? []);
+
   // Auto-generate slug from title for new forms.
   function onTitleInput() {
     if (isNew) {
@@ -332,27 +350,105 @@ Thanks for reaching out — we've received your message and will get back to you
       {/if}
     </section>
 
-    <!-- Messages + recaptcha action -->
-    <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+    <!-- Response (per-outcome message / redirect) -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
       <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_messages()}</h3>
-      <div>
-        <label for="success_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_success_message()}</label>
-        <input
-          id="success_message"
-          name="success_message"
-          bind:value={successMessage}
-          class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-        />
+
+      <!-- Success outcome -->
+      <div class="space-y-3">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_forms_label_success_outcome()}</p>
+        <div class="flex flex-wrap gap-2">
+          <label class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer
+                        {successMode === 'message' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="success_mode" value="message" bind:group={successMode} class="accent-gray-900" />
+            <span>{m.admin_forms_response_mode_message()}</span>
+          </label>
+          <label class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer
+                        {successMode === 'redirect' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="success_mode" value="redirect" bind:group={successMode} class="accent-gray-900" />
+            <span>{m.admin_forms_response_mode_redirect()}</span>
+          </label>
+        </div>
+        {#if successMode === 'message'}
+          <div>
+            <label for="success_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_success_message()}</label>
+            <input
+              id="success_message"
+              name="success_message"
+              bind:value={successMessage}
+              class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+            />
+          </div>
+        {:else}
+          <div>
+            <label for="success_page_id" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_success_page()}</label>
+            <select
+              id="success_page_id"
+              name="success_page_id"
+              bind:value={successPageID}
+              class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm bg-white focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+            >
+              <option value="">{m.admin_forms_page_select_placeholder()}</option>
+              {#each pageOptions as p}
+                <option value={p.id}>{p.title} <span class="text-gray-400">/{p.slug}</span></option>
+              {/each}
+            </select>
+          </div>
+          <!-- Keep success_message in the payload so toggling back doesn't clobber the saved text -->
+          <input type="hidden" name="success_message" value={successMessage} />
+        {/if}
       </div>
-      <div>
-        <label for="error_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_error_message()}</label>
-        <input
-          id="error_message"
-          name="error_message"
-          bind:value={errorMessage}
-          class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-        />
+
+      <div class="border-t border-gray-100"></div>
+
+      <!-- Error outcome -->
+      <div class="space-y-3">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_forms_label_error_outcome()}</p>
+        <div class="flex flex-wrap gap-2">
+          <label class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer
+                        {errorMode === 'message' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="error_mode" value="message" bind:group={errorMode} class="accent-gray-900" />
+            <span>{m.admin_forms_response_mode_message()}</span>
+          </label>
+          <label class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer
+                        {errorMode === 'redirect' ? 'border-gray-900 bg-gray-50' : 'border-gray-200'}">
+            <input type="radio" name="error_mode" value="redirect" bind:group={errorMode} class="accent-gray-900" />
+            <span>{m.admin_forms_response_mode_redirect()}</span>
+          </label>
+        </div>
+        {#if errorMode === 'message'}
+          <div>
+            <label for="error_message" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_error_message()}</label>
+            <input
+              id="error_message"
+              name="error_message"
+              bind:value={errorMessage}
+              class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+            />
+          </div>
+        {:else}
+          <div>
+            <label for="error_page_id" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_error_page()}</label>
+            <select
+              id="error_page_id"
+              name="error_page_id"
+              bind:value={errorPageID}
+              class="mt-1 block w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm bg-white focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+            >
+              <option value="">{m.admin_forms_page_select_placeholder()}</option>
+              {#each pageOptions as p}
+                <option value={p.id}>{p.title} <span class="text-gray-400">/{p.slug}</span></option>
+              {/each}
+            </select>
+          </div>
+          <input type="hidden" name="error_message" value={errorMessage} />
+        {/if}
       </div>
+    </section>
+
+    <!-- reCAPTCHA -->
+    <section class="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">{m.admin_forms_section_recaptcha()}</h3>
       <div>
         <label for="recaptcha_action" class="block text-sm font-medium text-gray-700">{m.admin_forms_label_recaptcha_action()}</label>
         <input
