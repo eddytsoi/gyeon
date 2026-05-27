@@ -273,52 +273,64 @@ func (s *Service) matchVariant(ctx context.Context, productName, variantHint str
 // can be edited and re-imported as a template. Bundle component rows are
 // skipped; the bundle parent row exports as one line with its parent
 // variant.
+//
+// Output shape (matches the sample input format the importer expects):
+//   - `name`: the bare `products.name` — no variant suffix.
+//   - `variant`: the single attribute value (e.g. "500ml") when the variant
+//     has exactly one attribute; SKU otherwise. This keeps the file
+//     round-trippable through the import matcher (which tries SKU →
+//     variant.name → attribute value).
 func (s *Service) ExportMutationCSV(ctx context.Context, id string, w io.Writer) error {
-	m, err := s.GetByID(ctx, id)
+	rows, err := s.db.QueryContext(ctx, exportRowsSQL, id)
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
+
 	cw := csv.NewWriter(w)
 	if err := cw.Write([]string{"name", "variant", "quantity"}); err != nil {
 		return err
 	}
-	for _, it := range m.Items {
-		// Skip bundle children — the parent already represents the line.
-		if it.ParentItemID != nil {
-			continue
-		}
-		name := ""
-		if it.ProductName != nil {
-			// ProductName for simple variants comes already composed
-			// (e.g. "Q²M PPF Wash 500ml"). For round-trip we need the bare
-			// product name; rely on VariantName/SKU columns for the variant
-			// hint. Recompute by dropping the trailing variant if present.
-			name = decomposeProductName(*it.ProductName, it.VariantName)
-		}
-		// Prefer variant.name when it carries a non-empty human label; fall
-		// back to SKU otherwise. Some legacy rows store an empty string for
-		// variant.name and treating that as present would produce a blank
-		// variant column in the export.
-		variant := ""
-		if it.VariantName != nil && strings.TrimSpace(*it.VariantName) != "" {
-			variant = *it.VariantName
-		} else if it.VariantSKU != nil {
-			variant = *it.VariantSKU
-		}
-		row := []string{safeCSVCell(name), safeCSVCell(variant), strconv.Itoa(it.Quantity)}
-		if err := cw.Write(row); err != nil {
+	for rows.Next() {
+		var productName, sku string
+		var attrValues pgTextArray
+		var quantity int
+		if err := rows.Scan(&productName, &attrValues, &sku, &quantity); err != nil {
 			return err
 		}
+		variant := cleanVariantLabel(attrValues.values, sku)
+		if err := cw.Write([]string{
+			safeCSVCell(productName),
+			safeCSVCell(variant),
+			strconv.Itoa(quantity),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	cw.Flush()
 	return cw.Error()
 }
 
 // ExportInventoryCSV writes a snapshot of all active variants of active
-// products as `product_name,variant,sku,current_stock`.
+// products as `product_name,variant,sku,current_stock`. `variant` is the
+// single attribute value when the variant has exactly one attribute; SKU
+// otherwise — matching the per-mutation export format.
 func (s *Service) ExportInventoryCSV(ctx context.Context, w io.Writer) error {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT p.name, COALESCE(pv.name, ''), pv.sku, pv.stock_qty
+		`SELECT p.name,
+		        COALESCE(
+		            (SELECT array_agg(pav.value ORDER BY pa.sort_order, pav.sort_order)
+		               FROM product_variant_attribute_values pvav
+		               JOIN product_attribute_values pav ON pav.id = pvav.attribute_value_id
+		               JOIN product_attributes pa ON pa.id = pav.attribute_id
+		              WHERE pvav.variant_id = pv.id),
+		            ARRAY[]::TEXT[]
+		        ) AS attr_values,
+		        pv.sku,
+		        pv.stock_qty
 		   FROM product_variants pv
 		   JOIN products p ON p.id = pv.product_id
 		  WHERE pv.is_active = TRUE
@@ -334,13 +346,15 @@ func (s *Service) ExportInventoryCSV(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	for rows.Next() {
-		var name, variant, sku string
+		var productName, sku string
+		var attrValues pgTextArray
 		var stock int
-		if err := rows.Scan(&name, &variant, &sku, &stock); err != nil {
+		if err := rows.Scan(&productName, &attrValues, &sku, &stock); err != nil {
 			return err
 		}
+		variant := cleanVariantLabel(attrValues.values, sku)
 		if err := cw.Write([]string{
-			safeCSVCell(name),
+			safeCSVCell(productName),
 			safeCSVCell(variant),
 			safeCSVCell(sku),
 			strconv.Itoa(stock),
@@ -353,6 +367,46 @@ func (s *Service) ExportInventoryCSV(ctx context.Context, w io.Writer) error {
 	}
 	cw.Flush()
 	return cw.Error()
+}
+
+// exportRowsSQL pulls the bare product name, every attribute value attached
+// to the variant (in attribute → value sort order), the SKU, and the
+// top-level line quantity. Bundle component rows (parent_item_id IS NOT
+// NULL) are excluded so each export row maps 1:1 to a user-edited input
+// row.
+const exportRowsSQL = `
+SELECT p.name,
+       COALESCE(
+           (SELECT array_agg(pav.value ORDER BY pa.sort_order, pav.sort_order)
+              FROM product_variant_attribute_values pvav
+              JOIN product_attribute_values pav ON pav.id = pvav.attribute_value_id
+              JOIN product_attributes pa ON pa.id = pav.attribute_id
+             WHERE pvav.variant_id = pv.id),
+           ARRAY[]::TEXT[]
+       ) AS attr_values,
+       pv.sku,
+       smi.quantity
+  FROM stock_mutation_items smi
+  JOIN product_variants pv ON pv.id = smi.variant_id
+  JOIN products p ON p.id = pv.product_id
+ WHERE smi.mutation_id = $1
+   AND smi.parent_item_id IS NULL
+ ORDER BY smi.position, smi.created_at`
+
+// cleanVariantLabel picks the human-friendly variant cell:
+//   - exactly one attribute value → just that value ("500ml")
+//   - zero attribute values        → SKU (keeps the row round-trippable)
+//   - two or more attribute values → SKU (joining values like "Red / L"
+//     wouldn't match any single attribute on re-import — SKU is the only
+//     reliably unique label for a multi-attribute variant)
+func cleanVariantLabel(attrValues []string, sku string) string {
+	if len(attrValues) == 1 {
+		v := strings.TrimSpace(attrValues[0])
+		if v != "" {
+			return v
+		}
+	}
+	return sku
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────
@@ -378,28 +432,6 @@ func csvRowIsBlank(rec []string) bool {
 		}
 	}
 	return true
-}
-
-// decomposeProductName tries to recover the bare product name from a
-// composed display name. ProductName returned by GetByID for simple variants
-// is `ProductDisplayName(product, variant)` which typically concatenates the
-// variant label. If the composed string ends with the variant label, strip
-// it; otherwise return as-is.
-func decomposeProductName(composed string, variantName *string) string {
-	if variantName == nil {
-		return composed
-	}
-	v := strings.TrimSpace(*variantName)
-	if v == "" {
-		return composed
-	}
-	if strings.HasSuffix(composed, " "+v) {
-		return strings.TrimSpace(strings.TrimSuffix(composed, " "+v))
-	}
-	if strings.HasSuffix(composed, v) {
-		return strings.TrimSpace(strings.TrimSuffix(composed, v))
-	}
-	return composed
 }
 
 // pgTextArray scans a Postgres text[] without pulling in pq. The driver
