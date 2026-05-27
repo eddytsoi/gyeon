@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
   import {
@@ -6,7 +7,9 @@
     adminDuplicateStockMutation,
     adminExecuteStockMutation,
     StockMutationInsufficientStockError,
-    type StockMutationSummary
+    type StockMutationImportResult,
+    type StockMutationSummary,
+    type StockMutationType
   } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
@@ -22,6 +25,70 @@
   let executeTarget = $state<StockMutationSummary | null>(null);
   let executingId = $state<string | null>(null);
   let duplicatingId = $state<string | null>(null);
+
+  // CSV import — one hidden file input shared by both Import buttons. The
+  // active "direction" is captured when the user clicks the button; on file
+  // pick we submit the matching form (?/importIn or ?/importOut).
+  let importDirection = $state<StockMutationType | null>(null);
+  let importing = $state(false);
+  let importErrors = $state<StockMutationImportResult['errors']>(undefined);
+  let fileInputEl = $state<HTMLInputElement | null>(null);
+  let importInFormEl = $state<HTMLFormElement | null>(null);
+  let importOutFormEl = $state<HTMLFormElement | null>(null);
+
+  function openImportPicker(direction: StockMutationType) {
+    importDirection = direction;
+    importErrors = undefined;
+    fileInputEl?.click();
+  }
+
+  function onFilePicked() {
+    if (!fileInputEl?.files?.length) return;
+    const form = importDirection === 'in' ? importInFormEl : importOutFormEl;
+    if (!form) return;
+    // Attach the picked file to the hidden file input INSIDE the target form
+    // (the visible file input is shared and lives outside both forms).
+    const targetInput = form.querySelector('input[name="file"]') as HTMLInputElement | null;
+    if (targetInput) {
+      targetInput.files = fileInputEl.files;
+    }
+    form.requestSubmit();
+  }
+
+  async function handleImportResult(
+    result: { type: string; data?: unknown }
+  ) {
+    if (result.type !== 'success' && result.type !== 'failure') return;
+    const r = result.data as
+      | { importResult?: StockMutationImportResult; importError?: string }
+      | undefined;
+    if (r?.importResult) {
+      const { mutation, imported, skipped, errors } = r.importResult;
+      importErrors = errors;
+      if (mutation && imported > 0) {
+        if (skipped > 0) {
+          notify.error(
+            m.admin_stock_mutations_import_partial({
+              ok: String(imported),
+              skip: String(skipped)
+            })
+          );
+        } else {
+          notify.success(m.admin_stock_mutations_import_success({ n: String(imported) }));
+        }
+        await goto(`/admin/stock-mutations/${mutation.id}`);
+      } else {
+        notify.error(
+          m.admin_stock_mutations_import_zero_rows({ skip: String(skipped) })
+        );
+      }
+    } else {
+      notify.error(
+        m.admin_stock_mutations_import_failure(),
+        r?.importError ?? ''
+      );
+    }
+  }
 
   function pushParams(mutate: (p: URLSearchParams) => void) {
     const url = new URL(page.url);
@@ -129,10 +196,104 @@
 <svelte:head><title>{m.admin_stock_mutations_title()}</title></svelte:head>
 
 <div class="space-y-4">
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between gap-2 flex-wrap">
     <h1 class="text-2xl font-semibold text-gray-900">{m.admin_stock_mutations_heading()}</h1>
-    <NewButton label={m.admin_stock_mutations_new()} href="/admin/stock-mutations/new" />
+    <div class="flex items-center gap-2 flex-wrap">
+      <button
+        type="button"
+        onclick={() => openImportPicker('in')}
+        disabled={importing}
+        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        {m.admin_stock_mutations_import_in()}
+      </button>
+      <button
+        type="button"
+        onclick={() => openImportPicker('out')}
+        disabled={importing}
+        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        {m.admin_stock_mutations_import_out()}
+      </button>
+      <a
+        href="/admin/stock-mutations/inventory.csv"
+        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+        </svg>
+        {m.admin_stock_mutations_export_inventory()}
+      </a>
+      <NewButton label={m.admin_stock_mutations_new()} href="/admin/stock-mutations/new" />
+    </div>
   </div>
+
+  <!-- Shared hidden file input + two hidden forms for importIn/importOut.
+       Clicking either Import button populates importDirection then triggers
+       this picker; on change we copy files to the right form and submit. -->
+  <input
+    type="file"
+    accept=".csv,text/csv"
+    class="hidden"
+    bind:this={fileInputEl}
+    onchange={onFilePicked}
+  />
+  <form
+    bind:this={importInFormEl}
+    method="POST"
+    action="?/importIn"
+    enctype="multipart/form-data"
+    class="hidden"
+    use:enhance={() => {
+      importing = true;
+      return async ({ result, update }) => {
+        importing = false;
+        if (fileInputEl) fileInputEl.value = '';
+        await handleImportResult(result);
+        await update();
+      };
+    }}
+  >
+    <input type="file" name="file" />
+  </form>
+  <form
+    bind:this={importOutFormEl}
+    method="POST"
+    action="?/importOut"
+    enctype="multipart/form-data"
+    class="hidden"
+    use:enhance={() => {
+      importing = true;
+      return async ({ result, update }) => {
+        importing = false;
+        if (fileInputEl) fileInputEl.value = '';
+        await handleImportResult(result);
+        await update();
+      };
+    }}
+  >
+    <input type="file" name="file" />
+  </form>
+
+  {#if importErrors && importErrors.length > 0}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+      <div class="font-medium">{m.admin_stock_mutations_import_errors_heading({ n: String(importErrors.length) })}</div>
+      <ul class="list-disc pl-5 space-y-0.5">
+        {#each importErrors.slice(0, 20) as e}
+          <li>Row {e.row}: {e.message}</li>
+        {/each}
+        {#if importErrors.length > 20}
+          <li>… and {importErrors.length - 20} more</li>
+        {/if}
+      </ul>
+    </div>
+  {/if}
 
   <!-- Filters -->
   <div class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
