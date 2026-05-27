@@ -281,6 +281,11 @@ func main() {
 	customerSvc := customers.NewService(conn)
 	roleRulesSvc := categoryrules.NewService(conn)
 	productSvc.SetRoleRules(roleRulesSvc)
+	// When the admin saves a new ruleset, drop the role-keyed product / FBT
+	// caches in shop so the next storefront read re-stamps Purchasable from
+	// the fresh rules. Without this, edits take up to one cache TTL to take
+	// effect on already-cached entries.
+	roleRulesSvc.SetOnInvalidate(productSvc.InvalidateRoleScopedCaches)
 	cartSvc.SetPurchaseGuard(roleRulesSvc, customerSvc)
 	paymentSvc := payment.NewService(settingsSvc, conn)
 	emailSvc := email.NewService(settingsSvc)

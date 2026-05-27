@@ -169,6 +169,12 @@ type PromoBundle struct {
 	StockQty         int      `json:"stock_qty"`
 	PrimaryImageURL  *string  `json:"primary_image_url,omitempty"`
 	CreatedAt        string   `json:"created_at"`
+	// Purchasable mirrors the per-(role, category) gate stamped on Product /
+	// ProductWithMeta by annotate{Single,Meta}Purchasable. Defaults true and
+	// flips false when the bundle product itself sits in a blocked category
+	// for the current storefront role. Lets the taobao popup disable the row
+	// instead of silently 403-ing on cart-add.
+	Purchasable      bool     `json:"purchasable"`
 }
 
 // SetPromoBundlesRequest wraps the ordered list of bundle product IDs to
@@ -430,6 +436,16 @@ type ProductService struct {
 // nil keeps the listing queries role-agnostic (same as before the feature
 // was added). Call from main during setup.
 func (s *ProductService) SetRoleRules(p RoleRulesProvider) { s.roleRules = p }
+
+// InvalidateRoleScopedCaches drops every cache entry whose key encodes a
+// storefront role (Product per-role on GetBySlug, FBT per-role on the FBT
+// cache). Called from main.go after the categoryrules service commits a
+// new ruleset — without this, the role-keyed entries keep their old
+// Purchasable annotation until each entry's TTL expires.
+func (s *ProductService) InvalidateRoleScopedCaches() {
+	s.cache.DeleteByPrefix(productPrefix)
+	s.cache.DeleteByPrefix(fbtCachePrefix)
+}
 
 // appendRoleVisibilityFilter appends a NOT EXISTS clause that hides any
 // product linked (via product_category_links) to a category the storefront
@@ -2918,9 +2934,55 @@ func (s *ProductService) ListPromoBundles(ctx context.Context, parentProductID s
 		); err != nil {
 			return nil, err
 		}
+		pb.Purchasable = true
 		items = append(items, pb)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.annotatePromoBundlesPurchasable(ctx, items)
+	return items, nil
+}
+
+// annotatePromoBundlesPurchasable flips Purchasable=false on every row whose
+// underlying bundle product sits in a category the current storefront role
+// can't purchase from. Mirrors annotatePurchasableMeta — one extra round-trip
+// when the role has any blocked categories, zero otherwise. Defaults to true
+// before this is called so callers can rely on the field regardless of
+// whether roleRules is wired.
+func (s *ProductService) annotatePromoBundlesPurchasable(ctx context.Context, items []PromoBundle) {
+	if s.roleRules == nil || len(items) == 0 {
+		return
+	}
+	role := auth.CustomerRoleFromContext(ctx)
+	blocked := s.roleRules.BlockedPurchaseCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return
+	}
+	ids := make([]string, len(items))
+	idx := make(map[string]int, len(items))
+	for i, pb := range items {
+		ids[i] = pb.BundleProductID
+		idx[pb.BundleProductID] = i
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT product_id::text
+		 FROM product_category_links
+		 WHERE product_id = ANY($1::uuid[]) AND category_id = ANY($2::uuid[])`,
+		pq.Array(ids), pq.Array(blocked))
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		if i, ok := idx[id]; ok {
+			items[i].Purchasable = false
+		}
+	}
 }
 
 // SetPromoBundles atomically replaces all promo-bundle associations for

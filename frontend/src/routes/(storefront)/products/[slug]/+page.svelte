@@ -1244,6 +1244,7 @@
     variants={data.variants}
     images={data.images}
     promoBundles={data.promoBundles ?? []}
+    cannotPurchaseLabel={cannotPurchaseLabel}
     onOpenImageBrowser={openTaobaoImageBrowser}
   />
   <TaobaoImageBrowserModal

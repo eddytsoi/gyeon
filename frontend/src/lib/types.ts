@@ -110,6 +110,11 @@ export interface PromoBundle {
   stock_qty: number;
   primary_image_url?: string | null;
   created_at: string;
+  // Stamped by the backend per the storefront role's purchase-block rules.
+  // Default true; false means the underlying bundle product sits in a
+  // category the role can't buy from. UI should disable the row instead of
+  // calling cart-add (which would 403).
+  purchasable?: boolean;
 }
 
 export interface Variant {
