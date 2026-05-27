@@ -205,10 +205,23 @@ export const checkout = (
     })
   });
 
-export const validateCoupon = (code: string, subtotal: number) =>
-  request<{ valid: boolean; discount_type?: string; discount_value?: number; discount_amount?: number; message?: string }>(
+export const validateCoupon = (
+  code: string,
+  subtotal: number,
+  customerRole?: string,
+  isGuest?: boolean
+) =>
+  request<{ valid: boolean; discount_type?: string; discount_value?: number; discount_amount?: number; message?: string; message_code?: string }>(
     '/pricing/validate-coupon',
-    { method: 'POST', body: JSON.stringify({ code, subtotal }) }
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        code,
+        subtotal,
+        customer_role: customerRole ?? undefined,
+        is_guest: isGuest
+      })
+    }
   );
 
 export const getPaymentConfig = () => request<PaymentConfig>('/payments/config');

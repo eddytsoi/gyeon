@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/respond"
 )
 
@@ -95,6 +96,10 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "discount_value must be positive")
 		return
 	}
+	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
+		respond.BadRequest(w, "select at least one eligible account type")
+		return
+	}
 	campaign, err := h.svc.CreateCampaign(r.Context(), req)
 	if err != nil {
 		respond.InternalError(w)
@@ -108,6 +113,10 @@ func (h *Handler) updateCampaign(w http.ResponseWriter, r *http.Request) {
 	var req UpdateCampaignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
+		respond.BadRequest(w, "select at least one eligible account type")
 		return
 	}
 	campaign, err := h.svc.UpdateCampaign(r.Context(), id, req)
@@ -182,6 +191,10 @@ func (h *Handler) createCoupon(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "discount_value must be positive")
 		return
 	}
+	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
+		respond.BadRequest(w, "select at least one eligible account type")
+		return
+	}
 	coupon, err := h.svc.CreateCoupon(r.Context(), req)
 	if err != nil {
 		respond.InternalError(w)
@@ -195,6 +208,10 @@ func (h *Handler) updateCoupon(w http.ResponseWriter, r *http.Request) {
 	var req UpdateCouponRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if len(normalizeRoleList(req.AllowedRoles)) == 0 && !req.AllowGuests {
+		respond.BadRequest(w, "select at least one eligible account type")
 		return
 	}
 	coupon, err := h.svc.UpdateCoupon(r.Context(), id, req)
@@ -227,6 +244,12 @@ func (h *Handler) deleteCoupon(w http.ResponseWriter, r *http.Request) {
 type validateCouponRequest struct {
 	Code     string  `json:"code"`
 	Subtotal float64 `json:"subtotal"`
+	// CustomerRole is the logged-in shopper's role (customer/installer).
+	// Empty / absent means "guest" unless IsGuest is explicitly set.
+	CustomerRole string `json:"customer_role,omitempty"`
+	// IsGuest is the explicit guest flag. When nil, guest is inferred
+	// from CustomerRole being empty.
+	IsGuest *bool `json:"is_guest,omitempty"`
 }
 
 type validateCouponResponse struct {
@@ -235,6 +258,9 @@ type validateCouponResponse struct {
 	DiscountValue  float64 `json:"discount_value,omitempty"`
 	DiscountAmount float64 `json:"discount_amount,omitempty"`
 	Message        string  `json:"message,omitempty"`
+	// MessageCode lets the frontend pick a localised string when the
+	// generic backend phrasing isn't appropriate (e.g. wrong-role).
+	MessageCode string `json:"message_code,omitempty"`
 }
 
 func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
@@ -248,9 +274,15 @@ func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coupon, err := h.svc.ValidateCoupon(r.Context(), req.Code, req.Subtotal)
+	role := customers.NormalizeRole(req.CustomerRole)
+	isGuest := req.CustomerRole == ""
+	if req.IsGuest != nil {
+		isGuest = *req.IsGuest
+	}
+	coupon, err := h.svc.ValidateCoupon(r.Context(), req.Code, req.Subtotal, role, isGuest)
 	if err != nil {
 		msg := "invalid coupon"
+		code := ""
 		switch {
 		case errors.Is(err, ErrCouponExpired):
 			msg = "coupon has expired"
@@ -258,8 +290,11 @@ func (h *Handler) validateCoupon(w http.ResponseWriter, r *http.Request) {
 			msg = "coupon usage limit reached"
 		case errors.Is(err, ErrCouponMinOrder):
 			msg = "order amount below coupon minimum"
+		case errors.Is(err, ErrCouponWrongRole):
+			msg = "This coupon is not valid for your account"
+			code = "wrong_role"
 		}
-		respond.JSON(w, http.StatusOK, validateCouponResponse{Valid: false, Message: msg})
+		respond.JSON(w, http.StatusOK, validateCouponResponse{Valid: false, Message: msg, MessageCode: code})
 		return
 	}
 

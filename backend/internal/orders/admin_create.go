@@ -108,6 +108,10 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 	customerPhone := ""
 	customerName := ""
 	customerRole := customers.RoleCustomer
+	// Matches order_service: only confirmed-existing customers are non-guest.
+	// Admin-created orders for new/guest customers fall through to UpsertGuest
+	// below and remain isGuest=true for promotion eligibility.
+	isGuest := true
 
 	if customerID != nil && *customerID != "" {
 		c, err := s.customerSvc.GetByID(ctx, *customerID)
@@ -118,6 +122,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 				customerPhone = *c.Phone
 			}
 			customerRole = customers.NormalizeRole(c.Role)
+			isGuest = false
 		}
 		if req.CustomerInfo != nil {
 			if req.CustomerInfo.Email != "" {
@@ -285,7 +290,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 				Quantity:   li.quantity,
 			}
 		}
-		discountResult, err = s.pricingSvc.ComputeDiscount(ctx, pricingItems, subtotal, req.CouponCode)
+		discountResult, err = s.pricingSvc.ComputeDiscount(ctx, pricingItems, subtotal, req.CouponCode, customerRole, isGuest)
 		if err != nil {
 			return nil, err
 		}

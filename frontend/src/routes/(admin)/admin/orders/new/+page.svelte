@@ -116,13 +116,17 @@
     couponState = 'validating';
     couponMessage = '';
     try {
-      const res = await validateCoupon(code, subtotal);
+      const role = customerSel.kind === 'existing' ? customerSel.customer.role : undefined;
+      const isGuest = customerSel.kind !== 'existing';
+      const res = await validateCoupon(code, subtotal, role, isGuest);
       if (res.valid) {
         couponState = 'valid';
         couponDiscount = res.discount_amount ?? 0;
       } else {
         couponState = 'invalid';
-        couponMessage = res.message || m.admin_order_create_discount_invalid();
+        couponMessage = (res.message_code === 'wrong_role'
+          ? m.storefront_coupon_wrong_role()
+          : res.message) || m.admin_order_create_discount_invalid();
         couponDiscount = 0;
       }
     } catch {

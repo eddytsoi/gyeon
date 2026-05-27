@@ -7,12 +7,17 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
+
+	"gyeon/backend/internal/customers"
 )
 
 var ErrCouponNotFound = errors.New("coupon not found")
 var ErrCouponExpired = errors.New("coupon has expired")
 var ErrCouponExhausted = errors.New("coupon usage limit reached")
 var ErrCouponMinOrder = errors.New("order amount below coupon minimum")
+var ErrCouponWrongRole = errors.New("coupon not valid for this account type")
 var ErrCampaignNotFound = errors.New("campaign not found")
 
 type DiscountType string
@@ -37,8 +42,10 @@ type Campaign struct {
 	DiscountType   DiscountType `json:"discount_type"`
 	DiscountValue  float64      `json:"discount_value"`
 	TargetType     TargetType   `json:"target_type"`
-	TargetID       *string      `json:"target_id,omitempty"`
+	TargetIDs      []string     `json:"target_ids"`
 	MinOrderAmount *float64     `json:"min_order_amount,omitempty"`
+	AllowedRoles   []string     `json:"allowed_roles"`
+	AllowGuests    bool         `json:"allow_guests"`
 	StartsAt       *time.Time   `json:"starts_at,omitempty"`
 	EndsAt         *time.Time   `json:"ends_at,omitempty"`
 	IsActive       bool         `json:"is_active"`
@@ -55,6 +62,8 @@ type Coupon struct {
 	MinOrderAmount *float64     `json:"min_order_amount,omitempty"`
 	MaxUses        *int         `json:"max_uses,omitempty"`
 	UsedCount      int          `json:"used_count"`
+	AllowedRoles   []string     `json:"allowed_roles"`
+	AllowGuests    bool         `json:"allow_guests"`
 	StartsAt       *time.Time   `json:"starts_at,omitempty"`
 	EndsAt         *time.Time   `json:"ends_at,omitempty"`
 	IsActive       bool         `json:"is_active"`
@@ -68,8 +77,10 @@ type CreateCampaignRequest struct {
 	DiscountType   DiscountType `json:"discount_type"`
 	DiscountValue  float64      `json:"discount_value"`
 	TargetType     TargetType   `json:"target_type"`
-	TargetID       *string      `json:"target_id"`
+	TargetIDs      []string     `json:"target_ids"`
 	MinOrderAmount *float64     `json:"min_order_amount"`
+	AllowedRoles   []string     `json:"allowed_roles"`
+	AllowGuests    bool         `json:"allow_guests"`
 	StartsAt       *time.Time   `json:"starts_at"`
 	EndsAt         *time.Time   `json:"ends_at"`
 }
@@ -86,6 +97,8 @@ type CreateCouponRequest struct {
 	DiscountValue  float64      `json:"discount_value"`
 	MinOrderAmount *float64     `json:"min_order_amount"`
 	MaxUses        *int         `json:"max_uses"`
+	AllowedRoles   []string     `json:"allowed_roles"`
+	AllowGuests    bool         `json:"allow_guests"`
 	StartsAt       *time.Time   `json:"starts_at"`
 	EndsAt         *time.Time   `json:"ends_at"`
 }
@@ -120,7 +133,66 @@ func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
+// normalizeRoleList canonicalises an allowed_roles payload: drops blanks,
+// maps legacy values via customers.NormalizeRole, dedupes, and preserves
+// declaration order.
+func normalizeRoleList(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, r := range in {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		canon := customers.NormalizeRole(r)
+		if _, ok := seen[canon]; ok {
+			continue
+		}
+		seen[canon] = struct{}{}
+		out = append(out, canon)
+	}
+	return out
+}
+
+// normalizeUUIDList trims, lower-cases and dedupes a UUID list, dropping
+// empties. Order is preserved.
+func normalizeUUIDList(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, id := range in {
+		id = strings.TrimSpace(strings.ToLower(id))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 // --- Campaign CRUD ---
+
+const campaignSelectCols = `id, name, description, discount_type, discount_value, target_type, target_ids,
+	        min_order_amount, allowed_roles, allow_guests, starts_at, ends_at, is_active, created_at, updated_at`
+
+func scanCampaign(scanner interface {
+	Scan(dest ...any) error
+}) (Campaign, error) {
+	var c Campaign
+	var roles pq.StringArray
+	var targetIDs pq.StringArray
+	if err := scanner.Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
+		&c.TargetType, &targetIDs, &c.MinOrderAmount, &roles, &c.AllowGuests,
+		&c.StartsAt, &c.EndsAt, &c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		return c, err
+	}
+	c.AllowedRoles = []string(roles)
+	c.TargetIDs = []string(targetIDs)
+	return c, nil
+}
 
 func (s *Service) ListCampaigns(ctx context.Context, limit, offset int) ([]Campaign, int, error) {
 	var total int
@@ -129,8 +201,7 @@ func (s *Service) ListCampaigns(ctx context.Context, limit, offset int) ([]Campa
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, description, discount_type, discount_value, target_type, target_id,
-		        min_order_amount, starts_at, ends_at, is_active, created_at, updated_at
+		`SELECT `+campaignSelectCols+`
 		 FROM discount_campaigns ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -139,10 +210,8 @@ func (s *Service) ListCampaigns(ctx context.Context, limit, offset int) ([]Campa
 
 	campaigns := make([]Campaign, 0)
 	for rows.Next() {
-		var c Campaign
-		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.TargetType, &c.TargetID, &c.MinOrderAmount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanCampaign(rows)
+		if err != nil {
 			return nil, 0, err
 		}
 		campaigns = append(campaigns, c)
@@ -151,53 +220,59 @@ func (s *Service) ListCampaigns(ctx context.Context, limit, offset int) ([]Campa
 }
 
 func (s *Service) GetCampaign(ctx context.Context, id string) (*Campaign, error) {
-	var c Campaign
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, discount_type, discount_value, target_type, target_id,
-		        min_order_amount, starts_at, ends_at, is_active, created_at, updated_at
-		 FROM discount_campaigns WHERE id = $1`, id).
-		Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.TargetType, &c.TargetID, &c.MinOrderAmount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+campaignSelectCols+` FROM discount_campaigns WHERE id = $1`, id)
+	c, err := scanCampaign(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCampaignNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) CreateCampaign(ctx context.Context, req CreateCampaignRequest) (*Campaign, error) {
-	var c Campaign
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO discount_campaigns (name, description, discount_type, discount_value, target_type, target_id, min_order_amount, starts_at, ends_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		 RETURNING id, name, description, discount_type, discount_value, target_type, target_id,
-		           min_order_amount, starts_at, ends_at, is_active, created_at, updated_at`,
+	roles := normalizeRoleList(req.AllowedRoles)
+	targets := normalizeUUIDList(req.TargetIDs)
+	row := s.db.QueryRowContext(ctx,
+		`INSERT INTO discount_campaigns
+		   (name, description, discount_type, discount_value, target_type, target_ids,
+		    min_order_amount, allowed_roles, allow_guests, starts_at, ends_at)
+		 VALUES ($1, $2, $3, $4, $5, $6::uuid[], $7, $8::customer_role[], $9, $10, $11)
+		 RETURNING `+campaignSelectCols,
 		req.Name, req.Description, req.DiscountType, req.DiscountValue,
-		req.TargetType, req.TargetID, req.MinOrderAmount, req.StartsAt, req.EndsAt).
-		Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.TargetType, &c.TargetID, &c.MinOrderAmount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
-	return &c, err
+		req.TargetType, pq.Array(targets), req.MinOrderAmount, pq.Array(roles),
+		req.AllowGuests, req.StartsAt, req.EndsAt)
+	c, err := scanCampaign(row)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) UpdateCampaign(ctx context.Context, id string, req UpdateCampaignRequest) (*Campaign, error) {
-	var c Campaign
-	err := s.db.QueryRowContext(ctx,
+	roles := normalizeRoleList(req.AllowedRoles)
+	targets := normalizeUUIDList(req.TargetIDs)
+	row := s.db.QueryRowContext(ctx,
 		`UPDATE discount_campaigns
-		 SET name=$2, description=$3, discount_type=$4, discount_value=$5,
-		     target_type=$6, target_id=$7, min_order_amount=$8, starts_at=$9, ends_at=$10, is_active=$11
+		   SET name=$2, description=$3, discount_type=$4, discount_value=$5,
+		       target_type=$6, target_ids=$7::uuid[], min_order_amount=$8,
+		       allowed_roles=$9::customer_role[], allow_guests=$10,
+		       starts_at=$11, ends_at=$12, is_active=$13
 		 WHERE id=$1
-		 RETURNING id, name, description, discount_type, discount_value, target_type, target_id,
-		           min_order_amount, starts_at, ends_at, is_active, created_at, updated_at`,
+		 RETURNING `+campaignSelectCols,
 		id, req.Name, req.Description, req.DiscountType, req.DiscountValue,
-		req.TargetType, req.TargetID, req.MinOrderAmount, req.StartsAt, req.EndsAt, req.IsActive).
-		Scan(&c.ID, &c.Name, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.TargetType, &c.TargetID, &c.MinOrderAmount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		req.TargetType, pq.Array(targets), req.MinOrderAmount, pq.Array(roles),
+		req.AllowGuests, req.StartsAt, req.EndsAt, req.IsActive)
+	c, err := scanCampaign(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCampaignNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) DeleteCampaign(ctx context.Context, id string) error {
@@ -213,6 +288,23 @@ func (s *Service) DeleteCampaign(ctx context.Context, id string) error {
 
 // --- Coupon CRUD ---
 
+const couponSelectCols = `id, code, description, discount_type, discount_value, min_order_amount,
+	        max_uses, used_count, allowed_roles, allow_guests, starts_at, ends_at, is_active, created_at, updated_at`
+
+func scanCoupon(scanner interface {
+	Scan(dest ...any) error
+}) (Coupon, error) {
+	var c Coupon
+	var roles pq.StringArray
+	if err := scanner.Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
+		&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &roles, &c.AllowGuests,
+		&c.StartsAt, &c.EndsAt, &c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		return c, err
+	}
+	c.AllowedRoles = []string(roles)
+	return c, nil
+}
+
 func (s *Service) ListCoupons(ctx context.Context, limit, offset int) ([]Coupon, int, error) {
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM coupon_codes`).Scan(&total); err != nil {
@@ -220,8 +312,7 @@ func (s *Service) ListCoupons(ctx context.Context, limit, offset int) ([]Coupon,
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, code, description, discount_type, discount_value, min_order_amount,
-		        max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at
+		`SELECT `+couponSelectCols+`
 		 FROM coupon_codes ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -230,10 +321,8 @@ func (s *Service) ListCoupons(ctx context.Context, limit, offset int) ([]Coupon,
 
 	coupons := make([]Coupon, 0)
 	for rows.Next() {
-		var c Coupon
-		if err := rows.Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		c, err := scanCoupon(rows)
+		if err != nil {
 			return nil, 0, err
 		}
 		coupons = append(coupons, c)
@@ -242,53 +331,56 @@ func (s *Service) ListCoupons(ctx context.Context, limit, offset int) ([]Coupon,
 }
 
 func (s *Service) GetCoupon(ctx context.Context, id string) (*Coupon, error) {
-	var c Coupon
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, code, description, discount_type, discount_value, min_order_amount,
-		        max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at
-		 FROM coupon_codes WHERE id = $1`, id).
-		Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+couponSelectCols+` FROM coupon_codes WHERE id = $1`, id)
+	c, err := scanCoupon(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCouponNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) CreateCoupon(ctx context.Context, req CreateCouponRequest) (*Coupon, error) {
-	var c Coupon
-	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO coupon_codes (code, description, discount_type, discount_value, min_order_amount, max_uses, starts_at, ends_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		 RETURNING id, code, description, discount_type, discount_value, min_order_amount,
-		           max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at`,
+	roles := normalizeRoleList(req.AllowedRoles)
+	row := s.db.QueryRowContext(ctx,
+		`INSERT INTO coupon_codes
+		   (code, description, discount_type, discount_value, min_order_amount, max_uses,
+		    allowed_roles, allow_guests, starts_at, ends_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::customer_role[], $8, $9, $10)
+		 RETURNING `+couponSelectCols,
 		strings.ToUpper(req.Code), req.Description, req.DiscountType, req.DiscountValue,
-		req.MinOrderAmount, req.MaxUses, req.StartsAt, req.EndsAt).
-		Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
-	return &c, err
+		req.MinOrderAmount, req.MaxUses, pq.Array(roles), req.AllowGuests,
+		req.StartsAt, req.EndsAt)
+	c, err := scanCoupon(row)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) UpdateCoupon(ctx context.Context, id string, req UpdateCouponRequest) (*Coupon, error) {
-	var c Coupon
-	err := s.db.QueryRowContext(ctx,
+	roles := normalizeRoleList(req.AllowedRoles)
+	row := s.db.QueryRowContext(ctx,
 		`UPDATE coupon_codes
-		 SET code=$2, description=$3, discount_type=$4, discount_value=$5,
-		     min_order_amount=$6, max_uses=$7, starts_at=$8, ends_at=$9, is_active=$10
+		   SET code=$2, description=$3, discount_type=$4, discount_value=$5,
+		       min_order_amount=$6, max_uses=$7, allowed_roles=$8::customer_role[],
+		       allow_guests=$9, starts_at=$10, ends_at=$11, is_active=$12
 		 WHERE id=$1
-		 RETURNING id, code, description, discount_type, discount_value, min_order_amount,
-		           max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at`,
+		 RETURNING `+couponSelectCols,
 		id, strings.ToUpper(req.Code), req.Description, req.DiscountType, req.DiscountValue,
-		req.MinOrderAmount, req.MaxUses, req.StartsAt, req.EndsAt, req.IsActive).
-		Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		req.MinOrderAmount, req.MaxUses, pq.Array(roles), req.AllowGuests,
+		req.StartsAt, req.EndsAt, req.IsActive)
+	c, err := scanCoupon(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCouponNotFound
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (s *Service) DeleteCoupon(ctx context.Context, id string) error {
@@ -304,26 +396,33 @@ func (s *Service) DeleteCoupon(ctx context.Context, id string) error {
 
 // --- Discount computation ---
 
-// ValidateCoupon checks the coupon code and returns the coupon if valid for the given subtotal.
-// It does NOT increment used_count — that happens atomically in the checkout transaction.
-func (s *Service) ValidateCoupon(ctx context.Context, code string, subtotal float64) (*Coupon, error) {
-	var c Coupon
-	err := s.db.QueryRowContext(ctx,
-		`SELECT id, code, description, discount_type, discount_value, min_order_amount,
-		        max_uses, used_count, starts_at, ends_at, is_active, created_at, updated_at
+// ValidateCoupon checks the coupon code and returns the coupon if valid for
+// the given subtotal and shopper context (customerRole + isGuest).
+//
+// When isGuest is true the coupon must have allow_guests=true; otherwise
+// customerRole (normalized) must appear in allowed_roles. customerRole is
+// ignored when isGuest is true.
+//
+// Does NOT increment used_count — that happens atomically in the checkout
+// transaction.
+func (s *Service) ValidateCoupon(ctx context.Context, code string, subtotal float64, customerRole string, isGuest bool) (*Coupon, error) {
+	role := customers.NormalizeRole(customerRole)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+couponSelectCols+`
 		 FROM coupon_codes
 		 WHERE code = $1 AND is_active = TRUE
 		   AND (starts_at IS NULL OR starts_at <= NOW())
 		   AND (ends_at   IS NULL OR ends_at   >= NOW())`,
-		strings.ToUpper(code)).
-		Scan(&c.ID, &c.Code, &c.Description, &c.DiscountType, &c.DiscountValue,
-			&c.MinOrderAmount, &c.MaxUses, &c.UsedCount, &c.StartsAt, &c.EndsAt,
-			&c.IsActive, &c.CreatedAt, &c.UpdatedAt)
+		strings.ToUpper(code))
+	c, err := scanCoupon(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCouponNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	if !shopperAllowed(c.AllowedRoles, c.AllowGuests, role, isGuest) {
+		return nil, ErrCouponWrongRole
 	}
 	if c.MaxUses != nil && c.UsedCount >= *c.MaxUses {
 		return nil, ErrCouponExhausted
@@ -334,11 +433,29 @@ func (s *Service) ValidateCoupon(ctx context.Context, code string, subtotal floa
 	return &c, nil
 }
 
-// ComputeDiscount calculates discounts from active campaigns and an optional coupon code.
-// Campaign discounts are applied first; the coupon applies to the post-campaign subtotal.
-// Callers must call IncrementCouponUsage within their checkout transaction if result.CouponID != nil.
-func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtotal float64, couponCode *string) (DiscountResult, error) {
+// shopperAllowed reports whether the given shopper context is eligible for a
+// row with the given role + guest gating. Guests check allow_guests; logged-
+// in shoppers must have their role in allowed_roles.
+func shopperAllowed(allowedRoles []string, allowGuests bool, role string, isGuest bool) bool {
+	if isGuest {
+		return allowGuests
+	}
+	for _, r := range allowedRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// ComputeDiscount calculates discounts from active campaigns and an optional
+// coupon code, scoped to the shopper. Campaign discounts are applied first;
+// the coupon applies to the post-campaign subtotal. Callers must call
+// IncrementCouponUsage within their checkout transaction if result.CouponID
+// is non-nil.
+func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtotal float64, couponCode *string, customerRole string, isGuest bool) (DiscountResult, error) {
 	result := DiscountResult{}
+	role := customers.NormalizeRole(customerRole)
 
 	// Build sets for fast lookup
 	productIDs := make(map[string]bool)
@@ -352,13 +469,16 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 		lineTotals[item.VariantID] = item.Price * float64(item.Quantity)
 	}
 
-	// Fetch active campaigns (date-range filtered)
+	// Fetch active campaigns scoped to the shopper. Filter happens in SQL
+	// for guests/role membership so we don't pull rows we'd just discard.
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, discount_type, discount_value, target_type, target_id, min_order_amount
+		`SELECT id, discount_type, discount_value, target_type, target_ids, min_order_amount
 		 FROM discount_campaigns
 		 WHERE is_active = TRUE
+		   AND ($1::bool AND allow_guests
+		        OR NOT $1::bool AND $2::customer_role = ANY(allowed_roles))
 		   AND (starts_at IS NULL OR starts_at <= NOW())
-		   AND (ends_at   IS NULL OR ends_at   >= NOW())`)
+		   AND (ends_at   IS NULL OR ends_at   >= NOW())`, isGuest, role)
 	if err != nil {
 		return result, err
 	}
@@ -372,10 +492,10 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 		var dtype DiscountType
 		var value float64
 		var ttype TargetType
-		var targetID *string
+		var targetIDs pq.StringArray
 		var minOrder *float64
 
-		if err := rows.Scan(&id, &dtype, &value, &ttype, &targetID, &minOrder); err != nil {
+		if err := rows.Scan(&id, &dtype, &value, &ttype, &targetIDs, &minOrder); err != nil {
 			return result, err
 		}
 		if seen[id] {
@@ -390,20 +510,23 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 		case TargetAll:
 			applicable = subtotal
 		case TargetProduct:
-			if targetID != nil {
-				// sum line totals for items matching this product
-				for _, item := range items {
-					if item.ProductID == *targetID {
-						applicable += lineTotals[item.VariantID]
-					}
+			if len(targetIDs) == 0 {
+				continue
+			}
+			idSet := uuidSet(targetIDs)
+			for _, item := range items {
+				if idSet[item.ProductID] {
+					applicable += lineTotals[item.VariantID]
 				}
 			}
 		case TargetCategory:
-			if targetID != nil {
-				for _, item := range items {
-					if item.CategoryID != nil && *item.CategoryID == *targetID {
-						applicable += lineTotals[item.VariantID]
-					}
+			if len(targetIDs) == 0 {
+				continue
+			}
+			idSet := uuidSet(targetIDs)
+			for _, item := range items {
+				if item.CategoryID != nil && idSet[*item.CategoryID] {
+					applicable += lineTotals[item.VariantID]
 				}
 			}
 		}
@@ -434,7 +557,7 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 
 	// Apply coupon on top
 	if couponCode != nil && *couponCode != "" {
-		coupon, err := s.ValidateCoupon(ctx, *couponCode, discountedSubtotal)
+		coupon, err := s.ValidateCoupon(ctx, *couponCode, discountedSubtotal, role, isGuest)
 		if err != nil {
 			return result, err
 		}
@@ -452,6 +575,14 @@ func (s *Service) ComputeDiscount(ctx context.Context, items []LineItem, subtota
 
 	result.TotalDiscount = result.CampaignDiscount + result.CouponDiscount
 	return result, nil
+}
+
+func uuidSet(ids pq.StringArray) map[string]bool {
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out
 }
 
 // IncrementCouponUsage atomically increments the used_count.

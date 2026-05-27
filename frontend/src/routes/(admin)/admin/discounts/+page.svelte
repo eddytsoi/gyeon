@@ -6,6 +6,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import NewButton from '$lib/components/admin/NewButton.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
+  import { customerRoleLabel, type CustomerRole } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -37,6 +38,20 @@
       case 'category': return m.admin_discounts_target_category();
       case 'product': return m.admin_discounts_target_product();
     }
+  }
+
+  function audienceLabel(roles: CustomerRole[] | undefined, allowGuests: boolean | undefined): string {
+    const parts: string[] = [];
+    if (allowGuests) parts.push(m.admin_discounts_label_role_guest());
+    if (roles) for (const r of roles) parts.push(customerRoleLabel(r));
+    if (parts.length === 0) return '—';
+    // 3 = guest + customer + installer (fully open)
+    if (parts.length >= 3) return m.admin_discounts_roles_all();
+    return parts.join(' · ');
+  }
+  function audienceRestricted(roles: CustomerRole[] | undefined, allowGuests: boolean | undefined): boolean {
+    const count = (allowGuests ? 1 : 0) + (roles?.length ?? 0);
+    return count > 0 && count < 3;
   }
 </script>
 
@@ -88,6 +103,7 @@
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_name()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_discount()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_target()}</th>
+              <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_roles()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_period()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_status()}</th>
               <th class="px-6 py-3.5"></th>
@@ -104,6 +120,12 @@
                 </td>
                 <td class="px-6 py-4 text-gray-700 font-mono">{fmtDiscount(c.discount_type, c.discount_value)}</td>
                 <td class="px-6 py-4 text-gray-500 text-xs">{targetLabel(c)}</td>
+                <td class="px-6 py-4 text-xs">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full
+                               {audienceRestricted(c.allowed_roles, c.allow_guests) ? 'bg-amber-50 text-amber-700' : 'text-gray-400'}">
+                    {audienceLabel(c.allowed_roles, c.allow_guests)}
+                  </span>
+                </td>
                 <td class="px-6 py-4 text-gray-400 text-xs">{fmtRange(c.starts_at, c.ends_at)}</td>
                 <td class="px-6 py-4">
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
@@ -154,6 +176,7 @@
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_code()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_discount()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_usage()}</th>
+              <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_roles()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_period()}</th>
               <th class="text-left px-6 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_discounts_col_status()}</th>
               <th class="px-6 py-3.5"></th>
@@ -171,6 +194,12 @@
                 <td class="px-6 py-4 text-gray-700 font-mono">{fmtDiscount(c.discount_type, c.discount_value)}</td>
                 <td class="px-6 py-4 text-gray-500 text-xs">
                   {c.used_count}{c.max_uses != null ? ` / ${c.max_uses}` : ''}
+                </td>
+                <td class="px-6 py-4 text-xs">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full
+                               {audienceRestricted(c.allowed_roles, c.allow_guests) ? 'bg-amber-50 text-amber-700' : 'text-gray-400'}">
+                    {audienceLabel(c.allowed_roles, c.allow_guests)}
+                  </span>
                 </td>
                 <td class="px-6 py-4 text-gray-400 text-xs">{fmtRange(c.starts_at, c.ends_at)}</td>
                 <td class="px-6 py-4">

@@ -149,10 +149,16 @@
     validatingCoupon = true;
     couponResult = null;
     try {
-      const res = await validateCoupon(couponCode.trim(), subtotal);
+      const res = await validateCoupon(
+        couponCode.trim(),
+        subtotal,
+        data.customer?.role ?? undefined,
+        !data.customer
+      );
+      const wrongRoleMsg = res.message_code === 'wrong_role' ? m.storefront_coupon_wrong_role() : null;
       couponResult = res.valid
         ? { valid: true, discount_amount: res.discount_amount }
-        : { valid: false, message: res.message ?? m.checkout_invalid_coupon() };
+        : { valid: false, message: wrongRoleMsg ?? res.message ?? m.checkout_invalid_coupon() };
     } catch {
       couponResult = { valid: false, message: m.checkout_coupon_validate_failed() };
     } finally {
