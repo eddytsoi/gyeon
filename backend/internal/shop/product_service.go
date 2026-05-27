@@ -3026,7 +3026,13 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	hiddenIDs, hiddenRaw := s.hiddenCategoryIDs(ctx)
 	excludedCatIDs, excludedCatRaw := s.fbtExcludedCategoryIDs(ctx)
 	day := time.Now().UTC().Format("2006-01-02")
-	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, excludedCatRaw, day)
+	// Role is part of the key because annotatePurchasableMeta and the
+	// unpurchasable filter below produce a per-role result. Other public list
+	// endpoints role-key their caches via appendRoleVisibilityFilter's
+	// roleScope return; FBT doesn't need the SQL view-block side of that
+	// helper, just the scope string — so we inline the role lookup.
+	role := auth.CustomerRoleFromContext(ctx)
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s:%s:role:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, excludedCatRaw, day, role)
 	if v, ok := s.cache.Get(cacheKey); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -3083,6 +3089,19 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 	if err != nil {
 		return nil, err
 	}
+	// Stamp Purchasable per the current role's purchase-block rules and drop
+	// items the role can't add to cart — otherwise the BundleComposer would
+	// render a tile the user can't actually use. In the no-role-rules default,
+	// annotatePurchasableMeta short-circuits without a DB hit and the filter
+	// is a no-op.
+	s.annotatePurchasableMeta(ctx, products)
+	kept := products[:0]
+	for _, p := range products {
+		if p.Purchasable {
+			kept = append(kept, p)
+		}
+	}
+	products = kept
 
 	s.cache.Set(cacheKey, products, s.ttl(ctx))
 	return products, nil

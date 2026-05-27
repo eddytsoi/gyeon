@@ -31,7 +31,7 @@
   } = $props();
 
   const initial = items.reduce<Record<string, boolean>>((acc, p) => {
-    acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0);
+    acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false);
     return acc;
   }, {});
   let selected = $state<Record<string, boolean>>(initial);
@@ -90,7 +90,7 @@
         <!-- Mini-card row -->
         <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
           {#each items as p (p.id)}
-            {@const enabled = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0)}
+            {@const enabled = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false)}
             {@const checked = !!selected[p.id]}
             {@const imgUrl = p.primaryImage?.url ?? p.primary_image_url ?? null}
             <li>
