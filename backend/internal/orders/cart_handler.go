@@ -3,6 +3,7 @@ package orders
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -38,6 +39,7 @@ func (h *CartHandler) getOrCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	cart, err := h.svc.GetOrCreate(r.Context(), body.SessionToken, body.CustomerID)
 	if err != nil {
+		log.Printf("cart get-or-create: %v", err)
 		respond.InternalError(w)
 		return
 	}
@@ -52,6 +54,7 @@ func (h *CartHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		log.Printf("cart get-by-id: %v", err)
 		respond.InternalError(w)
 		return
 	}
@@ -75,6 +78,7 @@ func (h *CartHandler) addItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		log.Printf("cart add-item: %v", err)
 		respond.InternalError(w)
 		return
 	}
@@ -91,6 +95,7 @@ func (h *CartHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.svc.UpdateItem(r.Context(), id, itemID, req)
 	if err != nil {
+		log.Printf("cart update-item: %v", err)
 		respond.InternalError(w)
 		return
 	}
@@ -105,6 +110,7 @@ func (h *CartHandler) removeItem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	itemID := chi.URLParam(r, "itemID")
 	if err := h.svc.RemoveItem(r.Context(), id, itemID); err != nil {
+		log.Printf("cart remove-item: %v", err)
 		respond.InternalError(w)
 		return
 	}

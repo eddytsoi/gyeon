@@ -102,9 +102,18 @@ func (s *CartService) GetOrCreate(ctx context.Context, sessionToken string, cust
 		Scan(&cart.ID, &cart.CustomerID, &cart.SessionToken, &cart.CreatedAt, &cart.UpdatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
+		// carts.session_token is UNIQUE regardless of expires_at, so a
+		// returning visitor whose previous cart row still exists but has
+		// expired would fall through the SELECT above and then 500 on a
+		// plain INSERT (unique violation). Treat the conflict as
+		// "resurrect": refresh expires_at and return the existing row so
+		// the user gets their cart back instead of a hard error.
 		err = s.db.QueryRowContext(ctx,
 			`INSERT INTO carts (customer_id, session_token)
 			 VALUES ($1, $2)
+			 ON CONFLICT (session_token) DO UPDATE
+			 SET expires_at = NOW() + INTERVAL '30 days',
+			     updated_at = NOW()
 			 RETURNING id, customer_id, session_token, created_at, updated_at`,
 			customerID, sessionToken).
 			Scan(&cart.ID, &cart.CustomerID, &cart.SessionToken, &cart.CreatedAt, &cart.UpdatedAt)
