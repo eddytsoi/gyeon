@@ -53,6 +53,21 @@
     await wishlistStore.init(!!data.customer);
     await registerStorefrontTools(data.mcpEnabled);
   });
+
+  // Surface cart-add failures (e.g. role-purchase 403 from the backend) as a
+  // bottom-center toast. Auto-clears after 4s; clicking dismisses immediately.
+  // Lives in the layout so every storefront cart-add path benefits without
+  // each component duplicating error UI.
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect(() => {
+    if (!cartStore.error) return;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => cartStore.clearError(), 4000);
+    return () => {
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = null;
+    };
+  });
 </script>
 
 <svelte:head>
@@ -105,3 +120,18 @@
     slogan={websiteSlogan}
   />
 </div>
+
+{#if cartStore.error}
+  <div
+    role="status"
+    aria-live="polite"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] max-w-[90vw]
+           px-4 py-3 rounded-md bg-ink-900 text-white text-sm font-body
+           shadow-lg cursor-pointer"
+    onclick={() => cartStore.clearError()}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') cartStore.clearError(); }}
+    tabindex="0"
+  >
+    {cartStore.error}
+  </div>
+{/if}

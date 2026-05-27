@@ -129,6 +129,7 @@
   "product_detail_added": "✓ Added to Cart",
   "product_detail_out_of_stock": "Out of Stock",
   "product_detail_role_cannot_purchase": "Not available to {role}",
+  "cart_add_failed": "Could not add to cart. Please try again.",
   "product_detail_units_in_stock": "{count} units in stock",
   "product_detail_sets_in_stock": "{count} sets in stock",
   "product_detail_in_stock": "In stock",

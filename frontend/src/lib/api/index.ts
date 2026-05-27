@@ -54,12 +54,37 @@ async function fetchWithRetry(url: string, init?: RequestInit): Promise<Response
   throw lastError;
 }
 
+// ApiError preserves the HTTP status and the backend's `{error: string}` body
+// so callers can branch on status (e.g. cart-add surfacing the 403 from
+// ErrCannotPurchase to a toast rather than failing silently).
+export class ApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly serverMessage: string | null;
+  constructor(status: number, path: string, serverMessage: string | null) {
+    super(serverMessage ? `API ${status}: ${serverMessage}` : `API ${status}: ${path}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.path = path;
+    this.serverMessage = serverMessage;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithRetry(`${base()}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers }
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  if (!res.ok) {
+    let serverMessage: string | null = null;
+    try {
+      const body = await res.json();
+      if (body && typeof body.error === 'string') serverMessage = body.error;
+    } catch {
+      // body was not JSON — leave serverMessage null
+    }
+    throw new ApiError(res.status, path, serverMessage);
+  }
   return res.json() as Promise<T>;
 }
 

@@ -129,6 +129,7 @@
   "product_detail_adding": "加入中…",
   "product_detail_added": "✓ 已加入購物車",
   "product_detail_out_of_stock": "已售完",
+  "cart_add_failed": "加入購物車失敗,請重試",
   "product_detail_units_in_stock": "尚餘 {count} 件",
   "product_detail_sets_in_stock": "尚餘 {count} 套",
   "product_detail_in_stock": "尚有存貨",

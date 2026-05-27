@@ -20,6 +20,7 @@
     variants,
     images,
     promoBundles,
+    cannotPurchaseLabel,
     onOpenImageBrowser
   }: {
     open: boolean;
@@ -27,6 +28,7 @@
     variants: Variant[];
     images: ProductImage[];
     promoBundles: PromoBundle[];
+    cannotPurchaseLabel: string;
     onOpenImageBrowser: (index: number) => void;
   } = $props();
 
@@ -40,6 +42,7 @@
     compareAtPrice: number | null;
     stockQty: number;
     excerpt: string | null;
+    purchasable: boolean;
   };
 
   function primaryImageURL(): string | null {
@@ -76,7 +79,10 @@
       compareAtPrice: v.compare_at_price ?? null,
       stockQty: v.stock_qty,
       // Variants don't carry their own excerpt — fall back to product excerpt.
-      excerpt: product.excerpt ?? null
+      excerpt: product.excerpt ?? null,
+      // Variants inherit the parent product's role-purchase gate — every
+      // variant of a blocked product is itself blocked.
+      purchasable: product.purchasable !== false
     };
   }
 
@@ -90,7 +96,8 @@
       price: b.price,
       compareAtPrice: b.compare_at_price ?? null,
       stockQty: b.stock_qty,
-      excerpt: b.excerpt ?? product.excerpt ?? null
+      excerpt: b.excerpt ?? product.excerpt ?? null,
+      purchasable: b.purchasable !== false
     };
   }
 
@@ -142,7 +149,7 @@
   }
 
   async function addToCart() {
-    if (!selected || selected.stockQty <= 0 || adding) return;
+    if (!selected || selected.stockQty <= 0 || !selected.purchasable || adding) return;
     adding = true;
     try {
       await cartStore.add(selected.variantId, qty);
@@ -253,10 +260,12 @@
             <ul class="space-y-2">
               {#each variants as v (v.id)}
                 {@const isSel = selected!.kind === 'variant' && selected!.id === v.id}
+                {@const rowPurchasable = product.purchasable !== false}
                 <li>
                   <button type="button" onclick={() => pick(variantToSelection(v))}
                           class="w-full flex items-center gap-3 px-3 py-2.5 rounded border text-left transition-colors
-                                 {isSel ? 'border-navy-500 bg-navy-500/5' : 'border-ink-300/40 hover:border-ink-300'}">
+                                 {isSel ? 'border-navy-500 bg-navy-500/5' : 'border-ink-300/40 hover:border-ink-300'}
+                                 {rowPurchasable ? '' : 'opacity-50'}">
                     <span class="w-10 h-10 shrink-0 bg-paper rounded overflow-hidden">
                       {#if variantImage(v)}
                         <ResponsiveImage src={variantImage(v)!} alt=""
@@ -279,10 +288,12 @@
             <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {#each promoBundles as pb (pb.id)}
                 {@const isSel = selected!.kind === 'bundle' && selected!.id === pb.bundle_product_id}
+                {@const rowPurchasable = pb.purchasable !== false}
                 <li>
                   <button type="button" onclick={() => pick(bundleToSelection(pb))}
                           class="w-full flex items-center gap-3 px-3 py-2.5 rounded border text-left transition-colors
-                                 {isSel ? 'border-navy-500 bg-navy-500/5' : 'border-ink-300/40 hover:border-ink-300'}">
+                                 {isSel ? 'border-navy-500 bg-navy-500/5' : 'border-ink-300/40 hover:border-ink-300'}
+                                 {rowPurchasable ? '' : 'opacity-50'}">
                     <span class="w-10 h-10 shrink-0 bg-paper rounded overflow-hidden">
                       {#if pb.primary_image_url}
                         <ResponsiveImage src={pb.primary_image_url} alt=""
@@ -303,7 +314,7 @@
       <!-- Sticky CTA -->
       <div class="border-t border-ink-300/40 p-4 sm:p-5">
         <button type="button" onclick={addToCart}
-                disabled={selected.stockQty <= 0 || adding}
+                disabled={selected.stockQty <= 0 || !selected.purchasable || adding}
                 class="w-full py-3.5 bg-navy-500 text-white text-sm font-semibold rounded
                        hover:bg-navy-700 transition-colors
                        disabled:opacity-50 disabled:cursor-not-allowed">
@@ -311,6 +322,8 @@
             ✓ 已加入購物車
           {:else if adding}
             加入中…
+          {:else if !selected.purchasable}
+            {cannotPurchaseLabel}
           {:else if selected.stockQty <= 0}
             缺貨
           {:else}

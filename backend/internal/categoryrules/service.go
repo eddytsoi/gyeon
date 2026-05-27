@@ -38,11 +38,23 @@ type Service struct {
 	mu       sync.RWMutex
 	cached   map[string][]Rule // keyed by role
 	cacheExp time.Time
+
+	// onInvalidate fires after SaveBulk commits + the local Rule cache is
+	// dropped. Wired from main.go to drop the shop package's product / FBT
+	// caches — those entries stamp Purchasable per role using the OLD rules,
+	// so without this the storefront keeps reading stale purchasable flags
+	// until the per-entry TTL expires (could be minutes). nil-safe.
+	onInvalidate func()
 }
 
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
+
+// SetOnInvalidate wires a callback invoked after each successful SaveBulk.
+// Optional — when nil, Service still works but downstream caches may serve
+// stale Purchasable annotations until they expire on their own.
+func (s *Service) SetOnInvalidate(fn func()) { s.onInvalidate = fn }
 
 // List returns every rule row, ordered (role, category_id) for stable admin
 // rendering. Bypasses the cache — the admin UI wants fresh data on every
@@ -103,6 +115,9 @@ func (s *Service) SaveBulk(ctx context.Context, rules []Rule) error {
 		return err
 	}
 	s.invalidate()
+	if s.onInvalidate != nil {
+		s.onInvalidate()
+	}
 	return nil
 }
 
