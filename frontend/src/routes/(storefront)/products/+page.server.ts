@@ -11,7 +11,7 @@ function parsePositiveFloat(s: string | null): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, cookies }) => {
   const q = url.searchParams.get('q') ?? '';
   const category = url.searchParams.get('category') ?? '';
   const sortRaw = url.searchParams.get('sort') ?? '';
@@ -29,11 +29,15 @@ export const load: PageServerLoad = async ({ url }) => {
     sort
   };
 
+  // Forward customer_token so the backend's per-role category rules apply.
+  // Without this, an installer's first-paint product grid is filtered for
+  // the anonymous-/customer-role view.
+  const token = cookies.get('customer_token') ?? null;
   const [page, categories, costliest] = await Promise.all([
-    getProductsListPage(filters).catch(() => ({ items: [], total: 0 })),
-    getCategories().catch(() => []).then(r => r ?? []),
+    getProductsListPage(filters, undefined, token).catch(() => ({ items: [], total: 0 })),
+    getCategories(token).catch(() => []).then(r => r ?? []),
     // Single most-expensive product (unfiltered) → stable upper bound for the slider.
-    getProductsFiltered({ limit: 1, offset: 0, sort: 'price_desc' }).catch(() => [])
+    getProductsFiltered({ limit: 1, offset: 0, sort: 'price_desc' }, undefined, token).catch(() => [])
   ]);
 
   const apiMax = costliest[0]?.min_price ?? 0;

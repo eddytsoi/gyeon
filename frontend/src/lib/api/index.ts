@@ -88,8 +88,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const getCategories = () => request<Category[]>('/categories');
-export const getCategoryBySlug = (slug: string) => request<Category>(`/categories/by-slug/${slug}`);
+// Bearer-header helper. Shared between the public storefront helpers (where
+// the token is optional) and the customer-account helpers further down (where
+// it's required). Hoisted up here so the optional-token public helpers below
+// don't reference it before declaration.
+function authed(token: string): RequestInit {
+  return { headers: { Authorization: `Bearer ${token}` } };
+}
+
+// Public storefront reads. The optional token lets server-side load functions
+// forward the visitor's customer_token cookie so the backend applies their
+// actual storefront role (installer vs customer) when filtering by
+// per-role category rules. Anonymous requests omit the token and are treated
+// as "customer" — the historical default.
+//
+// Browser-side calls have no easy access to the httpOnly customer_token
+// cookie, so client-side load-more / filter changes fall through anonymously.
+// SSR-fetched data covers the first paint and is the main thing the visitor
+// notices.
+export const getCategories = (token?: string | null) =>
+  request<Category[]>('/categories', token ? authed(token) : undefined);
+export const getCategoryBySlug = (slug: string, token?: string | null) =>
+  request<Category>(`/categories/by-slug/${slug}`, token ? authed(token) : undefined);
 
 export interface ProductListFilters {
   limit?: number;
@@ -114,22 +134,40 @@ const buildProductQuery = (filters: ProductListFilters): URLSearchParams => {
   return qs;
 };
 
-export const getProducts = (limit = 20, offset = 0, search = '') =>
-  request<Product[]>(`/products?${buildProductQuery({ limit, offset, search }).toString()}`);
+// Token param: forwards customer_token from SSR loads so the backend filters
+// products / categories by the visitor's actual storefront role (installer
+// vs customer) per the role-rules matrix. Omit → backend treats request as
+// anonymous "customer". Variants, images and bundle-item metadata aren't
+// role-filtered so those helpers keep the simpler signature.
+export const getProducts = (limit = 20, offset = 0, search = '', token?: string | null) =>
+  request<Product[]>(
+    `/products?${buildProductQuery({ limit, offset, search }).toString()}`,
+    token ? authed(token) : undefined
+  );
 
-export const getProductsFiltered = (filters: ProductListFilters, init?: RequestInit) =>
-  request<Product[]>(`/products?${buildProductQuery(filters).toString()}`, init);
+export const getProductsFiltered = (
+  filters: ProductListFilters,
+  init?: RequestInit,
+  token?: string | null
+) =>
+  request<Product[]>(`/products?${buildProductQuery(filters).toString()}`, {
+    ...init,
+    ...(token ? { headers: { Authorization: `Bearer ${token}`, ...init?.headers } } : {})
+  });
 
 // Variant of getProductsFiltered that also surfaces the X-Total-Count header
 // so the storefront can render an accurate "共 X 件商品" alongside infinite
 // scroll. Total reflects the WHERE-filtered set BEFORE limit/offset.
 export const getProductsListPage = async (
   filters: ProductListFilters,
-  init?: RequestInit
+  init?: RequestInit,
+  token?: string | null
 ): Promise<{ items: Product[]; total: number }> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetchWithRetry(`${base()}/products?${buildProductQuery(filters).toString()}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers }
+    headers: { ...headers, ...init?.headers }
   });
   if (!res.ok) throw new Error(`API ${res.status}: /products`);
   const items = (await res.json()) as Product[];
@@ -138,21 +176,42 @@ export const getProductsListPage = async (
   return { items, total: Number.isFinite(total) ? total : items.length };
 };
 
-export const getProductsByCategorySlug = (categorySlug: string, limit = 20, offset = 0, search = '') =>
-  request<Product[]>(`/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`);
-export const getProductByID = (id: string) => request<Product>(`/products/${id}`);
-// Public single-product lookup by slug. Bypasses the hidden-category filter
-// on the backend so direct URLs (and "private link" sales flows) keep
-// working even when the product's category is hidden from the storefront.
-export const getProductBySlug = (slug: string) =>
-  request<Product>(`/products/by-slug/${encodeURIComponent(slug)}`);
+export const getProductsByCategorySlug = (
+  categorySlug: string,
+  limit = 20,
+  offset = 0,
+  search = '',
+  token?: string | null
+) =>
+  request<Product[]>(
+    `/products?${buildProductQuery({ limit, offset, search, category: categorySlug }).toString()}`,
+    token ? authed(token) : undefined
+  );
+export const getProductByID = (id: string, token?: string | null) =>
+  request<Product>(`/products/${id}`, token ? authed(token) : undefined);
+// Public single-product lookup by slug. Per-role can_view still 404s the PDP
+// for that role (matches storefront listing visibility); the "is_listed"
+// (private-link) dimension is intentionally bypassed so unlisted PDPs stay
+// reachable via direct URL.
+export const getProductBySlug = (slug: string, token?: string | null) =>
+  request<Product>(
+    `/products/by-slug/${encodeURIComponent(slug)}`,
+    token ? authed(token) : undefined
+  );
 export const getProductVariants = (id: string) => request<Variant[]>(`/products/${id}/variants`);
 export const getVariantByID = (id: string) => request<Variant>(`/products/variants/${id}`);
 export const getProductImages = (id: string) => request<ProductImage[]>(`/products/${id}/images`);
 export const getProductBundleItems = (id: string) => request<BundleItem[]>(`/products/${id}/bundle-items`);
-export const getProductPromoBundles = (id: string) => request<PromoBundle[]>(`/products/${id}/promo-bundles`);
-export const getFrequentlyBoughtTogether = (id: string, limit = 4) =>
-  request<Product[]>(`/products/${id}/frequently-bought-together?limit=${limit}`);
+export const getProductPromoBundles = (id: string, token?: string | null) =>
+  request<PromoBundle[]>(
+    `/products/${id}/promo-bundles`,
+    token ? authed(token) : undefined
+  );
+export const getFrequentlyBoughtTogether = (id: string, limit = 4, token?: string | null) =>
+  request<Product[]>(
+    `/products/${id}/frequently-bought-together?limit=${limit}`,
+    token ? authed(token) : undefined
+  );
 
 export const getOrCreateCart = (sessionToken: string, customerID?: string) =>
   request<Cart>('/cart', {
@@ -442,10 +501,8 @@ export const createOrderSetupToken = (orderID: string, paymentIntent: string) =>
   });
 
 // --- Customer auth & account ---
-
-function authed(token: string): RequestInit {
-  return { headers: { Authorization: `Bearer ${token}` } };
-}
+// (authed() defined near the top so the optional-token public helpers can
+// call it without referencing-before-declaration concerns.)
 
 export const registerCustomer = (
   email: string,

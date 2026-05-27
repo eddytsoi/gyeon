@@ -20,11 +20,20 @@ import (
 )
 
 // RoleRulesProvider returns the category IDs a storefront role isn't allowed
-// to see or purchase. Implemented by categoryrules.Service — kept as an
-// interface here so the shop package doesn't depend directly on categoryrules
-// (the wiring graph is shop → categoryrules-by-interface, set from main.go).
+// to see, list, or purchase. Implemented by categoryrules.Service — kept as
+// an interface here so the shop package doesn't depend directly on
+// categoryrules (the wiring graph is shop → categoryrules-by-interface, set
+// from main.go).
+//
+// "List" sits between "View" and "Purchase": a category may be unlisted
+// (hidden from the public catalog and search) yet still purchasable via a
+// direct PDP link — the per-role replacement for the old global
+// hidden_category_ids setting (removed in migration 103). The returned slice
+// for BlockedListCategoryIDs already includes everything BlockedViewCategoryIDs
+// would return, so listing endpoints only need to filter on the listed set.
 type RoleRulesProvider interface {
 	BlockedViewCategoryIDs(ctx context.Context, role string) []string
+	BlockedListCategoryIDs(ctx context.Context, role string) []string
 	BlockedPurchaseCategoryIDs(ctx context.Context, role string) []string
 }
 
@@ -447,21 +456,30 @@ func (s *ProductService) InvalidateRoleScopedCaches() {
 	s.cache.DeleteByPrefix(fbtCachePrefix)
 }
 
-// appendRoleVisibilityFilter appends a NOT EXISTS clause that hides any
-// product linked (via product_category_links) to a category the storefront
-// role isn't allowed to see. Role is read from request context, defaulting
+// appendRoleListedFilter appends a NOT EXISTS clause that hides any product
+// linked (via product_category_links) to a category the storefront role
+// isn't allowed to see in listings — i.e. unlisted ("private link")
+// categories plus the view-blocked set (BlockedListCategoryIDs is a superset
+// of BlockedViewCategoryIDs). Role is read from request context, defaulting
 // to "customer" for anonymous visitors. No-op when roleRules is not wired
 // or the role has no blocked categories.
+//
+// This is the per-role replacement for the pre-migration-103 setup, where a
+// global appendHiddenCategoryFilter (using p.category_id IN (...) over the
+// hidden_category_ids site setting) ran in parallel with a separate
+// appendRoleVisibilityFilter. Now a single filter expresses both — and it
+// checks product_category_links so multi-category products are filtered
+// consistently (the old hidden-id filter only looked at p.category_id).
 //
 // Returns the (possibly-extended) wheres + args plus a cache scope string
 // that includes the role + blocked-id set, so two roles never share a
 // cached page.
-func (s *ProductService) appendRoleVisibilityFilter(ctx context.Context, wheres []string, args []any) ([]string, []any, string) {
+func (s *ProductService) appendRoleListedFilter(ctx context.Context, wheres []string, args []any) ([]string, []any, string) {
 	if s.roleRules == nil {
 		return wheres, args, ""
 	}
 	role := auth.CustomerRoleFromContext(ctx)
-	blocked := s.roleRules.BlockedViewCategoryIDs(ctx, role)
+	blocked := s.roleRules.BlockedListCategoryIDs(ctx, role)
 	if len(blocked) == 0 {
 		return wheres, args, "role:" + role
 	}
@@ -694,46 +712,32 @@ func (s *ProductService) getProductTranslation(ctx context.Context, productID, l
 	return &t, nil
 }
 
-// HiddenCategoryIDs returns the list of category UUIDs hidden from public
-// listings, exported so adjacent handlers (e.g. the categories list handler)
-// can apply the same filter without re-implementing the parsing logic.
-func (s *ProductService) HiddenCategoryIDs(ctx context.Context) []string {
-	ids, _ := s.hiddenCategoryIDs(ctx)
-	return ids
-}
-
-// hiddenCategoryIDs reads the hidden_category_ids site setting. Returns an
-// empty slice on any error so a misconfigured setting never breaks public
-// listings — it just stops hiding anything. Also returns the raw setting
-// string used to scope cache keys (changing the setting busts the cache).
-func (s *ProductService) hiddenCategoryIDs(ctx context.Context) ([]string, string) {
-	if s.settingsSvc == nil {
-		return nil, ""
+// roleListedScope returns the (blocked-list-ids, cache-scope-string) tuple
+// for the current request's storefront role. Used by call sites that need
+// the blocked-id set as a slice (FBT pool helpers feed it into SQL ANY
+// arrays) rather than via appendRoleListedFilter's WHERE injection.
+//
+// The cache scope is "role:<name>:<sorted-ids-csv>" matching what the
+// appender returns, so cache keys built from this stay in sync with keys
+// built from appendRoleListedFilter.
+func (s *ProductService) roleListedScope(ctx context.Context) ([]string, string) {
+	role := auth.CustomerRoleFromContext(ctx)
+	if s.roleRules == nil {
+		return nil, "role:" + role
 	}
-	st, err := s.settingsSvc.Get(ctx, "hidden_category_ids")
-	if err != nil || st == nil || strings.TrimSpace(st.Value) == "" {
-		return nil, ""
+	blocked := s.roleRules.BlockedListCategoryIDs(ctx, role)
+	if len(blocked) == 0 {
+		return nil, "role:" + role
 	}
-	var ids []string
-	if err := json.Unmarshal([]byte(st.Value), &ids); err != nil {
-		return nil, ""
-	}
-	cleaned := make([]string, 0, len(ids))
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id != "" {
-			cleaned = append(cleaned, id)
-		}
-	}
-	return cleaned, st.Value
+	return blocked, "role:" + role + ":" + strings.Join(blocked, ",")
 }
 
 // fbtExcludedCategoryIDs reads the fbt_excluded_category_slugs site setting,
 // resolves the slugs to category UUIDs in a single SELECT, and returns
 // (ids, rawSettingValue). Used by FBT pool queries to drop products linked
 // to service-only categories (coating, ppf-film, installers, …) via
-// product_category_links — different from hiddenCategoryIDs which uses UUIDs
-// and only checks products.category_id. Returns empty + "" on any error so a
+// product_category_links — different from the per-role listed filter which
+// scopes by storefront role. Returns empty + "" on any error so a
 // misconfigured setting just stops excluding rather than breaking FBT.
 func (s *ProductService) fbtExcludedCategoryIDs(ctx context.Context) ([]string, string) {
 	if s.settingsSvc == nil {
@@ -773,23 +777,6 @@ func (s *ProductService) fbtExcludedCategoryIDs(ctx context.Context) ([]string, 
 		ids = append(ids, id)
 	}
 	return ids, st.Value
-}
-
-// appendHiddenCategoryFilter appends `p.category_id NOT IN ($N, ...)` to
-// wheres when at least one hidden category is configured. When no hidden
-// categories are set the inputs are returned unchanged.
-func (s *ProductService) appendHiddenCategoryFilter(ctx context.Context, wheres []string, args []any) ([]string, []any, string) {
-	ids, raw := s.hiddenCategoryIDs(ctx)
-	if len(ids) == 0 {
-		return wheres, args, raw
-	}
-	placeholders := make([]string, 0, len(ids))
-	for _, id := range ids {
-		args = append(args, id)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)))
-	}
-	wheres = append(wheres, fmt.Sprintf("p.category_id NOT IN (%s)", strings.Join(placeholders, ", ")))
-	return wheres, args, raw
 }
 
 // SetThumbnailEnsurer wires in the media-side helper for lazy video thumbnail
@@ -865,11 +852,10 @@ func (s *ProductService) List(ctx context.Context, locale, search string, limit,
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw, roleScope string
-	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
+	var roleScope string
+	wheres, args, roleScope = s.appendRoleListedFilter(ctx, wheres, args)
 
-	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d:%s:%s", locale, search, limit, offset, hiddenRaw, roleScope)
+	key := fmt.Sprintf("shop:products:pub:%s:%s:%d:%d:%s", locale, search, limit, offset, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
@@ -946,8 +932,7 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		args = append(args, *f.MaxPrice)
 		wheres = append(wheres, fmt.Sprintf("%s <= $%d", minPriceSQ, len(args)))
 	}
-	wheres, args, _ = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	wheres, args, _ = s.appendRoleVisibilityFilter(ctx, wheres, args)
+	wheres, args, _ = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
 	orderBy := "p.created_at DESC"
@@ -1067,12 +1052,11 @@ func (s *ProductService) ListEnriched(ctx context.Context, locale, search string
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw, roleScope string
-	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
+	var roleScope string
+	wheres, args, roleScope = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d:%s:%s", locale, search, limit, offset, hiddenRaw, roleScope)
+	key := fmt.Sprintf("shop:products:pubmeta:%s:%s:%d:%d:%s", locale, search, limit, offset, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -1156,12 +1140,11 @@ func (s *ProductService) ListEnrichedByCategorySlug(ctx context.Context, locale,
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw, roleScope string
-	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
+	var roleScope string
+	wheres, args, roleScope = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d:%s:%s", locale, categorySlug, search, limit, offset, hiddenRaw, roleScope)
+	key := fmt.Sprintf("shop:products:bycatmeta:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]ProductWithMeta), nil
 	}
@@ -1244,12 +1227,11 @@ func (s *ProductService) ListByCategorySlug(ctx context.Context, locale, categor
 		wheres = append(wheres, clause)
 		args = append(args, arg)
 	}
-	var hiddenRaw, roleScope string
-	wheres, args, hiddenRaw = s.appendHiddenCategoryFilter(ctx, wheres, args)
-	wheres, args, roleScope = s.appendRoleVisibilityFilter(ctx, wheres, args)
+	var roleScope string
+	wheres, args, roleScope = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d:%s:%s", locale, categorySlug, search, limit, offset, hiddenRaw, roleScope)
+	key := fmt.Sprintf("shop:products:bycat:%s:%s:%s:%d:%d:%s", locale, categorySlug, search, limit, offset, roleScope)
 	if v, ok := s.cache.Get(key); ok {
 		return v.([]Product), nil
 	}
@@ -1480,10 +1462,12 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 	if err != nil {
 		return nil, err
 	}
-	// Role-based visibility applies to direct PDP hits too — surfacing a
-	// product through a deep link that the role can't add to cart would be
-	// a confusing dead end. hidden_category_ids stays bypassed (admin-only
-	// hides) but role rules don't.
+	// Role can_view applies to direct PDP hits too — surfacing a product
+	// through a deep link that the role isn't allowed to see at all would
+	// be a confusing dead end. The role "listed" dimension (is_listed=FALSE,
+	// i.e. "private link") is intentionally NOT enforced here: the whole
+	// point of an unlisted category is that the PDP-by-slug keeps working
+	// for direct-link sales. Only can_view=FALSE 404s the PDP.
 	if s.roleBlocksProductCategories(ctx, p.ID) {
 		return nil, sql.ErrNoRows
 	}
@@ -3085,16 +3069,18 @@ func (s *ProductService) FrequentlyBoughtTogether(ctx context.Context, productID
 		limit = 4
 	}
 
-	hiddenIDs, hiddenRaw := s.hiddenCategoryIDs(ctx)
+	// hiddenIDs here is the per-role "blocked from listings" set (see
+	// roleListedScope) — the replacement for the pre-migration-103 global
+	// hidden_category_ids feed. The SQL pool helpers below still take it as a
+	// `hiddenIDs []string` arg to keep the signature stable; just the source
+	// changed. FBT is a listing surface, so private-link categories should
+	// stay out even when the source PDP resolves.
+	hiddenIDs, hiddenRaw := s.roleListedScope(ctx)
 	excludedCatIDs, excludedCatRaw := s.fbtExcludedCategoryIDs(ctx)
 	day := time.Now().UTC().Format("2006-01-02")
-	// Role is part of the key because annotatePurchasableMeta and the
-	// unpurchasable filter below produce a per-role result. Other public list
-	// endpoints role-key their caches via appendRoleVisibilityFilter's
-	// roleScope return; FBT doesn't need the SQL view-block side of that
-	// helper, just the scope string — so we inline the role lookup.
-	role := auth.CustomerRoleFromContext(ctx)
-	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s:%s:role:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, excludedCatRaw, day, role)
+	// roleListedScope already bakes the role + blocked-id-set into hiddenRaw,
+	// so the cache key needn't repeat the role separately.
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s:%s:%s", fbtCachePrefix, productID, locale, limit, hiddenRaw, excludedCatRaw, day)
 	if v, ok := s.cache.Get(cacheKey); ok {
 		return v.([]ProductWithMeta), nil
 	}

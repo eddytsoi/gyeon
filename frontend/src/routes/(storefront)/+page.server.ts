@@ -3,7 +3,7 @@ import { scanShortcodeRefs } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, cookies }) => {
   const { publicSettings } = await parent();
   const homepageId = publicSettings?.find((s) => s.key === 'homepage_page_id')?.value ?? '';
 
@@ -15,7 +15,10 @@ export const load: PageServerLoad = async ({ parent }) => {
     }
   }
 
-  const products = (await getProducts(8, 0).catch(() => [])) ?? [];
+  // Forward customer_token so the fallback product grid shows the role-
+  // correct subset (e.g. installer sees installer-only categories).
+  const token = cookies.get('customer_token') ?? null;
+  const products = (await getProducts(8, 0, '', token).catch(() => [])) ?? [];
   const enriched = await Promise.all(
     products.map(async (product) => {
       const [variants, images] = await Promise.all([

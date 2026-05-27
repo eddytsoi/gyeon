@@ -362,7 +362,16 @@ export interface Customer {
 export interface CategoryRule {
   role: CustomerRole;
   category_id: string;
+  /** PDP resolves and product appears everywhere for this role. */
   can_view: boolean;
+  /**
+   * Product appears in listings / category nav / search. FALSE = "private
+   * link" — PDP-by-slug still works, but the category is hidden from public
+   * discovery. The per-role replacement for the pre-migration-103 global
+   * `hidden_category_ids` setting.
+   */
+  is_listed: boolean;
+  /** Cart-add accepts variants in this category. */
   can_purchase: boolean;
 }
 

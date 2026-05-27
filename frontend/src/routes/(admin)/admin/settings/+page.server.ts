@@ -1,19 +1,21 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { adminGetSettings, adminBulkUpdateSettings, adminGetMedia, adminGetCategories, adminGetPages } from '$lib/api/admin';
+import { adminGetSettings, adminBulkUpdateSettings, adminGetMedia, adminGetPages } from '$lib/api/admin';
 
 export const load: PageServerLoad = async ({ parent }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
-  const [settings, mediaFiles, categories, pagesRes] = await Promise.all([
+  // categories was used by the now-removed Hidden Categories picker
+  // (migration 103 moved it to /admin/products/category-roles). Dropped
+  // from the parallel load to keep the settings page snappy.
+  const [settings, mediaFiles, pagesRes] = await Promise.all([
     adminGetSettings(token).catch(() => []),
     adminGetMedia(token).catch(() => []),
-    adminGetCategories(token).catch(() => []),
     adminGetPages(token, 100, 0).catch(() => ({ items: [], total: 0 }))
   ]);
   const pages = pagesRes.items.filter((p) => p.is_published);
-  return { settings, mediaFiles, categories, pages };
+  return { settings, mediaFiles, pages };
 };
 
 export const actions: Actions = {

@@ -130,21 +130,32 @@ type RoleResolver interface {
 // OptionalCustomerMiddleware sits on public storefront routes that need
 // per-role gating (product list, PDP, category nav). It never rejects:
 //
-//   - No bearer token        → request continues, role defaults to "customer".
-//   - Invalid / expired tok. → same, treated as anonymous.
-//   - Valid customer token   → customer_id + resolved role are plumbed.
+//   - No bearer token + no cookie → request continues, role defaults to "customer".
+//   - Invalid / expired token     → same, treated as anonymous.
+//   - Valid customer token        → customer_id + resolved role are plumbed.
+//
+// Token source priority: Authorization: Bearer header first (SSR loads from
+// SvelteKit forward customer_token via this), falling back to the
+// `customer_token` cookie (set httpOnly + SameSite=Lax by the SvelteKit
+// login action — browser-side same-origin XHR sends it automatically).
+// The cookie fallback is what lets client-side load-more / filter changes
+// stay role-correct without each helper having to thread the token in.
 //
 // resolver may be nil during early startup / tests; in that case only the
 // customer_id is plumbed and role stays at the default.
 func OptionalCustomerMiddleware(secret string, resolver RoleResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header := r.Header.Get("Authorization")
-			if !strings.HasPrefix(header, "Bearer ") {
+			tokenStr := ""
+			if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
+				tokenStr = strings.TrimPrefix(header, "Bearer ")
+			} else if c, err := r.Cookie("customer_token"); err == nil {
+				tokenStr = c.Value
+			}
+			if tokenStr == "" {
 				next.ServeHTTP(w, r)
 				return
 			}
-			tokenStr := strings.TrimPrefix(header, "Bearer ")
 			claims, err := ValidateToken(tokenStr, secret)
 			if err != nil || claims.Role != "customer" || claims.CustomerID == "" {
 				next.ServeHTTP(w, r)

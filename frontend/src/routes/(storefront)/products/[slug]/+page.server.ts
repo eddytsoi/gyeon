@@ -4,15 +4,21 @@ import { scanShortcodeRefsMany } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
-  // Direct slug lookup — bypasses the hidden-category filter so hidden
-  // products remain reachable via direct URL / private links.
-  const product = await getProductBySlug(params.slug).catch(() => null);
+export const load: PageServerLoad = async ({ params, cookies }) => {
+  // Forward customer_token so the backend marks Purchasable correctly per
+  // the visitor's storefront role (installer can buy installer-only
+  // categories; anonymous / customer can't). Without this, an installer's
+  // PDP rendered with `purchasable: false` for any category the customer
+  // role couldn't buy from — disabling the cart button incorrectly.
+  // Direct slug lookup: can_view still 404s but is_listed (private link)
+  // is intentionally bypassed so unlisted PDPs stay reachable.
+  const token = cookies.get('customer_token') ?? null;
+  const product = await getProductBySlug(params.slug, token).catch(() => null);
   if (!product) throw error(404, 'Product not found');
 
   const [products, categories] = await Promise.all([
-    getProducts(100, 0).catch(() => []),
-    getCategories().catch(() => [])
+    getProducts(100, 0, '', token).catch(() => []),
+    getCategories(token).catch(() => [])
   ]);
 
   const category = categories.find((c) => c.id === product.category_id) ?? null;
@@ -39,10 +45,10 @@ export const load: PageServerLoad = async ({ params }) => {
     getProductImages(product.id).catch(() => []),
     product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
     // Promo bundles only make sense for non-bundle parents. Bundles can't host them.
-    product.kind !== 'bundle' ? getProductPromoBundles(product.id).catch(() => []) : Promise.resolve([]),
+    product.kind !== 'bundle' ? getProductPromoBundles(product.id, token).catch(() => []) : Promise.resolve([]),
     getPublicSettings().catch(() => []),
     resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use)),
-    getFrequentlyBoughtTogether(product.id, 4).catch(() => []),
+    getFrequentlyBoughtTogether(product.id, 4, token).catch(() => []),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
