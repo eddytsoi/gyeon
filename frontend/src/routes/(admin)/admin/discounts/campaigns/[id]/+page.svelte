@@ -20,6 +20,7 @@
   let targetType = $state<'all' | 'category' | 'product'>(c?.target_type ?? 'all');
   let targetIDs = $state<string[]>(c?.target_ids ?? []);
   let minOrder = $state<string>(c?.min_order_amount != null ? String(c.min_order_amount) : '');
+  let maxOrder = $state<string>(c?.max_order_amount != null ? String(c.max_order_amount) : '');
   let allowedRoles = $state<CustomerRole[]>(c?.allowed_roles ?? ['customer', 'installer']);
   let allowGuests = $state<boolean>(c?.allow_guests ?? true);
   let isActive = $state<boolean>(c?.is_active ?? true);
@@ -76,6 +77,15 @@
             notify.error(m.admin_discounts_targets_required());
             return;
           }
+          {
+            const minN = Number(minOrder);
+            const maxN = Number(maxOrder);
+            if (Number.isFinite(minN) && Number.isFinite(maxN) && String(minOrder) !== '' && String(maxOrder) !== '' && maxN < minN) {
+              cancel();
+              notify.error(m.admin_discounts_max_order_below_min());
+              return;
+            }
+          }
           saving = true;
           const cName = name;
           return async ({ result, update }) => {
@@ -126,14 +136,27 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
         </div>
       </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          {m.admin_discounts_label_min_order()} <span class="normal-case font-normal text-gray-400">{m.common_optional()}</span>
-        </label>
-        <input type="number" name="min_order_amount" bind:value={minOrder} min="0" step="0.01"
-               class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono
-                      focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            {m.admin_discounts_label_min_order()} <span class="normal-case font-normal text-gray-400">{m.common_optional()}</span>
+          </label>
+          <input type="number" name="min_order_amount" bind:value={minOrder} min="0" step="0.01"
+                 class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            {m.admin_discounts_label_max_order()} <span class="normal-case font-normal text-gray-400">{m.common_optional()}</span>
+          </label>
+          <input type="number" name="max_order_amount" bind:value={maxOrder} min="0" step="0.01"
+                 class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
+        </div>
       </div>
+      {#if String(minOrder) !== '' && String(maxOrder) !== '' && Number.isFinite(Number(minOrder)) && Number.isFinite(Number(maxOrder)) && Number(maxOrder) < Number(minOrder)}
+        <p class="text-xs text-red-500">{m.admin_discounts_max_order_below_min()}</p>
+      {/if}
     </div>
 
     <!-- Eligible account types -->

@@ -1986,6 +1986,8 @@
   "admin_discounts_label_value_percent": "折扣百分比",
   "admin_discounts_label_value_amount": "折扣金額（HK$）",
   "admin_discounts_label_min_order": "最低訂單金額",
+  "admin_discounts_label_max_order": "最高訂單金額",
+  "admin_discounts_max_order_below_min": "最高金額必須大於或等於最低金額",
   "admin_discounts_label_max_uses": "最多使用次數",
   "admin_discounts_label_target_type": "適用範圍",
   "admin_discounts_label_pick_category": "分類",

@@ -1986,6 +1986,8 @@
   "admin_discounts_label_value_percent": "Percent off",
   "admin_discounts_label_value_amount": "Amount off (HK$)",
   "admin_discounts_label_min_order": "Minimum order amount",
+  "admin_discounts_label_max_order": "Maximum order amount",
+  "admin_discounts_max_order_below_min": "Maximum must be greater than or equal to minimum",
   "admin_discounts_label_max_uses": "Max uses",
   "admin_discounts_label_target_type": "Apply to",
   "admin_discounts_label_pick_category": "Category",

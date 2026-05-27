@@ -558,6 +558,7 @@ export interface Campaign {
   target_type: CampaignTargetType;
   target_ids: string[];
   min_order_amount?: number;
+  max_order_amount?: number;
   allowed_roles: CustomerRole[];
   allow_guests: boolean;
   starts_at?: string;
@@ -574,6 +575,7 @@ export interface Coupon {
   discount_type: DiscountType;
   discount_value: number;
   min_order_amount?: number;
+  max_order_amount?: number;
   max_uses?: number;
   used_count: number;
   allowed_roles: CustomerRole[];
@@ -593,6 +595,7 @@ export interface CampaignInput {
   target_type: CampaignTargetType;
   target_ids: string[];
   min_order_amount?: number | null;
+  max_order_amount?: number | null;
   allowed_roles: CustomerRole[];
   allow_guests: boolean;
   starts_at?: string | null;
@@ -606,6 +609,7 @@ export interface CouponInput {
   discount_type: DiscountType;
   discount_value: number;
   min_order_amount?: number | null;
+  max_order_amount?: number | null;
   max_uses?: number | null;
   allowed_roles: CustomerRole[];
   allow_guests: boolean;

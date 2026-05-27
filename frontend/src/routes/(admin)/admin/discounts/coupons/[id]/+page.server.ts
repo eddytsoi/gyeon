@@ -68,6 +68,7 @@ export const actions: Actions = {
       discount_type: data.get('discount_type') as 'percentage' | 'fixed',
       discount_value: Number(data.get('discount_value') ?? 0),
       min_order_amount: parseOptionalNumber(data.get('min_order_amount')),
+      max_order_amount: parseOptionalNumber(data.get('max_order_amount')),
       max_uses: parseOptionalInt(data.get('max_uses')),
       allowed_roles: allowedRoles,
       allow_guests: allowGuests,
@@ -80,6 +81,13 @@ export const actions: Actions = {
     if (body.discount_value <= 0) return fail(400, { error: 'Discount value must be positive' });
     if (body.allowed_roles.length === 0 && !body.allow_guests) {
       return fail(400, { error: 'Select at least one eligible account type' });
+    }
+    if (
+      body.min_order_amount != null &&
+      body.max_order_amount != null &&
+      body.max_order_amount < body.min_order_amount
+    ) {
+      return fail(400, { error: 'Maximum order amount must be greater than or equal to minimum' });
     }
 
     try {

@@ -85,6 +85,7 @@ export const actions: Actions = {
       target_type: targetType,
       target_ids: targetIDs,
       min_order_amount: parseOptionalNumber(data.get('min_order_amount')),
+      max_order_amount: parseOptionalNumber(data.get('max_order_amount')),
       allowed_roles: allowedRoles,
       allow_guests: allowGuests,
       starts_at: parseOptionalDate(data.get('starts_at')),
@@ -99,6 +100,13 @@ export const actions: Actions = {
     }
     if (body.allowed_roles.length === 0 && !body.allow_guests) {
       return fail(400, { error: 'Select at least one eligible account type' });
+    }
+    if (
+      body.min_order_amount != null &&
+      body.max_order_amount != null &&
+      body.max_order_amount < body.min_order_amount
+    ) {
+      return fail(400, { error: 'Maximum order amount must be greater than or equal to minimum' });
     }
 
     try {
