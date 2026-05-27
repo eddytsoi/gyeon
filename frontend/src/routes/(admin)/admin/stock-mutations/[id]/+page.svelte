@@ -341,6 +341,8 @@
   <!-- Actions -->
   <div class="flex flex-wrap justify-end gap-2">
     <a href="/admin/stock-mutations/{initial.id}/export.csv"
+       target="_blank"
+       rel="noopener"
        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round"

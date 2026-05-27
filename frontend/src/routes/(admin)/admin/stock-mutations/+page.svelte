@@ -223,6 +223,8 @@
       </button>
       <a
         href="/admin/stock-mutations/inventory.csv"
+        target="_blank"
+        rel="noopener"
         class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
