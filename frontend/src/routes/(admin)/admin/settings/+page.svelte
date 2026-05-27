@@ -173,6 +173,8 @@
     'shipping_notice_bg_color',
     'shipping_notice_text_color',
     'shipping_notice_text_size',
+    'shipping_notice_eligible_bg_color',
+    'shipping_notice_eligible_text_color',
   ]);
   const HOMEPAGE_KEYS = new Set(['homepage_page_id']);
   const CURRENCY_KEYS = new Set(['currency']);
@@ -437,6 +439,12 @@
   );
   let shippingNoticeTextColor = $state(
     data.settings.find((s) => s.key === 'shipping_notice_text_color')?.value || '#FFFFFF'
+  );
+  let shippingNoticeEligibleBgColor = $state(
+    data.settings.find((s) => s.key === 'shipping_notice_eligible_bg_color')?.value || '#1F4E3D'
+  );
+  let shippingNoticeEligibleTextColor = $state(
+    data.settings.find((s) => s.key === 'shipping_notice_eligible_text_color')?.value || '#FFFFFF'
   );
   // Sanitize free-text hex input to the canonical "#RRGGBB" form, leaving
   // partial entries (e.g. "#ED") untouched so the user can keep typing.
@@ -959,7 +967,10 @@
         <p class="text-xs text-gray-400">{m.admin_settings_shipping_notice_subtitle()}</p>
       </div>
 
-      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <p class="mt-5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        {m.admin_settings_shipping_notice_below_threshold_heading()}
+      </p>
+      <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="flex flex-col gap-1.5">
           <label for="shipping_notice_bg_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             {m.admin_settings_shipping_notice_bg_color()}
@@ -1015,6 +1026,56 @@
                    class="w-24 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900" />
             <span class="text-xs text-gray-400">px</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="mt-5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        {m.admin_settings_shipping_notice_eligible_heading()}
+      </p>
+      <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="shipping_notice_eligible_bg_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_shipping_notice_bg_color()}
+          </label>
+          <div class="flex items-stretch gap-2">
+            <label for="shipping_notice_eligible_bg_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {shippingNoticeEligibleBgColor}">
+              <input id="shipping_notice_eligible_bg_color" name="shipping_notice_eligible_bg_color"
+                     type="color"
+                     bind:value={shippingNoticeEligibleBgColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_shipping_notice_bg_color()}
+                   value={shippingNoticeEligibleBgColor}
+                   oninput={(e) => (shippingNoticeEligibleBgColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="shipping_notice_eligible_text_color" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_shipping_notice_text_color()}
+          </label>
+          <div class="flex items-stretch gap-2">
+            <label for="shipping_notice_eligible_text_color"
+                   class="relative h-10 w-10 shrink-0 rounded-xl border border-gray-200 overflow-hidden cursor-pointer
+                          shadow-inner hover:border-gray-300 transition-colors"
+                   style="background-color: {shippingNoticeEligibleTextColor}">
+              <input id="shipping_notice_eligible_text_color" name="shipping_notice_eligible_text_color"
+                     type="color"
+                     bind:value={shippingNoticeEligibleTextColor}
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            </label>
+            <input type="text"
+                   aria-label={m.admin_settings_shipping_notice_text_color()}
+                   value={shippingNoticeEligibleTextColor}
+                   oninput={(e) => (shippingNoticeEligibleTextColor = normalizeHex(e.currentTarget.value))}
+                   class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase tracking-wide
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
           </div>
         </div>
       </div>

@@ -1535,6 +1535,8 @@
   "admin_settings_shipping_notice_bg_color": "Background Color",
   "admin_settings_shipping_notice_text_color": "Text Color",
   "admin_settings_shipping_notice_text_size": "Text Size",
+  "admin_settings_shipping_notice_below_threshold_heading": "Below threshold",
+  "admin_settings_shipping_notice_eligible_heading": "When cart subtotal reaches the threshold",
   "shop_shipping_notice_threshold": "Orders over HK${amount} ship free — dispatched the next business day after order.",
   "shop_shipping_notice_eligible": "Your order ships free — dispatched the next business day after order.",
   "admin_settings_website_slogan_heading": "Website slogan",
