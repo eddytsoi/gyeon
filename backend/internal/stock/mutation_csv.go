@@ -249,6 +249,25 @@ func (s *Service) matchVariant(ctx context.Context, productName, variantHint str
 			return c.id, nil
 		}
 	}
+	// 5a) Legacy variant.name "label:value" suffix match — e.g. a CSV
+	// "500ml" should match a variant whose pv.name is "容量:500ml" but whose
+	// product_variant_attribute_values M2M rows are missing (typical for
+	// WooCommerce-imported variants).
+	for _, c := range cands {
+		if !c.name.Valid {
+			continue
+		}
+		n := strings.TrimSpace(c.name.String)
+		if n == "" || strings.ContainsAny(n, ",/") {
+			continue
+		}
+		if idx := strings.Index(n, ":"); idx >= 0 {
+			after := strings.TrimSpace(n[idx+1:])
+			if after != "" && strings.EqualFold(after, variantHint) {
+				return c.id, nil
+			}
+		}
+	}
 	// 6) Attribute value match — collect all hits.
 	var hits []string
 	for _, c := range cands {
@@ -292,13 +311,13 @@ func (s *Service) ExportMutationCSV(ctx context.Context, id string, w io.Writer)
 		return err
 	}
 	for rows.Next() {
-		var productName, sku string
+		var productName, pvName, sku string
 		var attrValues pgTextArray
 		var quantity int
-		if err := rows.Scan(&productName, &attrValues, &sku, &quantity); err != nil {
+		if err := rows.Scan(&productName, &attrValues, &pvName, &sku, &quantity); err != nil {
 			return err
 		}
-		variant := cleanVariantLabel(attrValues.values, sku)
+		variant := cleanVariantLabel(attrValues.values, pvName, sku)
 		if err := cw.Write([]string{
 			safeCSVCell(productName),
 			safeCSVCell(variant),
@@ -329,6 +348,7 @@ func (s *Service) ExportInventoryCSV(ctx context.Context, w io.Writer) error {
 		              WHERE pvav.variant_id = pv.id),
 		            ARRAY[]::TEXT[]
 		        ) AS attr_values,
+		        COALESCE(pv.name, '') AS pv_name,
 		        pv.sku,
 		        pv.stock_qty
 		   FROM product_variants pv
@@ -346,13 +366,13 @@ func (s *Service) ExportInventoryCSV(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	for rows.Next() {
-		var productName, sku string
+		var productName, pvName, sku string
 		var attrValues pgTextArray
 		var stock int
-		if err := rows.Scan(&productName, &attrValues, &sku, &stock); err != nil {
+		if err := rows.Scan(&productName, &attrValues, &pvName, &sku, &stock); err != nil {
 			return err
 		}
-		variant := cleanVariantLabel(attrValues.values, sku)
+		variant := cleanVariantLabel(attrValues.values, pvName, sku)
 		if err := cw.Write([]string{
 			safeCSVCell(productName),
 			safeCSVCell(variant),
@@ -384,6 +404,7 @@ SELECT p.name,
              WHERE pvav.variant_id = pv.id),
            ARRAY[]::TEXT[]
        ) AS attr_values,
+       COALESCE(pv.name, '') AS pv_name,
        pv.sku,
        smi.quantity
   FROM stock_mutation_items smi
@@ -394,16 +415,30 @@ SELECT p.name,
  ORDER BY smi.position, smi.created_at`
 
 // cleanVariantLabel picks the human-friendly variant cell:
-//   - exactly one attribute value → just that value ("500ml")
-//   - zero attribute values        → SKU (keeps the row round-trippable)
-//   - two or more attribute values → SKU (joining values like "Red / L"
-//     wouldn't match any single attribute on re-import — SKU is the only
-//     reliably unique label for a multi-attribute variant)
-func cleanVariantLabel(attrValues []string, sku string) string {
+//
+//   - exactly one attribute value (modern M2M variants) → just that value
+//     (e.g. "500ml").
+//   - legacy variants whose `pv.name` carries a single attribute as
+//     "label:value" (e.g. "容量:500ml") with no M2M rows → strip the
+//     "label:" prefix and return just the value ("500ml"). Multi-attribute
+//     legacy names (containing "," or "/") fall through to SKU because we
+//     can't safely round-trip them via the importer's single-value match.
+//   - zero or multiple attribute values, no usable legacy name → SKU
+//     (still round-trippable through the importer's SKU match).
+func cleanVariantLabel(attrValues []string, pvName, sku string) string {
 	if len(attrValues) == 1 {
-		v := strings.TrimSpace(attrValues[0])
-		if v != "" {
+		if v := strings.TrimSpace(attrValues[0]); v != "" {
 			return v
+		}
+	}
+	n := strings.TrimSpace(pvName)
+	if n != "" && !strings.ContainsAny(n, ",/") {
+		if idx := strings.Index(n, ":"); idx >= 0 {
+			if after := strings.TrimSpace(n[idx+1:]); after != "" {
+				return after
+			}
+		} else {
+			return n
 		}
 	}
 	return sku
