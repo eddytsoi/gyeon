@@ -1,6 +1,6 @@
 {
   "name": "gyeon-frontend",
-  "version": "0.9.268",
+  "version": "0.9.269",
   "private": true,
   "type": "module",
   "scripts": {
