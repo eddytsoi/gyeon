@@ -185,10 +185,6 @@
     'free_shipping_threshold_installer_enabled'
   ]);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
-  // Managed by the Hidden Products section (Commerce tab). Excluded from
-  // textSettings so the generic catch-all loop doesn't render a second
-  // <input name="hidden_category_ids"> that overwrites the real one on submit.
-  const HIDDEN_PRODUCTS_KEYS = new Set(['hidden_category_ids']);
   // Managed by the Social Media section (General tab). Same reason as above:
   // exclude from textSettings so we don't double-submit the social_media key.
   const SOCIAL_MEDIA_KEYS = new Set(['social_media']);
@@ -353,7 +349,6 @@
         !PAYMENT_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
-        !HIDDEN_PRODUCTS_KEYS.has(s.key) &&
         !SOCIAL_MEDIA_KEYS.has(s.key) &&
         !WEBSITE_SLOGAN_KEYS.has(s.key) &&
         !SITE_NAME_KEYS.has(s.key) &&
@@ -487,22 +482,9 @@
   );
   const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }));
 
-  // ── Hidden Categories ──────────────────────────────────────────
-  function parseIDList(raw: string | undefined): string[] {
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
-    } catch {
-      return [];
-    }
-  }
-  let hiddenCategoryIds = $state<string[]>(
-    parseIDList(data.settings.find((s) => s.key === 'hidden_category_ids')?.value)
-  );
-  const categoryOptions = $derived(
-    (data.categories ?? []).map((c) => ({ value: c.id, label: c.name }))
-  );
+  // Note: the old "Hidden Categories" picker (hidden_category_ids site
+  // setting) moved to /admin/products/category-roles as a per-role "List"
+  // dimension on the matrix — see migration 103. Nothing to render here.
 
   // ── Social Media (storefront footer) ────────────────────────────
   function parseSocialMedia(raw: string | undefined): SocialMediaEntry[] {
@@ -1430,14 +1412,10 @@
 
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
       <h2 class="text-sm font-semibold text-gray-900 mb-1">{m.admin_settings_hidden_products_heading()}</h2>
-      <p class="text-xs text-gray-400 mb-4">{m.admin_settings_hidden_products_subtitle()}</p>
-      <MultiSelect
-        options={categoryOptions}
-        selected={hiddenCategoryIds}
-        placeholder={m.admin_settings_hidden_products_placeholder()}
-        onChange={(values) => (hiddenCategoryIds = values)}
-      />
-      <input type="hidden" name="hidden_category_ids" value={JSON.stringify(hiddenCategoryIds)} />
+      <p class="text-xs text-gray-400 mb-2">{m.admin_settings_hidden_products_subtitle()}</p>
+      <a href="/admin/products/category-roles" class="inline-block text-xs font-semibold text-gray-700 underline hover:text-gray-900">
+        {m.admin_settings_hidden_products_link()}
+      </a>
     </div>
 
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">

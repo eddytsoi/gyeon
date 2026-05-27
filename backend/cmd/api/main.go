@@ -584,8 +584,11 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public storefront
-		categoryHandler := shop.NewCategoryHandler(categorySvc, productSvc.HiddenCategoryIDs)
-		categoryHandler.SetRoleBlockedFn(roleRulesSvc.BlockedViewCategoryIDs)
+		categoryHandler := shop.NewCategoryHandler(categorySvc)
+		// BlockedListCategoryIDs covers both "private link" unlisted categories
+		// and view-blocked ones, per role — replaces the old hidden_category_ids
+		// site setting + BlockedViewCategoryIDs combo (migration 103).
+		categoryHandler.SetRoleBlockedFn(roleRulesSvc.BlockedListCategoryIDs)
 		r.With(optionalCustomerMW).Mount("/categories", categoryHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/products", productHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/cart", orders.NewCartHandler(cartSvc).Routes())

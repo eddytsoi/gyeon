@@ -22,10 +22,23 @@ import (
 )
 
 // Rule mirrors one customer_role_category_rules row.
+//
+// Three dimensions, all default-TRUE (allowed):
+//   - CanView:     PDP resolves and product appears everywhere for this role.
+//   - IsListed:    product appears in listings / category nav / search.
+//                  FALSE = "private link" — PDP-by-slug still works, but the
+//                  category is hidden from public discovery. Replaces the
+//                  old global hidden_category_ids setting (migration 103).
+//   - CanPurchase: cart-add accepts the variant.
+//
+// Implications (enforced in the service layer, not the schema): !CanView
+// implies !IsListed and !CanPurchase — you can't list or buy what the role
+// can't see.
 type Rule struct {
 	Role        string `json:"role"`
 	CategoryID  string `json:"category_id"`
 	CanView     bool   `json:"can_view"`
+	IsListed    bool   `json:"is_listed"`
 	CanPurchase bool   `json:"can_purchase"`
 }
 
@@ -61,7 +74,7 @@ func (s *Service) SetOnInvalidate(fn func()) { s.onInvalidate = fn }
 // load, and admin traffic is tiny.
 func (s *Service) List(ctx context.Context) ([]Rule, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT role::text, category_id::text, can_view, can_purchase
+		`SELECT role::text, category_id::text, can_view, is_listed, can_purchase
 		 FROM customer_role_category_rules
 		 ORDER BY role, category_id`)
 	if err != nil {
@@ -71,7 +84,7 @@ func (s *Service) List(ctx context.Context) ([]Rule, error) {
 	out := make([]Rule, 0)
 	for rows.Next() {
 		var r Rule
-		if err := rows.Scan(&r.Role, &r.CategoryID, &r.CanView, &r.CanPurchase); err != nil {
+		if err := rows.Scan(&r.Role, &r.CategoryID, &r.CanView, &r.IsListed, &r.CanPurchase); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -83,8 +96,9 @@ func (s *Service) List(ctx context.Context) ([]Rule, error) {
 // always sends the complete state — partial deltas would force the admin to
 // reason about whether a missing row meant "still allowed" or "untouched".
 // Wrapped in a transaction so a partial failure doesn't leave the rules in
-// an inconsistent state. Rows where can_view AND can_purchase are both TRUE
-// are dropped (they're the default and shouldn't take up table space).
+// an inconsistent state. Rows where can_view AND is_listed AND can_purchase
+// are all TRUE are dropped (they're the default and shouldn't take up table
+// space).
 func (s *Service) SaveBulk(ctx context.Context, rules []Rule) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -100,14 +114,14 @@ func (s *Service) SaveBulk(ctx context.Context, rules []Rule) error {
 		if r.CategoryID == "" {
 			continue
 		}
-		if r.CanView && r.CanPurchase {
+		if r.CanView && r.IsListed && r.CanPurchase {
 			continue // default state — no row needed
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO customer_role_category_rules
-			    (role, category_id, can_view, can_purchase, updated_at)
-			 VALUES ($1::customer_role, $2::uuid, $3, $4, NOW())`,
-			role, r.CategoryID, r.CanView, r.CanPurchase); err != nil {
+			    (role, category_id, can_view, is_listed, can_purchase, updated_at)
+			 VALUES ($1::customer_role, $2::uuid, $3, $4, $5, NOW())`,
+			role, r.CategoryID, r.CanView, r.IsListed, r.CanPurchase); err != nil {
 			return err
 		}
 	}
@@ -122,9 +136,14 @@ func (s *Service) SaveBulk(ctx context.Context, rules []Rule) error {
 }
 
 // blockedCategoryIDs returns the category UUIDs where the given dimension
-// (view or purchase) is denied for the role. Reads from a small in-process
-// cache; the rule set rarely changes and the storefront queries this on
-// every product list / PDP / add-to-cart.
+// (view, list, or purchase) is denied for the role. Reads from a small
+// in-process cache; the rule set rarely changes and the storefront queries
+// this on every product list / PDP / add-to-cart.
+//
+// Implication chain: !CanView implies !IsListed implies (along with
+// !CanPurchase explicitly) the row's other dimensions are denied — fold the
+// implications here so callers don't have to OR sets together at every
+// guard point.
 func (s *Service) blockedCategoryIDs(ctx context.Context, role, dimension string) ([]string, error) {
 	role = customers.NormalizeRole(role)
 	rules, err := s.rulesForRole(ctx, role)
@@ -138,10 +157,19 @@ func (s *Service) blockedCategoryIDs(ctx context.Context, role, dimension string
 			if !r.CanView {
 				out = append(out, r.CategoryID)
 			}
+		case "list":
+			// Hidden-from-listings: explicit IsListed=FALSE OR fully blocked
+			// (!CanView). The latter ensures view-blocked categories also
+			// stay out of nav / listings without callers having to combine.
+			if !r.IsListed || !r.CanView {
+				out = append(out, r.CategoryID)
+			}
 		case "purchase":
 			// "Can't see it" implies "can't buy it" — combining both signals
 			// here means callers don't need to OR the two filters together
-			// when guarding the cart path.
+			// when guarding the cart path. IsListed does NOT imply
+			// !CanPurchase: a category may be unlisted (private link) yet
+			// still purchasable for shoppers who reach the PDP directly.
 			if !r.CanPurchase || !r.CanView {
 				out = append(out, r.CategoryID)
 			}
@@ -154,6 +182,19 @@ func (s *Service) blockedCategoryIDs(ctx context.Context, role, dimension string
 // Storefront product listings, PDP, and category nav exclude these.
 func (s *Service) BlockedViewCategoryIDs(ctx context.Context, role string) []string {
 	ids, err := s.blockedCategoryIDs(ctx, role, "view")
+	if err != nil {
+		return nil
+	}
+	return ids
+}
+
+// BlockedListCategoryIDs returns category IDs the role can technically reach
+// via direct PDP URL but should not see in product listings, category nav,
+// or search. The per-role replacement for the old global hidden_category_ids
+// site setting (removed in migration 103). Includes the view-blocked set,
+// since "can't see" implies "can't list".
+func (s *Service) BlockedListCategoryIDs(ctx context.Context, role string) []string {
+	ids, err := s.blockedCategoryIDs(ctx, role, "list")
 	if err != nil {
 		return nil
 	}
@@ -216,9 +257,9 @@ func (s *Service) rulesForRole(ctx context.Context, role string) ([]Rule, error)
 		return s.cached[role], nil
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT role::text, category_id::text, can_view, can_purchase
+		`SELECT role::text, category_id::text, can_view, is_listed, can_purchase
 		 FROM customer_role_category_rules
-		 WHERE can_view = FALSE OR can_purchase = FALSE`)
+		 WHERE can_view = FALSE OR is_listed = FALSE OR can_purchase = FALSE`)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +267,7 @@ func (s *Service) rulesForRole(ctx context.Context, role string) ([]Rule, error)
 	byRole := make(map[string][]Rule, 2)
 	for rows.Next() {
 		var r Rule
-		if err := rows.Scan(&r.Role, &r.CategoryID, &r.CanView, &r.CanPurchase); err != nil {
+		if err := rows.Scan(&r.Role, &r.CategoryID, &r.CanView, &r.IsListed, &r.CanPurchase); err != nil {
 			return nil, err
 		}
 		byRole[r.Role] = append(byRole[r.Role], r)

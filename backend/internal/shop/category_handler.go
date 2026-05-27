@@ -12,23 +12,20 @@ import (
 )
 
 type CategoryHandler struct {
-	svc      *CategoryService
-	hiddenFn HiddenCategoryIDsFunc
-	roleFn   RoleBlockedCategoryIDsFunc
+	svc    *CategoryService
+	roleFn RoleBlockedCategoryIDsFunc
 }
 
-// HiddenCategoryIDsFunc returns the category UUIDs that should be excluded
-// from public list responses. Provided at wiring so the handler doesn't
-// pull in a settings dep directly. Returning nil disables filtering.
-type HiddenCategoryIDsFunc func(ctx context.Context) []string
-
 // RoleBlockedCategoryIDsFunc returns the category UUIDs the storefront role
-// isn't allowed to see. Implemented by categoryrules.Service.
-// BlockedViewCategoryIDs. nil disables role-based filtering.
+// shouldn't see in the public category nav. Implemented by
+// categoryrules.Service.BlockedListCategoryIDs — the per-role replacement for
+// the pre-migration-103 global hidden_category_ids site setting. nil disables
+// role-based filtering (used by tests / bootstrap before categoryrules wires
+// in).
 type RoleBlockedCategoryIDsFunc func(ctx context.Context, role string) []string
 
-func NewCategoryHandler(svc *CategoryService, hiddenFn HiddenCategoryIDsFunc) *CategoryHandler {
-	return &CategoryHandler{svc: svc, hiddenFn: hiddenFn}
+func NewCategoryHandler(svc *CategoryService) *CategoryHandler {
+	return &CategoryHandler{svc: svc}
 }
 
 // SetRoleBlockedFn wires the per-role category filter. Call from main after
@@ -85,31 +82,27 @@ func (h *CategoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		respond.InternalError(w)
 		return
 	}
-	// Public callers (storefront) get categories minus the hidden set + the
-	// per-role blocked set so the nav + category pages don't expose private
-	// SKUs. Admin opts out via ?include_hidden=true so it can still assign
-	// products to / pick from hidden categories.
-	if r.URL.Query().Get("include_hidden") != "true" {
-		hide := map[string]struct{}{}
-		if h.hiddenFn != nil {
-			for _, id := range h.hiddenFn(r.Context()) {
+	// Public callers (storefront) get categories minus the per-role blocked
+	// set (BlockedListCategoryIDs — covers both "private link" unlisted
+	// categories and fully view-blocked ones for this role). Admin opts out
+	// via ?include_hidden=true so it can still assign products to / pick from
+	// unlisted categories. The query param name is kept for backwards
+	// compatibility with the existing admin client.
+	if r.URL.Query().Get("include_hidden") != "true" && h.roleFn != nil {
+		role := auth.CustomerRoleFromContext(r.Context())
+		blocked := h.roleFn(r.Context(), role)
+		if len(blocked) > 0 {
+			hide := make(map[string]struct{}, len(blocked))
+			for _, id := range blocked {
 				hide[id] = struct{}{}
 			}
-		}
-		if h.roleFn != nil {
-			role := auth.CustomerRoleFromContext(r.Context())
-			for _, id := range h.roleFn(r.Context(), role) {
-				hide[id] = struct{}{}
-			}
-		}
-		if len(hide) > 0 {
 			// Allocate a fresh slice — `cats` aliases the cached list's
 			// backing array, so writing through `cats[:0]` would mutate
 			// the cache and a later `include_hidden=true` read would
 			// surface duplicated trailing entries.
 			filtered := make([]Category, 0, len(cats))
 			for _, c := range cats {
-				if _, blocked := hide[c.ID]; !blocked {
+				if _, blockedID := hide[c.ID]; !blockedID {
 					filtered = append(filtered, c)
 				}
 			}
