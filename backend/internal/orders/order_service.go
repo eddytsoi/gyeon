@@ -530,6 +530,9 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	// Guests + role=customer share the default free-shipping threshold;
 	// installers have their own. Default to RoleCustomer for guests.
 	customerRole := customers.RoleCustomer
+	// isGuest gates promotion eligibility (allow_guests vs allowed_roles).
+	// Stays true unless we successfully resolve an existing customer.
+	isGuest := true
 
 	if customerID != nil && *customerID != "" {
 		c, err := s.customerSvc.GetByID(ctx, *customerID)
@@ -540,6 +543,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 				customerPhone = *c.Phone
 			}
 			customerRole = customers.NormalizeRole(c.Role)
+			isGuest = false
 		}
 		// Form-supplied customer_info overrides for this order's snapshot
 		if req.CustomerInfo != nil {
@@ -715,7 +719,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 				Quantity:   li.quantity,
 			}
 		}
-		discountResult, err = s.pricingSvc.ComputeDiscount(ctx, pricingItems, subtotal, req.CouponCode)
+		discountResult, err = s.pricingSvc.ComputeDiscount(ctx, pricingItems, subtotal, req.CouponCode, customerRole, isGuest)
 		if err != nil {
 			return nil, err
 		}

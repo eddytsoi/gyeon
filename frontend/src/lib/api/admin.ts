@@ -1,4 +1,4 @@
-import type { BundleItem, Category, Order, OrderNotice, Product, PromoBundle, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -556,8 +556,10 @@ export interface Campaign {
   discount_type: DiscountType;
   discount_value: number;
   target_type: CampaignTargetType;
-  target_id?: string;
+  target_ids: string[];
   min_order_amount?: number;
+  allowed_roles: CustomerRole[];
+  allow_guests: boolean;
   starts_at?: string;
   ends_at?: string;
   is_active: boolean;
@@ -574,6 +576,8 @@ export interface Coupon {
   min_order_amount?: number;
   max_uses?: number;
   used_count: number;
+  allowed_roles: CustomerRole[];
+  allow_guests: boolean;
   starts_at?: string;
   ends_at?: string;
   is_active: boolean;
@@ -587,8 +591,10 @@ export interface CampaignInput {
   discount_type: DiscountType;
   discount_value: number;
   target_type: CampaignTargetType;
-  target_id?: string | null;
+  target_ids: string[];
   min_order_amount?: number | null;
+  allowed_roles: CustomerRole[];
+  allow_guests: boolean;
   starts_at?: string | null;
   ends_at?: string | null;
   is_active?: boolean;
@@ -601,6 +607,8 @@ export interface CouponInput {
   discount_value: number;
   min_order_amount?: number | null;
   max_uses?: number | null;
+  allowed_roles: CustomerRole[];
+  allow_guests: boolean;
   starts_at?: string | null;
   ends_at?: string | null;
   is_active?: boolean;

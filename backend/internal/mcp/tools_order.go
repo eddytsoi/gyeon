@@ -39,6 +39,8 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 		mcplib.WithDescription("Validate a coupon code and preview the discount amount for a given subtotal"),
 		mcplib.WithString("code", mcplib.Description("Coupon code to validate"), mcplib.Required()),
 		mcplib.WithNumber("subtotal", mcplib.Description("Order subtotal to compute the discount against"), mcplib.Required()),
+		mcplib.WithString("customer_role", mcplib.Description("Optional customer role for a logged-in shopper ('customer' or 'installer'). Omit for guests.")),
+		mcplib.WithBoolean("is_guest", mcplib.Description("Explicit guest flag. When omitted, treated as guest iff customer_role is empty.")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 		code, err := req.RequireString("code")
 		if err != nil {
@@ -48,8 +50,10 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 		if err != nil {
 			return mcplib.NewToolResultError(err.Error()), nil
 		}
+		role := req.GetString("customer_role", "")
+		isGuest := req.GetBool("is_guest", role == "")
 
-		coupon, err := pricingSvc.ValidateCoupon(ctx, code, subtotal)
+		coupon, err := pricingSvc.ValidateCoupon(ctx, code, subtotal, role, isGuest)
 		if err != nil {
 			resp := couponResponse{Valid: false, Message: err.Error()}
 			data, _ := json.Marshal(resp)

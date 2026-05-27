@@ -167,12 +167,15 @@ const tools: ToolDefinition[] = [
       type: 'object',
       properties: {
         code: { type: 'string' },
-        subtotal: { type: 'number', minimum: 0 }
+        subtotal: { type: 'number', minimum: 0 },
+        customer_role: { type: 'string', enum: ['customer', 'installer'] },
+        is_guest: { type: 'boolean' }
       },
       required: ['code', 'subtotal']
     },
     annotations: { readOnlyHint: true },
-    execute: ({ code, subtotal }) => validateCoupon(code, subtotal)
+    execute: ({ code, subtotal, customer_role, is_guest }) =>
+      validateCoupon(code, subtotal, customer_role, is_guest)
   }
 ];
 

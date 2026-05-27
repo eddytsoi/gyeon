@@ -1,8 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
-  import { showResult } from '$lib/stores/notifications.svelte';
+  import { notify, showResult } from '$lib/stores/notifications.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
+  import { customerRoleLabel, type CustomerRole } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -17,7 +18,18 @@
   let discountValue = $state<number>(c?.discount_value ?? 10);
   let minOrder = $state<string>(c?.min_order_amount != null ? String(c.min_order_amount) : '');
   let maxUses = $state<string>(c?.max_uses != null ? String(c.max_uses) : '');
+  let allowedRoles = $state<CustomerRole[]>(c?.allowed_roles ?? ['customer', 'installer']);
+  let allowGuests = $state<boolean>(c?.allow_guests ?? true);
   let isActive = $state<boolean>(c?.is_active ?? true);
+
+  const ROLE_OPTIONS: CustomerRole[] = ['customer', 'installer'];
+  function toggleRole(role: CustomerRole, checked: boolean) {
+    if (checked) {
+      if (!allowedRoles.includes(role)) allowedRoles = [...allowedRoles, role];
+    } else {
+      allowedRoles = allowedRoles.filter((r) => r !== role);
+    }
+  }
 
   function toLocalInput(s?: string): string {
     if (!s) return '';
@@ -56,8 +68,13 @@
   </div>
 
   <form method="POST" action="?/save" class="space-y-6"
-        use:enhance={() => {
+        use:enhance={({ cancel }) => {
           if (saving) return;
+          if (allowedRoles.length === 0 && !allowGuests) {
+            cancel();
+            notify.error(m.admin_discounts_roles_required());
+            return;
+          }
           saving = true;
           const cCode = code;
           return async ({ result, update }) => {
@@ -127,6 +144,35 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" />
         </div>
       </div>
+    </div>
+
+    <!-- Eligible account types -->
+    <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5 space-y-4">
+      <h3 class="text-sm font-semibold text-gray-700">{m.admin_discounts_section_roles()}</h3>
+      <div class="flex flex-wrap gap-2.5">
+        <button type="button" aria-pressed={allowGuests}
+                onclick={() => (allowGuests = !allowGuests)}
+                class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-medium select-none transition-colors
+                       {allowGuests ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}">
+          {m.admin_discounts_label_role_guest()}
+        </button>
+        {#each ROLE_OPTIONS as role (role)}
+          {@const selected = allowedRoles.includes(role)}
+          <button type="button" aria-pressed={selected}
+                  onclick={() => toggleRole(role, !selected)}
+                  class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-medium select-none transition-colors
+                         {selected ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}">
+            {customerRoleLabel(role)}
+          </button>
+        {/each}
+      </div>
+      <input type="hidden" name="allow_guests" value={allowGuests ? 'true' : 'false'} />
+      {#each allowedRoles as role (role)}
+        <input type="hidden" name="allowed_roles" value={role} />
+      {/each}
+      {#if allowedRoles.length === 0 && !allowGuests}
+        <p class="text-xs text-red-500">{m.admin_discounts_roles_required()}</p>
+      {/if}
     </div>
 
     <!-- Schedule -->
