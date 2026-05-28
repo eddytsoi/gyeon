@@ -995,6 +995,8 @@
   "admin_single_media_picker_choose": "Choose image",
   "admin_single_media_picker_clear": "Remove image",
   "admin_single_media_picker_modal_title": "Choose image",
+  "admin_single_media_picker_dropzone": "Drag & drop an image here, or click to browse",
+  "admin_single_media_picker_accepted": "JPEG, PNG, WebP, GIF",
   "admin_product_edit_required_marker": "*",
 
   "admin_product_edit_kind_warning_title": "Switching from Bundle to Simple",
