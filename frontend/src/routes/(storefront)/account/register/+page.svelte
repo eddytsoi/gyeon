@@ -1,9 +1,10 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import type { ActionData } from './$types';
+  import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 
-  let { form }: { form: ActionData } = $props();
+  let { form, data }: { form: ActionData; data: PageData } = $props();
   let loading = $state(false);
 </script>
 
@@ -82,5 +83,7 @@
         {loading ? m.account_register_submitting() : m.account_register_submit()}
       </button>
     </form>
+
+    <OAuthButtons googleEnabled={data.googleOAuthEnabled} appleEnabled={data.appleOAuthEnabled} />
   </div>
 </div>

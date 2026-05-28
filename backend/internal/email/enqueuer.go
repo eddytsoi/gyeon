@@ -105,6 +105,13 @@ func (e *QueueEnqueuer) SendPasswordResetEmail(ctx context.Context, p PasswordRe
 	return e.enqueueTemplated(ctx, "password_reset", p.CustomerEmail, p, "auth.password_reset", "", "")
 }
 
+func (e *QueueEnqueuer) SendAccountSetupEmail(ctx context.Context, p PasswordResetParams) error {
+	if p.ExpiryHours == 0 {
+		p.ExpiryHours = 24
+	}
+	return e.enqueueTemplated(ctx, "account_setup", p.CustomerEmail, p, "auth.account_setup", "", "")
+}
+
 func (e *QueueEnqueuer) SendAdminMessageNotification(ctx context.Context, p AdminMessageParams) error {
 	return e.enqueueTemplated(ctx, "admin_message", p.To, p, "order.admin_message", "", "")
 }
@@ -372,7 +379,7 @@ func decodeParams(key string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return p, nil
-	case "password_reset":
+	case "password_reset", "account_setup":
 		var p PasswordResetParams
 		if err := json.Unmarshal(raw, &p); err != nil {
 			return nil, err

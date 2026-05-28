@@ -90,7 +90,7 @@ type ProgressUpdate struct {
 // setup-password email path.
 type EmailSender interface {
 	PublicBaseURL(ctx context.Context) string
-	SendPasswordResetEmail(ctx context.Context, p email.PasswordResetParams) error
+	SendAccountSetupEmail(ctx context.Context, p email.PasswordResetParams) error
 }
 
 // Service orchestrates the WooCommerce → Gyeon product / customers / orders

@@ -1,14 +1,22 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
-  import type { ActionData } from './$types';
+  import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
   import { focusTrap } from '$lib/actions/focusTrap';
+  import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 
-  let { form }: { form: ActionData } = $props();
+  let { form, data }: { form: ActionData; data: PageData } = $props();
   let loading = $state(false);
 
   let resetSuccess = $derived(page.url.searchParams.get('reset') === '1');
+  let oauthError = $derived(
+    page.url.searchParams.get('error') === 'inactive'
+      ? m.account_login_error_inactive()
+      : page.url.searchParams.get('error') === 'oauth'
+        ? m.account_login_error_oauth()
+        : null
+  );
 
   let forgotOpen = $state(false);
   let forgotSending = $state(false);
@@ -57,6 +65,12 @@
       </div>
     {/if}
 
+    {#if oauthError}
+      <div class="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
+        {oauthError}
+      </div>
+    {/if}
+
     <form
       method="POST"
       action="?/login"
@@ -97,6 +111,8 @@
         {loading ? m.account_login_submitting() : m.account_login_submit()}
       </button>
     </form>
+
+    <OAuthButtons googleEnabled={data.googleOAuthEnabled} appleEnabled={data.appleOAuthEnabled} />
   </div>
 </div>
 

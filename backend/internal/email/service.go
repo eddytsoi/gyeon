@@ -277,6 +277,25 @@ func (s *Service) SendPasswordResetEmail(ctx context.Context, p PasswordResetPar
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
+// SendAccountSetupEmail sends the import "activate your account" email, which
+// offers both a set-password link and the option to sign in with Google/Apple.
+// Reuses PasswordResetParams since it carries the same fields.
+func (s *Service) SendAccountSetupEmail(ctx context.Context, p PasswordResetParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.ExpiryHours == 0 {
+		p.ExpiryHours = 24
+	}
+	subject, html, text := s.applyTemplate(ctx, "account_setup", p, func() (string, string, string) {
+		return renderDefault("subject:account_setup", accountSetupSubject, p),
+			renderDefault("html:account_setup", accountSetupHTML, p),
+			renderDefault("text:account_setup", accountSetupText, p)
+	})
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
 // SendAdminMessageNotification emails the customer when an admin posts a
 // reply to their order. Best-effort — caller should not fail the request on
 // SMTP errors.
@@ -490,6 +509,20 @@ func (s *Service) RenderTemplate(ctx context.Context, key string, params any) (s
 				renderDefault("text:password_reset", passwordResetText, p)
 		})
 		return subject, text, html, nil
+	case "account_setup":
+		p, ok := params.(PasswordResetParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render account_setup: bad params type %T", params)
+		}
+		if p.ExpiryHours == 0 {
+			p.ExpiryHours = 24
+		}
+		subject, html, text = s.applyTemplate(ctx, "account_setup", p, func() (string, string, string) {
+			return renderDefault("subject:account_setup", accountSetupSubject, p),
+				renderDefault("html:account_setup", accountSetupHTML, p),
+				renderDefault("text:account_setup", accountSetupText, p)
+		})
+		return subject, text, html, nil
 	case "admin_message":
 		p, ok := params.(AdminMessageParams)
 		if !ok {
@@ -624,6 +657,60 @@ const passwordResetHTML = `<!doctype html>
 
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb">
         <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6">如非本人要求，請忽略此電郵，您的密碼不會被更改。</p>
+      </div>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`
+
+// account_setup ─────────────────────────────────────────────────────────────
+// Sent to WooCommerce-imported customers (who have no password yet). Offers two
+// ways in: set a password via the link, OR sign in with Google/Apple — the
+// latter only auto-links to their existing account when the social email
+// matches the imported one, which the copy spells out.
+const accountSetupSubject = `啟用您的 Gyeon 帳戶`
+
+const accountSetupText = `您好 {{.CustomerName}}，
+
+我們已將您的帳戶資料移轉至全新的 Gyeon 網站。要開始使用，您可以二選一：
+
+1. 設定密碼 —— 請按以下連結設定您的登入密碼：
+{{.ResetURL}}
+（此連結將於 {{.ExpiryHours}} 小時後失效，且只可使用一次。）
+
+2. 用 Google 或 Apple 一鍵登入 —— 免去設定密碼。
+請務必使用與本電郵相同的電郵地址（{{.CustomerEmail}}）登入，系統便會自動連結您現有的帳戶，並保留您過往的訂單記錄。
+（如使用 Apple 登入，請選擇分享您的真實電郵；若選擇「隱藏我的電郵」，將無法自動連結舊帳戶。）
+
+如非本人，請忽略此電郵。
+
+— Gyeon`
+
+const accountSetupHTML = `<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>啟用帳戶</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">啟用您的 Gyeon 帳戶</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px;line-height:1.6">您好 {{.CustomerName | esc}}，我們已將您的帳戶資料移轉至全新的 Gyeon 網站。要開始使用，您可以設定密碼，或直接以 Google / Apple 登入。</p>
+
+      <div style="text-align:center;margin:24px 0 8px">
+        <a href="{{.ResetURL}}" style="display:inline-block;padding:14px 32px;background:#111827;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:600">設定密碼</a>
+      </div>
+      <p style="text-align:center;margin:0 0 24px;color:#9ca3af;font-size:12px">此連結將於 {{.ExpiryHours}} 小時後失效，且只可使用一次</p>
+
+      <div style="margin-top:8px;padding:16px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:600">或者，免去設定密碼</p>
+        <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.7">
+          您可以直接以 <strong>Google</strong> 或 <strong>Apple</strong> 一鍵登入。請務必使用與本電郵<strong>相同的電郵地址</strong>（{{.CustomerEmail | esc}}）登入，系統便會自動連結您現有的帳戶，並保留您過往的訂單記錄。<br>
+          <span style="color:#9ca3af">如使用 Apple 登入，請選擇分享您的真實電郵；若選擇「隱藏我的電郵」，將無法自動連結舊帳戶。</span>
+        </p>
+      </div>
+
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.6">如連結無法開啟，請複製貼上至瀏覽器：<br><span style="word-break:break-all;color:#6b7280">{{.ResetURL | esc}}</span></p>
+
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb">
+        <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6">如非本人，請忽略此電郵。</p>
       </div>
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>

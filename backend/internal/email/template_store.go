@@ -241,6 +241,12 @@ func SampleParamsFor(key string) any {
 			ResetURL:    "https://example.com/account/reset-password?token=sampletoken",
 			ExpiryHours: 24,
 		}
+	case "account_setup":
+		return PasswordResetParams{
+			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
+			ResetURL:    "https://example.com/account/reset-password?token=sampletoken",
+			ExpiryHours: 7 * 24,
+		}
 	case "admin_message":
 		return AdminMessageParams{
 			To: "sample@example.com", OrderNumber: "ORD-0001",
@@ -287,7 +293,7 @@ func VariablesFor(key string) []string {
 	case "payment_link":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".PaymentURL", ".Total", ".Currency"}
-	case "password_reset":
+	case "password_reset", "account_setup":
 		return []string{".CustomerName", ".CustomerEmail", ".ResetURL", ".ExpiryHours"}
 	case "admin_message":
 		return []string{".OrderNumber", ".CustomerName", ".OrderURL", ".Body"}
@@ -304,7 +310,7 @@ func VariablesFor(key string) []string {
 func AllKeys() []string {
 	return []string{
 		"order_confirmation", "order_shipped", "order_refunded",
-		"payment_link", "password_reset", "admin_message",
+		"payment_link", "password_reset", "account_setup", "admin_message",
 		"abandoned_cart", "low_stock_alert",
 	}
 }
@@ -322,6 +328,8 @@ func DisplayName(key string) string {
 		return "Payment link"
 	case "password_reset":
 		return "Password reset"
+	case "account_setup":
+		return "Account setup (import)"
 	case "admin_message":
 		return "Admin message"
 	case "abandoned_cart":

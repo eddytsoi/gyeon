@@ -54,6 +54,8 @@ var publicSettingKeys = []string{
 	"shipping_notice_eligible_text_color", // strip text color once cart subtotal hits the free-shipping threshold
 	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
 	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
+	"google_oauth_enabled",       // storefront login/register reads this to show the "Sign in with Google" button
+	"apple_oauth_enabled",        // storefront login/register reads this to show the "Sign in with Apple" button
 	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
 	"blog_enabled",               // when 'false', storefront /blog routes 404 and nav links to /blog are hidden
 	"pwa_enabled",                // when 'false', storefront hides PWA tags and unregisters the service worker
