@@ -379,6 +379,9 @@ func main() {
 		func(ctx context.Context, orderID, customerID string) (any, error) {
 			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
 		})
+	customerHandler.SetOrderPaymentFetcher(func(ctx context.Context, orderID, customerID string) (any, error) {
+		return orderSvc.PaymentInfoForCustomer(ctx, orderID, customerID)
+	})
 	customerHandler.SetOAuth(oauth.New(settingsSvc, conn))
 	customerHandler.SetTokenTTL(func(ctx context.Context) time.Duration {
 		return settingsSvc.TTLHours(ctx, "customer_token_ttl_hours", 720)

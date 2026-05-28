@@ -609,6 +609,12 @@ export const lookupMyOrder = (token: string, n: string) =>
 export const getMyOrderByID = (token: string, id: string) =>
   request<Order>(`/customers/me/orders/${id}`, authed(token));
 
+// Owner-authenticated payment info for a still-payable pending order, so the
+// account page can build a /pay/{id}?cs=… link without the shopper holding a
+// magic-link cs. 404s if the order isn't owned by the caller or isn't payable.
+export const getMyOrderPaymentInfo = (token: string, id: string) =>
+  request<OrderPaymentInfo>(`/customers/me/orders/${id}/payment-info`, authed(token));
+
 // --- Order notices (customer) ---
 
 export const getMyOrderNotices = (token: string, orderID: string) =>

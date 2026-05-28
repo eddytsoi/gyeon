@@ -1217,6 +1217,53 @@ func (s *OrderService) PaymentInfo(ctx context.Context, orderID, clientSecret st
 	}, nil
 }
 
+// PaymentInfoForCustomer is the owner-authenticated counterpart of PaymentInfo:
+// it returns the data the /pay page needs for a logged-in customer's own
+// pending order WITHOUT requiring them to already hold the `cs` magic-link.
+// Ownership is enforced via GetByIDForCustomer; the client_secret is fetched
+// fresh from Stripe (the DB only stores payment_intent_id). Used by the account
+// order page's "立即付款" button.
+func (s *OrderService) PaymentInfoForCustomer(ctx context.Context, orderID, customerID string) (*PaymentInfoResult, error) {
+	order, err := s.GetByIDForCustomer(ctx, orderID, customerID)
+	if err != nil {
+		return nil, err
+	}
+	if order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+	if order.Status != StatusPending {
+		return nil, ErrPaymentLinkExpired
+	}
+	if order.PaymentStatus != nil && *order.PaymentStatus == "succeeded" {
+		return nil, ErrPaymentLinkExpired
+	}
+	if s.paymentSvc == nil {
+		return nil, ErrPaymentLinkInvalid
+	}
+	pi, err := s.paymentSvc.FetchPaymentIntent(ctx, *order.PaymentIntentID)
+	if err != nil {
+		return nil, err
+	}
+	if pi.ClientSecret == "" {
+		return nil, ErrPaymentLinkInvalid
+	}
+
+	safe := *order
+	safe.CustomerEmail = nil
+	safe.CustomerPhone = nil
+	safe.CustomerID = nil
+	safe.ShippingAddressID = nil
+	safe.Notes = nil
+
+	return &PaymentInfoResult{
+		Order:          &safe,
+		ClientSecret:   pi.ClientSecret,
+		PublishableKey: s.paymentSvc.PublishableKey(ctx),
+		Mode:           s.paymentSvc.Mode(ctx),
+		Currency:       "HKD",
+	}, nil
+}
+
 // SetupTokenResult is returned to the customer-facing /checkout/success page
 // so it can offer a "Create account" CTA wired to a one-time setup-password
 // link, skipping the generic registration form.
@@ -1339,9 +1386,9 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 // already-succeeded order in case Stripe delivers a stale failed event after a
 // successful retry on the same PaymentIntent.
 func (s *OrderService) RecordPaymentFailure(ctx context.Context, paymentIntentID, reason string) error {
-	var orderID string
+	var orderID, prevStatus string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id FROM orders WHERE payment_intent_id=$1`, paymentIntentID).Scan(&orderID)
+		`SELECT id, COALESCE(payment_status,'') FROM orders WHERE payment_intent_id=$1`, paymentIntentID).Scan(&orderID, &prevStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Printf("webhook: payment_failed but no order found for payment_intent %s", paymentIntentID)
 		return nil
@@ -1368,6 +1415,27 @@ func (s *OrderService) RecordPaymentFailure(ctx context.Context, paymentIntentID
 	}
 
 	log.Printf("webhook: recorded payment failure for order %s (payment_intent %s): %s", orderID, paymentIntentID, reason)
+
+	// On the FIRST transition into a failed state, email the shopper a link to
+	// complete payment so they know the order exists and how to retry. Guarded
+	// to fire once: a stale/repeat failed event (prevStatus already 'failed') or
+	// a post-success event ('succeeded') won't re-send. Best-effort, off the
+	// webhook's request path.
+	if s.emailSvc != nil && s.paymentSvc != nil && prevStatus != "succeeded" && prevStatus != "failed" {
+		go func() {
+			bg := context.Background()
+			order, err := s.GetByID(bg, orderID)
+			if err != nil || order.Status != StatusPending {
+				return
+			}
+			pi, err := s.paymentSvc.FetchPaymentIntent(bg, paymentIntentID)
+			if err != nil || pi.ClientSecret == "" {
+				log.Printf("payment-failed email: fetch intent for order %s: %v", orderID, err)
+				return
+			}
+			s.sendPaymentLinkEmail(bg, order, pi.ClientSecret)
+		}()
+	}
 	return nil
 }
 

@@ -262,6 +262,10 @@
   "checkout_cart_empty_error": "Cart is empty.",
   "checkout_payment_start_failed": "Could not start payment. Please try again.",
   "checkout_payment_failed": "Payment failed.",
+  "checkout_payment_failed_heading": "Payment incomplete — your order is reserved",
+  "checkout_payment_failed_order": "Order number: {orderNumber}",
+  "checkout_payment_failed_body": "You have not been charged. Please try again above, or complete payment later using the link below.",
+  "checkout_complete_payment_later": "Complete payment later →",
   "checkout_quote_failed": "Failed to get a shipping quote.",
 
   "checkout_success_title": "Order Confirmed — Gyeon",
@@ -1560,6 +1564,7 @@
   "account_order_receipt_cached_tooltip": "Ready — downloads instantly",
   "account_order_reorder": "Order Again",
   "account_order_reorder_adding": "Adding…",
+  "account_order_pay_now": "Pay now",
   "admin_media_picker_choose": "Choose from Media",
   "admin_media_picker_clear": "Clear",
   "admin_media_picker_modal_title": "Select Media",
