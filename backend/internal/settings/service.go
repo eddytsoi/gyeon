@@ -171,6 +171,20 @@ func (s *Service) TTL(ctx context.Context, key string, fallbackSecs int) time.Du
 	return time.Duration(n) * time.Second
 }
 
+// TTLHours reads a setting value as integer hours and returns it as time.Duration.
+// Falls back to fallbackHours if the key is missing or the value is not a positive integer.
+func (s *Service) TTLHours(ctx context.Context, key string, fallbackHours int) time.Duration {
+	st, err := s.Get(ctx, key)
+	if err != nil {
+		return time.Duration(fallbackHours) * time.Hour
+	}
+	n, err := strconv.Atoi(st.Value)
+	if err != nil || n <= 0 {
+		return time.Duration(fallbackHours) * time.Hour
+	}
+	return time.Duration(n) * time.Hour
+}
+
 func (s *Service) BulkSet(ctx context.Context, updates map[string]string) ([]Setting, error) {
 	// Snapshot prior values for audit (only keys being changed, only when audit
 	// is wired — otherwise skip to avoid the extra round-trip).

@@ -19,12 +19,12 @@ export const actions: Actions = {
     }
 
     try {
-      const { token } = await registerCustomer(email, password, firstName, lastName, phone);
+      const { token, expires_in } = await registerCustomer(email, password, firstName, lastName, phone);
       cookies.set('customer_token', token, {
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30
+        maxAge: expires_in ?? 60 * 60 * 24 * 30
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';

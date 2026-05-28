@@ -18,19 +18,20 @@ type Claims struct {
 
 // GenerateToken issues a generic admin token (kept for backwards compatibility).
 func GenerateToken(secret string) (string, error) {
-	return GenerateAdminToken(secret, "", "admin", 0)
+	return GenerateAdminToken(secret, "", "admin", 0, 24*time.Hour)
 }
 
 // GenerateAdminToken issues a JWT for an admin user. `tv` should be the
 // user's current token_version column from admin_users; the middleware
-// rejects tokens whose claim doesn't match the live value.
-func GenerateAdminToken(secret, userID, role string, tv int) (string, error) {
+// rejects tokens whose claim doesn't match the live value. `ttl` is the
+// session length (configurable via the admin_token_ttl_hours setting).
+func GenerateAdminToken(secret, userID, role string, tv int, ttl time.Duration) (string, error) {
 	claims := Claims{
 		Role:         role,
 		TokenVersion: tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
@@ -38,14 +39,14 @@ func GenerateAdminToken(secret, userID, role string, tv int) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateCustomerToken(secret, customerID string, tv int) (string, error) {
+func GenerateCustomerToken(secret, customerID string, tv int, ttl time.Duration) (string, error) {
 	claims := Claims{
 		Role:         "customer",
 		CustomerID:   customerID,
 		TokenVersion: tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   customerID,
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

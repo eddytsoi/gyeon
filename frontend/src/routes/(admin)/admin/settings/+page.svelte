@@ -213,6 +213,7 @@
   // its <input>.
   const FBT_EXCLUDED_KEYS = new Set(['fbt_excluded_category_slugs']);
   const CACHE_TTL_KEYS = new Set(['cache_ttl_shop', 'cache_ttl_cms', 'cache_ttl_nav']);
+  const TOKEN_TTL_KEYS = new Set(['admin_token_ttl_hours', 'customer_token_ttl_hours']);
   const CLOUDFLARE_KEYS = new Set(['cloudflare_zone_id', 'cloudflare_api_token']);
   const MEDIA_LIMIT_KEYS = new Set(['upload_max_image_mb', 'upload_max_video_mb']);
   const FORM_UPLOAD_KEYS = new Set(['form_upload_hard_cap_mb']);
@@ -298,6 +299,10 @@
     cache_ttl_cms: m.admin_settings_cache_label_cms(),
     cache_ttl_nav: m.admin_settings_cache_label_nav()
   });
+  const TOKEN_TTL_LABELS = $derived<Record<string, string>>({
+    admin_token_ttl_hours: m.admin_settings_token_ttl_label_admin(),
+    customer_token_ttl_hours: m.admin_settings_token_ttl_label_customer()
+  });
   const CLOUDFLARE_LABELS = $derived<Record<string, string>>({
     cloudflare_zone_id: m.admin_settings_cloudflare_zone_id(),
     cloudflare_api_token: m.admin_settings_cloudflare_api_token()
@@ -330,6 +335,8 @@
     cache_ttl_shop: m.admin_settings_desc_cache_ttl_shop(),
     cache_ttl_cms: m.admin_settings_desc_cache_ttl_cms(),
     cache_ttl_nav: m.admin_settings_desc_cache_ttl_nav(),
+    admin_token_ttl_hours: m.admin_settings_desc_admin_token_ttl_hours(),
+    customer_token_ttl_hours: m.admin_settings_desc_customer_token_ttl_hours(),
     cloudflare_zone_id: m.admin_settings_desc_cloudflare_zone_id(),
     cloudflare_api_token: m.admin_settings_desc_cloudflare_api_token(),
     upload_max_image_mb: m.admin_settings_desc_upload_max_image_mb(),
@@ -352,6 +359,7 @@
         !TOGGLE_KEYS.has(s.key) &&
         !LOCALE_KEYS.has(s.key) &&
         !CACHE_TTL_KEYS.has(s.key) &&
+        !TOKEN_TTL_KEYS.has(s.key) &&
         !CLOUDFLARE_KEYS.has(s.key) &&
         !MEDIA_LIMIT_KEYS.has(s.key) &&
         !FORM_UPLOAD_KEYS.has(s.key) &&
@@ -388,6 +396,7 @@
   const freeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_hkd'));
   const installerFreeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_installer_hkd'));
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
+  const tokenTTLSettings = $derived(data.settings.filter((s) => TOKEN_TTL_KEYS.has(s.key)));
   const cloudflareSettings = $derived(data.settings.filter((s) => CLOUDFLARE_KEYS.has(s.key)));
   const mediaLimitSettings = $derived(data.settings.filter((s) => MEDIA_LIMIT_KEYS.has(s.key)));
   const formUploadSettings = $derived(data.settings.filter((s) => FORM_UPLOAD_KEYS.has(s.key)));
@@ -2481,6 +2490,32 @@
                        class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
                               focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 <span class="text-xs text-gray-400">{m.admin_settings_cache_ttl_seconds()}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if tokenTTLSettings.length > 0}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <h2 class="text-sm font-semibold text-gray-900 mb-5">{m.admin_settings_section_token_ttl()}</h2>
+        <div class="flex flex-col gap-5">
+          {#each tokenTTLSettings as setting}
+            <div class="flex flex-col gap-1.5">
+              <label for={setting.key}
+                     class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {TOKEN_TTL_LABELS[setting.key] ?? setting.key.replace(/_/g, ' ')}
+              </label>
+              {#if SETTING_DESCS[setting.key] ?? setting.description}
+                <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS[setting.key] ?? setting.description}</p>
+              {/if}
+              <div class="flex items-center gap-2">
+                <input id={setting.key} name={setting.key} type="number" min="1" step="1"
+                       value={setting.value}
+                       class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm w-32
+                              focus:outline-none focus:ring-2 focus:ring-gray-900" />
+                <span class="text-xs text-gray-400">{m.admin_settings_token_ttl_hours()}</span>
               </div>
             </div>
           {/each}
