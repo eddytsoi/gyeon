@@ -336,21 +336,35 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		return nil, fmt.Errorf("insert shipment: %w", err)
 	}
 
-	// Notify the customer with a clickable SF Express tracking link. Gate on
-	// the waybill prefix (SF…) rather than the carrier UID — more reliable than
-	// matching ShipAny courier labels. Best-effort: a failure here must not
-	// fail shipment creation. CreateForOrder is idempotent (ErrShipmentExists),
-	// so this fires at most once per order.
-	if s.notices != nil && created.TrackingNumber != "" &&
-		strings.HasPrefix(strings.ToUpper(created.TrackingNumber), "SF") {
-		body := fmt.Sprintf("SF Express 運單號碼 [%s](%s) 點擊可查看運單詳情",
-			created.TrackingNumber, sfExpressTrackingURL(created.TrackingNumber))
-		if _, nerr := s.notices.CreateAutoCustomerMessage(ctx, orderID, body); nerr != nil {
-			log.Printf("shipany: post tracking notice for order %s: %v", orderID, nerr)
-		}
-	}
-
 	return row, nil
+}
+
+// PostTrackingNotice posts a clickable SF Express tracking link to the customer
+// on the order timeline. Reads the latest shipment and gates on the waybill
+// prefix (SF…) rather than the carrier UID — more reliable than matching
+// ShipAny courier labels. Best-effort: failures are logged, never returned.
+// Fired when the order transitions 處理中 → 已發貨 so the customer learns the
+// waybill number only once the order is actually marked shipped.
+func (s *Service) PostTrackingNotice(ctx context.Context, orderID string) {
+	if s.notices == nil {
+		return
+	}
+	sh, err := s.GetByOrderID(ctx, orderID)
+	if err != nil {
+		log.Printf("shipany: load shipment for tracking notice on order %s: %v", orderID, err)
+		return
+	}
+	if sh == nil || sh.TrackingNumber == nil || *sh.TrackingNumber == "" {
+		return
+	}
+	tn := *sh.TrackingNumber
+	if !strings.HasPrefix(strings.ToUpper(tn), "SF") {
+		return
+	}
+	body := fmt.Sprintf("SF Express 運單號碼 [%s](%s) 點擊可查看運單詳情", tn, sfExpressTrackingURL(tn))
+	if _, err := s.notices.CreateAutoCustomerMessage(ctx, orderID, body); err != nil {
+		log.Printf("shipany: post tracking notice for order %s: %v", orderID, err)
+	}
 }
 
 // sfExpressTrackingURL builds the customer-facing SF Express waybill page URL.
