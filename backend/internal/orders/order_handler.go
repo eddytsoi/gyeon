@@ -12,14 +12,20 @@ import (
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/respond"
+	"gyeon/backend/internal/shop"
 )
 
 type OrderHandler struct {
-	svc *OrderService
+	svc        *OrderService
+	productSvc *shop.ProductService
 }
 
-func NewOrderHandler(svc *OrderService) *OrderHandler {
-	return &OrderHandler{svc: svc}
+// NewOrderHandler builds an OrderHandler. productSvc is optional — it is
+// only required by the admin CSV-import endpoint, which resolves
+// product/variant names into the variant/bundle data the admin UI needs.
+// Other entry points (public checkout, list/get/etc.) work without it.
+func NewOrderHandler(svc *OrderService, productSvc *shop.ProductService) *OrderHandler {
+	return &OrderHandler{svc: svc, productSvc: productSvc}
 }
 
 // PublicRoutes registers the customer-facing storefront endpoints. These are
@@ -55,6 +61,7 @@ func (h *OrderHandler) AdminRoutes() chi.Router {
 	r.Get("/", h.list)
 	r.Get("/carriers", h.listCarriers)
 	r.Post("/", h.adminCreate)
+	r.Post("/items/csv-resolve", h.adminResolveCSVItems)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
 	r.Delete("/{id}", h.delete)

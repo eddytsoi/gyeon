@@ -7,6 +7,8 @@
   import OrderItemsTable, { type OrderItemRow } from '$lib/components/admin/OrderItemsTable.svelte';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import { validateCoupon } from '$lib/api';
+  import { adminImportOrderItemsCSV, type OrderCSVResolveItem } from '$lib/api/admin';
+  import { notify } from '$lib/stores/notifications.svelte';
 
   let { data, form }: { data: PageData & { token: string }; form: ActionData } = $props();
 
@@ -45,6 +47,79 @@
   }
   function removeItem(key: string) {
     items = items.filter((it) => it.key !== key);
+  }
+
+  function appendResolvedItem(it: OrderCSVResolveItem) {
+    nextKey += 1;
+    const variantSuffix =
+      it.variant_name && it.product_kind !== 'bundle' ? ` — ${it.variant_name}` : '';
+    items = [
+      ...items,
+      {
+        key: `${it.variant_id}-${nextKey}`,
+        variantId: it.variant_id,
+        productName: it.product_name + variantSuffix,
+        sku: it.sku,
+        unitPrice: it.unit_price,
+        quantity: it.quantity,
+        primaryImageUrl: it.primary_image_url ?? null,
+        kind: it.product_kind,
+        components: (it.bundle_items ?? []).map((bi) => ({
+          variantId: bi.component_variant_id,
+          productName: bi.display_name_override || bi.component_product_name || '',
+          sku: bi.component_sku || '',
+          unitPrice: bi.component_price ?? 0,
+          perParentQuantity: bi.quantity,
+          primaryImageUrl: bi.component_primary_image_url ?? null
+        }))
+      }
+    ];
+  }
+
+  // CSV import — hidden file input triggered by the visible Import button.
+  // On pick we POST directly to the admin API (no SvelteKit form action),
+  // mutate `items` client-side, and surface bad rows in an amber banner.
+  let importing = $state(false);
+  let importErrors = $state<{ row: number; message: string }[] | undefined>(undefined);
+  let csvFileInputEl = $state<HTMLInputElement | null>(null);
+
+  function openCSVPicker() {
+    importErrors = undefined;
+    csvFileInputEl?.click();
+  }
+
+  async function onCSVPicked() {
+    const file = csvFileInputEl?.files?.[0];
+    if (!file) return;
+    importing = true;
+    try {
+      const result = await adminImportOrderItemsCSV(data.token, file);
+      importErrors = result.errors;
+      for (const it of result.items) appendResolvedItem(it);
+      if (result.items.length > 0) {
+        if (result.skipped > 0) {
+          notify.error(
+            m.admin_order_create_items_import_partial({
+              ok: String(result.items.length),
+              skip: String(result.skipped)
+            })
+          );
+        } else {
+          notify.success(m.admin_order_create_items_import_success({ n: String(result.items.length) }));
+        }
+      } else {
+        notify.error(m.admin_order_create_items_import_zero_rows({ skip: String(result.skipped) }));
+      }
+    } catch (e) {
+      notify.error(
+        m.admin_order_create_items_import_failure(),
+        e instanceof Error ? e.message : ''
+      );
+    } finally {
+      importing = false;
+      // Reset so picking the same file twice fires onchange again.
+      if (csvFileInputEl) csvFileInputEl.value = '';
+    }
   }
 
   // ── Shipping address ───────────────────────────────────────────────────
@@ -251,9 +326,42 @@
 
       <!-- ② Line items ─────────────────────────────────────────────── -->
       <section class="bg-white rounded-2xl border border-gray-100 p-5">
-        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
-          {m.admin_order_create_items_heading()}
-        </h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+            {m.admin_order_create_items_heading()}
+          </h3>
+          <button
+            type="button"
+            onclick={openCSVPicker}
+            disabled={importing}
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {m.admin_order_create_items_import()}
+          </button>
+        </div>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          class="hidden"
+          bind:this={csvFileInputEl}
+          onchange={onCSVPicked}
+        />
+        {#if importErrors && importErrors.length > 0}
+          <div class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+            <div class="font-medium">{m.admin_order_create_items_import_errors_heading({ n: String(importErrors.length) })}</div>
+            <ul class="list-disc pl-5 space-y-0.5">
+              {#each importErrors.slice(0, 20) as e}
+                <li>Row {e.row}: {e.message}</li>
+              {/each}
+              {#if importErrors.length > 20}
+                <li>… and {importErrors.length - 20} more</li>
+              {/if}
+            </ul>
+          </div>
+        {/if}
         <ProductPicker token={data.token} onAdd={addItem} />
         <div class="mt-4">
           <OrderItemsTable items={items} onChangeQty={changeQty} onRemove={removeItem} />

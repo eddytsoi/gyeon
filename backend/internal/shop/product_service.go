@@ -630,6 +630,11 @@ func NewProductService(db *sql.DB, c cache.Store, ttl func(context.Context) time
 	return &ProductService{db: db, cache: c, ttl: ttl, settingsSvc: settingsSvc}
 }
 
+// DB returns the underlying database handle so adjacent packages (e.g.
+// catalog matchers used by the orders CSV importer) can run raw queries
+// without duplicating connection wiring.
+func (s *ProductService) DB() *sql.DB { return s.db }
+
 // SetAudit wires an optional audit recorder. Call from main during setup.
 func (s *ProductService) SetAudit(rec AuditRecorder) { s.audit = rec }
 

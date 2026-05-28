@@ -2,13 +2,13 @@ package stock
 
 import (
 	"context"
-	"database/sql"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+
+	"gyeon/backend/internal/catalog"
 )
 
 // MutationImportResult is the response shape for a CSV import. Mutation is
@@ -27,9 +27,6 @@ type ImportRowErr struct {
 	Row     int    `json:"row"`
 	Message string `json:"message"`
 }
-
-// expectedImportHeader is the canonical CSV header for stock-mutation imports.
-const expectedImportHeader = "name,variant,quantity"
 
 // ImportCSV parses a `name,variant,quantity` CSV and creates one draft
 // mutation of the requested type containing every successfully matched row.
@@ -55,19 +52,9 @@ func (s *Service) ImportCSV(ctx context.Context, t MutationType, r io.Reader) (*
 			Errors: []ImportRowErr{{Row: 1, Message: "read header: " + err.Error()}},
 		}, nil
 	}
-	if len(header) > 0 {
-		header[0] = strings.TrimPrefix(header[0], "\ufeff")
-	}
-	gotHeader := strings.ToLower(strings.TrimSpace(strings.Join(header, ",")))
-	// Tolerate trailing whitespace in each header cell.
-	parts := strings.Split(gotHeader, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	gotHeader = strings.Join(parts, ",")
-	if gotHeader != expectedImportHeader {
+	if err := catalog.ValidateHeader(header); err != nil {
 		return &MutationImportResult{
-			Errors: []ImportRowErr{{Row: 1, Message: "expected header: " + expectedImportHeader}},
+			Errors: []ImportRowErr{{Row: 1, Message: err.Error()}},
 		}, nil
 	}
 
@@ -90,7 +77,7 @@ func (s *Service) ImportCSV(ctx context.Context, t MutationType, r io.Reader) (*
 			result.Errors = append(result.Errors, ImportRowErr{Row: rowNum, Message: rerr.Error()})
 			continue
 		}
-		if csvRowIsBlank(rec) {
+		if catalog.IsBlankRow(rec) {
 			continue
 		}
 		if len(rec) < 3 {
@@ -113,7 +100,7 @@ func (s *Service) ImportCSV(ctx context.Context, t MutationType, r io.Reader) (*
 			continue
 		}
 
-		variantID, mErr := s.matchVariant(ctx, productName, variantHint)
+		variantID, _, mErr := catalog.MatchVariant(ctx, s.db, productName, variantHint, false)
 		if mErr != nil {
 			result.Skipped++
 			result.Errors = append(result.Errors, ImportRowErr{Row: rowNum, Message: mErr.Error()})
@@ -144,148 +131,6 @@ func (s *Service) ImportCSV(ctx context.Context, t MutationType, r io.Reader) (*
 	return result, nil
 }
 
-// matchVariant resolves (productName, variantHint) → variant_id using the
-// fallback chain described in the plan: SKU → variant.name → attribute value.
-// All comparisons are case-insensitive and trimmed.
-func (s *Service) matchVariant(ctx context.Context, productName, variantHint string) (string, error) {
-	// 1) Product lookup by case-insensitive trimmed name.
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, kind FROM products
-		  WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
-		    AND status = 'active'`,
-		productName)
-	if err != nil {
-		return "", err
-	}
-	type prod struct {
-		id   string
-		kind string
-	}
-	var prods []prod
-	for rows.Next() {
-		var p prod
-		if err := rows.Scan(&p.id, &p.kind); err != nil {
-			rows.Close()
-			return "", err
-		}
-		prods = append(prods, p)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-	if len(prods) == 0 {
-		return "", errors.New("product not found")
-	}
-	if len(prods) > 1 {
-		return "", errors.New("ambiguous product name")
-	}
-	if prods[0].kind == "bundle" {
-		return "", errors.New("bundles must be added manually")
-	}
-
-	// 2) Load all active variants for the product with their attribute values.
-	vRows, err := s.db.QueryContext(ctx,
-		`SELECT pv.id, pv.sku, pv.name,
-		        COALESCE(
-		            (SELECT array_agg(LOWER(TRIM(pav.value)))
-		               FROM product_variant_attribute_values pvav
-		               JOIN product_attribute_values pav ON pav.id = pvav.attribute_value_id
-		              WHERE pvav.variant_id = pv.id),
-		            ARRAY[]::TEXT[]
-		        ) AS attr_values
-		   FROM product_variants pv
-		  WHERE pv.product_id = $1
-		    AND pv.is_active = TRUE
-		  ORDER BY pv.sort_order, pv.created_at`,
-		prods[0].id)
-	if err != nil {
-		return "", err
-	}
-	type cand struct {
-		id      string
-		sku     string
-		name    sql.NullString
-		attrLc  []string
-	}
-	var cands []cand
-	for vRows.Next() {
-		var c cand
-		var arr pgTextArray
-		if err := vRows.Scan(&c.id, &c.sku, &c.name, &arr); err != nil {
-			vRows.Close()
-			return "", err
-		}
-		c.attrLc = arr.values
-		cands = append(cands, c)
-	}
-	vRows.Close()
-	if err := vRows.Err(); err != nil {
-		return "", err
-	}
-	if len(cands) == 0 {
-		return "", errors.New("product has no active variants")
-	}
-
-	hintLc := strings.ToLower(strings.TrimSpace(variantHint))
-
-	// 3) Empty hint + single variant → use it.
-	if hintLc == "" {
-		if len(cands) == 1 {
-			return cands[0].id, nil
-		}
-		return "", errors.New("variant is required when product has multiple variants")
-	}
-
-	// 4) SKU exact match (case-insensitive, trimmed).
-	for _, c := range cands {
-		if strings.EqualFold(strings.TrimSpace(c.sku), variantHint) {
-			return c.id, nil
-		}
-	}
-	// 5) variant.name exact match.
-	for _, c := range cands {
-		if c.name.Valid && strings.EqualFold(strings.TrimSpace(c.name.String), variantHint) {
-			return c.id, nil
-		}
-	}
-	// 5a) Legacy variant.name "label:value" suffix match — e.g. a CSV
-	// "500ml" should match a variant whose pv.name is "容量:500ml" but whose
-	// product_variant_attribute_values M2M rows are missing (typical for
-	// WooCommerce-imported variants).
-	for _, c := range cands {
-		if !c.name.Valid {
-			continue
-		}
-		n := strings.TrimSpace(c.name.String)
-		if n == "" || strings.ContainsAny(n, ",/") {
-			continue
-		}
-		if idx := strings.Index(n, ":"); idx >= 0 {
-			after := strings.TrimSpace(n[idx+1:])
-			if after != "" && strings.EqualFold(after, variantHint) {
-				return c.id, nil
-			}
-		}
-	}
-	// 6) Attribute value match — collect all hits.
-	var hits []string
-	for _, c := range cands {
-		for _, av := range c.attrLc {
-			if av == hintLc {
-				hits = append(hits, c.id)
-				break
-			}
-		}
-	}
-	if len(hits) == 1 {
-		return hits[0], nil
-	}
-	if len(hits) > 1 {
-		return "", errors.New("ambiguous variant for product")
-	}
-	return "", errors.New("variant not found for product")
-}
 
 // ExportMutationCSV writes the mutation's top-level line items as a
 // `name,variant,quantity` CSV — same shape as the import format so an export
@@ -458,15 +303,6 @@ func safeCSVCell(s string) string {
 		return "'" + s
 	}
 	return s
-}
-
-func csvRowIsBlank(rec []string) bool {
-	for _, c := range rec {
-		if strings.TrimSpace(c) != "" {
-			return false
-		}
-	}
-	return true
 }
 
 // pgTextArray scans a Postgres text[] without pulling in pq. The driver
