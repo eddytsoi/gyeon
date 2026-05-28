@@ -1,5 +1,11 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { getMyOrderByID, getMyOrderNotices, createMyOrderNotice, markMyOrderNoticesRead } from '$lib/api';
+import {
+  getMyOrderByID,
+  getMyOrderNotices,
+  getMyOrderPaymentInfo,
+  createMyOrderNotice,
+  markMyOrderNoticesRead
+} from '$lib/api';
 import { resolveCustomerOrderId } from '$lib/storefront/resolveOrderId';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -15,7 +21,18 @@ export const load: PageServerLoad = async ({ parent, params, cookies }) => {
   if (!order) throw error(404, 'Order not found');
   // Fire-and-forget: clear the unread badge on view.
   markMyOrderNoticesRead(token, id).catch(() => {});
-  return { order, notices };
+
+  // For an unpaid pending order, resolve a fresh /pay link so the page can show
+  // a "立即付款" button. 404s (already paid / not payable) leave payNowURL null.
+  let payNowURL: string | null = null;
+  if (order.status === 'pending' && order.payment_status !== 'succeeded') {
+    const pay = await getMyOrderPaymentInfo(token, id).catch(() => null);
+    if (pay?.client_secret) {
+      payNowURL = `/pay/${order.id}?cs=${encodeURIComponent(pay.client_secret)}`;
+    }
+  }
+
+  return { order, notices, payNowURL };
 };
 
 export const actions: Actions = {

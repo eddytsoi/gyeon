@@ -25,6 +25,12 @@ import (
 // would create a cycle — orders already depends on customers).
 type OrderFetcherFunc func(ctx context.Context, orderID, customerID string) (any, error)
 
+// OrderPaymentFetcherFunc returns the /pay-page payload (client secret etc.) for
+// a logged-in customer's own still-payable order. Wired from main.go to
+// orders.OrderService.PaymentInfoForCustomer via a closure, same as
+// OrderFetcherFunc, to avoid an orders→customers import cycle.
+type OrderPaymentFetcherFunc func(ctx context.Context, orderID, customerID string) (any, error)
+
 // EmailSender is the slice of email.Service the customers handler needs.
 type EmailSender interface {
 	PublicBaseURL(ctx context.Context) string
@@ -32,17 +38,22 @@ type EmailSender interface {
 }
 
 type Handler struct {
-	svc        *Service
-	emailSvc   EmailSender
-	jwtSecret  string
-	fetchOrder OrderFetcherFunc
-	oauth      *oauth.Service
-	tokenTTL   func(context.Context) time.Duration
+	svc               *Service
+	emailSvc          EmailSender
+	jwtSecret         string
+	fetchOrder        OrderFetcherFunc
+	fetchOrderPayment OrderPaymentFetcherFunc
+	oauth             *oauth.Service
+	tokenTTL          func(context.Context) time.Duration
 }
 
 func NewHandler(svc *Service, emailSvc EmailSender, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
 	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret, fetchOrder: fetchOrder}
 }
+
+// SetOrderPaymentFetcher wires the owner-authenticated payment-info lookup used
+// by GET /me/orders/{id}/payment-info. Optional — when unset, the route 404s.
+func (h *Handler) SetOrderPaymentFetcher(fn OrderPaymentFetcherFunc) { h.fetchOrderPayment = fn }
 
 // SetOAuth wires the social-login service. Optional — when unset, the
 // /oauth/* routes redirect back to login with an error.
@@ -89,6 +100,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/me/orders", h.listOrders)
 		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
 		r.Get("/me/orders/{id}", h.getOrder)
+		r.Get("/me/orders/{id}/payment-info", h.getOrderPaymentInfo)
 		r.Post("/me/sign-out-everywhere", h.signOutEverywhere)
 	})
 	return r
@@ -466,6 +478,26 @@ func (h *Handler) getOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, order)
+}
+
+// getOrderPaymentInfo returns the /pay-page payload (client secret, publishable
+// key) for the authenticated customer's own pending order, so the account page
+// can offer a "立即付款" button without the shopper holding a magic-link cs.
+// Any error (not owned / not payable / Stripe lookup) is flattened to 404 so
+// the caller cannot distinguish ownership or payability signals.
+func (h *Handler) getOrderPaymentInfo(w http.ResponseWriter, r *http.Request) {
+	if h.fetchOrderPayment == nil {
+		respond.NotFound(w)
+		return
+	}
+	customerID := auth.CustomerIDFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	info, err := h.fetchOrderPayment(r.Context(), id, customerID)
+	if err != nil {
+		respond.NotFound(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, info)
 }
 
 // lookupOrder resolves a sequential order display number (e.g. ORD-8 → 8)

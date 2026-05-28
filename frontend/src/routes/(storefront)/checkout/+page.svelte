@@ -78,6 +78,7 @@
   let paymentMounting = $state(false);
   let pendingClientSecret = $state<string | null>(null);
   let pendingOrderID = $state<string | null>(null);
+  let pendingOrderNumber = $state('');
   let paymentElementMounted = $state(false);
   // Set when the backend returns a SetupIntent for saving the card
   let pendingSetupClientSecret = $state<string | null>(null);
@@ -295,6 +296,7 @@
 
       pendingClientSecret = result.client_secret;
       pendingOrderID = result.order.id;
+      pendingOrderNumber = result.order.order_number || `ORD-${result.order.number}`;
       pendingSetupClientSecret = result.setup_client_secret ?? null;
 
       if (!usingSavedCard) {
@@ -661,7 +663,21 @@
         <!-- ── Pay ─────────────────────────────────────────────── -->
         {#if error || paymentReady}
           <section class="bg-white rounded-2xl border border-gray-100 p-6">
-            {#if error}
+            {#if pendingOrderID && error}
+              <!-- Payment failed AFTER the order was created. Reassure the
+                   shopper the order is reserved (not lost) and give a durable
+                   way to finish paying, so they don't think nothing happened. -->
+              <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5">
+                <p class="font-semibold text-amber-900">{m.checkout_payment_failed_heading()}</p>
+                <p class="text-sm text-amber-800 mt-1">{m.checkout_payment_failed_order({ orderNumber: pendingOrderNumber })}</p>
+                <p class="text-sm text-amber-800 mt-1">{error}</p>
+                <p class="text-sm text-amber-800 mt-2">{m.checkout_payment_failed_body()}</p>
+                <a href={`/pay/${pendingOrderID}?cs=${pendingClientSecret}`}
+                   class="inline-block mt-3 text-sm font-medium text-amber-900 underline">
+                  {m.checkout_complete_payment_later()}
+                </a>
+              </div>
+            {:else if error}
               <p class="text-sm text-red-500 leading-relaxed">{error}</p>
             {/if}
 

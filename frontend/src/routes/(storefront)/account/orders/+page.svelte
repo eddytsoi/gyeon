@@ -95,6 +95,11 @@
             <span class="px-2.5 py-1 rounded-full text-xs font-medium {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
               {orderStatusLabel(order.status)}
             </span>
+            {#if order.status === 'pending' && order.payment_status !== 'succeeded'}
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
+                {m.account_order_pay_now()}
+              </span>
+            {/if}
             <svg class="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
             </svg>
