@@ -16,14 +16,15 @@ import (
 
 // Service orchestrates ShipAny calls + persistence + order-status sync.
 type Service struct {
-	client    *HTTPClient
-	settings  *settings.Service
-	db        *sql.DB
-	orderSvc  *orders.OrderService
+	client   *HTTPClient
+	settings *settings.Service
+	db       *sql.DB
+	orderSvc *orders.OrderService
+	notices  *orders.NoticeService
 }
 
-func NewService(client *HTTPClient, settings *settings.Service, db *sql.DB, orderSvc *orders.OrderService) *Service {
-	return &Service{client: client, settings: settings, db: db, orderSvc: orderSvc}
+func NewService(client *HTTPClient, settings *settings.Service, db *sql.DB, orderSvc *orders.OrderService, notices *orders.NoticeService) *Service {
+	return &Service{client: client, settings: settings, db: db, orderSvc: orderSvc, notices: notices}
 }
 
 // Enabled reports the master toggle. Settings UI flips this; storefront
@@ -334,7 +335,27 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 	if err != nil {
 		return nil, fmt.Errorf("insert shipment: %w", err)
 	}
+
+	// Notify the customer with a clickable SF Express tracking link. Gate on
+	// the waybill prefix (SF…) rather than the carrier UID — more reliable than
+	// matching ShipAny courier labels. Best-effort: a failure here must not
+	// fail shipment creation. CreateForOrder is idempotent (ErrShipmentExists),
+	// so this fires at most once per order.
+	if s.notices != nil && created.TrackingNumber != "" &&
+		strings.HasPrefix(strings.ToUpper(created.TrackingNumber), "SF") {
+		body := fmt.Sprintf("SF Express 運單號碼 [%s](%s) 點擊可查看運單詳情",
+			created.TrackingNumber, sfExpressTrackingURL(created.TrackingNumber))
+		if _, nerr := s.notices.CreateAutoCustomerMessage(ctx, orderID, body); nerr != nil {
+			log.Printf("shipany: post tracking notice for order %s: %v", orderID, nerr)
+		}
+	}
+
 	return row, nil
+}
+
+// sfExpressTrackingURL builds the customer-facing SF Express waybill page URL.
+func sfExpressTrackingURL(trackingNumber string) string {
+	return "https://hk.sf-express.com/hk/tc/waybill/waybill-detail/" + trackingNumber
 }
 
 // RequestPickup tells ShipAny to schedule courier collection for the
