@@ -275,6 +275,15 @@
   const RECAPTCHA_KEYS = new Set([
     'recaptcha_enabled', 'recaptcha_site_key', 'recaptcha_secret_key', 'recaptcha_min_score'
   ]);
+  // Rendered by the dedicated Social Login section. Must be excluded from the
+  // catch-all textSettings list below, otherwise each key renders a second
+  // (generic) input with the same name — and on save the empty duplicate
+  // clobbers the value the admin typed.
+  const OAUTH_KEYS = new Set([
+    'google_oauth_enabled', 'google_oauth_client_id', 'google_oauth_client_secret',
+    'apple_oauth_enabled', 'apple_oauth_client_id', 'apple_oauth_team_id',
+    'apple_oauth_key_id', 'apple_oauth_private_key'
+  ]);
   const SMTP_KEYS = new Set([
     'email_enabled',
     'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
@@ -356,6 +365,7 @@
         !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
+        !OAUTH_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
         !FAVICON_KEYS.has(s.key) &&
         !COMPANY_LOGO_KEYS.has(s.key) &&
