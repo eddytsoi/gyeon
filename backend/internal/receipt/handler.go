@@ -22,22 +22,29 @@ type Enqueuer interface {
 }
 
 type Handler struct {
-	svc      *Service
-	cache    *Cache
-	enqueuer Enqueuer
+	svc        *Service
+	cache      *Cache
+	enqueuer   Enqueuer
+	batchStore *BatchStore
 }
 
-func NewHandler(svc *Service, cache *Cache, enqueuer Enqueuer) *Handler {
-	return &Handler{svc: svc, cache: cache, enqueuer: enqueuer}
+func NewHandler(svc *Service, cache *Cache, enqueuer Enqueuer, batchStore *BatchStore) *Handler {
+	return &Handler{svc: svc, cache: cache, enqueuer: enqueuer, batchStore: batchStore}
 }
 
 // AdminRoutes registers admin endpoints. Mount under the admin auth group
 // from main.go.
-//   GET  /{id}/receipt.pdf             — download (cache-first)
-//   GET  /{id}/receipt-cache-status    — JSON {available: bool}
-//   POST /{id}/receipt/regenerate      — clear cache + enqueue job
+//
+//	GET  /{id}/receipt.pdf             — download (cache-first)
+//	GET  /{id}/receipt-cache-status    — JSON {available: bool}
+//	POST /{id}/receipt/regenerate      — clear cache + enqueue job
 func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
+	// Batch receipts. The static /batch segment is matched ahead of the
+	// /{id}/... param routes below, so there's no collision.
+	r.Post("/batch", h.adminBatchCreate)
+	r.Get("/batch/{id}", h.adminBatchStatus)
+	r.Get("/batch/{id}/download", h.adminBatchDownload)
 	r.Get("/{id}/receipt.pdf", h.adminDownload)
 	r.Get("/{id}/receipt-cache-status", h.adminCacheStatus)
 	r.Post("/{id}/receipt/regenerate", h.adminRegenerate)
@@ -46,8 +53,9 @@ func (h *Handler) AdminRoutes() chi.Router {
 
 // CustomerRoutes registers customer endpoints. Mount under the customer
 // auth group so callers must present a valid customer JWT.
-//   GET /{id}/receipt.pdf            — download (cache-first)
-//   GET /{id}/receipt-cache-status   — JSON {available: bool}
+//
+//	GET /{id}/receipt.pdf            — download (cache-first)
+//	GET /{id}/receipt-cache-status   — JSON {available: bool}
 func (h *Handler) CustomerRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/{id}/receipt.pdf", h.customerDownload)

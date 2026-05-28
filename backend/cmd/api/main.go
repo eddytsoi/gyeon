@@ -394,7 +394,8 @@ func main() {
 	defer receiptRenderer.Close()
 	receiptSvc := receipt.NewService(conn, orderSvc, settingsSvc, receiptRenderer)
 	receiptCache := receipt.NewCache()
-	receiptHandler := receipt.NewHandler(receiptSvc, receiptCache, queueSvc)
+	receiptBatchStore := receipt.NewBatchStore(conn)
+	receiptHandler := receipt.NewHandler(receiptSvc, receiptCache, queueSvc, receiptBatchStore)
 	orderSvc.SetReceiptCache(receiptCache)
 
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
@@ -796,6 +797,11 @@ func main() {
 	receiptQueueHandler := receipt.NewQueueHandler(receiptSvc, receiptCache, adminHub)
 	worker.Register(queue.JobTypeGenerateReceiptCache, receiptQueueHandler.Handle)
 	worker.SetTimeout(queue.JobTypeGenerateReceiptCache, 2*time.Minute)
+	// Batch receipt ZIP — packs many per-order receipts into one download.
+	// Generous timeout: a 200-order batch with cold renders dominates runtime.
+	receiptBatchQueueHandler := receipt.NewBatchQueueHandler(receiptSvc, receiptCache, receiptBatchStore, adminHub)
+	worker.Register(queue.JobTypeGenerateReceiptBatch, receiptBatchQueueHandler.Handle)
+	worker.SetTimeout(queue.JobTypeGenerateReceiptBatch, 5*time.Minute)
 	worker.Start(rootCtx)
 
 	addr := ":" + getenv("PORT", "8080")

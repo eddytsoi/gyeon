@@ -2,14 +2,23 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { invalidateAll } from '$app/navigation';
-  import { adminDeleteOrder } from '$lib/api/admin';
+  import { SvelteSet } from 'svelte/reactivity';
+  import {
+    adminDeleteOrder,
+    adminCreateReceiptBatch,
+    adminGetReceiptBatch,
+    type ReceiptBatchError
+  } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
+  import { getLocale } from '$lib/i18n';
   import type { Order } from '$lib/types';
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
   import Pagination from '$lib/components/admin/Pagination.svelte';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
+  import Spinner from '$lib/components/admin/Spinner.svelte';
+  import AdminModal from '$lib/components/admin/AdminModal.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
 
@@ -17,6 +26,102 @@
 
   let deleteTarget = $state<Order | null>(null);
   let deleting = $state(false);
+
+  // ── Batch actions ──────────────────────────────────────────────────────────
+  let selectedIds = new SvelteSet<string>();
+  let batchAction = $state<'download_receipt'>('download_receipt');
+  let running = $state(false);
+  let batchErrors = $state<ReceiptBatchError[] | null>(null);
+
+  const allSelected = $derived(
+    data.orders.length > 0 && data.orders.every((o) => selectedIds.has(o.id))
+  );
+  const someSelected = $derived(selectedIds.size > 0 && !allSelected);
+
+  function toggleRow(id: string) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      for (const o of data.orders) selectedIds.delete(o.id);
+    } else {
+      for (const o of data.orders) selectedIds.add(o.id);
+    }
+  }
+
+  function reasonLabel(reason: string): string {
+    switch (reason) {
+      case 'not_receiptable': return m.admin_orders_batch_error_not_receiptable();
+      case 'generation_failed': return m.admin_orders_batch_error_generation_failed();
+      case 'not_found': return m.admin_orders_batch_error_not_found();
+      default: return reason;
+    }
+  }
+
+  function triggerDownload(batchId: string) {
+    const a = document.createElement('a');
+    a.href = `/admin/order-receipts/batch/${batchId}/download`;
+    a.rel = 'noopener';
+    // download attr both hints a save and makes SvelteKit's client router skip
+    // the click (it's a server endpoint, not a page route). The actual filename
+    // comes from the proxy's Content-Disposition header.
+    a.setAttribute('download', '');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  async function runBatch() {
+    if (running || selectedIds.size === 0 || !data.token) return;
+    running = true;
+    batchErrors = null;
+    try {
+      const { batch_id } = await adminCreateReceiptBatch(data.token, [...selectedIds], getLocale());
+      // Poll until the worker finishes. ~3 min safety cap (200 cold renders).
+      const deadline = Date.now() + 3 * 60 * 1000;
+      let status = await adminGetReceiptBatch(data.token, batch_id);
+      while (status.status !== 'succeeded' && status.status !== 'failed') {
+        if (Date.now() > deadline) {
+          notify.error(m.admin_orders_batch_timeout());
+          return;
+        }
+        await sleep(1200);
+        status = await adminGetReceiptBatch(data.token, batch_id);
+      }
+      if (status.status === 'failed') {
+        notify.error(m.admin_orders_batch_failed());
+        return;
+      }
+      if (status.succeeded_count > 0 && status.zip_ready) {
+        triggerDownload(batch_id);
+        selectedIds.clear();
+        if (status.errors.length > 0) {
+          batchErrors = status.errors;
+          notify.warning(
+            m.admin_orders_batch_done_title(),
+            m.admin_orders_batch_summary({ ok: status.succeeded_count, skip: status.errors.length })
+          );
+        } else {
+          notify.success(m.admin_orders_batch_all_ok({ ok: status.succeeded_count }));
+        }
+      } else {
+        // Nothing produced a receipt — show the skip details only.
+        batchErrors = status.errors;
+        notify.error(m.admin_orders_batch_none_title(), m.admin_orders_batch_none_body());
+      }
+    } catch (e) {
+      notify.error(
+        m.admin_orders_batch_failed(),
+        e instanceof Error ? e.message : undefined
+      );
+    } finally {
+      running = false;
+    }
+  }
 
   const STATUSES = [
     'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
@@ -257,11 +362,41 @@
   </div>
 </div>
 
+{#if selectedIds.size > 0}
+  <div class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+    <span class="text-sm font-medium text-gray-700">
+      {m.admin_orders_batch_selected({ count: selectedIds.size })}
+    </span>
+    <select bind:value={batchAction} disabled={running}
+            aria-label={m.admin_orders_batch_action_download_receipt()}
+            class="text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white
+                   focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900
+                   disabled:opacity-50">
+      <option value="download_receipt">{m.admin_orders_batch_action_download_receipt()}</option>
+    </select>
+    <button type="button" onclick={runBatch} disabled={running}
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white
+                   text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50">
+      {#if running}<Spinner />{/if}
+      {running ? m.admin_orders_batch_running() : m.admin_orders_batch_execute()}
+    </button>
+    <button type="button" onclick={() => selectedIds.clear()} disabled={running}
+            class="text-xs text-gray-500 hover:text-gray-900 underline-offset-2 hover:underline disabled:opacity-50">
+      {m.admin_orders_batch_clear()}
+    </button>
+  </div>
+{/if}
+
 <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"
      use:spotlight={{ selector: '.js-row' }}>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-100">
       <tr>
+        <th class="w-10 px-5 py-3">
+          <input type="checkbox" checked={allSelected} indeterminate={someSelected}
+                 onchange={toggleAll} aria-label={m.admin_orders_select_all_aria()}
+                 class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer" />
+        </th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_orders_col_customer()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_phone()}</th>
@@ -274,7 +409,13 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {#each data.orders as order}
-        <tr class="js-row transition-colors">
+        <tr class="js-row transition-colors" class:bg-gray-50={selectedIds.has(order.id)}>
+          <td class="px-5 py-3">
+            <input type="checkbox" checked={selectedIds.has(order.id)}
+                   onchange={() => toggleRow(order.id)}
+                   aria-label={m.admin_orders_select_row_aria({ id: order.order_number || `ORD-${order.number}` })}
+                   class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer" />
+          </td>
           <td class="px-5 py-3 font-mono text-xs text-gray-700">
             <span class="inline-flex items-center gap-2">
               <a href="/admin/orders/{order.id}"
@@ -354,7 +495,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="8" class="px-5 py-10 text-center text-gray-400">
+          <td colspan="9" class="px-5 py-10 text-center text-gray-400">
             {#if hasFilters}
               <p class="font-medium text-gray-700 mb-1">{m.admin_orders_empty_no_match()}</p>
               <p class="text-xs">{m.admin_orders_empty_no_match_hint()}</p>
@@ -396,3 +537,23 @@
     </div>
   </div>
 {/if}
+
+<!-- Batch receipt skipped/failed orders -->
+<AdminModal open={batchErrors !== null} onClose={() => (batchErrors = null)} size="md">
+  <h3 class="text-base font-bold text-gray-900 mb-3">{m.admin_orders_batch_errors_title()}</h3>
+  <ul class="mb-5 max-h-72 overflow-y-auto divide-y divide-gray-100 text-sm">
+    {#each batchErrors ?? [] as err}
+      <li class="flex items-center justify-between gap-3 py-2">
+        <span class="font-mono text-xs text-gray-700">{err.order_number || err.order_id}</span>
+        <span class="text-gray-500">{reasonLabel(err.reason)}</span>
+      </li>
+    {/each}
+  </ul>
+  <div class="flex justify-end">
+    <button type="button" onclick={() => (batchErrors = null)}
+            class="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium
+                   hover:bg-gray-800 transition-colors">
+      {m.admin_orders_batch_errors_done()}
+    </button>
+  </div>
+</AdminModal>
