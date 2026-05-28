@@ -7,7 +7,9 @@
     adminDeleteOrder,
     adminCreateReceiptBatch,
     adminGetReceiptBatch,
-    type ReceiptBatchError
+    adminBatchWaybills,
+    type ReceiptBatchError,
+    type WaybillBatchSkip
   } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import { getLocale } from '$lib/i18n';
@@ -29,9 +31,9 @@
 
   // ── Batch actions ──────────────────────────────────────────────────────────
   let selectedIds = new SvelteSet<string>();
-  let batchAction = $state<'download_receipt'>('download_receipt');
+  let batchAction = $state<'download_receipt' | 'download_waybill'>('download_receipt');
   let running = $state(false);
-  let batchErrors = $state<ReceiptBatchError[] | null>(null);
+  let batchErrors = $state<(ReceiptBatchError | WaybillBatchSkip)[] | null>(null);
 
   const allSelected = $derived(
     data.orders.length > 0 && data.orders.every((o) => selectedIds.has(o.id))
@@ -56,6 +58,9 @@
       case 'not_receiptable': return m.admin_orders_batch_error_not_receiptable();
       case 'generation_failed': return m.admin_orders_batch_error_generation_failed();
       case 'not_found': return m.admin_orders_batch_error_not_found();
+      case 'not_processing': return m.admin_orders_batch_error_not_processing();
+      case 'no_waybill': return m.admin_orders_batch_error_no_waybill();
+      case 'download_failed': return m.admin_orders_batch_error_download_failed();
       default: return reason;
     }
   }
@@ -76,6 +81,7 @@
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   async function runBatch() {
+    if (batchAction === 'download_waybill') return runWaybillBatch();
     if (running || selectedIds.size === 0 || !data.token) return;
     running = true;
     batchErrors = null;
@@ -112,6 +118,56 @@
         // Nothing produced a receipt — show the skip details only.
         batchErrors = status.errors;
         notify.error(m.admin_orders_batch_none_title(), m.admin_orders_batch_none_body());
+      }
+    } catch (e) {
+      notify.error(
+        m.admin_orders_batch_failed(),
+        e instanceof Error ? e.message : undefined
+      );
+    } finally {
+      running = false;
+    }
+  }
+
+  function todayStamp(): string {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}${mm}${dd}`;
+  }
+
+  async function runWaybillBatch() {
+    if (running || selectedIds.size === 0 || !data.token) return;
+    running = true;
+    batchErrors = null;
+    try {
+      const { pdf, report } = await adminBatchWaybills(data.token, [...selectedIds]);
+      if (pdf) {
+        const url = URL.createObjectURL(pdf);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `SF-Waybills-${todayStamp()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        selectedIds.clear();
+        if (report.errors.length > 0) {
+          batchErrors = report.errors;
+          notify.warning(
+            m.admin_orders_batch_waybills_done_title(),
+            m.admin_orders_batch_summary({ ok: report.succeeded_count, skip: report.errors.length })
+          );
+        } else {
+          notify.success(m.admin_orders_batch_waybills_all_ok({ ok: report.succeeded_count }));
+        }
+      } else {
+        // No selected order had a waybill — show the skip details only.
+        batchErrors = report.errors;
+        notify.error(
+          m.admin_orders_batch_waybills_none_title(),
+          m.admin_orders_batch_waybills_none_body()
+        );
       }
     } catch (e) {
       notify.error(
@@ -373,6 +429,7 @@
                    focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900
                    disabled:opacity-50">
       <option value="download_receipt">{m.admin_orders_batch_action_download_receipt()}</option>
+      <option value="download_waybill">{m.admin_orders_batch_action_download_waybill()}</option>
     </select>
     <button type="button" onclick={runBatch} disabled={running}
             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white

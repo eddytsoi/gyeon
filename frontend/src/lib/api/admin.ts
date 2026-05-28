@@ -312,6 +312,80 @@ export const adminCreateReceiptBatch = (token: string, orderIds: string[], local
 export const adminGetReceiptBatch = (token: string, batchId: string) =>
   request<ReceiptBatchStatus>(`/admin/order-receipts/batch/${batchId}`, token);
 
+// Batch SF waybill download. One order that couldn't be included (not in
+// processing status, no waybill on file, download failed) shows up here
+// rather than failing the whole batch.
+export interface WaybillBatchSkip {
+  order_id: string;
+  order_number: string;
+  reason: 'not_processing' | 'no_waybill' | 'not_found' | 'download_failed' | string;
+}
+
+export interface WaybillBatchReport {
+  total: number;
+  succeeded_count: number;
+  errors: WaybillBatchSkip[];
+}
+
+// Downloads + merges SF waybills synchronously. On success the merged PDF
+// arrives as a blob with the skip report in the X-Waybill-Report header
+// (base64 JSON). When no order yields a waybill the backend returns the report
+// as JSON instead, so pdf is null.
+export async function adminBatchWaybills(
+  token: string,
+  orderIds: string[]
+): Promise<{ pdf: Blob | null; report: WaybillBatchReport }> {
+  const res = await fetch(`${base()}/admin/shipany/waybills/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ order_ids: orderIds })
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const text = await res.text();
+      if (text) {
+        try {
+          const obj = JSON.parse(text);
+          detail = obj?.message ?? obj?.error ?? text;
+        } catch {
+          detail = text;
+        }
+      }
+    } catch {
+      // ignore — fall through to status-only message
+    }
+    throw new Error(`API ${res.status} /admin/shipany/waybills/batch${detail ? `: ${detail}` : ''}`);
+  }
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('application/pdf')) {
+    const header = res.headers.get('x-waybill-report') ?? '';
+    const report = decodeWaybillReport(header);
+    const pdf = await res.blob();
+    return { pdf, report };
+  }
+  // All skipped — report came back as JSON, no file.
+  const report = (await res.json()) as WaybillBatchReport;
+  return { pdf: null, report };
+}
+
+// decodeWaybillReport turns the base64 X-Waybill-Report header into a report,
+// decoding via UTF-8 so non-ASCII order numbers survive the round-trip.
+function decodeWaybillReport(b64: string): WaybillBatchReport {
+  const empty: WaybillBatchReport = { total: 0, succeeded_count: 0, errors: [] };
+  if (!b64) return empty;
+  try {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json) as WaybillBatchReport;
+  } catch {
+    return empty;
+  }
+}
+
 // Order notices (admin)
 export const adminListOrderNotices = (token: string, orderID: string) =>
   request<OrderNotice[]>(`/admin/order-notices/${orderID}`, token);
