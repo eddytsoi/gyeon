@@ -2371,6 +2371,12 @@
                 0 4px 12px -2px rgba(17, 24, 39, 0.15);
     cursor: grabbing !important;
   }
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
 </style>
 
 <!-- Variant Stock History modal (P2 #23) -->
