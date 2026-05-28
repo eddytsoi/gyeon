@@ -1558,6 +1558,8 @@
   "admin_order_receipt_regenerate_failed": "重生收據 cache 失敗",
   "account_order_receipt_download": "下載收據",
   "account_order_receipt_cached_tooltip": "已準備好，即點即下載",
+  "account_order_reorder": "再次訂購",
+  "account_order_reorder_adding": "加入中…",
   "admin_media_picker_choose": "由媒體庫揀選",
   "admin_media_picker_clear": "清除",
   "admin_media_picker_modal_title": "揀選媒體",

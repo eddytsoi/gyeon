@@ -1,9 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import { cartStore } from '$lib/stores/cart.svelte';
+  import { renderNoticeBody } from '$lib/orderNotice';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -81,6 +84,31 @@
   let sending = $state(false);
   let messageBody = $state('');
 
+  // Reorder: re-add every parent line back into the cart, then go to /cart.
+  // Loop parent items only — the backend re-expands bundles, so adding bundle
+  // child rows too would double-add.
+  let reordering = $state(false);
+  async function reorder() {
+    if (reordering) return;
+    reordering = true;
+    try {
+      if (!cartStore.cart) await cartStore.init();
+      let added = 0;
+      for (const item of parentItems) {
+        if (!item.variant_id) continue;
+        try {
+          await cartStore.add(item.variant_id, item.quantity);
+          added++;
+        } catch {
+          // per-item failure already surfaces via cartStore.error toast
+        }
+      }
+      if (added > 0) await goto('/cart');
+    } finally {
+      reordering = false;
+    }
+  }
+
   const statusColors: Record<string, string> = {
     pending:    'bg-yellow-50 text-yellow-700 border-yellow-100',
     paid:       'bg-blue-50 text-blue-700 border-blue-100',
@@ -118,6 +146,19 @@
         </p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
+        {#if order.status === 'delivered'}
+          <button type="button" onclick={reorder} disabled={reordering}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+                         text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors
+                         disabled:opacity-50">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            {reordering ? m.account_order_reorder_adding() : m.account_order_reorder()}
+          </button>
+        {/if}
         {#if receiptStatuses.includes(order.status)}
           <a href="/account/orders/{order.id}/receipt.pdf"
              target="_blank" rel="noopener"
@@ -247,7 +288,7 @@
                 {m.account_order_msg_store_badge()}
               </span>
               <div class="flex-1 min-w-0 bg-blue-50/40 rounded-lg px-3 py-2">
-                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{@html renderNoticeBody(n.body)}</p>
                 <p class="text-xs text-gray-400 mt-1">{fmtNoticeTime(n.created_at)}</p>
               </div>
             </div>
@@ -257,7 +298,7 @@
                 {m.account_order_msg_you_badge()}
               </span>
               <div class="flex-1 min-w-0 bg-green-50/40 rounded-lg px-3 py-2">
-                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-sm text-gray-900 whitespace-pre-wrap break-words">{@html renderNoticeBody(n.body)}</p>
                 <p class="text-xs text-gray-400 mt-1 text-right">{fmtNoticeTime(n.created_at)}</p>
               </div>
             </div>

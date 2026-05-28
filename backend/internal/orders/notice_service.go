@@ -105,6 +105,12 @@ func (s *NoticeService) CreateAdminMessage(ctx context.Context, orderID, adminID
 	return s.insert(ctx, orderID, NoticeRoleAdmin, nil, body, &adminID)
 }
 
+// CreateAutoCustomerMessage records an automated store → customer message
+// (role='admin', no human author) — e.g. shipment tracking notifications.
+func (s *NoticeService) CreateAutoCustomerMessage(ctx context.Context, orderID, body string) (*Notice, error) {
+	return s.insert(ctx, orderID, NoticeRoleAdmin, nil, body, nil)
+}
+
 // CreateCustomerMessage records a customer → admin reply.
 func (s *NoticeService) CreateCustomerMessage(ctx context.Context, orderID, customerID, body string) (*Notice, error) {
 	return s.insert(ctx, orderID, NoticeRoleCustomer, nil, body, &customerID)

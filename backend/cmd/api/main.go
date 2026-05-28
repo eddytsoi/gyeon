@@ -305,7 +305,7 @@ func main() {
 	noticeSvc := orders.NewNoticeService(conn)
 	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailEnqueuer, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
-	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc)
+	shipanySvc := shipany.NewService(shipanyClient, settingsSvc, conn, orderSvc, noticeSvc)
 	shipanyJobs := shipany.NewQueueHandler(shipanySvc, noticeSvc, orderSvc)
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
