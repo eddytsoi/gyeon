@@ -1323,6 +1323,46 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 	return nil
 }
 
+// RecordPaymentFailure logs a declined/failed payment attempt against the
+// matching order. Called from the Stripe webhook on
+// payment_intent.payment_failed. The order is left pending so the shopper can
+// retry; this only records the attempt (system notice + payment_status) so an
+// admin can see it. The payment_status update is guarded against an
+// already-succeeded order in case Stripe delivers a stale failed event after a
+// successful retry on the same PaymentIntent.
+func (s *OrderService) RecordPaymentFailure(ctx context.Context, paymentIntentID, reason string) error {
+	var orderID string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM orders WHERE payment_intent_id=$1`, paymentIntentID).Scan(&orderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Printf("webhook: payment_failed but no order found for payment_intent %s", paymentIntentID)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE orders SET payment_status='failed'
+		 WHERE id=$1 AND payment_status IS DISTINCT FROM 'succeeded'`, orderID); err != nil {
+		return err
+	}
+	_ = CreateSystemNoticeTx(ctx, tx, orderID, nil, "Payment attempt failed: "+reason)
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	log.Printf("webhook: recorded payment failure for order %s (payment_intent %s): %s", orderID, paymentIntentID, reason)
+	return nil
+}
+
 func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) {
 	if s.emailSvc == nil || order.CustomerEmail == nil || *order.CustomerEmail == "" {
 		return
