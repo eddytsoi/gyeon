@@ -293,6 +293,7 @@ type OrderService struct {
 	audit        AuditRecorder
 	onCreated    func(ctx context.Context, order *Order)
 	onPaid       func(ctx context.Context, order *Order)
+	onShipped    func(ctx context.Context, order *Order)
 	receiptCache ReceiptCacheInvalidator
 }
 
@@ -320,6 +321,13 @@ func (s *OrderService) SetOnOrderPaid(fn func(context.Context, *Order)) {
 // (best-effort, non-blocking). Used for SSE broadcasts to admin clients.
 func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 	s.onCreated = fn
+}
+
+// SetOnOrderShipped registers a callback fired after an order transitions
+// 處理中 → 已發貨 (processing → shipped). Used to post the SF Express tracking
+// notice without an import-cycle dependency on the shipany package.
+func (s *OrderService) SetOnOrderShipped(fn func(context.Context, *Order)) {
+	s.onShipped = fn
 }
 
 // SetReceiptCache wires the receipt cache invalidator. When set, the
@@ -2106,8 +2114,15 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 		return nil, err
 	}
 
-	if req.Status == StatusShipped {
+	// Notify the customer only on the 處理中 → 已發貨 transition: send the
+	// shipped email and post the SF Express tracking notice (via onShipped).
+	// Both are best-effort and fire once, since the state machine only reaches
+	// shipped from processing.
+	if current == StatusProcessing && req.Status == StatusShipped {
 		go s.sendShippedEmail(context.Background(), id)
+		if s.onShipped != nil {
+			go s.onShipped(context.Background(), &order)
+		}
 	}
 	// A refund renders any previously cached receipt misleading (it claims
 	// a paid balance that's no longer owed). Clear so the next download
