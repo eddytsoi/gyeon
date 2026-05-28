@@ -29,6 +29,7 @@ import (
 	"gyeon/backend/internal/loyalty"
 	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
+	"gyeon/backend/internal/oauth"
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
@@ -370,6 +371,7 @@ func main() {
 		func(ctx context.Context, orderID, customerID string) (any, error) {
 			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
 		})
+	customerHandler.SetOAuth(oauth.New(settingsSvc, conn))
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)

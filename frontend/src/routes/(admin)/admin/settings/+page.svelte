@@ -425,6 +425,14 @@
     data.settings.find((s) => s.key === 'recaptcha_enabled')?.value === 'true'
   );
 
+  // ── Social login (Google / Apple) ──────────────────────────────
+  let googleOAuthOn = $state(
+    data.settings.find((s) => s.key === 'google_oauth_enabled')?.value === 'true'
+  );
+  let appleOAuthOn = $state(
+    data.settings.find((s) => s.key === 'apple_oauth_enabled')?.value === 'true'
+  );
+
   // ── Site Notice (storefront announcement strip) ─────────────────
   let siteNoticeOn = $state(
     (data.settings.find((s) => s.key === 'site_notice_enabled')?.value ?? 'true') !== 'false'
@@ -2700,6 +2708,114 @@
                class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                       focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
+    </div>
+
+    <!-- Social login (Google / Apple) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <p class="text-sm font-semibold text-gray-900">{m.admin_settings_oauth_heading()}</p>
+      <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_oauth_subtitle()}</p>
+
+      <!-- Google -->
+      <div class="mt-5 pt-5 border-t border-gray-100">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-sm font-medium text-gray-800">{m.admin_settings_oauth_google()}</p>
+          <button type="button"
+                  onclick={() => (googleOAuthOn = !googleOAuthOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {googleOAuthOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch" aria-checked={googleOAuthOn} aria-label={m.admin_settings_oauth_google()}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {googleOAuthOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="google_oauth_enabled" value={googleOAuthOn ? 'true' : 'false'} />
+        </div>
+        <div class="mt-4 flex flex-col gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="google_oauth_client_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_oauth_google_client_id()}
+            </label>
+            <input id="google_oauth_client_id" name="google_oauth_client_id" type="text"
+                   value={settingValue('google_oauth_client_id')}
+                   placeholder="123-abc.apps.googleusercontent.com"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="google_oauth_client_secret" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_oauth_google_client_secret()}
+            </label>
+            <PasswordInput id="google_oauth_client_secret" name="google_oauth_client_secret"
+                           value={settingValue('google_oauth_client_secret')} placeholder="GOCSPX-..." />
+          </div>
+        </div>
+      </div>
+
+      <!-- Apple -->
+      <div class="mt-5 pt-5 border-t border-gray-100">
+        <div class="flex items-center justify-between gap-4">
+          <p class="text-sm font-medium text-gray-800">{m.admin_settings_oauth_apple()}</p>
+          <button type="button"
+                  onclick={() => (appleOAuthOn = !appleOAuthOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {appleOAuthOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch" aria-checked={appleOAuthOn} aria-label={m.admin_settings_oauth_apple()}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {appleOAuthOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="apple_oauth_enabled" value={appleOAuthOn ? 'true' : 'false'} />
+        </div>
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="apple_oauth_client_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_oauth_apple_client_id()}
+            </label>
+            <input id="apple_oauth_client_id" name="apple_oauth_client_id" type="text"
+                   value={settingValue('apple_oauth_client_id')}
+                   placeholder="com.example.web"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="apple_oauth_team_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_oauth_apple_team_id()}
+            </label>
+            <input id="apple_oauth_team_id" name="apple_oauth_team_id" type="text"
+                   value={settingValue('apple_oauth_team_id')}
+                   placeholder="ABCDE12345"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label for="apple_oauth_key_id" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_settings_oauth_apple_key_id()}
+            </label>
+            <input id="apple_oauth_key_id" name="apple_oauth_key_id" type="text"
+                   value={settingValue('apple_oauth_key_id')}
+                   placeholder="XYZ9876543"
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+        </div>
+        <div class="mt-4 flex flex-col gap-1.5">
+          <label for="apple_oauth_private_key" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_oauth_apple_private_key()}
+          </label>
+          <textarea id="apple_oauth_private_key" name="apple_oauth_private_key" rows="5"
+                    placeholder="-----BEGIN PRIVATE KEY-----"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-mono text-xs
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">{settingValue('apple_oauth_private_key')}</textarea>
+        </div>
+      </div>
+
+      <p class="mt-5 pt-5 border-t border-gray-100 text-xs text-gray-400">
+        {m.admin_settings_oauth_redirect_hint()}
+        <br />
+        <span class="font-mono text-gray-500">{settingValue('public_base_url') || 'https://your-site'}/api/v1/customers/oauth/google/callback</span>
+        <br />
+        <span class="font-mono text-gray-500">{settingValue('public_base_url') || 'https://your-site'}/api/v1/customers/oauth/apple/callback</span>
+      </p>
     </div>
 
     {#if mediaLimitSettings.length > 0}

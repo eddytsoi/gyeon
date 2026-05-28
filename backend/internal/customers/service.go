@@ -186,6 +186,90 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error
 	return &c, nil
 }
 
+// FindOrCreateByOAuth resolves the customer behind a social login. Resolution
+// order, all in one transaction:
+//  1. an existing (provider, subject) identity → returning user;
+//  2. an existing customer with the same email → auto-link a new identity
+//     (the provider has verified the email, so this safely merges WooCommerce
+//     imports and password accounts into one login);
+//  3. otherwise create a fresh customer and identity.
+//
+// email must be the provider's verified email (caller's responsibility).
+func (s *Service) FindOrCreateByOAuth(ctx context.Context, provider, subject, email, firstName, lastName string) (*Customer, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if subject == "" || email == "" {
+		return nil, errors.New("oauth: missing subject or email")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	const cols = `id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`
+	scan := func(row interface{ Scan(...any) error }, c *Customer) error {
+		return row.Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
+	}
+
+	// 1. Returning user — match by provider identity. Columns are qualified
+	// because customer_oauth_identities also has an `email` column.
+	const colsC = `c.id, c.email, c.first_name, c.last_name, c.phone, c.is_active, c.role::text, c.created_at, c.updated_at`
+	var c Customer
+	err = scan(tx.QueryRowContext(ctx,
+		`SELECT `+colsC+` FROM customers c
+		   JOIN customer_oauth_identities i ON i.customer_id = c.id
+		  WHERE i.provider=$1 AND i.subject=$2`, provider, subject), &c)
+	if err == nil {
+		return &c, tx.Commit()
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	// 2. Existing account with the same email — auto-link.
+	err = scan(tx.QueryRowContext(ctx,
+		`SELECT `+cols+` FROM customers WHERE email=$1`, email), &c)
+	if err == nil {
+		if _, ierr := tx.ExecContext(ctx,
+			`INSERT INTO customer_oauth_identities (customer_id, provider, subject, email)
+			 VALUES ($1, $2, $3, $4)`, c.ID, provider, subject, email); ierr != nil {
+			return nil, ierr
+		}
+		return &c, tx.Commit()
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	// 3. Brand-new customer (no password — social login only until they set one).
+	first := strings.TrimSpace(firstName)
+	last := strings.TrimSpace(lastName)
+	if first == "" && last == "" {
+		first = emailLocalPart(email)
+	}
+	err = scan(tx.QueryRowContext(ctx,
+		`INSERT INTO customers (email, first_name, last_name)
+		 VALUES ($1, $2, $3)
+		 RETURNING `+cols, email, first, last), &c)
+	if err != nil {
+		return nil, err
+	}
+	if _, ierr := tx.ExecContext(ctx,
+		`INSERT INTO customer_oauth_identities (customer_id, provider, subject, email)
+		 VALUES ($1, $2, $3, $4)`, c.ID, provider, subject, email); ierr != nil {
+		return nil, ierr
+	}
+	return &c, tx.Commit()
+}
+
+func emailLocalPart(email string) string {
+	if i := strings.IndexByte(email, '@'); i > 0 {
+		return email[:i]
+	}
+	return email
+}
+
 // TokenVersion returns the current JWT revocation counter for the customer.
 // Issued tokens carry this value in a `tv` claim; the middleware rejects
 // tokens whose claim doesn't match the live value here.

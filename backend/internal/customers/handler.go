@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/email"
+	"gyeon/backend/internal/oauth"
 	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/respond"
 )
@@ -30,15 +32,20 @@ type EmailSender interface {
 }
 
 type Handler struct {
-	svc          *Service
-	emailSvc     EmailSender
-	jwtSecret    string
-	fetchOrder   OrderFetcherFunc
+	svc        *Service
+	emailSvc   EmailSender
+	jwtSecret  string
+	fetchOrder OrderFetcherFunc
+	oauth      *oauth.Service
 }
 
 func NewHandler(svc *Service, emailSvc EmailSender, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
 	return &Handler{svc: svc, emailSvc: emailSvc, jwtSecret: jwtSecret, fetchOrder: fetchOrder}
 }
+
+// SetOAuth wires the social-login service. Optional — when unset, the
+// /oauth/* routes redirect back to login with an error.
+func (h *Handler) SetOAuth(o *oauth.Service) { h.oauth = o }
 
 // Routes combines public and authenticated customer routes under one router.
 func (h *Handler) Routes() chi.Router {
@@ -52,6 +59,12 @@ func (h *Handler) Routes() chi.Router {
 	r.With(authRL).Post("/login", h.login)
 	r.With(authRL).Post("/setup-password", h.setupPassword)
 	r.With(forgotRL).Post("/forgot-password", h.forgotPassword)
+	// Social login (Google / Apple). start = top-level GET redirect to provider;
+	// callback = GET (Google) or POST form_post (Apple). The handler sets the
+	// customer_token cookie itself, so no SvelteKit callback route is needed.
+	oauthRL := ratelimit.Middleware(20, 5*time.Minute)
+	r.With(oauthRL).Get("/oauth/{provider}/start", h.oauthStart)
+	r.With(oauthRL).HandleFunc("/oauth/{provider}/callback", h.oauthCallback)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.CustomerMiddleware(h.jwtSecret))
 		r.Get("/me", h.getProfile)
@@ -179,6 +192,93 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		"customer": customer,
 		"token":    token,
 	})
+}
+
+// oauthLoginRedirect is where the storefront login page lives; OAuth flows
+// bounce back here with an ?error= on any failure.
+const oauthLoginRedirect = "/account/login"
+
+func (h *Handler) oauthStart(w http.ResponseWriter, r *http.Request) {
+	provider := chi.URLParam(r, "provider")
+	if h.oauth == nil || !oauth.ValidProvider(provider) {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	authURL, err := h.oauth.AuthURL(r.Context(), provider)
+	if err != nil {
+		log.Printf("oauth start %s: %v", provider, err)
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, authURL, http.StatusSeeOther)
+}
+
+func (h *Handler) oauthCallback(w http.ResponseWriter, r *http.Request) {
+	provider := chi.URLParam(r, "provider")
+	if h.oauth == nil || !oauth.ValidProvider(provider) {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	// ParseForm covers both Google (query params on a GET) and Apple
+	// (form_post body on a POST).
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	if e := r.Form.Get("error"); e != "" {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	info, err := h.oauth.Exchange(r.Context(), provider, r.Form.Get("code"), r.Form.Get("state"))
+	if err != nil {
+		log.Printf("oauth callback %s: %v", provider, err)
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	// Apple only sends the user's name on the first authorization, in the
+	// `user` form field rather than the id_token.
+	first, last := info.FirstName, info.LastName
+	if provider == oauth.ProviderApple {
+		if af, al := oauth.ParseAppleUserName(r.Form.Get("user")); af != "" || al != "" {
+			first, last = af, al
+		}
+	}
+	customer, err := h.svc.FindOrCreateByOAuth(r.Context(), provider, info.Subject, info.Email, first, last)
+	if err != nil {
+		log.Printf("oauth find-or-create %s: %v", provider, err)
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	if !customer.IsActive {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=inactive", http.StatusSeeOther)
+		return
+	}
+	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
+	if err != nil {
+		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
+		return
+	}
+	// Same cookie shape as the SvelteKit login action sets, so downstream
+	// auth (layout guard, Bearer forwarding) is identical.
+	http.SetCookie(w, &http.Cookie{
+		Name:     "customer_token",
+		Value:    token,
+		Path:     "/",
+		MaxAge:   60 * 60 * 24 * 30,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestIsHTTPS(r),
+	})
+	http.Redirect(w, r, "/account", http.StatusSeeOther)
+}
+
+// requestIsHTTPS reports whether the original client request was over TLS,
+// accounting for the reverse proxy in front of the backend. Drives the cookie
+// Secure flag — must stay false on plain-http localhost or the browser drops
+// the cookie.
+func requestIsHTTPS(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 func (h *Handler) setupPassword(w http.ResponseWriter, r *http.Request) {

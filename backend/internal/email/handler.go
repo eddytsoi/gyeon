@@ -228,6 +228,8 @@ func defaultsFor(key string) defaults {
 		return defaults{subject: paymentLinkSubject, html: paymentLinkHTML, text: paymentLinkText}
 	case "password_reset":
 		return defaults{subject: passwordResetSubject, html: passwordResetHTML, text: passwordResetText}
+	case "account_setup":
+		return defaults{subject: accountSetupSubject, html: accountSetupHTML, text: accountSetupText}
 	case "admin_message":
 		return defaults{subject: adminMessageSubject, html: adminMessageHTML, text: adminMessageText}
 	case "abandoned_cart":

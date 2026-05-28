@@ -53,9 +53,9 @@ type CustomersImportRequest struct {
 type CustomersProgressUpdate struct {
 	TotalCustomers     int      `json:"total_customers"`
 	ProcessedCustomers int      `json:"processed_customers"`
-	ImportedCustomers  int      `json:"imported_customers"` // newly inserted
-	UpdatedCustomers   int      `json:"updated_customers"`  // matched (by wc_customer_id or email), updated in place
-	ImportedAddresses  int      `json:"imported_addresses"` // billing + shipping rows added on first import
+	ImportedCustomers  int      `json:"imported_customers"`  // newly inserted
+	UpdatedCustomers   int      `json:"updated_customers"`   // matched (by wc_customer_id or email), updated in place
+	ImportedAddresses  int      `json:"imported_addresses"`  // billing + shipping rows added on first import
 	SetupEmailsQueued  int      `json:"setup_emails_queued"` // setup-password emails kicked off (async; failures logged server-side)
 	Failed             int      `json:"failed"`
 	CurrentCustomer    string   `json:"current_customer,omitempty"`
@@ -163,7 +163,8 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 }
 
 // sendSetupPasswordEmail mints a 7-day setup token via the customers
-// service and sends the standard password-reset email. Caller has
+// service and sends the account-setup email (set a password, or sign in
+// with Google/Apple using the same email). Caller has
 // already gated on SetupEmailMode and stamped customers.setup_email_sent_at,
 // so this function just delivers. Errors are logged but never surface to
 // the importer caller — best-effort delivery.
@@ -186,7 +187,7 @@ func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, count
 	if name == "" {
 		name = wc.Email
 	}
-	if err := s.emailSvc.SendPasswordResetEmail(ctx, email.PasswordResetParams{
+	if err := s.emailSvc.SendAccountSetupEmail(ctx, email.PasswordResetParams{
 		CustomerName:  name,
 		CustomerEmail: wc.Email,
 		ResetURL:      resetURL,
