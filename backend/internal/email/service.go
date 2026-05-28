@@ -96,6 +96,14 @@ type OrderEmailItem struct {
 	Children []OrderEmailItem
 }
 
+// EmailPromotion is a render-ready promotion line for the confirmation email.
+// Mirrors orders.OrderAppliedPromotion but lives here to avoid an import cycle
+// (orders imports email). Description is already flattened — empty when none.
+type EmailPromotion struct {
+	Name        string
+	Description string
+}
+
 type OrderEmailParams struct {
 	OrderID       string
 	OrderNumber   string // customer-facing, e.g. ORD-0001
@@ -108,18 +116,22 @@ type OrderEmailParams struct {
 	// or "順豐速運（到付）". Computed at send time from the order's frozen
 	// shipping_free flag — the numeric ShippingFee is always 0 today so the
 	// label is what the customer actually needs to see.
-	ShippingLabel   string
-	DiscountAmount  float64
-	TaxAmount       float64
-	TaxLabel        string
-	Total           float64
-	Currency        string
-	ShippingLine1   string
-	ShippingLine2   string
-	ShippingCity    string
-	ShippingPostal  string
-	ShippingCountry string
-	SetupURL        string // empty unless guest
+	ShippingLabel  string
+	DiscountAmount float64
+	// AppliedPromotions lists the campaigns / coupons behind DiscountAmount so
+	// the email can name the 優惠活動 / 優惠碼, not just the total. Rendered only
+	// when a discount applied; empty for imported / pre-migration orders.
+	AppliedPromotions []EmailPromotion
+	TaxAmount         float64
+	TaxLabel          string
+	Total             float64
+	Currency          string
+	ShippingLine1     string
+	ShippingLine2     string
+	ShippingCity      string
+	ShippingPostal    string
+	ShippingCountry   string
+	SetupURL          string // empty unless guest
 }
 
 type PaymentLinkParams struct {
@@ -882,7 +894,8 @@ const orderConfirmationText = `您好 {{.CustomerName}}，
 {{end}}{{end}}
 小計：     {{.Currency}} {{printf "%.2f" .Subtotal}}
 {{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{printf "%.2f" .DiscountAmount}}
-{{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{printf "%.2f" .TaxAmount}}
+{{range .AppliedPromotions}}　　{{.Name}}{{if .Description}} — {{.Description}}{{end}}
+{{end}}{{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{printf "%.2f" .TaxAmount}}
 {{end}}運費：     {{.ShippingLabel}}
 總額：     {{.Currency}} {{printf "%.2f" .Total}}
 
@@ -915,7 +928,7 @@ const orderConfirmationHTML = `<!doctype html>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
-        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{printf "%.2f" .DiscountAmount}}</td></tr>{{end}}
+        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{printf "%.2f" .DiscountAmount}}</td></tr>{{range .AppliedPromotions}}<tr><td colspan="2" style="padding:0 0 4px;color:#9ca3af;font-size:12px">{{.Name | esc}}{{if .Description}} — {{.Description | esc}}{{end}}</td></tr>{{end}}{{end}}
         {{if gt .TaxAmount 0.0}}<tr><td style="padding:4px 0;color:#6b7280">{{if .TaxLabel}}{{.TaxLabel | esc}}{{else}}稅金{{end}}</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .TaxAmount}}</td></tr>{{end}}
         <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.ShippingLabel}}</td></tr>
         <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{printf "%.2f" .Total}}</td></tr>
