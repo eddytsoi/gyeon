@@ -1689,9 +1689,12 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => showAddVariant = false} role="button" tabindex="-1" aria-label={m.admin_modal_close()}></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-      <h3 class="font-semibold text-gray-900 mb-4">{m.admin_product_edit_add_variant_title()}</h3>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="p-6 pb-0">
+        <h3 class="font-semibold text-gray-900">{m.admin_product_edit_add_variant_title()}</h3>
+      </div>
       <form method="POST" action="?/addVariant"
+            class="flex flex-col min-h-0 flex-1"
             use:enhance={({ formData, cancel }) => {
               if (savingVariant) { cancel(); return; }
               const sku = formData.get('sku')?.toString() ?? '';
@@ -1703,7 +1706,7 @@
                   return;
                 }
                 const imageId = addVariantImageId ?? undefined;
-                const imageMedia_ = imageMedia.find(m => m.id === imageId);
+                const imageMedia_ = bannerLibrary.find(m => m.id === imageId);
                 const nameVal = formData.get('name')?.toString().trim() ?? '';
                 const weightStr = formData.get('weight_grams')?.toString().trim() ?? '';
                 const lenStr = formData.get('length_mm')?.toString().trim() ?? '';
@@ -1737,7 +1740,19 @@
                 if (result.type === 'success') { showAddVariant = false; addVariantImageId = null; }
               };
             }}>
-        <div class="grid grid-cols-2 gap-4">
+        <input type="hidden" name="image_media_file_id" value={addVariantImageId ?? ''} />
+        <div class="flex-1 overflow-y-auto min-h-0">
+        <div class="p-6 pt-4">
+        <SingleMediaPicker
+          files={bannerLibrary}
+          value={addVariantImageId}
+          token={data.token ?? null}
+          label={m.admin_product_edit_add_variant_label_images()}
+          previewClass="aspect-[16/9] w-full"
+          onChange={(id) => addVariantImageId = id}
+          onUpload={(mf) => (uploadedMedia = [mf, ...uploadedMedia])}
+        />
+        <div class="grid grid-cols-2 gap-4 mt-4">
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_sku()} {m.admin_product_edit_required_marker()}</label>
             <input name="sku" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
@@ -1799,43 +1814,6 @@
             </div>
           </div>
         </div>
-        <!-- Image picker -->
-        <div class="mt-4">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_images()}</label>
-          <input type="hidden" name="image_media_file_id" value={addVariantImageId ?? ''} />
-          {#if imageMedia.length === 0}
-            <p class="mt-2 text-xs text-gray-400">{m.admin_product_edit_add_variant_no_media()}</p>
-          {:else}
-            <div class="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {#each imageMedia as mf}
-                <button type="button"
-                        onclick={() => addVariantImageId = addVariantImageId === mf.id ? null : mf.id}
-                        style={mf.mime_type === 'link' ? 'display: none' : ''}
-                        class="relative flex-none w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors
-                               {addVariantImageId === mf.id ? 'border-gray-900' : 'border-transparent'}">
-                  {#if isVideo(mf)}
-                    {#if isStreamingVideo(mf)}
-                      <ResponsiveImage src={mf.thumbnail_url ?? ''} alt={mf.original_name}
-                                       widths={[160, 320]} sizes="56px"
-                                       class="w-full h-full object-cover bg-black" />
-                    {:else}
-                      <video src={mf.url} muted playsinline preload="metadata" class="w-full h-full object-cover bg-black"></video>
-                    {/if}
-                    <span class="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white" aria-hidden="true">
-                      <svg class="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </span>
-                  {:else}
-                    <ResponsiveImage src={mf.webp_url ?? mf.url} alt={mf.original_name}
-                                     widths={[160, 320]} sizes="56px"
-                                     class="w-full h-full object-cover"
-                                     onload={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = ''; } : null}
-                                     onerror={mf.mime_type === 'link' ? (e) => { ((e.currentTarget as HTMLImageElement).parentElement as HTMLElement).style.display = 'none'; } : null} />
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
         <div class="flex gap-3 mt-5">
           <SaveButton loading={savingVariant}
                   class="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 bg-gray-900
@@ -1847,6 +1825,8 @@
                          hover:border-gray-400 transition-colors">
             {m.admin_product_edit_add_variant_cancel()}
           </button>
+        </div>
+        </div>
         </div>
       </form>
     </div>
