@@ -13,10 +13,11 @@ import (
 // Job types used across the codebase. Centralized here so callers and the
 // worker registration site share string constants.
 const (
-	JobTypeSendEmail              = "send_email"
-	JobTypeSendEmailRaw           = "send_email_raw"
-	JobTypeCreateShipanyShipment  = "create_shipany_shipment"
-	JobTypeGenerateReceiptCache   = "generate_receipt_cache"
+	JobTypeSendEmail             = "send_email"
+	JobTypeSendEmailRaw          = "send_email_raw"
+	JobTypeCreateShipanyShipment = "create_shipany_shipment"
+	JobTypeGenerateReceiptCache  = "generate_receipt_cache"
+	JobTypeGenerateReceiptBatch  = "generate_receipt_batch"
 )
 
 // HandlerFunc processes one job payload. Returning nil marks the job

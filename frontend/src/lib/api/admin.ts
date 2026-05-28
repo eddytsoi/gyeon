@@ -286,6 +286,32 @@ export const adminIssueRefund = (token: string, id: string, amountCents: number,
     body: JSON.stringify({ amount_cents: amountCents, reason })
   });
 
+// Batch receipt download. One order that couldn't be included (unpaid, render
+// failure, deleted) shows up here rather than failing the whole batch.
+export interface ReceiptBatchError {
+  order_id: string;
+  order_number: string;
+  reason: 'not_receiptable' | 'generation_failed' | 'not_found' | string;
+}
+
+export interface ReceiptBatchStatus {
+  status: 'pending' | 'processing' | 'succeeded' | 'failed' | string;
+  total: number;
+  succeeded_count: number;
+  errors: ReceiptBatchError[];
+  zip_ready: boolean;
+}
+
+// Enqueues a batch job; returns the id to poll with adminGetReceiptBatch.
+export const adminCreateReceiptBatch = (token: string, orderIds: string[], locale: string) =>
+  request<{ batch_id: string }>('/admin/order-receipts/batch', token, {
+    method: 'POST',
+    body: JSON.stringify({ order_ids: orderIds, locale })
+  });
+
+export const adminGetReceiptBatch = (token: string, batchId: string) =>
+  request<ReceiptBatchStatus>(`/admin/order-receipts/batch/${batchId}`, token);
+
 // Order notices (admin)
 export const adminListOrderNotices = (token: string, orderID: string) =>
   request<OrderNotice[]>(`/admin/order-notices/${orderID}`, token);
