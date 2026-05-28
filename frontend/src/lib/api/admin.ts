@@ -1539,6 +1539,47 @@ export const adminImportStockMutationCSV = async (
   return res.json();
 };
 
+export interface OrderCSVResolveItem {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  product_kind: 'simple' | 'bundle' | string;
+  variant_name?: string | null;
+  sku: string;
+  unit_price: number;
+  stock_qty: number;
+  primary_image_url?: string | null;
+  quantity: number;
+  bundle_items?: BundleItem[];
+}
+
+export interface OrderCSVResolveResult {
+  items: OrderCSVResolveItem[];
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+/** Upload a `name,variant,quantity` CSV and resolve each row to a variant
+ *  enriched for the admin order-creation UI. Bad rows surface in `errors`;
+ *  bundle products arrive with their component rows pre-loaded. */
+export const adminImportOrderItemsCSV = async (
+  token: string,
+  file: File
+): Promise<OrderCSVResolveResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/orders/items/csv-resolve`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
 /** Execute a draft mutation. Re-thrown as StockMutationInsufficientStockError
  *  when the server returns 422 with a conflicts payload (stock-out only). */
 export const adminExecuteStockMutation = async (token: string, id: string): Promise<StockMutation> => {

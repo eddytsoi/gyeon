@@ -592,7 +592,7 @@ func main() {
 		r.With(optionalCustomerMW).Mount("/categories", categoryHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/products", productHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
-		r.Mount("/orders", orders.NewOrderHandler(orderSvc).PublicRoutes())
+		r.Mount("/orders", orders.NewOrderHandler(orderSvc, productSvc).PublicRoutes())
 
 		// Public media lookup — resolves [photo-grid] source names to canonical
 		// /uploads/... URLs during storefront SSR. Read-only, no auth: the
@@ -718,7 +718,7 @@ func main() {
 
 				// Order admin — list / get / status / delete / refund. Public /orders
 				// only exposes checkout + PI-authorized read-back.
-				r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc).AdminRoutes())
+				r.Mount("/admin/orders", orders.NewOrderHandler(orderSvc, productSvc).AdminRoutes())
 
 				// PDF receipt for admin: /admin/orders/{id}/receipt.pdf. Registered
 				// directly (not as a sibling Mount) because chi disallows two
