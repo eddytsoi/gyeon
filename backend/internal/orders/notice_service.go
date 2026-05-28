@@ -116,6 +116,21 @@ func (s *NoticeService) CreateCustomerMessage(ctx context.Context, orderID, cust
 	return s.insert(ctx, orderID, NoticeRoleCustomer, nil, body, &customerID)
 }
 
+// AutoCustomerMessageMentions reports whether an automated store → customer
+// message (role='admin', no human author) already references substr for the
+// order. Lets callers stay idempotent across duplicate triggers (e.g. a repeat
+// webhook, or a redeploy that changed when a notification fires).
+func (s *NoticeService) AutoCustomerMessageMentions(ctx context.Context, orderID, substr string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx,
+		`SELECT EXISTS(
+		   SELECT 1 FROM order_notices
+		   WHERE order_id = $1 AND role = 'admin' AND author_id IS NULL
+		     AND body LIKE '%' || $2 || '%')`,
+		orderID, substr).Scan(&exists)
+	return exists, err
+}
+
 func (s *NoticeService) insert(ctx context.Context, orderID string, role NoticeRole, status *OrderStatus, body string, authorID *string) (*Notice, error) {
 	if body == "" {
 		return nil, ErrNoticeBodyEmpty

@@ -361,6 +361,15 @@ func (s *Service) PostTrackingNotice(ctx context.Context, orderID string) {
 	if !strings.HasPrefix(strings.ToUpper(tn), "SF") {
 		return
 	}
+	// Stay idempotent: skip if an automated message already mentions this
+	// waybill for the order. Guards against duplicate triggers — e.g. repeat
+	// Collected_By_Courier webhooks, or a redeploy that moved when this fires
+	// straddling an in-flight order (the v0.9.298 cause of double messages).
+	if mentioned, err := s.notices.AutoCustomerMessageMentions(ctx, orderID, tn); err != nil {
+		log.Printf("shipany: check existing tracking notice for order %s: %v", orderID, err)
+	} else if mentioned {
+		return
+	}
 	body := fmt.Sprintf("SF Express 運單號碼 [%s](%s) 點擊可查看運單詳情", tn, sfExpressTrackingURL(tn))
 	if _, err := s.notices.CreateAutoCustomerMessage(ctx, orderID, body); err != nil {
 		log.Printf("shipany: post tracking notice for order %s: %v", orderID, err)
