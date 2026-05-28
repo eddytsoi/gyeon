@@ -358,6 +358,11 @@ func main() {
 				log.Printf("setup_intent.succeeded: store pm for customer %s: %v", gyeonCustomerID, err)
 			}
 		},
+		func(r *http.Request, paymentIntentID, reason string) {
+			if err := orderSvc.RecordPaymentFailure(r.Context(), paymentIntentID, reason); err != nil {
+				log.Printf("record payment failure for payment_intent %s: %v", paymentIntentID, err)
+			}
+		},
 		customerJWTSecret,
 	)
 	statsHandler := admin.NewStatsHandler(conn)

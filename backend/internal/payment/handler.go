@@ -15,21 +15,25 @@ type Handler struct {
 	svc               *Service
 	onSuccess         func(r *http.Request, paymentIntentID, paymentMethodID string)
 	onSetupSucceeded  func(r *http.Request, stripeCustomerID, stripePMID string)
+	onFailed          func(r *http.Request, paymentIntentID, reason string)
 	customerJWTSecret string
 }
 
 // NewHandler wires the public payment routes. onSuccess is invoked from the
-// webhook on `payment_intent.succeeded` events.
+// webhook on `payment_intent.succeeded` events; onFailed on
+// `payment_intent.payment_failed`.
 func NewHandler(
 	svc *Service,
 	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID string),
 	onSetupSucceeded func(r *http.Request, stripeCustomerID, stripePMID string),
+	onFailed func(r *http.Request, paymentIntentID, reason string),
 	customerJWTSecret string,
 ) *Handler {
 	return &Handler{
 		svc:               svc,
 		onSuccess:         onSuccess,
 		onSetupSucceeded:  onSetupSucceeded,
+		onFailed:          onFailed,
 		customerJWTSecret: customerJWTSecret,
 	}
 }
@@ -95,6 +99,20 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 		if si.Customer != "" && si.PaymentMethod != "" && h.onSetupSucceeded != nil {
 			h.onSetupSucceeded(r, si.Customer, si.PaymentMethod)
 		}
+
+	case "payment_intent.payment_failed":
+		var pi struct {
+			ID               string            `json:"id"`
+			LastPaymentError *lastPaymentError `json:"last_payment_error"`
+		}
+		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
+			log.Printf("stripe webhook decode pi.failed: %v", err)
+			respond.BadRequest(w, "bad event payload")
+			return
+		}
+		if pi.ID != "" && h.onFailed != nil {
+			h.onFailed(r, pi.ID, failureReason(pi.LastPaymentError))
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -134,6 +152,34 @@ func (h *Handler) setDefaultCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// lastPaymentError mirrors the subset of Stripe's last_payment_error we record
+// on a failed PaymentIntent.
+type lastPaymentError struct {
+	Message     string `json:"message"`
+	Code        string `json:"code"`
+	DeclineCode string `json:"decline_code"`
+}
+
+// failureReason builds a concise human-readable reason from a failed
+// PaymentIntent's last_payment_error, falling back to a generic string.
+func failureReason(e *lastPaymentError) string {
+	if e == nil {
+		return "Payment failed"
+	}
+	reason := e.Message
+	if reason == "" {
+		reason = "Payment failed"
+	}
+	code := e.DeclineCode
+	if code == "" {
+		code = e.Code
+	}
+	if code != "" {
+		reason += " (" + code + ")"
+	}
+	return reason
 }
 
 // decodePMRef tolerates both forms Stripe may send for a PaymentMethod field:
