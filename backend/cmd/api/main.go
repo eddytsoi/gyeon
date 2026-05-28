@@ -372,11 +372,17 @@ func main() {
 			return orderSvc.GetByIDForCustomer(ctx, orderID, customerID)
 		})
 	customerHandler.SetOAuth(oauth.New(settingsSvc, conn))
+	customerHandler.SetTokenTTL(func(ctx context.Context) time.Duration {
+		return settingsSvc.TTLHours(ctx, "customer_token_ttl_hours", 720)
+	})
 	settingsHandler := settings.NewHandler(settingsSvc, emailSvc)
 	mediaSvc := media.NewService(conn, baseURL)
 	mediaHandler := media.NewHandler(conn, baseURL, settingsSvc, mediaSvc)
 	productSvc.SetThumbnailEnsurer(mediaHandler)
 	adminUserHandler := admin.NewUserHandler(adminUserSvc, jwtSecret)
+	adminUserHandler.SetTokenTTL(func(ctx context.Context) time.Duration {
+		return settingsSvc.TTLHours(ctx, "admin_token_ttl_hours", 24)
+	})
 	importHandler := importer.NewHandler(importer.NewService(conn, categorySvc, productSvc, mediaSvc, settingsSvc, customerSvc, emailEnqueuer))
 	shipanyHandler := shipany.NewHandler(shipanySvc, cartSvc)
 	wcshimHandler := wcshim.NewHandler(conn, orderSvc)

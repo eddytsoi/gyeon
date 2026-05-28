@@ -551,13 +551,13 @@ export const registerCustomer = (
   lastName: string,
   phone?: string
 ) =>
-  request<{ customer: Customer; token: string }>('/customers/register', {
+  request<{ customer: Customer; token: string; expires_in: number }>('/customers/register', {
     method: 'POST',
     body: JSON.stringify({ email, password, first_name: firstName, last_name: lastName, phone })
   });
 
 export const loginCustomer = (email: string, password: string) =>
-  request<{ customer: Customer; token: string }>('/customers/login', {
+  request<{ customer: Customer; token: string; expires_in: number }>('/customers/login', {
     method: 'POST',
     body: JSON.stringify({ email, password })
   });

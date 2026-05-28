@@ -9,12 +9,12 @@ export const actions: Actions = {
     const password = form.get('password')?.toString() ?? '';
 
     try {
-      const token = await adminLogin(email, password);
+      const { token, expiresIn } = await adminLogin(email, password);
       cookies.set('admin_token', token, {
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24
+        maxAge: expiresIn ?? 60 * 60 * 24
       });
     } catch {
       return fail(401, { error: 'Invalid email or password' });

@@ -11,12 +11,12 @@ export const actions: Actions = {
     if (!email || !password) return fail(400, { error: 'Email and password are required' });
 
     try {
-      const { token } = await loginCustomer(email, password);
+      const { token, expires_in } = await loginCustomer(email, password);
       cookies.set('customer_token', token, {
         path: '/',
         httpOnly: true,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30
+        maxAge: expires_in ?? 60 * 60 * 24 * 30
       });
     } catch {
       return fail(401, { error: 'Invalid email or password' });

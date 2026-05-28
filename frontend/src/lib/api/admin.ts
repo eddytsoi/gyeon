@@ -49,7 +49,10 @@ export interface AdminStats {
   pending_orders: number;
 }
 
-export const adminLogin = async (email: string, password: string): Promise<string> => {
+export const adminLogin = async (
+  email: string,
+  password: string
+): Promise<{ token: string; expiresIn: number }> => {
   const res = await fetch(`${base()}/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +60,7 @@ export const adminLogin = async (email: string, password: string): Promise<strin
   });
   if (!res.ok) throw new Error('Invalid credentials');
   const data = await res.json();
-  return data.token;
+  return { token: data.token, expiresIn: data.expires_in as number };
 };
 
 export const getStats = (token: string, from?: string, to?: string) =>

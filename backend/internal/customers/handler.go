@@ -37,6 +37,7 @@ type Handler struct {
 	jwtSecret  string
 	fetchOrder OrderFetcherFunc
 	oauth      *oauth.Service
+	tokenTTL   func(context.Context) time.Duration
 }
 
 func NewHandler(svc *Service, emailSvc EmailSender, jwtSecret string, fetchOrder OrderFetcherFunc) *Handler {
@@ -46,6 +47,18 @@ func NewHandler(svc *Service, emailSvc EmailSender, jwtSecret string, fetchOrder
 // SetOAuth wires the social-login service. Optional — when unset, the
 // /oauth/* routes redirect back to login with an error.
 func (h *Handler) SetOAuth(o *oauth.Service) { h.oauth = o }
+
+// SetTokenTTL wires the customer session length provider (reads the
+// customer_token_ttl_hours setting). Optional — falls back to 30 days when unset.
+func (h *Handler) SetTokenTTL(fn func(context.Context) time.Duration) { h.tokenTTL = fn }
+
+// customerTTL resolves the configured customer session length, defaulting to 30 days.
+func (h *Handler) customerTTL(ctx context.Context) time.Duration {
+	if h.tokenTTL == nil {
+		return 30 * 24 * time.Hour
+	}
+	return h.tokenTTL(ctx)
+}
 
 // Routes combines public and authenticated customer routes under one router.
 func (h *Handler) Routes() chi.Router {
@@ -156,14 +169,16 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
-	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
+	ttl := h.customerTTL(r.Context())
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv, ttl)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
 	respond.JSON(w, http.StatusCreated, map[string]interface{}{
-		"customer": customer,
-		"token":    token,
+		"customer":   customer,
+		"token":      token,
+		"expires_in": int(ttl.Seconds()),
 	})
 }
 
@@ -183,14 +198,16 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
-	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
+	ttl := h.customerTTL(r.Context())
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv, ttl)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]interface{}{
-		"customer": customer,
-		"token":    token,
+		"customer":   customer,
+		"token":      token,
+		"expires_in": int(ttl.Seconds()),
 	})
 }
 
@@ -254,7 +271,8 @@ func (h *Handler) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tv, _ := h.svc.TokenVersion(r.Context(), customer.ID)
-	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv)
+	ttl := h.customerTTL(r.Context())
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customer.ID, tv, ttl)
 	if err != nil {
 		http.Redirect(w, r, oauthLoginRedirect+"?error=oauth", http.StatusSeeOther)
 		return
@@ -265,7 +283,7 @@ func (h *Handler) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		Name:     "customer_token",
 		Value:    token,
 		Path:     "/",
-		MaxAge:   60 * 60 * 24 * 30,
+		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   requestIsHTTPS(r),

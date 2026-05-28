@@ -1,10 +1,12 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/auth"
@@ -14,10 +16,23 @@ import (
 type UserHandler struct {
 	svc       *UserService
 	jwtSecret string
+	tokenTTL  func(context.Context) time.Duration
 }
 
 func NewUserHandler(svc *UserService, jwtSecret string) *UserHandler {
 	return &UserHandler{svc: svc, jwtSecret: jwtSecret}
+}
+
+// SetTokenTTL wires the admin session length provider (reads the
+// admin_token_ttl_hours setting). Optional — falls back to 24h when unset.
+func (h *UserHandler) SetTokenTTL(fn func(context.Context) time.Duration) { h.tokenTTL = fn }
+
+// adminTTL resolves the configured admin session length, defaulting to 24h.
+func (h *UserHandler) adminTTL(ctx context.Context) time.Duration {
+	if h.tokenTTL == nil {
+		return 24 * time.Hour
+	}
+	return h.tokenTTL(ctx)
 }
 
 // LoginRoute returns the login handler (public, replaces single-password login)
@@ -37,14 +52,16 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tv, _ := h.svc.TokenVersion(r.Context(), user.ID)
-	token, err := auth.GenerateAdminToken(h.jwtSecret, user.ID, user.Role, tv)
+	ttl := h.adminTTL(r.Context())
+	token, err := auth.GenerateAdminToken(h.jwtSecret, user.ID, user.Role, tv, ttl)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]interface{}{
-		"user":  user,
-		"token": token,
+		"user":       user,
+		"token":      token,
+		"expires_in": int(ttl.Seconds()),
 	})
 }
 
