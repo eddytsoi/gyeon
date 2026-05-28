@@ -1,10 +1,13 @@
 package shipany
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"gyeon/backend/internal/orders"
@@ -41,6 +44,8 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/orders/{id}/shipment", h.getShipment)
 	r.Post("/orders/{id}/shipment", h.createShipment)
 	r.Post("/orders/{id}/pickup", h.requestPickup)
+	// Static segment matched ahead of the /orders/{id}/... params above.
+	r.Post("/waybills/batch", h.batchWaybills)
 	return r
 }
 
@@ -257,4 +262,54 @@ func (h *Handler) requestPickup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, sh)
+}
+
+// maxWaybillBatch caps one batch so the synchronous download+merge stays
+// bounded and the X-Waybill-Report header keeps within sane size limits.
+const maxWaybillBatch = 100
+
+type batchWaybillRequest struct {
+	OrderIDs []string `json:"order_ids"`
+}
+
+// batchWaybills downloads each processing order's SF waybill PDF and streams a
+// single merged PDF. Per-order problems are skipped and reported in the
+// X-Waybill-Report header (base64 JSON). When no order yields a waybill, it
+// responds with the report as JSON instead (the client switches on
+// Content-Type).
+func (h *Handler) batchWaybills(w http.ResponseWriter, r *http.Request) {
+	var req batchWaybillRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if len(req.OrderIDs) == 0 {
+		respond.BadRequest(w, "order_ids must not be empty")
+		return
+	}
+	if len(req.OrderIDs) > maxWaybillBatch {
+		respond.BadRequest(w, fmt.Sprintf("too many orders: max %d per batch", maxWaybillBatch))
+		return
+	}
+
+	pdf, report, err := h.svc.BuildWaybillBatch(r.Context(), req.OrderIDs)
+	if err != nil {
+		log.Printf("shipany batchWaybills: %v", err)
+		respond.InternalError(w)
+		return
+	}
+	if pdf == nil {
+		// Nothing produced a waybill — return the skip report only.
+		respond.JSON(w, http.StatusOK, report)
+		return
+	}
+
+	reportJSON, _ := json.Marshal(report)
+	filename := "SF-Waybills-" + time.Now().Format("20060102") + ".pdf"
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("X-Waybill-Report", base64.StdEncoding.EncodeToString(reportJSON))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(pdf)))
+	w.Header().Set("Cache-Control", "private, no-store, max-age=0")
+	w.Write(pdf)
 }
