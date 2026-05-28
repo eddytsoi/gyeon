@@ -199,10 +199,10 @@ type CheckoutRequest struct {
 	Notes             *string               `json:"notes"`
 	// ShipAny delivery selection (optional). Populated when the storefront
 	// surfaces live rate quotes; null when ShipAny is disabled.
-	SelectedCarrier   *string               `json:"selected_carrier,omitempty"`
-	SelectedService   *string               `json:"selected_service,omitempty"`
-	PickupPointID     *string               `json:"pickup_point_id,omitempty"`
-	PickupPointLabel  *string               `json:"pickup_point_label,omitempty"`
+	SelectedCarrier  *string `json:"selected_carrier,omitempty"`
+	SelectedService  *string `json:"selected_service,omitempty"`
+	PickupPointID    *string `json:"pickup_point_id,omitempty"`
+	PickupPointLabel *string `json:"pickup_point_label,omitempty"`
 	// SaveCard, when true and the customer is logged in, triggers a SetupIntent
 	// alongside the PaymentIntent so the customer's card is saved for future use.
 	SaveCard bool `json:"save_card,omitempty"`
@@ -217,10 +217,10 @@ type CheckoutRequest struct {
 }
 
 type CheckoutResult struct {
-	Order                  *Order `json:"order"`
-	ClientSecret           string `json:"client_secret"`
-	PublishableKey         string `json:"publishable_key"`
-	Mode                   string `json:"mode"`
+	Order          *Order `json:"order"`
+	ClientSecret   string `json:"client_secret"`
+	PublishableKey string `json:"publishable_key"`
+	Mode           string `json:"mode"`
 	// SetupClientSecret is non-empty when SaveCard was requested and the
 	// customer is logged in. The frontend mounts a separate SetupElement with this.
 	SetupClientSecret string `json:"setup_client_secret,omitempty"`
@@ -1145,11 +1145,11 @@ func (s *OrderService) sendPaymentLinkEmail(ctx context.Context, order *Order, c
 // PaymentInfoResult is the public payload returned to the customer-facing
 // /pay/{id} page so they can mount a Stripe Element and finish payment.
 type PaymentInfoResult struct {
-	Order          *Order  `json:"order"`
-	ClientSecret   string  `json:"client_secret"`
-	PublishableKey string  `json:"publishable_key"`
-	Mode           string  `json:"mode"`
-	Currency       string  `json:"currency"`
+	Order          *Order `json:"order"`
+	ClientSecret   string `json:"client_secret"`
+	PublishableKey string `json:"publishable_key"`
+	Mode           string `json:"mode"`
+	Currency       string `json:"currency"`
 }
 
 var ErrPaymentLinkInvalid = errors.New("invalid payment link")
@@ -1365,26 +1365,37 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 	if s.taxSvc != nil {
 		taxLabel = s.taxSvc.Calculate(ctx, 0).Label
 	}
+
+	emailPromos := make([]email.EmailPromotion, 0, len(order.AppliedPromotions))
+	for _, p := range order.AppliedPromotions {
+		desc := ""
+		if p.Description != nil {
+			desc = *p.Description
+		}
+		emailPromos = append(emailPromos, email.EmailPromotion{Name: p.Name, Description: desc})
+	}
+
 	err := s.emailSvc.SendOrderConfirmation(ctx, email.OrderEmailParams{
-		OrderID:         order.ID,
-		OrderNumber:     order.OrderNumber,
-		CustomerName:    name,
-		CustomerEmail:   *order.CustomerEmail,
-		Items:           items,
-		Subtotal:        order.Subtotal,
-		ShippingFee:     order.ShippingFee,
-		ShippingLabel:   ShippingLabel(order, "zh-Hant"),
-		DiscountAmount:  order.DiscountAmount,
-		TaxAmount:       order.TaxAmount,
-		TaxLabel:        taxLabel,
-		Total:           order.Total,
-		Currency:        "HKD",
-		ShippingLine1:   line1,
-		ShippingLine2:   line2,
-		ShippingCity:    city,
-		ShippingPostal:  postal,
-		ShippingCountry: country,
-		SetupURL:        setupURL,
+		OrderID:           order.ID,
+		OrderNumber:       order.OrderNumber,
+		CustomerName:      name,
+		CustomerEmail:     *order.CustomerEmail,
+		Items:             items,
+		Subtotal:          order.Subtotal,
+		ShippingFee:       order.ShippingFee,
+		ShippingLabel:     ShippingLabel(order, "zh-Hant"),
+		DiscountAmount:    order.DiscountAmount,
+		AppliedPromotions: emailPromos,
+		TaxAmount:         order.TaxAmount,
+		TaxLabel:          taxLabel,
+		Total:             order.Total,
+		Currency:          "HKD",
+		ShippingLine1:     line1,
+		ShippingLine2:     line2,
+		ShippingCity:      city,
+		ShippingPostal:    postal,
+		ShippingCountry:   country,
+		SetupURL:          setupURL,
 	})
 	if err != nil {
 		log.Printf("send order confirmation email for order %s: %v", order.ID, err)

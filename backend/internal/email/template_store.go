@@ -196,7 +196,10 @@ func SampleParamsFor(key string) any {
 			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD",
-			Subtotal: 389, ShippingFee: 30, DiscountAmount: 0, Total: 419,
+			Subtotal: 389, ShippingFee: 30, DiscountAmount: 50, Total: 369,
+			AppliedPromotions: []EmailPromotion{
+				{Name: "夏季優惠", Description: "全單滿 $300 即減 $50"},
+			},
 			Items: []OrderEmailItem{
 				{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
 				{Name: "內籠基本清潔套裝", SKU: "BUNDLE-001", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
@@ -235,15 +238,15 @@ func SampleParamsFor(key string) any {
 	case "password_reset":
 		return PasswordResetParams{
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
-			ResetURL: "https://example.com/account/reset-password?token=sampletoken",
+			ResetURL:    "https://example.com/account/reset-password?token=sampletoken",
 			ExpiryHours: 24,
 		}
 	case "admin_message":
 		return AdminMessageParams{
 			To: "sample@example.com", OrderNumber: "ORD-0001",
 			CustomerName: "Sample Customer",
-			OrderURL: "https://example.com/account/orders/00000000",
-			Body: "Hello — your order has been received and is being prepared.",
+			OrderURL:     "https://example.com/account/orders/00000000",
+			Body:         "Hello — your order has been received and is being prepared.",
 		}
 	case "abandoned_cart":
 		return AbandonedCartParams{
@@ -274,7 +277,7 @@ func VariablesFor(key string) []string {
 	switch key {
 	case "order_confirmation":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".Currency",
-			".Subtotal", ".ShippingFee", ".DiscountAmount", ".Total", ".Items"}
+			".Subtotal", ".ShippingFee", ".DiscountAmount", ".AppliedPromotions", ".Total", ".Items"}
 	case "order_shipped":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".Carrier", ".Service", ".TrackingNumber", ".TrackingURL"}

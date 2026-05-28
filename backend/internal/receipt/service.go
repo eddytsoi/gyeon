@@ -156,6 +156,13 @@ type viewRow struct {
 	LineTotalFmt string
 }
 
+// viewPromotion names a campaign / coupon behind the discount, with the
+// admin-authored description flattened (blank entries skipped in buildView).
+type viewPromotion struct {
+	Name        string
+	Description string
+}
+
 type viewModel struct {
 	Locale        string
 	L             map[string]string
@@ -167,6 +174,7 @@ type viewModel struct {
 	ShipTo        *viewParty
 	Rows          []viewRow
 	HasDiscount   bool
+	Promotions    []viewPromotion
 	HasTax        bool
 	SubtotalFmt   string
 	DiscountFmt   string
@@ -229,6 +237,18 @@ func (s *Service) buildView(ctx context.Context, order *orders.Order, images map
 		placedOn = t
 	}
 
+	var promos []viewPromotion
+	for _, p := range order.AppliedPromotions {
+		if strings.TrimSpace(p.Name) == "" {
+			continue
+		}
+		desc := ""
+		if p.Description != nil {
+			desc = strings.TrimSpace(*p.Description)
+		}
+		promos = append(promos, viewPromotion{Name: p.Name, Description: desc})
+	}
+
 	return viewModel{
 		Locale:        locale,
 		L:             labels[locale],
@@ -240,6 +260,7 @@ func (s *Service) buildView(ctx context.Context, order *orders.Order, images map
 		ShipTo:        ship,
 		Rows:          rows,
 		HasDiscount:   order.DiscountAmount > 0,
+		Promotions:    promos,
 		HasTax:        order.TaxAmount > 0,
 		SubtotalFmt:   fmtMoney(order.Subtotal, currency),
 		DiscountFmt:   fmtMoney(order.DiscountAmount, currency),
