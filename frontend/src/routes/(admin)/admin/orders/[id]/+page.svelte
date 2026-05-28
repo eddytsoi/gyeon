@@ -3,7 +3,6 @@
   import { onMount } from 'svelte';
   import type { ActionData, PageData } from './$types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
-  import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { receiptCache } from '$lib/stores/receiptCache.svelte';
@@ -348,13 +347,13 @@
             <td class="px-5 py-3 text-right font-medium text-emerald-600">-HK${data.order.discount_amount.toFixed(2)}</td>
           </tr>
         {/if}
-        {#if (data.order.applied_promotions ?? []).length > 0}
+        {#each data.order.applied_promotions ?? [] as promo}
           <tr>
-            <td colspan="3" class="px-5 pb-3">
-              <AppliedPromotions promotions={data.order.applied_promotions ?? []} />
+            <td colspan="3" class="px-5 pb-2 pt-0 text-right text-xs leading-snug text-gray-500">
+              <span class="text-gray-700">{promo.name}</span>{#if (promo.description ?? '').trim() !== ''}<span class="text-gray-400"> — </span>{promo.description}{/if}
             </td>
           </tr>
-        {/if}
+        {/each}
         {#if (data.order.tax_amount ?? 0) > 0}
           <tr>
             <td colspan="2" class="px-5 py-3 text-right text-sm font-medium text-gray-600">{m.admin_order_items_tax()}</td>
