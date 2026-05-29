@@ -208,7 +208,8 @@
     'pdp_fbt_kicker',
     'pdp_fbt_heading',
     'pdp_fbt_preselect_all',
-    'pdp_content_layout'
+    'pdp_content_layout',
+    'pdp_navlist_show_nav'
   ]);
   // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
   // from textSettings so the generic "Other" loop doesn't double-render
@@ -427,6 +428,11 @@
   let pdpShowFbtOn = $state(pdpShowFbtSetting?.value !== 'false');
   const pdpShowStockCountSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_stock_count'));
   let pdpShowStockCountOn = $state(pdpShowStockCountSetting?.value !== 'false');
+  // PDP content layout + the nav-list-only "show section nav" toggle. Layout is
+  // reactive so the toggle row can show only while 導覽與列表檢視 is selected.
+  let pdpContentLayout = $state(settingValue('pdp_content_layout') || 'tabs');
+  const pdpNavlistShowNavSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_nav'));
+  let pdpNavlistShowNavOn = $state(pdpNavlistShowNavSetting?.value !== 'false'); // default ON
   // Bundle "default all-selected" toggles — default ON so an uninitialised
   // install keeps the existing pre-checked BundleComposer behaviour.
   const pdpFbtPreselectSetting = $derived(data.settings.find((s) => s.key === 'pdp_fbt_preselect_all'));
@@ -1861,19 +1867,35 @@
         <label for="pdp_content_layout" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           {m.admin_settings_label_pdp_content_layout()}
         </label>
-        <select id="pdp_content_layout" name="pdp_content_layout"
+        <select id="pdp_content_layout" name="pdp_content_layout" bind:value={pdpContentLayout}
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                        focus:outline-none focus:ring-2 focus:ring-gray-900">
-          <option value="tabs"
-                  selected={(settingValue('pdp_content_layout') || 'tabs') === 'tabs'}>
-            {m.admin_settings_pdp_layout_option_tabs()}
-          </option>
-          <option value="nav-list"
-                  selected={settingValue('pdp_content_layout') === 'nav-list'}>
-            {m.admin_settings_pdp_layout_option_navlist()}
-          </option>
+          <option value="tabs">{m.admin_settings_pdp_layout_option_tabs()}</option>
+          <option value="nav-list">{m.admin_settings_pdp_layout_option_navlist()}</option>
         </select>
       </div>
+
+      <!-- Always submit the value so it persists even when switching back to tabs
+           before saving; the visible toggle only shows while nav-list is active. -->
+      <input type="hidden" name="pdp_navlist_show_nav" value={pdpNavlistShowNavOn ? 'true' : 'false'} />
+      {#if pdpContentLayout === 'nav-list'}
+        <div class="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_navlist_show_nav()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_navlist_show_nav()}</p>
+          </div>
+          <button type="button"
+                  onclick={() => (pdpNavlistShowNavOn = !pdpNavlistShowNavOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {pdpNavlistShowNavOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={pdpNavlistShowNavOn}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {pdpNavlistShowNavOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+        </div>
+      {/if}
     </div>
 
     </div>

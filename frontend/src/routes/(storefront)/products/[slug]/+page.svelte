@@ -182,6 +182,8 @@
   const contentLayout = $derived(
     pdpSettings['pdp_content_layout'] === 'nav-list' ? 'nav-list' : 'tabs'
   );
+  // nav-list mode only: whether the top section anchor-nav bar shows (default ON)
+  const showSectionNav = $derived(pdpSettings['pdp_navlist_show_nav'] !== 'false');
 
   // SEO derivations (computed once per render)
   const seoOrigin = $derived(siteOrigin(page.data.publicSettings));
@@ -1113,6 +1115,7 @@
       <!-- NAV-LIST: top anchor nav + sections stacked vertically. Used on
            both desktop and mobile (no accordion) so anchor links scroll to
            the relevant section in document order. -->
+      {#if showSectionNav}
       <nav class="flex flex-wrap gap-0 border-b border-ink-300/60 mb-10"
            aria-label={m.product_detail_sections_nav_label()}>
         {#each availableTabs as id}
@@ -1127,6 +1130,7 @@
           </a>
         {/each}
       </nav>
+      {/if}
 
       {#each availableTabs as id}
         <section id="pdp-section-{id}" class="scroll-mt-24 mb-16 last:mb-0">
