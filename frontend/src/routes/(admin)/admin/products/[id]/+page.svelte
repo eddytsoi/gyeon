@@ -219,7 +219,7 @@
   // Pending state for new products
   type PendingVariant = {
     _localId: string;
-    sku: string; name?: string;
+    sku: string; wc_sku?: string; name?: string;
     price: number; compare_at_price?: number; stock_qty: number;
     weight_grams?: number;
     length_mm?: number; width_mm?: number; height_mm?: number;
@@ -777,6 +777,13 @@
           <label for="slug" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_slug()} {m.admin_product_edit_required_marker()}</label>
           <input id="slug" name="slug" required bind:value={slug}
                  oninput={() => { autoSlug = false; }}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="wc_sku" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_wc_sku()}</label>
+          <input id="wc_sku" name="wc_sku" type="text" maxlength="255"
+                 value={data.product?.wc_sku ?? ''}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
         </div>
@@ -1793,6 +1800,7 @@
                 const imageId = addVariantImageId ?? undefined;
                 const imageMedia_ = bannerLibrary.find(m => m.id === imageId);
                 const nameVal = formData.get('name')?.toString().trim() ?? '';
+                const wcSkuVal = formData.get('wc_sku')?.toString().trim() ?? '';
                 const weightStr = formData.get('weight_grams')?.toString().trim() ?? '';
                 const lenStr = formData.get('length_mm')?.toString().trim() ?? '';
                 const widStr = formData.get('width_mm')?.toString().trim() ?? '';
@@ -1800,6 +1808,7 @@
                 pendingVariants = [...pendingVariants, {
                   _localId: crypto.randomUUID(),
                   sku,
+                  wc_sku: wcSkuVal || undefined,
                   name: nameVal || undefined,
                   price: parseFloat(formData.get('price')?.toString() ?? '0'),
                   compare_at_price: formData.get('compare_at_price')?.toString()
@@ -1841,6 +1850,11 @@
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_sku()} {m.admin_product_edit_required_marker()}</label>
             <input name="sku" required class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                   focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_wc_sku()}</label>
+            <input name="wc_sku" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                    focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
           </div>
           <div class="col-span-2 flex flex-col gap-1.5">
@@ -1963,6 +1977,12 @@
           <div class="col-span-2 flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_sku()} {m.admin_product_edit_required_marker()}</label>
             <input name="sku" required value={editingVariant.sku}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
+          </div>
+          <div class="col-span-2 flex flex-col gap-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_add_variant_label_wc_sku()}</label>
+            <input name="wc_sku" value={editingVariant.wc_sku ?? ''}
                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                           focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
           </div>

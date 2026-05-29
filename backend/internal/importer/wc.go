@@ -46,6 +46,7 @@ type wcProduct struct {
 	ID            int                 `json:"id"`
 	Name          string              `json:"name"`
 	Slug          string              `json:"slug"`
+	SKU           string              `json:"sku"`
 	Type          string              `json:"type"`
 	Status        string              `json:"status"`
 	Description      string              `json:"description"`
@@ -112,6 +113,7 @@ type wcBundledItem struct {
 
 type wcVariation struct {
 	ID            int           `json:"id"`
+	SKU           string        `json:"sku"`
 	Status        string        `json:"status"`
 	RegularPrice  string        `json:"regular_price"`
 	SalePrice     string        `json:"sale_price"`

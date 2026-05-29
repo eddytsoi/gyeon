@@ -24,6 +24,9 @@ export interface Product {
   description?: string;
   how_to_use?: string;
   compatible_surfaces?: string[];
+  // Original WooCommerce product SKU captured at import (separate from any
+  // generated value). Null/absent for manually-created products.
+  wc_sku?: string | null;
   // Hero video + 6 banner / media slot IDs. URL projections (banner_1_url,
   // banner_1_webp_url, …) are populated only on single-product detail reads
   // (GetBySlug / GetByID); list views leave them nil.
@@ -121,6 +124,9 @@ export interface Variant {
   id: string;
   product_id: string;
   sku: string;
+  // Original WooCommerce variant SKU captured at import (separate from the
+  // generated sku). Null/absent for manually-created variants.
+  wc_sku?: string | null;
   name?: string;
   price: number;
   compare_at_price?: number;
