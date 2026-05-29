@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     // Promo bundles only make sense for non-bundle parents. Bundles can't host them.
     product.kind !== 'bundle' ? getProductPromoBundles(product.id, token).catch(() => []) : Promise.resolve([]),
     getPublicSettings().catch(() => []),
-    resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use)),
+    resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use, product.excerpt)),
     getFrequentlyBoughtTogether(product.id, 4, token).catch(() => []),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);

@@ -710,9 +710,9 @@
 
         <!-- Excerpt (body) -->
         {#if data.product.excerpt}
-          <p class="font-body text-base leading-[1.75] text-ink-900/85 max-w-md">
-            {data.product.excerpt}
-          </p>
+          <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-md">
+            <MarkdownContent content={data.product.excerpt} refs={data.shortcodeRefs} />
+          </div>
         {/if}
 
         <div class="border-t border-ink-300/60"></div>
@@ -1254,6 +1254,7 @@
     promoBundles={data.promoBundles ?? []}
     cannotPurchaseLabel={cannotPurchaseLabel}
     onOpenImageBrowser={openTaobaoImageBrowser}
+    refs={data.shortcodeRefs}
   />
   <TaobaoImageBrowserModal
     bind:open={taobaoBrowserOpen}
