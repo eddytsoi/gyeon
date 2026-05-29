@@ -34,9 +34,9 @@ export default {
         alert:   '#C0392B',
       },
       fontFamily: {
-        // Barlow Condensed proxies GT America Compressed; Inter proxies Gotham.
-        // Swap to the licensed faces in app.css when woff2 lands in static/fonts/.
-        display: ['"Barlow Condensed"', '"GT America Compressed"', 'Helvetica', 'Arial', 'sans-serif'],
+        // GT America Compressed (licensed, self-hosted via @font-face in app.css);
+        // Inter proxies Gotham until Gotham woff2 are wired in.
+        display: ['"GT America Compressed"', 'Helvetica', 'Arial', 'sans-serif'],
         body:    ['Inter', 'Gotham', 'Helvetica', 'Arial', 'sans-serif'],
         mono:    ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
