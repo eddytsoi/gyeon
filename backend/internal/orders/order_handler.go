@@ -46,6 +46,10 @@ func (h *OrderHandler) PublicRoutes() chi.Router {
 	// cart / coupon mutation.
 	quoteRL := ratelimit.Middleware(60, time.Minute)
 	r.With(quoteRL).Post("/quote", h.quote)
+	// Storefront resume-payment lookup: does this cart have an outstanding
+	// unpaid order? Static "by-cart" segment is matched ahead of the "{id}"
+	// param route below by chi. Authorized by possession of the cart_id.
+	r.Get("/by-cart/{cartID}/pending", h.pendingOrderForCart)
 	r.Get("/{id}", h.getPublic)
 	r.Get("/{id}/payment-info", h.paymentInfo)
 	r.Post("/{id}/setup-token", h.createSetupToken)
@@ -191,6 +195,20 @@ func (h *OrderHandler) paymentInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, info)
+}
+
+func (h *OrderHandler) pendingOrderForCart(w http.ResponseWriter, r *http.Request) {
+	cartID := chi.URLParam(r, "cartID")
+	res, err := h.svc.PendingOrderForCart(r.Context(), cartID)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	if res == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	respond.JSON(w, http.StatusOK, res)
 }
 
 func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {

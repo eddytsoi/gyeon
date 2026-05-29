@@ -528,6 +528,26 @@ export type OrderPaymentInfo = {
 export const getOrderPaymentInfo = (id: string, clientSecret: string) =>
   request<OrderPaymentInfo>(`/orders/${id}/payment-info?cs=${encodeURIComponent(clientSecret)}`);
 
+export type CartPendingOrder = {
+  order_id: string;
+  order_number: string;
+  total: number;
+  client_secret: string;
+};
+
+// Returns the cart's outstanding unpaid order so cart/checkout can show a
+// "resume payment" banner, or null when there is none (backend replies 204).
+// Best-effort: any error resolves to null so the banner simply doesn't show.
+export const getCartPendingOrder = async (cartID: string): Promise<CartPendingOrder | null> => {
+  try {
+    const res = await fetch(`${base()}/orders/by-cart/${cartID}/pending`);
+    if (res.status === 204 || !res.ok) return null;
+    return (await res.json()) as CartPendingOrder;
+  } catch {
+    return null;
+  }
+};
+
 export type OrderSetupTokenResult = {
   token?: string;
   url?: string;

@@ -2,6 +2,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
+  import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
@@ -27,6 +28,8 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
   <h1 class="text-3xl font-bold text-gray-900 mb-6">{m.cart_heading()}</h1>
+
+  <PendingOrderBanner cartId={cartStore.cart?.id ?? null} />
 
   <div class="mb-6">
     <FreeShippingBanner settings={data.publicSettings ?? []} role={data.customer?.role ?? null} showUnlocked />
