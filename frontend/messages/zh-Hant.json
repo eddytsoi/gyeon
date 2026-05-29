@@ -1070,6 +1070,14 @@
   "admin_product_edit_bundle_duplicate_title": "重複組件",
   "admin_product_edit_bundle_duplicate_body": "{sku} 已在此套裝中。",
 
+  "admin_product_edit_promo_heading": "優惠套裝",
+  "admin_product_edit_promo_subtitle": "在 taobao 版面產品頁彈窗的「優惠套裝」區塊中顯示的套裝產品。只有「套裝」類型的產品會出現在選擇器中。拖曳列以重新排序。",
+  "admin_product_edit_promo_add_heading": "新增套裝產品",
+  "admin_product_edit_promo_search_placeholder": "搜尋套裝產品…",
+  "admin_product_edit_promo_empty": "尚未連結任何優惠套裝。",
+  "admin_product_edit_import_error_row": "第 {row} 行：{message}",
+  "admin_product_edit_import_error_more": "… 還有 {n} 行",
+
   "admin_product_edit_media_heading": "媒體",
   "admin_product_edit_media_saving_order": "儲存順序中…",
   "admin_product_edit_media_add": "+ 新增媒體",

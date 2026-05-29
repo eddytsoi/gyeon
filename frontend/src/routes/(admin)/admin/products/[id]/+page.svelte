@@ -1269,10 +1269,10 @@
             <div class="font-medium">{m.admin_order_create_items_import_errors_heading({ n: String(bundleImportErrors.length) })}</div>
             <ul class="list-disc pl-5 space-y-0.5">
               {#each bundleImportErrors.slice(0, 20) as e}
-                <li>Row {e.row}: {e.message}</li>
+                <li>{m.admin_product_edit_import_error_row({ row: String(e.row), message: e.message })}</li>
               {/each}
               {#if bundleImportErrors.length > 20}
-                <li>… and {bundleImportErrors.length - 20} more</li>
+                <li>{m.admin_product_edit_import_error_more({ n: String(bundleImportErrors.length - 20) })}</li>
               {/if}
             </ul>
           </div>
@@ -1292,16 +1292,15 @@
   {#if kind === 'simple'}
     <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
       <div class="px-6 py-4 border-b border-gray-100">
-        <h2 class="font-semibold text-gray-900">優惠套裝</h2>
+        <h2 class="font-semibold text-gray-900">{m.admin_product_edit_promo_heading()}</h2>
         <p class="text-xs text-gray-400 mt-1">
-          Bundle products to surface inside the taobao-layout PDP modal under "優惠套裝".
-          Only products of type "Bundle" appear in the picker. Drag rows to reorder.
+          {m.admin_product_edit_promo_subtitle()}
         </p>
       </div>
 
       <div class="px-6 py-4 border-b border-gray-100">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add bundle product</span>
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_promo_add_heading()}</span>
           <button type="button" onclick={openPromoCSVPicker} disabled={promoImporting}
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -1316,21 +1315,21 @@
             <div class="font-medium">{m.admin_order_create_items_import_errors_heading({ n: String(promoImportErrors.length) })}</div>
             <ul class="list-disc pl-5 space-y-0.5">
               {#each promoImportErrors.slice(0, 20) as e}
-                <li>Row {e.row}: {e.message}</li>
+                <li>{m.admin_product_edit_import_error_row({ row: String(e.row), message: e.message })}</li>
               {/each}
               {#if promoImportErrors.length > 20}
-                <li>… and {promoImportErrors.length - 20} more</li>
+                <li>{m.admin_product_edit_import_error_more({ n: String(promoImportErrors.length - 20) })}</li>
               {/if}
             </ul>
           </div>
         {/if}
         <ProductSearchSelect token={data.token} kind="bundle" excludeIds={excludedPromoIds}
                              onSelect={addPromoBundleCandidate}
-                             placeholder="Search bundle products…" />
+                             placeholder={m.admin_product_edit_promo_search_placeholder()} />
       </div>
 
       {#if promoBundles.length === 0}
-        <div class="px-6 py-6 text-sm text-gray-400">No 優惠套裝 linked yet.</div>
+        <div class="px-6 py-6 text-sm text-gray-400">{m.admin_product_edit_promo_empty()}</div>
       {:else}
         <ul class="divide-y divide-gray-50"
             use:sortable={{
@@ -1363,7 +1362,7 @@
               </div>
               <button type="button" onclick={() => removePromoBundle(pb._localId)}
                       class="text-xs text-red-500 hover:text-red-700 px-2 py-1">
-                Remove
+                {m.common_remove()}
               </button>
             </li>
           {/each}
