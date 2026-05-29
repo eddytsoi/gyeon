@@ -57,6 +57,7 @@
 
   // Markdown fields backed by $state so the shortcode toolbar can insert
   // at the cursor. (Was previously plain textareas with default values.)
+  let excerpt = $state(data.product?.excerpt ?? '');
   let description = $state(data.product?.description ?? '');
   let howToUse = $state(data.product?.how_to_use ?? '');
 
@@ -75,8 +76,10 @@
   // Track files uploaded from a picker so the library tab in the same
   // session sees them without needing a page reload.
   let uploadedMedia = $state<import('$lib/api/admin').MediaFile[]>([]);
+  let excerptTextarea = $state<HTMLTextAreaElement | null>(null);
   let descriptionTextarea = $state<HTMLTextAreaElement | null>(null);
   let howToUseTextarea = $state<HTMLTextAreaElement | null>(null);
+  let excerptPreview = $state(false);
   let descriptionPreview = $state(false);
   let howToUsePreview = $state(false);
 
@@ -758,11 +761,28 @@
           </select>
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
-          <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_excerpt()}</label>
-          <textarea id="excerpt" name="excerpt" rows="3"
-                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"
-                    >{data.product?.excerpt ?? ''}</textarea>
+          <div class="flex items-center justify-between">
+            <label for="excerpt" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_product_edit_label_excerpt()}
+              <span class="normal-case font-normal text-gray-400">{m.admin_product_edit_content_markdown_hint()}</span>
+            </label>
+            <button type="button" onclick={() => excerptPreview = !excerptPreview}
+                    class="text-[11px] uppercase tracking-wide text-gray-500 hover:text-gray-900 transition-colors">
+              {excerptPreview ? m.admin_cms_post_edit_edit_button() : m.admin_cms_post_edit_preview_button()}
+            </button>
+          </div>
+          <ShortcodeToolbar bind:value={excerpt} textarea={excerptTextarea} />
+          <div class="{excerptPreview ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}">
+            <textarea id="excerpt" name="excerpt" rows="4" bind:value={excerpt} bind:this={excerptTextarea}
+                      class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                             focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+            {#if excerptPreview}
+              <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 prose prose-sm max-w-none overflow-y-auto"
+                   style="max-height: 360px">
+                <MarkdownContent content={excerpt || m.admin_cms_post_edit_preview_no_content()} placeholderMode />
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
     </section>

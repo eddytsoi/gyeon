@@ -13,6 +13,8 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import { EMPTY_REFS, type ShortcodeRefs } from '$lib/shortcodes/types';
 
   let {
     open = $bindable(false),
@@ -21,7 +23,8 @@
     images,
     promoBundles,
     cannotPurchaseLabel,
-    onOpenImageBrowser
+    onOpenImageBrowser,
+    refs = EMPTY_REFS
   }: {
     open: boolean;
     product: Product;
@@ -30,6 +33,7 @@
     promoBundles: PromoBundle[];
     cannotPurchaseLabel: string;
     onOpenImageBrowser: (index: number) => void;
+    refs?: ShortcodeRefs;
   } = $props();
 
   type Selection = {
@@ -231,9 +235,9 @@
             {fmtMoney(selected.price)}
           </div>
           {#if selected.excerpt}
-            <p class="text-sm text-ink-900 leading-relaxed line-clamp-5">
-              {selected.excerpt}
-            </p>
+            <div class="text-sm text-ink-900 leading-relaxed prose prose-sm max-w-none">
+              <MarkdownContent content={selected.excerpt} {refs} />
+            </div>
           {/if}
         </div>
       </div>

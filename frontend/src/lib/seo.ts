@@ -12,6 +12,7 @@ export function snippet(input: string | null | undefined, maxLen = 160): string 
   const plain = input
     .replace(/<[^>]+>/g, ' ')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[\/?[a-z0-9-]+[^\]]*\]/gi, ' ')
     .replace(/[#*_`>]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
