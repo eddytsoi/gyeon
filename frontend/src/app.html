@@ -4,19 +4,27 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
-      // iOS Safari scales the page up when rotating portrait→landscape (it lays
-      // out against the old viewport, then zooms to fill, so the layout keeps the
-      // portrait width). Lock max-scale across rotations so the layout reflows at
-      // the real width; re-enable pinch-zoom on a real gesture to preserve a11y.
+      // iOS Safari sometimes fails to recompute the CSS layout after an
+      // orientation change, leaving the page laid out at the previous (portrait)
+      // width. Force a synchronous reflow once the new dimensions have settled.
       (function () {
-        var vp = document.querySelector('meta[name="viewport"]');
-        if (!vp) return;
-        var base = 'width=device-width, initial-scale=1';
-        var lock = function () { vp.setAttribute('content', base + ', maximum-scale=1'); };
-        var unlock = function () { vp.setAttribute('content', base); };
-        lock();
-        window.addEventListener('orientationchange', lock);
-        document.addEventListener('gesturestart', unlock);
+        function reflow() {
+          var b = document.body;
+          if (!b) return;
+          var prev = b.style.display;
+          b.style.display = 'none';
+          void b.offsetHeight; // flush layout while detached
+          b.style.display = prev;
+        }
+        function onChange() {
+          // matchMedia 'change' fires after the new size is applied; one rAF is a
+          // safety margin for the legacy orientationchange path on older iPadOS.
+          requestAnimationFrame(reflow);
+        }
+        window.addEventListener('orientationchange', onChange);
+        if (window.matchMedia) {
+          window.matchMedia('(orientation: portrait)').addEventListener('change', onChange);
+        }
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="%sveltekit.assets%/icon.svg" />
@@ -24,6 +32,6 @@
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
-    <div style="display: contents">%sveltekit.body%</div>
+    <div>%sveltekit.body%</div>
   </body>
 </html>
