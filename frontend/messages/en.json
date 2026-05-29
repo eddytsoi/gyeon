@@ -1070,6 +1070,14 @@
   "admin_product_edit_bundle_duplicate_title": "Duplicate component",
   "admin_product_edit_bundle_duplicate_body": "{sku} is already in this bundle.",
 
+  "admin_product_edit_promo_heading": "Promo Bundles",
+  "admin_product_edit_promo_subtitle": "Bundle products to surface inside the taobao-layout PDP modal under \"Promo Bundles\". Only products of type \"Bundle\" appear in the picker. Drag rows to reorder.",
+  "admin_product_edit_promo_add_heading": "Add bundle product",
+  "admin_product_edit_promo_search_placeholder": "Search bundle products…",
+  "admin_product_edit_promo_empty": "No promo bundles linked yet.",
+  "admin_product_edit_import_error_row": "Row {row}: {message}",
+  "admin_product_edit_import_error_more": "… and {n} more",
+
   "admin_product_edit_media_heading": "Media",
   "admin_product_edit_media_saving_order": "Saving order…",
   "admin_product_edit_media_add": "+ Add Media",
