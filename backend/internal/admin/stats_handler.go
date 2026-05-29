@@ -23,7 +23,7 @@ func NewStatsHandler(db *sql.DB) *StatsHandler {
 }
 
 func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
-	from, to, err := parseRange(r)
+	f, err := parseFilters(r)
 	if err != nil {
 		respond.BadRequest(w, err.Error())
 		return
@@ -32,27 +32,29 @@ func (h *StatsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var stats Stats
 
 	// Products count is a current snapshot — intentionally not scoped by the
-	// dashboard date filter (asking "how many active products in the last
-	// 7 days" is rarely what an admin actually wants here).
+	// dashboard filters (asking "how many active products in the last 7 days"
+	// is rarely what an admin actually wants here).
 	h.db.QueryRowContext(r.Context(),
 		`SELECT COUNT(*) FROM products WHERE status = 'active'`).
 		Scan(&stats.TotalProducts)
 
+	// Total orders — count of orders in range, respecting role + category.
+	ordJoin, ordWhere, ordArgs := f.scopeOrders()
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM orders
-		 WHERE created_at >= $1 AND created_at < $2`, from, to).
+		`SELECT COUNT(*) FROM orders o`+ordJoin+ordWhere, ordArgs...).
 		Scan(&stats.TotalOrders)
 
+	// Total revenue — excludes cancelled/refunded; under a category filter this
+	// becomes the sum of matching line items.
+	custJoin, catJoin, rev, _, revWhere, revArgs := f.scopeRevenue("o.status NOT IN ('cancelled', 'refunded')")
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COALESCE(SUM(total), 0) FROM orders
-		 WHERE created_at >= $1 AND created_at < $2
-		   AND status NOT IN ('cancelled', 'refunded')`, from, to).
+		`SELECT `+rev+` FROM orders o`+custJoin+catJoin+revWhere, revArgs...).
 		Scan(&stats.TotalRevenue)
 
+	// Pending orders in range.
+	penJoin, penWhere, penArgs := f.scopeOrders("o.status = 'pending'")
 	h.db.QueryRowContext(r.Context(),
-		`SELECT COUNT(*) FROM orders
-		 WHERE created_at >= $1 AND created_at < $2
-		   AND status = 'pending'`, from, to).
+		`SELECT COUNT(*) FROM orders o`+penJoin+penWhere, penArgs...).
 		Scan(&stats.PendingOrders)
 
 	respond.JSON(w, http.StatusOK, stats)

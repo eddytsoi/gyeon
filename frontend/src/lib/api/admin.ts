@@ -63,8 +63,8 @@ export const adminLogin = async (
   return { token: data.token, expiresIn: data.expires_in as number };
 };
 
-export const getStats = (token: string, from?: string, to?: string) =>
-  request<AdminStats>(`/admin/stats${rangeQs(from, to)}`, token);
+export const getStats = (token: string, f: DashFilters = {}) =>
+  request<AdminStats>(`/admin/stats${filtersQs(f)}`, token);
 
 // Products — admin list hits a dedicated endpoint that returns all statuses.
 // Detail reads (GET) use the public /products/* (open). Mutations use
@@ -1306,27 +1306,74 @@ export interface StatusBreakdownPoint {
   count: number;
 }
 
-function rangeQs(from?: string, to?: string, extra: Record<string, string> = {}): string {
+export interface DashboardSummary {
+  revenue: number;
+  order_count: number;
+  aov: number;
+  new_customers: number;
+  repeat_customers: number;
+  repeat_ratio: number;
+}
+
+export interface RevenueBreakdownRow {
+  label: string;
+  value: number;
+  order_count: number;
+}
+
+export interface RefundSummary {
+  refunds: number;
+  refunded_orders: number;
+  total_orders: number;
+  revenue: number;
+  refund_order_rate: number;
+  refund_amount_rate: number;
+}
+
+// Shared dashboard filters: date range + customer role(s) + a category slug.
+// Every analytics endpoint accepts these so the whole dashboard moves together.
+export interface DashFilters {
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD (inclusive)
+  roles?: string[];
+  category?: string; // category slug
+}
+
+function filtersQs(f: DashFilters = {}, extra: Record<string, string> = {}): string {
   const qs = new URLSearchParams(extra);
-  if (from) qs.set('from', from);
-  if (to) qs.set('to', to);
+  if (f.from) qs.set('from', f.from);
+  if (f.to) qs.set('to', f.to);
+  if (f.roles?.length) qs.set('role', f.roles.join(','));
+  if (f.category) qs.set('category', f.category);
   return qs.toString() ? `?${qs.toString()}` : '';
 }
 
-export const adminGetRevenueTrend = (token: string, from?: string, to?: string) =>
-  request<RevenuePoint[]>(`/admin/analytics/revenue${rangeQs(from, to)}`, token);
+export const adminGetRevenueTrend = (token: string, f: DashFilters = {}) =>
+  request<RevenuePoint[]>(`/admin/analytics/revenue${filtersQs(f)}`, token);
 
-export const adminGetTopProducts = (token: string, from?: string, to?: string, by: 'qty' | 'revenue' = 'qty') =>
-  request<TopProduct[]>(`/admin/analytics/top-products${rangeQs(from, to, { by })}`, token);
+export const adminGetTopProducts = (token: string, f: DashFilters = {}, by: 'qty' | 'revenue' = 'qty') =>
+  request<TopProduct[]>(`/admin/analytics/top-products${filtersQs(f, { by })}`, token);
 
-export const adminGetTopCustomers = (token: string, from?: string, to?: string) =>
-  request<TopCustomer[]>(`/admin/analytics/top-customers${rangeQs(from, to)}`, token);
+export const adminGetTopCustomers = (token: string, f: DashFilters = {}) =>
+  request<TopCustomer[]>(`/admin/analytics/top-customers${filtersQs(f)}`, token);
 
-export const adminGetOrderStatusBreakdown = (token: string, from?: string, to?: string) =>
-  request<StatusBreakdownPoint[]>(`/admin/analytics/order-status-breakdown${rangeQs(from, to)}`, token);
+export const adminGetOrderStatusBreakdown = (token: string, f: DashFilters = {}) =>
+  request<StatusBreakdownPoint[]>(`/admin/analytics/order-status-breakdown${filtersQs(f)}`, token);
 
-export const adminGetRefundTotal = (token: string, from?: string, to?: string) =>
-  request<{ refunds: number }>(`/admin/analytics/refund-total${rangeQs(from, to)}`, token);
+export const adminGetRefundSummary = (token: string, f: DashFilters = {}) =>
+  request<RefundSummary>(`/admin/analytics/refund-total${filtersQs(f)}`, token);
+
+export const adminGetDashboardSummary = (token: string, f: DashFilters = {}) =>
+  request<DashboardSummary>(`/admin/analytics/summary${filtersQs(f)}`, token);
+
+export const adminGetRevenueBreakdown = (
+  token: string,
+  by: 'category' | 'role' | 'carrier',
+  f: DashFilters = {}
+) => request<RevenueBreakdownRow[]>(`/admin/analytics/revenue-breakdown${filtersQs(f, { by })}`, token);
+
+export const adminGetLowStock = (token: string, threshold?: number) =>
+  request<Variant[]>(`/admin/inventory/low-stock${threshold ? `?threshold=${threshold}` : ''}`, token);
 
 // ── Forms (CF7-style contact forms) ──────────────────────────────────────────
 
