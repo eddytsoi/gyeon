@@ -70,6 +70,8 @@ var publicSettingKeys = []string{
 	"pdp_show_fbt",               // storefront PDP toggle: "其他客人都會買埋呢啲" frequently-bought-together BundleComposer
 	"pdp_fbt_kicker",             // storefront PDP override for the FBT kicker; empty falls back to i18n
 	"pdp_fbt_heading",            // storefront PDP override for the FBT heading; empty falls back to i18n
+	"pdp_fbt_preselect_all",      // storefront PDP: FBT bundle starts all-selected (true) vs none (false)
+	"pdp_complete_set_preselect_all", // storefront PDP: related-products bundle starts all-selected (true) vs none (false)
 	"pdp_content_layout",         // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
 	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
 }
