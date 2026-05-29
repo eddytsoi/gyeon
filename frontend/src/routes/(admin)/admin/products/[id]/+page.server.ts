@@ -6,7 +6,7 @@ import {
   adminCreateVariant, adminUpdateVariant, adminDeleteVariant, adminAdjustStock,
   adminReorderVariants,
   adminAddImage, adminUpdateImage, adminDeleteImage,
-  adminGetBundleItems, adminSetBundleItems, adminGetProducts,
+  adminGetBundleItems, adminSetBundleItems,
   adminGetPromoBundles, adminSetPromoBundles,
   adminGetSettings,
 } from '$lib/api/admin';
@@ -39,22 +39,17 @@ export const load: PageServerLoad = async ({ parent, params }) => {
     ]);
 
   const isBundle = !isNew && product?.kind === 'bundle';
-  // Always load allProducts when creating (so user can pick components if they switch kind to bundle).
-  const needsAllProducts = isNew || isBundle;
-  // Bundle products themselves can't host promo-bundle associations (a
-  // bundle can't have promo bundles); skip the fetch + the kind=bundle
-  // product list when we don't need them.
+  // Bundle products themselves can't host promo-bundle associations (a bundle
+  // can't have promo bundles); only fetch existing promo links for non-bundles.
+  // The component/bundle pickers now search on demand, so no product list is
+  // preloaded here.
   const wantsPromoBundles = !isNew && !isBundle;
-  const [bundleItems, allProductsRes, promoBundles, allBundleProductsRes] = await Promise.all([
+  const [bundleItems, promoBundles] = await Promise.all([
     isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
-    needsAllProducts ? adminGetProducts(token, 200, 0, '', '', 'simple').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 }),
-    wantsPromoBundles ? adminGetPromoBundles(token, id).catch(() => []) : Promise.resolve([]),
-    wantsPromoBundles ? adminGetProducts(token, 200, 0, '', '', 'bundle').catch(() => ({ items: [], total: 0 })) : Promise.resolve({ items: [], total: 0 })
+    wantsPromoBundles ? adminGetPromoBundles(token, id).catch(() => []) : Promise.resolve([])
   ]);
-  const allProducts = allProductsRes.items;
-  const allBundleProducts = allBundleProductsRes.items;
 
-  return { product, categories, variants, images, mediaFiles, bundleItems, allProducts, promoBundles, allBundleProducts, isNew, uploadLimits, token };
+  return { product, categories, variants, images, mediaFiles, bundleItems, promoBundles, isNew, uploadLimits, token };
 };
 
 export const actions: Actions = {
