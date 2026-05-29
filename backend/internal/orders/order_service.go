@@ -2149,11 +2149,13 @@ func (s *OrderService) List(ctx context.Context, f ListFilters, limit, offset in
 		args = append(args, pq.Array(raw))
 	}
 	if f.From != nil {
-		conds = append(conds, fmt.Sprintf("created_at >= $%d", len(args)+1))
+		// Qualify with `orders.` — the query LEFT JOINs customers, which also has
+		// a created_at column, so a bare reference is ambiguous (Postgres errors).
+		conds = append(conds, fmt.Sprintf("orders.created_at >= $%d", len(args)+1))
 		args = append(args, *f.From)
 	}
 	if f.To != nil {
-		conds = append(conds, fmt.Sprintf("created_at < $%d", len(args)+1))
+		conds = append(conds, fmt.Sprintf("orders.created_at < $%d", len(args)+1))
 		args = append(args, *f.To)
 	}
 	if f.HasUnread {
