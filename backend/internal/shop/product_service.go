@@ -73,6 +73,9 @@ type Product struct {
 	Description        *string  `json:"description,omitempty"`
 	HowToUse           *string  `json:"how_to_use,omitempty"`
 	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	// WCSku mirrors the original WooCommerce product SKU captured at import.
+	// Separate from any generated value; nil for manually-created products.
+	WCSku              *string  `json:"wc_sku,omitempty"`
 	// Hero video + banner / media strip slots. Video is a YouTube ID
 	// (rendered as an embed). Banner / media slots point at media_files
 	// rows; the Banner*URL / Media*URL fields are hydrated only by
@@ -210,6 +213,9 @@ type Variant struct {
 	ID                 string   `json:"id"`
 	ProductID          string   `json:"product_id"`
 	SKU                string   `json:"sku"`
+	// WCSku mirrors the original WooCommerce variant SKU captured at import.
+	// Separate from the generated SKU; nil for manually-created variants.
+	WCSku              *string  `json:"wc_sku,omitempty"`
 	Name               *string  `json:"name,omitempty"`
 	Price              float64  `json:"price"`
 	CompareAtPrice     *float64 `json:"compare_at_price,omitempty"`
@@ -255,6 +261,7 @@ type CreateProductRequest struct {
 	Description        *string  `json:"description"`
 	HowToUse           *string  `json:"how_to_use"`
 	CompatibleSurfaces []string `json:"compatible_surfaces"`
+	WCSku              *string  `json:"wc_sku"`
 	VideoID            *string  `json:"video_id"`
 	Banner1MediaID     *string  `json:"banner_1_media_id"`
 	Banner2MediaID     *string  `json:"banner_2_media_id"`
@@ -273,6 +280,7 @@ type UpdateProductRequest struct {
 
 type CreateVariantRequest struct {
 	SKU               string   `json:"sku"`
+	WCSku             *string  `json:"wc_sku"`
 	Name              *string  `json:"name"`
 	Price             float64  `json:"price"`
 	CompareAtPrice    *float64 `json:"compare_at_price"`
@@ -286,6 +294,7 @@ type CreateVariantRequest struct {
 
 type UpdateVariantRequest struct {
 	SKU               string   `json:"sku"`
+	WCSku             *string  `json:"wc_sku"`
 	Name              *string  `json:"name"`
 	Price             float64  `json:"price"`
 	CompareAtPrice    *float64 `json:"compare_at_price"`
@@ -333,6 +342,7 @@ const productSelect = `
 	       p.video_id,
 	       p.banner_1_media_id, p.banner_2_media_id,
 	       p.media_1_media_id, p.media_2_media_id, p.media_3_media_id, p.media_4_media_id,
+	       p.wc_sku,
 	       p.status, p.kind, p.use_taobao_layout, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
@@ -343,6 +353,7 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 		&p.VideoID,
 		&p.Banner1MediaID, &p.Banner2MediaID,
 		&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
+		&p.WCSku,
 		&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
@@ -653,10 +664,10 @@ func (s *ProductService) record(ctx context.Context, action, entityType, entityI
 func (s *ProductService) getVariant(ctx context.Context, variantID string) (*Variant, error) {
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold,
+		`SELECT id, product_id, sku, wc_sku, name, price, compare_at_price, stock_qty, low_stock_threshold,
 		        weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at
 		 FROM product_variants WHERE id=$1`, variantID).
-		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
+		Scan(&v.ID, &v.ProductID, &v.SKU, &v.WCSku, &v.Name, &v.Price, &v.CompareAtPrice,
 			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
 			&v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
@@ -1527,20 +1538,20 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		                       video_id, banner_1_media_id, banner_2_media_id,
 		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		                       status, kind, use_taobao_layout)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		                       status, kind, use_taobao_layout, wc_sku)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, use_taobao_layout, created_at, updated_at`,
+		           status, kind, use_taobao_layout, wc_sku, created_at, updated_at`,
 		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind, req.UseTaobaoLayout).
+		req.Status, kind, req.UseTaobaoLayout, req.WCSku).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1633,22 +1644,22 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		                     how_to_use=$8, compatible_surfaces=$9,
 		                     video_id=$10, banner_1_media_id=$11, banner_2_media_id=$12,
 		                     media_1_media_id=$13, media_2_media_id=$14, media_3_media_id=$15, media_4_media_id=$16,
-		                     status=$17, kind=$18, use_taobao_layout=$19
+		                     status=$17, kind=$18, use_taobao_layout=$19, wc_sku=$20
 		 WHERE id=$1
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, use_taobao_layout, created_at, updated_at`,
+		           status, kind, use_taobao_layout, wc_sku, created_at, updated_at`,
 		id, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description,
 		req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind, req.UseTaobaoLayout).
+		req.Status, kind, req.UseTaobaoLayout, req.WCSku).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description,
 			&p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1725,6 +1736,7 @@ type UpsertWCProductRequest struct {
 	Excerpt        *string
 	Description    *string
 	HowToUse       *string
+	WCSku          *string
 	VideoID        *string
 	Banner1MediaID *string
 	Banner2MediaID *string
@@ -1762,13 +1774,13 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 
 	var id string
 	if err := tx.QueryRowContext(ctx,
-		`INSERT INTO products (wc_product_id, category_id, slug, name, subtitle, excerpt, description, how_to_use,
+		`INSERT INTO products (wc_product_id, category_id, slug, name, subtitle, excerpt, description, how_to_use, wc_sku,
 		                       video_id, banner_1_media_id, banner_2_media_id,
 		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
 		                       status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		 RETURNING id`,
-		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse,
+		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, req.WCSku,
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
 		req.Status, kind).Scan(&id); err != nil {
@@ -1872,12 +1884,13 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		        media_4_media_id   = $15,
 		        status             = $16,
 		        kind               = $17,
+		        wc_sku             = $18,
 		        updated_at         = NOW()
 		  WHERE id = $1`,
 		productID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse,
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind); err != nil {
+		req.Status, kind, req.WCSku); err != nil {
 		return err
 	}
 
@@ -1936,6 +1949,7 @@ func linkWCCategories(ctx context.Context, tx *sql.Tx, productID string, primary
 type UpsertWCVariantRequest struct {
 	WCVariationID  *int
 	SKU            string
+	WCSku          *string
 	Name           *string
 	Price          float64
 	CompareAtPrice *float64
@@ -1955,8 +1969,8 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, wc_variation_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			     (product_id, wc_variation_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, wc_sku)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			 ON CONFLICT (wc_variation_id) DO UPDATE
 			    SET product_id        = EXCLUDED.product_id,
 			        sku               = EXCLUDED.sku,
@@ -1969,10 +1983,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			        width_mm          = EXCLUDED.width_mm,
 			        height_mm         = EXCLUDED.height_mm,
 			        is_active         = EXCLUDED.is_active,
+			        wc_sku            = EXCLUDED.wc_sku,
 			        updated_at        = NOW()
 			 RETURNING id`,
 			productID, *req.WCVariationID, req.SKU, req.Name, req.Price,
-			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive).Scan(&id)
+			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku).Scan(&id)
 		return id, err
 	}
 
@@ -1988,11 +2003,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
-			     (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			     (product_id, sku, name, price, compare_at_price, stock_qty, weight_grams, length_mm, width_mm, height_mm, is_active, wc_sku)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			 RETURNING id`,
 			productID, req.SKU, req.Name, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive).Scan(&id)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku).Scan(&id)
 		return id, err
 	case err != nil:
 		return "", err
@@ -2000,10 +2015,10 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 		_, uerr := s.db.ExecContext(ctx,
 			`UPDATE product_variants
 			    SET sku=$2, name=$3, price=$4, compare_at_price=$5,
-			        stock_qty=$6, weight_grams=$7, length_mm=$8, width_mm=$9, height_mm=$10, is_active=$11, updated_at=NOW()
+			        stock_qty=$6, weight_grams=$7, length_mm=$8, width_mm=$9, height_mm=$10, is_active=$11, wc_sku=$12, updated_at=NOW()
 			  WHERE id=$1`,
 			existing, req.SKU, req.Name, req.Price, req.CompareAtPrice,
-			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive)
+			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku)
 		return existing, uerr
 	}
 }
@@ -2239,7 +2254,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string, inc
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price,
+		`SELECT pv.id, pv.product_id, pv.sku, pv.wc_sku, pv.name, pv.price, pv.compare_at_price,
 		        pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.length_mm, pv.width_mm, pv.height_mm,
 		        pv.is_active, pv.created_at, pv.updated_at,
 		        COALESCE(mf.url, pi.url) AS image_url
@@ -2256,7 +2271,7 @@ func (s *ProductService) ListVariants(ctx context.Context, productID string, inc
 	variants := make([]Variant, 0)
 	for rows.Next() {
 		var v Variant
-		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
+		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.WCSku, &v.Name, &v.Price, &v.CompareAtPrice,
 			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM,
 			&v.IsActive, &v.CreatedAt, &v.UpdatedAt, &v.ImageURL); err != nil {
 			return nil, err
@@ -2297,11 +2312,11 @@ func (s *ProductService) CreateVariant(ctx context.Context, productID string, re
 
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
-		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM).
-		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
+		`INSERT INTO product_variants (product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, wc_sku)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 RETURNING id, product_id, sku, wc_sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		productID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.WCSku).
+		Scan(&v.ID, &v.ProductID, &v.SKU, &v.WCSku, &v.Name, &v.Price, &v.CompareAtPrice,
 			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -2326,11 +2341,11 @@ func (s *ProductService) UpdateVariant(ctx context.Context, variantID string, re
 
 	var v Variant
 	err := s.db.QueryRowContext(ctx,
-		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, low_stock_threshold=$7, weight_grams=$8, is_active=$9, length_mm=$10, width_mm=$11, height_mm=$12
+		`UPDATE product_variants SET sku=$2, name=$3, price=$4, compare_at_price=$5, stock_qty=$6, low_stock_threshold=$7, weight_grams=$8, is_active=$9, length_mm=$10, width_mm=$11, height_mm=$12, wc_sku=$13
 		 WHERE id=$1
-		 RETURNING id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
-		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.IsActive, req.LengthMM, req.WidthMM, req.HeightMM).
-		Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
+		 RETURNING id, product_id, sku, wc_sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, length_mm, width_mm, height_mm, is_active, created_at, updated_at`,
+		variantID, req.SKU, req.Name, req.Price, req.CompareAtPrice, req.StockQty, req.LowStockThreshold, req.WeightGrams, req.IsActive, req.LengthMM, req.WidthMM, req.HeightMM, req.WCSku).
+		Scan(&v.ID, &v.ProductID, &v.SKU, &v.WCSku, &v.Name, &v.Price, &v.CompareAtPrice,
 			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.LengthMM, &v.WidthMM, &v.HeightMM, &v.IsActive, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err

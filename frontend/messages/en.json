@@ -970,6 +970,7 @@
   "admin_product_edit_section_video_and_media": "Video & Media",
   "admin_product_edit_label_name": "Name",
   "admin_product_edit_label_slug": "Slug",
+  "admin_product_edit_label_wc_sku": "WooCommerce SKU",
   "admin_product_edit_label_category": "Primary Category",
   "admin_product_edit_category_none": "— None —",
   "admin_product_edit_label_additional_categories": "Categories",
@@ -1106,6 +1107,7 @@
 
   "admin_product_edit_add_variant_title": "Add Variant",
   "admin_product_edit_add_variant_label_sku": "SKU",
+  "admin_product_edit_add_variant_label_wc_sku": "WooCommerce SKU",
   "admin_product_edit_add_variant_label_name": "Name",
   "admin_product_edit_add_variant_label_price": "Price (HKD)",
   "admin_product_edit_add_variant_label_compare_at": "Compare at",

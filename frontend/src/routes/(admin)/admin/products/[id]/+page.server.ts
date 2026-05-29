@@ -75,6 +75,7 @@ export const actions: Actions = {
       excerpt: form.get('excerpt')?.toString() || undefined,
       description: form.get('description')?.toString() || undefined,
       how_to_use: form.get('how_to_use')?.toString() || undefined,
+      wc_sku: form.get('wc_sku')?.toString() || undefined,
       compatible_surfaces: form.getAll('compatible_surfaces').map((v) => v.toString()),
       video_id: form.get('video_id')?.toString() || undefined,
       banner_1_media_id: form.get('banner_1_media_id')?.toString() || undefined,
@@ -186,7 +187,7 @@ export const actions: Actions = {
         // Simple products: create pending variants
         const pendingVariantsRaw = form.get('pending_variants')?.toString() ?? '[]';
         let pendingVariants: Array<{
-          sku: string; name?: string; price: number; compare_at_price?: number;
+          sku: string; wc_sku?: string; name?: string; price: number; compare_at_price?: number;
           stock_qty: number; weight_grams?: number; image_media_file_id?: string;
         }> = [];
         try { pendingVariants = JSON.parse(pendingVariantsRaw); } catch { /* ignore */ }
@@ -194,7 +195,7 @@ export const actions: Actions = {
         for (const pv of pendingVariants) {
           try {
             const variant = await adminCreateVariant(token, newProductId, {
-              sku: pv.sku, name: pv.name, price: pv.price,
+              sku: pv.sku, wc_sku: pv.wc_sku, name: pv.name, price: pv.price,
               compare_at_price: pv.compare_at_price, stock_qty: pv.stock_qty ?? 0,
               weight_grams: pv.weight_grams
             });
@@ -239,6 +240,7 @@ export const actions: Actions = {
     try {
       const variant = await adminCreateVariant(token, id, {
         sku: form.get('sku')?.toString() ?? '',
+        wc_sku: form.get('wc_sku')?.toString() || undefined,
         name: form.get('name')?.toString() || undefined,
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()
@@ -283,6 +285,7 @@ export const actions: Actions = {
     try {
       await adminUpdateVariant(token, id, variantID, {
         sku: form.get('sku')?.toString() ?? '',
+        wc_sku: form.get('wc_sku')?.toString() || undefined,
         name: form.get('name')?.toString() || undefined,
         price: parseFloat(form.get('price')?.toString() ?? '0'),
         compare_at_price: form.get('compare_at_price')?.toString()

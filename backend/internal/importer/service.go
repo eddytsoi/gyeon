@@ -466,6 +466,7 @@ func (s *Service) importProduct(
 		Excerpt:     excerpt,
 		Description: desc,
 		HowToUse:    howToUse,
+		WCSku:       strPtrOrNil(prod.SKU),
 		Status:      mapStatus(prod.Status),
 		Kind:        "simple",
 	}
@@ -689,6 +690,7 @@ func (s *Service) importBundleProduct(
 		Excerpt:     excerpt,
 		Description: desc,
 		HowToUse:    howToUse,
+		WCSku:       strPtrOrNil(prod.SKU),
 		Status:      mapStatus(prod.Status),
 		Kind:        "bundle",
 	}
@@ -828,10 +830,13 @@ func (s *Service) upsertVariantFromSimple(ctx context.Context, productID string,
 		stockQty = *prod.StockQuantity
 	}
 	// SKU is generated from the product slug — WC's own SKU is ignored so
-	// every Gyeon variant follows one predictable scheme.
+	// every Gyeon variant follows one predictable scheme. The WC SKU is still
+	// captured into wc_sku: for a simple product the WC product SKU is the
+	// sellable unit's SKU, so the single fallback variant mirrors it.
 	_, err := s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  nil, // simple-product fallback — identified by NULL
 		SKU:            prod.Slug,
+		WCSku:          strPtrOrNil(prod.SKU),
 		Name:           nil, // simple products have no variation attributes
 		Price:          price,
 		CompareAtPrice: compareAt,
@@ -853,10 +858,12 @@ func (s *Service) upsertVariantFromVariation(ctx context.Context, productID, pro
 	}
 	wcID := v.ID
 	// SKU is generated from product slug + WC variation ID; WC's own SKU
-	// is ignored so every Gyeon variant follows one predictable scheme.
+	// is ignored for the generated `sku` so every Gyeon variant follows one
+	// predictable scheme. The WC variation SKU is captured into wc_sku.
 	return s.productSvc.UpsertWCVariant(ctx, productID, shop.UpsertWCVariantRequest{
 		WCVariationID:  &wcID,
 		SKU:            fmt.Sprintf("%s-%d", productSlug, v.ID),
+		WCSku:          strPtrOrNil(v.SKU),
 		Name:           formatVariantName(v.Attributes),
 		Price:          price,
 		CompareAtPrice: compareAt,

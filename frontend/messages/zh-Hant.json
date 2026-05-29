@@ -970,6 +970,7 @@
   "admin_product_edit_section_video_and_media": "影片與媒體",
   "admin_product_edit_label_name": "名稱",
   "admin_product_edit_label_slug": "Slug",
+  "admin_product_edit_label_wc_sku": "WooCommerce SKU",
   "admin_product_edit_label_category": "主要分類",
   "admin_product_edit_category_none": "— 沒有 —",
   "admin_product_edit_label_additional_categories": "分類",
@@ -1106,6 +1107,7 @@
 
   "admin_product_edit_add_variant_title": "新增規格",
   "admin_product_edit_add_variant_label_sku": "SKU",
+  "admin_product_edit_add_variant_label_wc_sku": "WooCommerce SKU",
   "admin_product_edit_add_variant_label_name": "名稱",
   "admin_product_edit_add_variant_label_price": "價格（HKD）",
   "admin_product_edit_add_variant_label_compare_at": "原價",

@@ -47,6 +47,16 @@ func metaStringPtr(meta []wcMeta, key string) *string {
 	return &v
 }
 
+// strPtrOrNil trims s and returns a pointer to it, or nil when empty. Used to
+// store an absent WooCommerce SKU as SQL NULL rather than an empty string.
+func strPtrOrNil(s string) *string {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 // wcMediaSlugs collects the six product-level image slugs WC stores in
 // product meta (banner_1, banner_2, media_1..media_4). Each one points
 // at a WP attachment that the importer resolves and downloads.
