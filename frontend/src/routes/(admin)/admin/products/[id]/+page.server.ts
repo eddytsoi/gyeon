@@ -100,13 +100,15 @@ export const actions: Actions = {
       return fail(400, { error: 'Failed to save product' });
     }
 
-    // Edit-mode non-bundle: persist promo-bundle associations.
-    // Bundles can't host promo bundles (kind === 'bundle' → skip).
-    if (!newProductId && kind !== 'bundle') {
+    // Persist promo-bundle associations for 單品 (simple) products (create + edit).
+    // Only 單品 host promo bundles; bundles are excluded. New products: associate
+    // after creation using the freshly-minted id.
+    if (kind === 'simple') {
+      const promoTargetId = newProductId ?? id;
       const promoRaw = form.get('promo_bundle_ids')?.toString();
       if (promoRaw !== undefined) {
         const ids = promoRaw.split(',').map(s => s.trim()).filter(Boolean);
-        try { await adminSetPromoBundles(token, id, ids); } catch { /* non-fatal */ }
+        try { await adminSetPromoBundles(token, promoTargetId, ids); } catch { /* non-fatal */ }
       }
     }
 

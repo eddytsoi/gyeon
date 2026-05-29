@@ -888,7 +888,7 @@
       <input type="hidden" name="bundle_width_mm"              value={pendingBundleWidthMM} />
       <input type="hidden" name="bundle_height_mm"             value={pendingBundleHeightMM} />
     {/if}
-    {#if !data.isNew && kind !== 'bundle'}
+    {#if kind === 'simple'}
       <input type="hidden" name="promo_bundle_ids" value={promoBundleIdsCsv} />
     {/if}
   </form>
@@ -1288,8 +1288,8 @@
     </section>
   {/if}
 
-  <!-- ── 優惠套裝 / Promo Bundles (non-bundle, existing products only) ── -->
-  {#if !data.isNew && kind !== 'bundle'}
+  <!-- ── 優惠套裝 / Promo Bundles (單品 / simple products only) ── -->
+  {#if kind === 'simple'}
     <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
       <div class="px-6 py-4 border-b border-gray-100">
         <h2 class="font-semibold text-gray-900">優惠套裝</h2>
