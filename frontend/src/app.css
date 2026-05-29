@@ -1,18 +1,54 @@
 /*
- * Gyeon brand fonts — self-hosted via @fontsource (proxies for the licensed stack).
- *   Barlow Condensed → display (proxy for GT America Compressed)
- *   Inter            → body    (proxy for Gotham)
- * When licensed GT America Compressed + Gotham woff2 land in static/fonts/, swap
- * these imports for local @font-face blocks that win by source order.
+ * Gyeon brand fonts.
+ *   GT America Compressed → display (licensed, self-hosted from static/fonts/)
+ *   Inter                 → body    (via @fontsource; proxy for Gotham)
+ * @import rules must precede all other rules, so the local @font-face blocks
+ * follow the Inter imports below (source order is irrelevant — the display
+ * family uses its own distinct name).
+ * GT America Compressed ships weights 100/300/400/500/700 — there is no 600 or
+ * 800 face, so the CSS cascade maps font-weight 600/700/800 → Bold (700) and
+ * 500 → Medium. Inter still proxies Gotham until Gotham woff2 are wired in.
  */
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
 @import '@fontsource/inter/600.css';
 @import '@fontsource/inter/700.css';
-@import '@fontsource/barlow-condensed/500.css';
-@import '@fontsource/barlow-condensed/600.css';
-@import '@fontsource/barlow-condensed/700.css';
-@import '@fontsource/barlow-condensed/800.css';
+
+@font-face {
+  font-family: 'GT America Compressed';
+  src: url('/fonts/GT-America-Compressed-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT America Compressed';
+  src: url('/fonts/GT-America-Compressed-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT America Compressed';
+  src: url('/fonts/GT-America-Compressed-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT America Compressed';
+  src: url('/fonts/GT-America-Compressed-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT America Compressed';
+  src: url('/fonts/GT-America-Compressed-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 @tailwind base;
 @tailwind components;
