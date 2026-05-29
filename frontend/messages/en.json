@@ -1628,6 +1628,8 @@
   "admin_settings_label_pdp_content_layout": "Layout style",
   "admin_settings_pdp_layout_option_tabs": "Tab page view (current)",
   "admin_settings_pdp_layout_option_navlist": "Navigation & list view",
+  "admin_settings_label_pdp_navlist_show_nav": "Show section navigation",
+  "admin_settings_desc_pdp_navlist_show_nav": "On: show the anchor nav bar above the sections so customers can jump between them. Off: sections still stack in order, just without the top nav bar.",
   "admin_settings_hidden_products_heading": "Hidden Products",
   "admin_settings_hidden_products_subtitle": "Hiding categories from the public catalog is now per-role. Use the category-roles matrix to toggle the \"List\" column off for a given role — that category becomes a private link for them (PDP still resolves) but disappears from listings, search and nav.",
   "admin_settings_hidden_products_link": "Open the category-roles matrix →",
