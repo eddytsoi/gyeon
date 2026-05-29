@@ -26,6 +26,9 @@
   html {
     font-family: 'Inter', 'Gotham', 'Helvetica', 'Arial', sans-serif;
     color: #1A1A1A; /* --gy-ink-900 */
+    /* Stop iOS Safari auto-inflating text after orientation change. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   /* Touch devices can't hover — surface card affordances permanently. */

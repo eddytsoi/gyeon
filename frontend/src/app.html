@@ -3,6 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // iOS Safari scales the page up when rotating portrait→landscape (it lays
+      // out against the old viewport, then zooms to fill, so the layout keeps the
+      // portrait width). Lock max-scale across rotations so the layout reflows at
+      // the real width; re-enable pinch-zoom on a real gesture to preserve a11y.
+      (function () {
+        var vp = document.querySelector('meta[name="viewport"]');
+        if (!vp) return;
+        var base = 'width=device-width, initial-scale=1';
+        var lock = function () { vp.setAttribute('content', base + ', maximum-scale=1'); };
+        var unlock = function () { vp.setAttribute('content', base); };
+        lock();
+        window.addEventListener('orientationchange', lock);
+        document.addEventListener('gesturestart', unlock);
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="%sveltekit.assets%/icon.svg" />
     <link rel="mcp" href="/mcp/sse" title="Gyeon Storefront MCP" />
     %sveltekit.head%
