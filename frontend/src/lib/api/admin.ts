@@ -1730,6 +1730,78 @@ export const adminImportOrderItemsCSV = async (
   return res.json();
 };
 
+export interface BundleItemCSVResolveItem {
+  component_variant_id: string;
+  component_product_name: string;
+  component_sku: string;
+  component_variant_name?: string | null;
+  component_price: number;
+  component_stock_qty: number;
+  component_primary_image_url?: string | null;
+  quantity: number;
+}
+
+export interface BundleItemCSVResolveResult {
+  items: BundleItemCSVResolveItem[];
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+/** Upload a `name,variant,quantity` CSV and resolve each row to a simple-product
+ *  variant for the product-detail 套裝內容 (bundle contents) editor. Bundle
+ *  products are rejected (no nesting); bad rows surface in `errors`. */
+export const adminResolveBundleItemsCSV = async (
+  token: string,
+  file: File
+): Promise<BundleItemCSVResolveResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/products/bundle-items/csv-resolve`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
+export interface PromoBundleCSVResolveItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+}
+
+export interface PromoBundleCSVResolveResult {
+  items: PromoBundleCSVResolveItem[];
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+/** Upload a single-column CSV of bundle-product names or slugs and resolve each
+ *  to a bundle product for the product-detail 優惠套裝 (promo bundles) editor.
+ *  Bad rows surface in `errors`. */
+export const adminResolvePromoBundlesCSV = async (
+  token: string,
+  file: File
+): Promise<PromoBundleCSVResolveResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/products/promo-bundles/csv-resolve`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
 /** Execute a draft mutation. Re-thrown as StockMutationInsufficientStockError
  *  when the server returns 422 with a conflicts payload (stock-out only). */
 export const adminExecuteStockMutation = async (token: string, id: string): Promise<StockMutation> => {

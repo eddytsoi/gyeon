@@ -18,10 +18,14 @@
   // mode='variant-only' is the Stock Management flow: hide prices, allow
   // selecting OOS variants (a stock-in mutation refills them), and skip the
   // bundle components UI since stock is tracked per concrete variant.
-  let { token, onAdd, mode = 'order' }: {
+  // kind (optional) restricts the search to products of that kind ('simple' |
+  // 'bundle'); empty searches all. Used by the product-detail bundle-contents
+  // picker to surface only simple products as components.
+  let { token, onAdd, mode = 'order', kind = '' }: {
     token: string;
     onAdd: (payload: ProductPickerAddPayload) => void;
     mode?: 'order' | 'variant-only';
+    kind?: string;
   } = $props();
 
   let query = $state('');
@@ -49,7 +53,7 @@
       }
       searching = true;
       try {
-        const res = await adminGetProducts(token, 8, 0, trimmed);
+        const res = await adminGetProducts(token, 8, 0, trimmed, '', kind);
         results = res.items ?? [];
       } catch {
         results = [];

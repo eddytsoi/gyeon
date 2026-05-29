@@ -93,6 +93,11 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 	r.Put("/{id}/bundle-items", h.setBundleItems)
 	r.Put("/{id}/promo-bundles", h.setPromoBundles)
 
+	// CSV import resolvers for the product-detail bundle sections. Static
+	// 2-segment paths — chi prefers these over /{id}/... so no conflict.
+	r.Post("/bundle-items/csv-resolve", h.resolveBundleItemsCSV)
+	r.Post("/promo-bundles/csv-resolve", h.resolvePromoBundlesCSV)
+
 	// Admin-only rebuild of the "frequently bought together" aggregation.
 	// Pointed at by an external cron — mirrors the abandoned-cart pattern.
 	r.Post("/recommendations/rebuild", h.rebuildRecommendations)

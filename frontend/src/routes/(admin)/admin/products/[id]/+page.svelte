@@ -1,10 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
-  import { adminUploadMedia, adminGetVariants, adminGetImages, adminGetVariantStockHistory, adminListProductStockHistory, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
+  import { adminUploadMedia, adminGetVariants, adminGetImages, adminGetVariantStockHistory, adminListProductStockHistory, adminResolveBundleItemsCSV, adminResolvePromoBundlesCSV, type VariantHistoryRow, type StockMovementRow } from '$lib/api/admin';
   import StockMovementTable from '$lib/components/admin/StockMovementTable.svelte';
+  import ProductPicker, { type ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
+  import ProductSearchSelect from '$lib/components/admin/ProductSearchSelect.svelte';
   import type { PageData } from './$types';
-  import type { BundleItem, Product, PromoBundle, Variant } from '$lib/types';
+  import type { BundleItem, Product, PromoBundle } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
   import { spotlight } from '$lib/actions/spotlight';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
@@ -265,60 +267,91 @@
     })))
   );
 
-  // Bundle component picker
-  let pickerProductId = $state('');
-  let pickerVariants = $state<Variant[]>([]);
-  let pickerVariantId = $state('');
-  let pickerQty = $state(1);
-  let pickerDisplayName = $state('');
-  let loadingPickerVariants = $state(false);
+  // Bundle component picker — search box (ProductPicker, simple products only)
+  // + CSV import, mirroring the new-order page's add-item UX. Components are
+  // added with their display name editable inline in the table afterwards.
+  type BundleItemSource = {
+    component_variant_id: string;
+    component_product_name: string;
+    component_sku: string;
+    component_variant_name?: string | null;
+    component_price: number;
+    component_stock_qty: number;
+    component_primary_image_url?: string | null;
+    quantity: number;
+  };
 
-  async function loadPickerVariants(productId: string) {
-    pickerVariantId = '';
-    pickerVariants = [];
-    if (!data.token || !productId) return;
-    loadingPickerVariants = true;
-    try {
-      pickerVariants = await adminGetVariants(data.token, productId);
-    } catch {
-      pickerVariants = [];
-    } finally {
-      loadingPickerVariants = false;
-    }
-  }
-
-  function addBundleComponent() {
-    if (!pickerVariantId) return;
-    const variant = pickerVariants.find(v => v.id === pickerVariantId);
-    const product = (data.allProducts ?? []).find(p => p.id === pickerProductId);
-    if (!variant || !product) return;
-    if (bundleItems.some(bi => bi.component_variant_id === pickerVariantId)) {
-      notify.warning(m.admin_product_edit_bundle_duplicate_title(), m.admin_product_edit_bundle_duplicate_body({ sku: variant.sku }));
-      return;
+  function addBundleItemRow(row: BundleItemSource): boolean {
+    if (bundleItems.some(bi => bi.component_variant_id === row.component_variant_id)) {
+      notify.warning(m.admin_product_edit_bundle_duplicate_title(), m.admin_product_edit_bundle_duplicate_body({ sku: row.component_sku }));
+      return false;
     }
     bundleItems = [...bundleItems, {
       _localId: crypto.randomUUID(),
       id: '',
       bundle_product_id: data.product?.id ?? '',
-      component_variant_id: pickerVariantId,
-      quantity: pickerQty > 0 ? pickerQty : 1,
+      component_variant_id: row.component_variant_id,
+      quantity: row.quantity > 0 ? row.quantity : 1,
       sort_order: bundleItems.length,
-      display_name_override: pickerDisplayName.trim() || undefined,
-      component_product_name: product.name,
-      component_sku: variant.sku,
-      component_variant_name: variant.name,
-      component_price: variant.price,
-      component_stock_qty: variant.stock_qty
+      display_name_override: undefined,
+      component_product_name: row.component_product_name,
+      component_sku: row.component_sku,
+      component_variant_name: row.component_variant_name ?? undefined,
+      component_price: row.component_price,
+      component_stock_qty: row.component_stock_qty,
+      component_primary_image_url: row.component_primary_image_url ?? undefined
     }];
-    pickerProductId = '';
-    pickerVariantId = '';
-    pickerVariants = [];
-    pickerQty = 1;
-    pickerDisplayName = '';
+    return true;
   }
 
-  // Simple products for bundle component picker (exclude bundles to prevent nesting)
-  const simpleProducts = $derived((data.allProducts ?? []).filter(p => p.kind !== 'bundle' && p.id !== data.product?.id));
+  function addBundleComponentFromPicker(p: ProductPickerAddPayload) {
+    addBundleItemRow({
+      component_variant_id: p.variant.id,
+      component_product_name: p.productName,
+      component_sku: p.variant.sku,
+      component_variant_name: p.variant.name,
+      component_price: p.variant.price,
+      component_stock_qty: p.variant.stock_qty,
+      component_primary_image_url: p.variant.image_url ?? p.primaryImageUrl ?? undefined,
+      quantity: p.quantity
+    });
+  }
+
+  // Bundle-items CSV import (name,variant,quantity)
+  let bundleCsvInputEl = $state<HTMLInputElement | null>(null);
+  let bundleImporting = $state(false);
+  let bundleImportErrors = $state<{ row: number; message: string }[] | undefined>(undefined);
+
+  function openBundleCSVPicker() {
+    bundleImportErrors = undefined;
+    bundleCsvInputEl?.click();
+  }
+
+  async function onBundleCSVPicked() {
+    const file = bundleCsvInputEl?.files?.[0];
+    if (!file || !data.token) return;
+    bundleImporting = true;
+    try {
+      const result = await adminResolveBundleItemsCSV(data.token, file);
+      bundleImportErrors = result.errors;
+      let added = 0;
+      for (const it of result.items) { if (addBundleItemRow(it)) added++; }
+      if (added > 0) {
+        if (result.skipped > 0) {
+          notify.error(m.admin_order_create_items_import_partial({ ok: String(added), skip: String(result.skipped) }));
+        } else {
+          notify.success(m.admin_order_create_items_import_success({ n: String(added) }));
+        }
+      } else {
+        notify.error(m.admin_order_create_items_import_zero_rows({ skip: String(result.skipped) }));
+      }
+    } catch (e) {
+      notify.error(m.admin_order_create_items_import_failure(), e instanceof Error ? e.message : '');
+    } finally {
+      bundleImporting = false;
+      if (bundleCsvInputEl) bundleCsvInputEl.value = '';
+    }
+  }
 
   // ── Promo bundles ("優惠套裝") state ─────────────────────────────────────────
   // Editable list of bundle products associated to this parent product as
@@ -331,23 +364,34 @@
   $effect(() => {
     promoBundles = (data.promoBundles ?? []).map(pb => ({ ...pb, _localId: pb.id }));
   });
-  let promoBundlePickerId = $state('');
-  // Bundle products available to pick, excluding ones already added and the
-  // current product itself (a product can't promote itself).
-  const promoBundleChoices = $derived(
-    (data.allBundleProducts ?? [])
-      .filter(p => p.id !== data.product?.id)
-      .filter(p => !promoBundles.some(pb => pb.bundle_product_id === p.id))
-  );
   const promoBundleIdsCsv = $derived(
     promoBundles.map(pb => pb.bundle_product_id).join(',')
   );
+  // Products the search box should hide: ones already added + the current
+  // product itself (a product can't promote itself).
+  const excludedPromoIds = $derived(
+    [data.product?.id, ...promoBundles.map(pb => pb.bundle_product_id)]
+      .filter((x): x is string => !!x)
+  );
 
-  async function addPromoBundle() {
-    if (!promoBundlePickerId) return;
-    const candidate = (data.allBundleProducts ?? []).find(p => p.id === promoBundlePickerId);
-    if (!candidate) return;
-    if (promoBundles.some(pb => pb.bundle_product_id === candidate.id)) return;
+  // A bundle product to add — either an AdminProductRow (search pick) or a
+  // CSV-resolved row (id/name/slug only). Optional fields are hydrated below.
+  type PromoCandidate = {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    excerpt?: string | null;
+    default_variant_id?: string | null;
+    default_variant_price?: number | null;
+    default_variant_compare_at_price?: number | null;
+    default_variant_stock_qty?: number | null;
+    primary_image_url?: string | null;
+  };
+
+  async function addPromoBundleCandidate(candidate: PromoCandidate): Promise<boolean> {
+    if (candidate.id === data.product?.id) return false;
+    if (promoBundles.some(pb => pb.bundle_product_id === candidate.id)) return false;
 
     // The admin product list omits primary_image_url and default-variant
     // pricing (only the public list endpoint hydrates those), so we fetch
@@ -395,7 +439,43 @@
       primary_image_url: imageUrl,
       created_at: ''
     }];
-    promoBundlePickerId = '';
+    return true;
+  }
+
+  // Promo-bundles CSV import (one bundle name or slug per row)
+  let promoCsvInputEl = $state<HTMLInputElement | null>(null);
+  let promoImporting = $state(false);
+  let promoImportErrors = $state<{ row: number; message: string }[] | undefined>(undefined);
+
+  function openPromoCSVPicker() {
+    promoImportErrors = undefined;
+    promoCsvInputEl?.click();
+  }
+
+  async function onPromoCSVPicked() {
+    const file = promoCsvInputEl?.files?.[0];
+    if (!file || !data.token) return;
+    promoImporting = true;
+    try {
+      const result = await adminResolvePromoBundlesCSV(data.token, file);
+      promoImportErrors = result.errors;
+      let added = 0;
+      for (const it of result.items) { if (await addPromoBundleCandidate(it)) added++; }
+      if (added > 0) {
+        if (result.skipped > 0) {
+          notify.error(m.admin_order_create_items_import_partial({ ok: String(added), skip: String(result.skipped) }));
+        } else {
+          notify.success(m.admin_order_create_items_import_success({ n: String(added) }));
+        }
+      } else {
+        notify.error(m.admin_order_create_items_import_zero_rows({ skip: String(result.skipped) }));
+      }
+    } catch (e) {
+      notify.error(m.admin_order_create_items_import_failure(), e instanceof Error ? e.message : '');
+    } finally {
+      promoImporting = false;
+      if (promoCsvInputEl) promoCsvInputEl.value = '';
+    }
   }
 
   function removePromoBundle(localId: string) {
@@ -1171,58 +1251,33 @@
         </table>
       {/if}
 
-      <!-- Add component row -->
+      <!-- Add component row — search box (simple products only) + CSV import -->
       <div class="px-6 py-4 border-t border-gray-100 bg-gray-50">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{m.admin_product_edit_bundle_add_heading()}</p>
-        <div class="flex flex-wrap gap-3 items-end">
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-500">{m.admin_product_edit_bundle_add_label_product()}</label>
-            <select bind:value={pickerProductId}
-                    onchange={() => loadPickerVariants(pickerProductId)}
-                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[180px]">
-              <option value="">{m.admin_product_edit_bundle_add_select_product()}</option>
-              {#each simpleProducts as p}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-500">{m.admin_product_edit_bundle_add_label_variant()}</label>
-            <select bind:value={pickerVariantId}
-                    disabled={!pickerProductId || loadingPickerVariants}
-                    class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                           focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[160px]
-                           disabled:opacity-50">
-              <option value="">
-                {loadingPickerVariants ? m.admin_product_edit_bundle_add_loading() : m.admin_product_edit_bundle_add_select_variant()}
-              </option>
-              {#each pickerVariants as v}
-                <option value={v.id}>{v.sku}{v.name ? ` — ${v.name}` : ''}</option>
-              {/each}
-            </select>
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-500">{m.admin_product_edit_bundle_add_label_qty()}</label>
-            <input type="number" min="1" bind:value={pickerQty}
-                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900 w-20" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-gray-500">{m.admin_product_edit_bundle_add_label_display()}</label>
-            <input type="text" bind:value={pickerDisplayName}
-                   placeholder={m.admin_product_edit_bundle_add_display_placeholder()}
-                   class="border border-gray-200 rounded-xl px-3 py-2 text-sm
-                          focus:outline-none focus:ring-2 focus:ring-gray-900 min-w-[160px]" />
-          </div>
-          <button type="button"
-                  onclick={addBundleComponent}
-                  disabled={!pickerVariantId}
-                  class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl
-                         hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            {m.admin_product_edit_bundle_add_button()}
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_bundle_add_heading()}</p>
+          <button type="button" onclick={openBundleCSVPicker} disabled={bundleImporting}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {m.admin_order_create_items_import()}
           </button>
         </div>
+        <input type="file" accept=".csv,text/csv" class="hidden" bind:this={bundleCsvInputEl} onchange={onBundleCSVPicked} />
+        {#if bundleImportErrors && bundleImportErrors.length > 0}
+          <div class="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+            <div class="font-medium">{m.admin_order_create_items_import_errors_heading({ n: String(bundleImportErrors.length) })}</div>
+            <ul class="list-disc pl-5 space-y-0.5">
+              {#each bundleImportErrors.slice(0, 20) as e}
+                <li>Row {e.row}: {e.message}</li>
+              {/each}
+              {#if bundleImportErrors.length > 20}
+                <li>… and {bundleImportErrors.length - 20} more</li>
+              {/if}
+            </ul>
+          </div>
+        {/if}
+        <ProductPicker token={data.token} kind="simple" mode="variant-only" onAdd={addBundleComponentFromPicker} />
       </div>
 
       <div class="px-6 py-3 border-t border-gray-100 text-xs text-gray-400">
@@ -1244,23 +1299,34 @@
         </p>
       </div>
 
-      <div class="px-6 py-4 border-b border-gray-100 flex items-end gap-3">
-        <div class="flex-1 flex flex-col gap-1.5">
-          <label for="promo-bundle-picker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add bundle product</label>
-          <select id="promo-bundle-picker" bind:value={promoBundlePickerId}
-                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-gray-900">
-            <option value="">— select a bundle product —</option>
-            {#each promoBundleChoices as bp (bp.id)}
-              <option value={bp.id}>{bp.name} {bp.default_variant_price != null ? `· HK$${bp.default_variant_price}` : ''}</option>
-            {/each}
-          </select>
+      <div class="px-6 py-4 border-b border-gray-100">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add bundle product</span>
+          <button type="button" onclick={openPromoCSVPicker} disabled={promoImporting}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {m.admin_order_create_items_import()}
+          </button>
         </div>
-        <button type="button" onclick={addPromoBundle} disabled={!promoBundlePickerId}
-                class="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg
-                       hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-          Add
-        </button>
+        <input type="file" accept=".csv,text/csv" class="hidden" bind:this={promoCsvInputEl} onchange={onPromoCSVPicked} />
+        {#if promoImportErrors && promoImportErrors.length > 0}
+          <div class="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+            <div class="font-medium">{m.admin_order_create_items_import_errors_heading({ n: String(promoImportErrors.length) })}</div>
+            <ul class="list-disc pl-5 space-y-0.5">
+              {#each promoImportErrors.slice(0, 20) as e}
+                <li>Row {e.row}: {e.message}</li>
+              {/each}
+              {#if promoImportErrors.length > 20}
+                <li>… and {promoImportErrors.length - 20} more</li>
+              {/if}
+            </ul>
+          </div>
+        {/if}
+        <ProductSearchSelect token={data.token} kind="bundle" excludeIds={excludedPromoIds}
+                             onSelect={addPromoBundleCandidate}
+                             placeholder="Search bundle products…" />
       </div>
 
       {#if promoBundles.length === 0}
