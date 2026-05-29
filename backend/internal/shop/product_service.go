@@ -2464,11 +2464,16 @@ func (s *ProductService) DeleteImage(ctx context.Context, imageID string) error 
 
 func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, product_id, sku, name, price, compare_at_price, stock_qty, low_stock_threshold, weight_grams, is_active, created_at, updated_at
-		 FROM product_variants
-		 WHERE is_active = TRUE
-		   AND stock_qty <= COALESCE(low_stock_threshold, $1)
-		 ORDER BY stock_qty ASC`,
+		// Exclude bundle products: a bundle holds no inventory of its own (its
+		// availability is derived from components via overrideBundleStock, not the
+		// stored stock_qty), so its raw stock is a meaningless placeholder here.
+		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price, pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at
+		 FROM product_variants pv
+		 JOIN products p ON p.id = pv.product_id
+		 WHERE pv.is_active = TRUE
+		   AND p.kind <> 'bundle'
+		   AND pv.stock_qty <= COALESCE(pv.low_stock_threshold, $1)
+		 ORDER BY pv.stock_qty ASC`,
 		threshold)
 	if err != nil {
 		return nil, err
