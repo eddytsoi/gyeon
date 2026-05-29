@@ -4,6 +4,7 @@
   import LineChart from '$lib/components/admin/charts/LineChart.svelte';
   import BarChart from '$lib/components/admin/charts/BarChart.svelte';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import { customerRoleLabel } from '$lib/types';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   let { data }: { data: PageData } = $props();
@@ -11,53 +12,173 @@
   function fmtHK(n: number): string {
     return `HK$${n.toLocaleString('en-HK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   }
-
-  async function setRange(days: string) {
-    const u = new URL($page.url);
-    u.searchParams.set('range', days);
-    await goto(u.pathname + u.search, { keepFocus: true });
+  function fmtPct(n: number): string {
+    return `${(n * 100).toFixed(1)}%`;
+  }
+  function localISO(d: Date): string {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
   }
 
-  async function setSortBy(by: 'qty' | 'revenue') {
-    const u = new URL($page.url);
-    u.searchParams.set('by', by);
-    await goto(u.pathname + u.search, { keepFocus: true });
+  // ── Filter helpers (URL-driven, mirrors the orders list pattern) ──────────────
+  function pushParams(mutate: (p: URLSearchParams) => void) {
+    const url = new URL($page.url);
+    mutate(url.searchParams);
+    goto(url.pathname + url.search, { keepFocus: true, noScroll: true });
+  }
+  function setDate(key: 'from' | 'to', value: string) {
+    pushParams((p) => (value ? p.set(key, value) : p.delete(key)));
+  }
+  function setRangeDates(from: string, to: string) {
+    pushParams((p) => {
+      p.set('from', from);
+      p.set('to', to);
+    });
+  }
+  function presetDays(n: number) {
+    const to = new Date();
+    const from = new Date(to.getTime() - (n - 1) * 86_400_000);
+    setRangeDates(localISO(from), localISO(to));
+  }
+  function presetToday() {
+    const t = new Date();
+    setRangeDates(localISO(t), localISO(t));
+  }
+  function presetThisMonth() {
+    const t = new Date();
+    setRangeDates(localISO(new Date(t.getFullYear(), t.getMonth(), 1)), localISO(t));
+  }
+  function presetLastMonth() {
+    const t = new Date();
+    const from = new Date(t.getFullYear(), t.getMonth() - 1, 1);
+    const end = new Date(t.getFullYear(), t.getMonth(), 0);
+    setRangeDates(localISO(from), localISO(end));
+  }
+  function presetYTD() {
+    const t = new Date();
+    setRangeDates(localISO(new Date(t.getFullYear(), 0, 1)), localISO(t));
+  }
+  function toggleRole(role: string) {
+    pushParams((p) => {
+      const cur = new Set((p.get('role') ?? '').split(',').filter(Boolean));
+      cur.has(role) ? cur.delete(role) : cur.add(role);
+      cur.size ? p.set('role', [...cur].join(',')) : p.delete('role');
+    });
+  }
+  function setCategory(slug: string) {
+    pushParams((p) => (slug ? p.set('category', slug) : p.delete('category')));
+  }
+  function setSortBy(by: 'qty' | 'revenue') {
+    pushParams((p) => p.set('by', by));
+  }
+  function clearFilters() {
+    pushParams((p) => {
+      p.delete('from');
+      p.delete('to');
+      p.delete('role');
+      p.delete('category');
+    });
   }
 
-  // Day labels: when looking at a long range, show MM-DD only; for short
-  // ranges include the day-of-week so the chart reads at a glance.
+  function roleLabel(l: string): string {
+    if (l === 'installer') return m.admin_role_installer();
+    if (l === 'customer') return m.admin_role_customer();
+    return m.dashboard_role_guest();
+  }
+
   function dayLabel(iso: string): string {
     return iso.slice(5); // MM-DD
   }
   const revenueSeries = $derived(
     (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.revenue }))
   );
-  const orderSeries = $derived(
-    (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.order_count }))
-  );
   const statusBars = $derived(
     (data.statusBreakdown ?? []).map((s) => ({ label: orderStatusLabel(s.status), value: s.count }))
   );
+
+  // Cumulative conversion funnel derived from the status breakdown (no extra
+  // query): an order that reached a later stage also passed the earlier ones.
+  const statusMap = $derived(
+    Object.fromEntries((data.statusBreakdown ?? []).map((s) => [s.status, s.count])) as Record<
+      string,
+      number
+    >
+  );
+  const g = (k: string) => statusMap[k] ?? 0;
+  const funnelBars = $derived([
+    { label: m.dashboard_funnel_pending(), value: g('pending') },
+    { label: m.dashboard_funnel_paid(), value: g('paid') + g('processing') + g('shipped') + g('delivered') },
+    { label: m.dashboard_funnel_shipped(), value: g('shipped') + g('delivered') },
+    { label: m.dashboard_funnel_delivered(), value: g('delivered') }
+  ]);
+
+  const categoryBars = $derived((data.byCategory ?? []).map((r) => ({ label: r.label, value: r.value })));
+  const roleBars = $derived((data.byRole ?? []).map((r) => ({ label: roleLabel(r.label), value: r.value })));
+  const carrierBars = $derived((data.byCarrier ?? []).map((r) => ({ label: r.label, value: r.value })));
 </script>
 
 <svelte:head><title>{m.dashboard_title()}</title></svelte:head>
 
 <div class="max-w-7xl space-y-8">
 
-  <!-- Greeting + range -->
-  <div class="flex items-end justify-between flex-wrap gap-4">
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
-      <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+  <!-- Greeting -->
+  <div>
+    <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
+    <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+    <!-- Date range + presets -->
+    <div class="flex flex-wrap items-end gap-3">
+      <label class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_date_from()}</span>
+        <input type="date" value={data.fromISO} onchange={(e) => setDate('from', e.currentTarget.value)}
+               class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none" />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_date_to()}</span>
+        <input type="date" value={data.toISO} onchange={(e) => setDate('to', e.currentTarget.value)}
+               class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none" />
+      </label>
+      <div class="flex flex-wrap gap-1.5">
+        <button onclick={presetToday} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_today()}</button>
+        <button onclick={() => presetDays(7)} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_range_days({ n: '7' })}</button>
+        <button onclick={() => presetDays(30)} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_range_days({ n: '30' })}</button>
+        <button onclick={() => presetDays(90)} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_range_days({ n: '90' })}</button>
+        <button onclick={presetThisMonth} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_this_month()}</button>
+        <button onclick={presetLastMonth} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_last_month()}</button>
+        <button onclick={presetYTD} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_ytd()}</button>
+      </div>
     </div>
-    <div class="inline-flex bg-white rounded-xl border border-gray-100 p-1 shadow-sm">
-      {#each ['7', '30', '90'] as r}
-        <button onclick={() => setRange(r)}
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                       {data.range === r ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}">
-          {m.dashboard_range_days({ n: r })}
-        </button>
-      {/each}
+
+    <!-- Role + category -->
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1 border-t border-gray-50">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_role_label()}</span>
+        {#each ['customer', 'installer'] as role}
+          <button onclick={() => toggleRole(role)}
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                         {data.roles.includes(role) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            {customerRoleLabel(role)}
+          </button>
+        {/each}
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_category_label()}</span>
+        <select value={data.category} onchange={(e) => setCategory(e.currentTarget.value)}
+                class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none">
+          <option value="">{m.dashboard_filter_category_all()}</option>
+          {#each data.categories as c}
+            <option value={c.slug}>{c.name}</option>
+          {/each}
+        </select>
+      </div>
+      <button onclick={clearFilters} class="ml-auto text-xs font-medium text-gray-400 hover:text-gray-900 transition-colors">
+        {m.dashboard_filter_clear()}
+      </button>
     </div>
   </div>
 
@@ -65,7 +186,7 @@
     <!-- Stats grid — static class names so Tailwind includes them -->
     <div class="grid grid-cols-2 xl:grid-cols-5 gap-4">
 
-      <!-- Total Products -->
+      <!-- Total Products (snapshot) -->
       <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
         <div class="w-10 h-10 rounded-xl bg-violet-500 flex items-center justify-center shadow-sm">
           <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -74,6 +195,7 @@
         </div>
         <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.total_products}</p>
         <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_products()}</p>
+        <p class="text-[10px] text-gray-300 mt-0.5">{m.dashboard_snapshot_hint()}</p>
       </div>
 
       <!-- Total Orders -->
@@ -111,7 +233,7 @@
         <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_revenue()}</p>
       </div>
 
-      <!-- Total Refunds (P2 #16) -->
+      <!-- Total Refunds -->
       <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
         <div class="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shadow-sm">
           <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -124,13 +246,53 @@
 
     </div>
 
-    <!-- Revenue trend (P2 #16) -->
+    <!-- Secondary KPIs: AOV, new customers, repeat ratio, refund rate -->
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-xs text-gray-400 font-medium">{m.dashboard_aov()}</p>
+        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtHK(data.summary?.aov ?? 0)}</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-xs text-gray-400 font-medium">{m.dashboard_new_customers()}</p>
+        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{data.summary?.new_customers ?? 0}</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-xs text-gray-400 font-medium">{m.dashboard_repeat_ratio()}</p>
+        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtPct(data.summary?.repeat_ratio ?? 0)}</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-xs text-gray-400 font-medium">{m.dashboard_refund_rate()}</p>
+        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtPct(data.refund?.refund_order_rate ?? 0)}</p>
+        <p class="text-[11px] text-gray-400 mt-0.5">{m.dashboard_refund_rate_sub({ pct: fmtPct(data.refund?.refund_amount_rate ?? 0) })}</p>
+      </div>
+    </div>
+
+    <!-- Revenue trend -->
     <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_revenue_trend_heading()}</h3>
         <p class="text-xs text-gray-400">{data.fromISO} → {data.toISO}</p>
       </div>
       <LineChart data={revenueSeries} formatY={fmtHK} />
+    </div>
+
+    <!-- Revenue breakdown -->
+    <div>
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_revenue_breakdown_heading()}</h3>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.dashboard_revenue_breakdown_by_category()}</p>
+          <BarChart data={categoryBars} formatValue={fmtHK} />
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.dashboard_revenue_breakdown_by_role()}</p>
+          <BarChart data={roleBars} formatValue={fmtHK} />
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.dashboard_revenue_breakdown_by_carrier()}</p>
+          <BarChart data={carrierBars} formatValue={fmtHK} />
+        </div>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -209,10 +371,81 @@
       </div>
     </div>
 
-    <!-- Order status breakdown -->
-    <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
-      <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_status_breakdown_heading()}</h3>
-      <BarChart data={statusBars} formatValue={(n) => String(n)} />
+    <!-- Order status breakdown + conversion funnel -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_status_breakdown_heading()}</h3>
+        <BarChart data={statusBars} formatValue={(n) => String(n)} />
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_funnel_heading()}</h3>
+        <BarChart data={funnelBars} formatValue={(n) => String(n)} />
+      </div>
+    </div>
+
+    <!-- Recent orders + low stock -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Recent orders -->
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_recent_orders_heading()}</h3>
+        {#if (data.recentOrders ?? []).length === 0}
+          <p class="text-sm text-gray-400 py-6 text-center">{m.dashboard_no_data()}</p>
+        {:else}
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-50">
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_recent_orders_col_order()}</th>
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_recent_orders_col_status()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_recent_orders_col_total()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_recent_orders_col_date()}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {#each data.recentOrders as o}
+                <tr class="hover:bg-gray-50 cursor-pointer" onclick={() => goto(`/admin/orders/${o.id}`)}>
+                  <td class="py-2.5">
+                    <p class="text-gray-900 font-mono">{o.order_number || `#${o.number}`}</p>
+                    <p class="text-xs text-gray-400 truncate max-w-[12rem]">{o.customer_name || o.customer_email || '—'}</p>
+                  </td>
+                  <td class="py-2.5 text-gray-700">{orderStatusLabel(o.status)}</td>
+                  <td class="py-2.5 text-right text-gray-700 font-mono">{fmtHK(o.total)}</td>
+                  <td class="py-2.5 text-right text-gray-400 text-xs">{o.created_at.slice(0, 10)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
+
+      <!-- Low stock (snapshot) -->
+      <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_low_stock_heading()}</h3>
+          <span class="text-[10px] text-gray-300">{m.dashboard_low_stock_snapshot()}</span>
+        </div>
+        {#if (data.lowStock ?? []).length === 0}
+          <p class="text-sm text-gray-400 py-6 text-center">{m.dashboard_no_data()}</p>
+        {:else}
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-50">
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_low_stock_col_product()}</th>
+                <th class="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_low_stock_col_sku()}</th>
+                <th class="text-right text-xs font-semibold text-gray-400 uppercase tracking-wide pb-2">{m.dashboard_low_stock_col_stock()}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              {#each data.lowStock as v}
+                <tr>
+                  <td class="py-2.5 text-gray-900 truncate max-w-[14rem]">{v.product_name || v.name || '—'}</td>
+                  <td class="py-2.5 text-gray-400 font-mono text-xs">{v.sku}</td>
+                  <td class="py-2.5 text-right font-mono {v.stock_qty <= 0 ? 'text-red-600' : 'text-amber-600'}">{v.stock_qty}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
     </div>
 
     <!-- Quick actions -->

@@ -4,47 +4,104 @@ import {
   adminGetTopProducts,
   adminGetTopCustomers,
   adminGetOrderStatusBreakdown,
-  adminGetRefundTotal,
+  adminGetRefundSummary,
+  adminGetDashboardSummary,
+  adminGetRevenueBreakdown,
+  adminGetLowStock,
+  adminGetCategories,
+  adminGetOrders,
+  type DashFilters,
   type RevenuePoint,
   type TopProduct,
   type TopCustomer,
-  type StatusBreakdownPoint
+  type StatusBreakdownPoint,
+  type RevenueBreakdownRow,
+  type RefundSummary,
+  type DashboardSummary
 } from '$lib/api/admin';
 import type { PageServerLoad } from './$types';
 
+const VALID_ROLES = ['customer', 'installer'];
+
+function localISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
-  if (!token) return { stats: null };
 
-  const range = url.searchParams.get('range') ?? '30';
-  const days = ['7', '30', '90'].includes(range) ? Number(range) : 30;
-  const to = new Date();
-  const from = new Date(to.getTime() - (days - 1) * 86_400_000);
-  const fromISO = from.toISOString().slice(0, 10);
-  const toISO = to.toISOString().slice(0, 10);
+  // Date range — default to the last 30 days when not provided.
+  const today = new Date();
+  const fromISO = url.searchParams.get('from') || localISO(new Date(today.getTime() - 29 * 86_400_000));
+  const toISO = url.searchParams.get('to') || localISO(today);
+
+  const roles = (url.searchParams.get('role') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((r) => VALID_ROLES.includes(r));
+  const category = url.searchParams.get('category') ?? '';
   const sortBy = (url.searchParams.get('by') === 'revenue' ? 'revenue' : 'qty') as 'qty' | 'revenue';
 
-  const [stats, revenue, topProducts, topCustomers, statusBreakdown, refunds] = await Promise.all([
-    getStats(token, fromISO, toISO).catch(() => null),
-    adminGetRevenueTrend(token, fromISO, toISO).catch(() => [] as RevenuePoint[]),
-    adminGetTopProducts(token, fromISO, toISO, sortBy).catch(() => [] as TopProduct[]),
-    adminGetTopCustomers(token, fromISO, toISO).catch(() => [] as TopCustomer[]),
-    adminGetOrderStatusBreakdown(token, fromISO, toISO).catch(
-      () => [] as StatusBreakdownPoint[]
-    ),
-    adminGetRefundTotal(token, fromISO, toISO).catch(() => ({ refunds: 0 }))
-  ]);
+  // Filter-bar state is always returned so the bar renders even when stats fail.
+  const filterEcho = { fromISO, toISO, roles, category, sortBy, categories: [] as Awaited<ReturnType<typeof adminGetCategories>> };
 
-  return {
+  if (!token) return { stats: null, ...filterEcho };
+
+  const f: DashFilters = { from: fromISO, to: toISO, roles, category: category || undefined };
+
+  const [
     stats,
-    range: String(days),
-    sortBy,
-    fromISO,
-    toISO,
+    summary,
     revenue,
     topProducts,
     topCustomers,
     statusBreakdown,
-    refundTotal: refunds.refunds
+    refund,
+    byCategory,
+    byRole,
+    byCarrier,
+    recentOrders,
+    lowStock,
+    categories
+  ] = await Promise.all([
+    getStats(token, f).catch(() => null),
+    adminGetDashboardSummary(token, f).catch(() => null),
+    adminGetRevenueTrend(token, f).catch(() => [] as RevenuePoint[]),
+    adminGetTopProducts(token, f, sortBy).catch(() => [] as TopProduct[]),
+    adminGetTopCustomers(token, f).catch(() => [] as TopCustomer[]),
+    adminGetOrderStatusBreakdown(token, f).catch(() => [] as StatusBreakdownPoint[]),
+    adminGetRefundSummary(token, f).catch(() => null as RefundSummary | null),
+    adminGetRevenueBreakdown(token, 'category', f).catch(() => [] as RevenueBreakdownRow[]),
+    adminGetRevenueBreakdown(token, 'role', f).catch(() => [] as RevenueBreakdownRow[]),
+    adminGetRevenueBreakdown(token, 'carrier', f).catch(() => [] as RevenueBreakdownRow[]),
+    adminGetOrders(token, { from: fromISO, to: toISO, roles, limit: 8 }).catch(() => ({ items: [], total: 0 })),
+    adminGetLowStock(token).catch(() => []),
+    adminGetCategories(token).catch(() => [])
+  ]);
+
+  return {
+    stats,
+    summary,
+    revenue,
+    topProducts,
+    topCustomers,
+    statusBreakdown,
+    refund,
+    refundTotal: refund?.refunds ?? 0,
+    byCategory,
+    byRole,
+    byCarrier,
+    recentOrders: recentOrders.items ?? [],
+    lowStock,
+    categories,
+    // Echo the active filters so the filter bar can render its state.
+    fromISO,
+    toISO,
+    roles,
+    category,
+    sortBy
   };
 };
