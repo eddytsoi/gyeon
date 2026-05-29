@@ -182,6 +182,8 @@
   "cart_summary_shipping": "Shipping",
   "cart_summary_total": "Total",
   "cart_checkout": "Checkout",
+  "cart_pending_order_banner": "You have an unpaid order {orderNumber} awaiting payment.",
+  "cart_pending_order_continue": "Continue payment →",
   "shipping_sf_free": "SF Express (free)",
   "shipping_sf_cod": "SF Express (pay on delivery)",
 

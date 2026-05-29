@@ -11,6 +11,7 @@
   import { productDisplayName } from '$lib/variant';
   import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
+  import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -357,6 +358,8 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
   <h1 class="text-3xl font-bold text-gray-900 mb-8">{m.checkout_heading()}</h1>
+
+  <PendingOrderBanner cartId={activeCart?.id ?? null} />
 
   {#if cartStore.loading && !activeCart}
     <div class="text-center py-20 text-gray-400">{m.common_loading()}</div>

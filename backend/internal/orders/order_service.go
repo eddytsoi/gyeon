@@ -837,6 +837,29 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		total = 0
 	}
 
+	// Idempotency by cart: a cart holds at most one in-flight order. If this
+	// cart already has a pending, not-yet-paid order, don't spawn a duplicate
+	// (covers: shopper closes the checkout tab after a failed payment and
+	// reopens cart/checkout in a new tab — same localStorage session → same
+	// cart_id). Reuse the existing order when its contents still match; if the
+	// cart changed since, cancel the stale order (which restocks) and create a
+	// fresh one below.
+	if existing, derr := s.findPendingOrderByCart(ctx, req.CartID); derr != nil {
+		return nil, derr
+	} else if existing != nil {
+		want := map[string]int{}
+		for _, li := range lines {
+			want[li.variantID] += li.quantity
+		}
+		if pendingOrderMatchesCart(existing, want, total) {
+			return s.resumePendingOrder(ctx, existing, shippingAddressID, customerEmail, customerPhone, customerName, req.Notes)
+		}
+		note := "Superseded — cart changed before payment"
+		if _, cerr := s.UpdateStatus(ctx, existing.ID, UpdateStatusRequest{Status: StatusCancelled, Note: &note}); cerr != nil {
+			return nil, fmt.Errorf("cancel superseded order %s: %w", existing.ID, cerr)
+		}
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -936,6 +959,22 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.CreatedAt, &order.UpdatedAt)
 	if err != nil {
+		// Concurrency backstop: the partial unique index
+		// orders_one_pending_per_cart rejects a second pending order for the
+		// same cart. If a concurrent checkout won the race, roll back (undoes
+		// this tx's stock decrement) and reuse the winning order instead of
+		// erroring out.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "orders_one_pending_per_cart" {
+			tx.Rollback()
+			existing, ferr := s.findPendingOrderByCart(ctx, req.CartID)
+			if ferr != nil {
+				return nil, ferr
+			}
+			if existing != nil {
+				return s.resumePendingOrder(ctx, existing, shippingAddressID, customerEmail, customerPhone, customerName, req.Notes)
+			}
+		}
 		return nil, err
 	}
 	order.AppliedPromotions = appliedPromos
@@ -1086,6 +1125,163 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	}
 
 	return result, nil
+}
+
+// findPendingOrderByCart returns the most recent pending, not-yet-paid order
+// for a cart (with items loaded), or (nil, nil) when none exists. Used to dedup
+// checkout so reopening cart/checkout in a new tab continues the same order
+// instead of creating a clone.
+func (s *OrderService) findPendingOrderByCart(ctx context.Context, cartID string) (*Order, error) {
+	if cartID == "" {
+		return nil, nil
+	}
+	var id string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id FROM orders
+		 WHERE cart_id = $1 AND status = 'pending'
+		   AND payment_status IS DISTINCT FROM 'succeeded'
+		 ORDER BY created_at DESC
+		 LIMIT 1`, cartID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.GetByID(ctx, id)
+}
+
+// pendingOrderMatchesCart reports whether an existing pending order still
+// represents the same purchase as the current cart: identical top-level
+// (variant → quantity) lines and the same computed total (within a cent).
+// Bundle component rows (parent_item_id set) are skipped — they're derived
+// from their parent line.
+func pendingOrderMatchesCart(order *Order, want map[string]int, total float64) bool {
+	have := map[string]int{}
+	for _, it := range order.Items {
+		if it.ParentItemID != nil {
+			continue
+		}
+		if it.VariantID == nil {
+			return false
+		}
+		have[*it.VariantID] += it.Quantity
+	}
+	if len(have) != len(want) {
+		return false
+	}
+	for v, q := range want {
+		if have[v] != q {
+			return false
+		}
+	}
+	diff := order.Total - total
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= 0.01
+}
+
+// resumePendingOrder refreshes an existing pending order for a repeat checkout
+// of the same cart: it updates the contact/address snapshot from the new
+// payload, resets a failed payment back to payable, ensures a live Stripe
+// client_secret, and returns the same CheckoutResult shape — without creating a
+// new order or decrementing stock again.
+func (s *OrderService) resumePendingOrder(ctx context.Context, order *Order, shippingAddressID *string, email, phone, name string, notes *string) (*CheckoutResult, error) {
+	var emailPtr, phonePtr, namePtr *string
+	if email != "" {
+		emailPtr = &email
+	}
+	if phone != "" {
+		phonePtr = &phone
+	}
+	if name != "" {
+		namePtr = &name
+	}
+
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE orders SET
+		    shipping_address_id = COALESCE($2, shipping_address_id),
+		    customer_email = COALESCE($3, customer_email),
+		    customer_phone = COALESCE($4, customer_phone),
+		    customer_name  = COALESCE($5, customer_name),
+		    notes = COALESCE($6, notes),
+		    payment_status = CASE WHEN payment_status = 'succeeded'
+		                          THEN payment_status ELSE 'requires_payment_method' END,
+		    updated_at = now()
+		 WHERE id = $1`,
+		order.ID, shippingAddressID, emailPtr, phonePtr, namePtr, notes); err != nil {
+		return nil, fmt.Errorf("refresh pending order %s: %w", order.ID, err)
+	}
+	rps := "requires_payment_method"
+	order.PaymentStatus = &rps
+
+	result := &CheckoutResult{Order: order}
+	if s.paymentSvc == nil {
+		return result, nil
+	}
+
+	clientSecret := ""
+	if order.PaymentIntentID != nil && *order.PaymentIntentID != "" {
+		if pi, err := s.paymentSvc.FetchPaymentIntent(ctx, *order.PaymentIntentID); err == nil && pi.ClientSecret != "" {
+			clientSecret = pi.ClientSecret
+		}
+	}
+	if clientSecret == "" {
+		intent, err := s.paymentSvc.CreatePaymentIntent(ctx, payment.CreateIntentParams{
+			AmountCents: int64(order.Total*100 + 0.5),
+			Currency:    "hkd",
+			OrderID:     order.ID,
+			Email:       email,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("payment setup failed: %w", err)
+		}
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE orders SET payment_intent_id=$2 WHERE id=$1`, order.ID, intent.ID); err != nil {
+			log.Printf("persist payment_intent_id on resumed order %s: %v", order.ID, err)
+		}
+		order.PaymentIntentID = &intent.ID
+		clientSecret = intent.ClientSecret
+	}
+
+	result.ClientSecret = clientSecret
+	result.PublishableKey = s.paymentSvc.PublishableKey(ctx)
+	result.Mode = s.paymentSvc.Mode(ctx)
+	return result, nil
+}
+
+// PendingOrderForCartResult is the storefront payload that lets cart/checkout
+// surface a "you have an unpaid order" banner linking to /pay/{id}.
+type PendingOrderForCartResult struct {
+	OrderID      string  `json:"order_id"`
+	OrderNumber  string  `json:"order_number"`
+	Total        float64 `json:"total"`
+	ClientSecret string  `json:"client_secret"`
+}
+
+// PendingOrderForCart returns the cart's outstanding pending order (with a
+// fresh Stripe client_secret) so the storefront can offer a resume-payment
+// link, or (nil, nil) when the cart has no payable unpaid order. Authorized by
+// possession of the cart_id, consistent with the rest of the cart API.
+func (s *OrderService) PendingOrderForCart(ctx context.Context, cartID string) (*PendingOrderForCartResult, error) {
+	order, err := s.findPendingOrderByCart(ctx, cartID)
+	if err != nil || order == nil {
+		return nil, err
+	}
+	if s.paymentSvc == nil || order.PaymentIntentID == nil || *order.PaymentIntentID == "" {
+		return nil, nil
+	}
+	pi, err := s.paymentSvc.FetchPaymentIntent(ctx, *order.PaymentIntentID)
+	if err != nil || pi.ClientSecret == "" {
+		return nil, nil
+	}
+	return &PendingOrderForCartResult{
+		OrderID:      order.ID,
+		OrderNumber:  order.OrderNumber,
+		Total:        order.Total,
+		ClientSecret: pi.ClientSecret,
+	}, nil
 }
 
 // buildOrderEmailItems converts an order's flat OrderItem slice into the
