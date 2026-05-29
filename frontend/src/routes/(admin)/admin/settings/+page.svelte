@@ -204,8 +204,10 @@
     'pdp_show_stock_count',
     'pdp_complete_set_kicker',
     'pdp_complete_set_heading',
+    'pdp_complete_set_preselect_all',
     'pdp_fbt_kicker',
     'pdp_fbt_heading',
+    'pdp_fbt_preselect_all',
     'pdp_content_layout'
   ]);
   // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
@@ -425,6 +427,12 @@
   let pdpShowFbtOn = $state(pdpShowFbtSetting?.value !== 'false');
   const pdpShowStockCountSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_stock_count'));
   let pdpShowStockCountOn = $state(pdpShowStockCountSetting?.value !== 'false');
+  // Bundle "default all-selected" toggles — default ON so an uninitialised
+  // install keeps the existing pre-checked BundleComposer behaviour.
+  const pdpFbtPreselectSetting = $derived(data.settings.find((s) => s.key === 'pdp_fbt_preselect_all'));
+  let pdpFbtPreselectOn = $state(pdpFbtPreselectSetting?.value !== 'false');
+  const pdpCompleteSetPreselectSetting = $derived(data.settings.find((s) => s.key === 'pdp_complete_set_preselect_all'));
+  let pdpCompleteSetPreselectOn = $state(pdpCompleteSetPreselectSetting?.value !== 'false');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1735,6 +1743,23 @@
         <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_complete_set_heading()}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_complete_set_subtitle()}</p>
       </div>
+      <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_complete_set_preselect_all()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_complete_set_preselect_all()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpCompleteSetPreselectOn = !pdpCompleteSetPreselectOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpCompleteSetPreselectOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpCompleteSetPreselectOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpCompleteSetPreselectOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_complete_set_preselect_all" value={pdpCompleteSetPreselectOn ? 'true' : 'false'} />
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1.5">
           <label for="pdp_complete_set_kicker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -1764,6 +1789,23 @@
       <div class="mb-5">
         <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_fbt_heading()}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_fbt_subtitle()}</p>
+      </div>
+      <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_fbt_preselect_all()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_fbt_preselect_all()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpFbtPreselectOn = !pdpFbtPreselectOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpFbtPreselectOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpFbtPreselectOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpFbtPreselectOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_fbt_preselect_all" value={pdpFbtPreselectOn ? 'true' : 'false'} />
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1.5">

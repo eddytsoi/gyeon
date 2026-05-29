@@ -23,15 +23,17 @@
   let {
     items,
     kicker,
-    heading
+    heading,
+    preselectAll = true
   }: {
     items: Item[];
     kicker?: string;
     heading?: string;
+    preselectAll?: boolean;
   } = $props();
 
   const initial = items.reduce<Record<string, boolean>>((acc, p) => {
-    acc[p.id] = !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false);
+    acc[p.id] = preselectAll && !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false);
     return acc;
   }, {});
   let selected = $state<Record<string, boolean>>(initial);

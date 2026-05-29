@@ -177,6 +177,8 @@
   const completeSetHeading = $derived(pdpSettings['pdp_complete_set_heading'] || undefined);
   const fbtKicker = $derived(pdpSettings['pdp_fbt_kicker'] || undefined);
   const fbtHeading = $derived(pdpSettings['pdp_fbt_heading'] || undefined);
+  const fbtPreselectAll = $derived(pdpSettings['pdp_fbt_preselect_all'] !== 'false');
+  const completeSetPreselectAll = $derived(pdpSettings['pdp_complete_set_preselect_all'] !== 'false');
   const contentLayout = $derived(
     pdpSettings['pdp_content_layout'] === 'nav-list' ? 'nav-list' : 'tabs'
   );
@@ -911,6 +913,7 @@
     items={data.frequentlyBoughtTogether}
     kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
     heading={fbtHeading ?? m.product_detail_fbt_heading()}
+    preselectAll={fbtPreselectAll}
   />
 {/if}
 
@@ -1217,6 +1220,7 @@
     items={data.related}
     kicker={completeSetKicker}
     heading={completeSetHeading}
+    preselectAll={completeSetPreselectAll}
   />
 {/if}
 
