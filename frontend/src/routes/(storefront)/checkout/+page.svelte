@@ -12,6 +12,9 @@
   import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
+  import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
@@ -86,6 +89,7 @@
 
   // ── T&C (section 5) ───────────────────────────────────────────
   let tcAccepted = $state(false);
+  let tcExpanded = $state(false);
 
   // ── Submit state ──────────────────────────────────────────────
   let placing = $state(false);
@@ -572,10 +576,22 @@
             <input type="checkbox" bind:checked={tcAccepted}
                    class="mt-0.5 accent-gray-900 flex-shrink-0" />
             <span class="text-sm text-gray-700 leading-relaxed">
-              {m.checkout_tc_text_pre()}<a href="/pages/terms-and-conditions" target="_blank"
-                 class="text-gray-900 underline font-medium">{m.checkout_tc_link_label()}</a>
+              {m.checkout_tc_text_pre()}{#if data.termsPage}<button type="button"
+                 onclick={() => (tcExpanded = !tcExpanded)}
+                 aria-expanded={tcExpanded} aria-controls="checkout-tc-content"
+                 class="inline text-gray-900 underline font-medium">{m.checkout_tc_link_label()}</button>{:else}<a
+                 href="/pages/terms-and-conditions" target="_blank"
+                 class="text-gray-900 underline font-medium">{m.checkout_tc_link_label()}</a>{/if}
             </span>
           </label>
+          {#if tcExpanded && data.termsPage}
+            <div id="checkout-tc-content"
+                 transition:slide={{ duration: 280, easing: cubicOut }}
+                 class="mt-3 max-h-56 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50
+                        px-4 py-3 text-sm text-gray-600 leading-relaxed">
+              <MarkdownContent content={data.termsPage.content} refs={data.termsRefs ?? undefined} />
+            </div>
+          {/if}
         </section>
 
         <!-- ── 5. Payment ──────────────────────────────────────── -->
