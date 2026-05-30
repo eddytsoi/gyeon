@@ -77,17 +77,16 @@
 </script>
 
 {#if items.length > 0}
-  <section class="bg-paper border-y border-ink-300/60">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+  <section class="bg-white border-t border-ink-300/60">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-10">
       <p class="text-[11px] font-display font-semibold uppercase tracking-[0.18em] text-navy-500 mb-2">
         {kicker ?? m.product_detail_related_kicker()}
       </p>
-      <h2 class="font-display text-2xl md:text-3xl font-bold tracking-tight text-ink-900">
+      <h2 class="font-display text-xl md:text-2xl font-bold tracking-tight text-ink-900">
         {heading ?? m.product_detail_related_heading()}
       </h2>
-      <div class="mt-3 h-px w-12 bg-navy-500"></div>
 
-      <div class="mt-8 grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-12 items-start">
+      <div class="mt-6 grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-12 items-start">
 
         <!-- Mini-card row -->
         <ul class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
@@ -138,11 +137,11 @@
         </ul>
 
         <!-- Total + CTA -->
-        <aside class="lg:sticky lg:top-24 bg-white p-5 rounded-lg border border-ink-300/60 lg:min-w-[260px]">
+        <aside class="lg:sticky lg:top-24 bg-paper p-5 rounded-lg border border-ink-300/60 lg:min-w-[260px]">
           <p class="text-[11px] font-display font-semibold uppercase tracking-[0.15em] text-ink-500">
             {m.bundle_composer_total_label()}
           </p>
-          <p class="mt-1 font-display text-3xl font-bold tabular-nums text-ink-900">
+          <p class="mt-1 font-display text-xl md:text-2xl font-bold tabular-nums text-ink-900">
             HK${totalSale.toFixed(2)}
           </p>
           {#if saved > 0}
@@ -157,12 +156,12 @@
             type="button"
             onclick={addAll}
             disabled={adding || selectedCount === 0}
-            class="mt-4 w-full h-11 px-5 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] text-white transition-all duration-200 ease-gy
+            class="mt-4 w-full h-11 px-5 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy
                    {selectedCount === 0
-                     ? 'bg-ink-300 cursor-not-allowed'
+                     ? 'border-2 border-ink-300 text-ink-300 cursor-not-allowed'
                      : added
-                       ? 'bg-success'
-                       : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
+                       ? 'border-2 border-success bg-success text-white'
+                       : 'border-2 border-navy-500 text-navy-500 hover:bg-navy-500 hover:text-white active:scale-[0.98]'}"
           >
             {#if added}
               {m.bundle_composer_cta_added()}
