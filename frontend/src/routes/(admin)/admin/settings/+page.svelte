@@ -209,7 +209,8 @@
     'pdp_fbt_heading',
     'pdp_fbt_preselect_all',
     'pdp_content_layout',
-    'pdp_navlist_show_nav'
+    'pdp_navlist_show_nav',
+    'pdp_navlist_show_titles'
   ]);
   // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
   // from textSettings so the generic "Other" loop doesn't double-render
@@ -433,6 +434,8 @@
   let pdpContentLayout = $state(settingValue('pdp_content_layout') || 'tabs');
   const pdpNavlistShowNavSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_nav'));
   let pdpNavlistShowNavOn = $state(pdpNavlistShowNavSetting?.value !== 'false'); // default ON
+  const pdpNavlistShowTitlesSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_titles'));
+  let pdpNavlistShowTitlesOn = $state(pdpNavlistShowTitlesSetting?.value !== 'false'); // default ON
   // Bundle "default all-selected" toggles — default ON so an uninitialised
   // install keeps the existing pre-checked BundleComposer behaviour.
   const pdpFbtPreselectSetting = $derived(data.settings.find((s) => s.key === 'pdp_fbt_preselect_all'));
@@ -1878,6 +1881,7 @@
       <!-- Always submit the value so it persists even when switching back to tabs
            before saving; the visible toggle only shows while nav-list is active. -->
       <input type="hidden" name="pdp_navlist_show_nav" value={pdpNavlistShowNavOn ? 'true' : 'false'} />
+      <input type="hidden" name="pdp_navlist_show_titles" value={pdpNavlistShowTitlesOn ? 'true' : 'false'} />
       {#if pdpContentLayout === 'nav-list'}
         <div class="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
           <div>
@@ -1893,6 +1897,22 @@
                   aria-checked={pdpNavlistShowNavOn}>
             <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
                          transition duration-200 {pdpNavlistShowNavOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+        </div>
+        <div class="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100">
+          <div>
+            <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_navlist_show_titles()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_navlist_show_titles()}</p>
+          </div>
+          <button type="button"
+                  onclick={() => (pdpNavlistShowTitlesOn = !pdpNavlistShowTitlesOn)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {pdpNavlistShowTitlesOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={pdpNavlistShowTitlesOn}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {pdpNavlistShowTitlesOn ? 'translate-x-5' : 'translate-x-0'}"></span>
           </button>
         </div>
       {/if}
