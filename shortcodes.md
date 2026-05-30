@@ -161,16 +161,19 @@ Edge-to-edge image banner, optionally hyperlinked. Renders as `<a>` if `href` is
 | `alt` | no | alt text (recommended for accessibility) | `""` |
 | `href` | no | URL or path | — |
 | `bleed` | no | `full` \| `container` | `full` |
-| `bleed-lg` | no | `full` \| `container` (overrides at ≥1024px) | _(inherits `bleed`)_ |
+| `bleed-sm` | no | `full` \| `container` (overrides at ≥640px) | _(inherits `bleed`)_ |
+| `bleed-lg` | no | `full` \| `container` (overrides at ≥1024px) | _(inherits the tier below)_ |
 | `aspect-ratio` | no | positive number (e.g. `1.78`) or `auto` | `auto` |
 | `aspect-ratio-mobile` | no | positive number or `auto` | `auto` |
 | `height` | no | integer 1–2000 (px) or `auto` | `auto` |
 | `fit-size` | no | `cover` \| `contain` | `cover` |
 | `class` | no | any string | — |
 
+Bleed cascades across three tiers: base (`bleed`) → `bleed-sm` (≥640px) → `bleed-lg` (≥1024px). Each override is optional and only takes effect from its breakpoint up; an unset tier inherits the tier below it.
+
 ```
 [banner image="/uploads/hero.jpg" alt="New collection"]
-[banner image="/uploads/desktop.jpg" image-mobile="/uploads/mobile.jpg" alt="Sale" href="/sale" aspect-ratio="2.4" aspect-ratio-mobile="1" bleed="full" bleed-lg="container"]
+[banner image="/uploads/desktop.jpg" image-mobile="/uploads/mobile.jpg" alt="Sale" href="/sale" aspect-ratio="2.4" aspect-ratio-mobile="1" bleed="full" bleed-sm="container" bleed-lg="full"]
 ```
 
 If `image` is missing the shortcode renders nothing. In dev, a missing/empty `alt` logs a warning unless explicitly set to `alt=""` for decorative images.

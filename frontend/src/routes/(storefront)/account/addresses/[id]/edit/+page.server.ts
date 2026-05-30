@@ -41,8 +41,6 @@ export const actions: Actions = {
       phone:       form.get('phone')?.toString() || undefined,
       line1:       form.get('line1')?.toString() ?? '',
       city:        form.get('city')?.toString() ?? '',
-      state:       form.get('state')?.toString() || undefined,
-      postal_code: form.get('postal_code')?.toString() ?? '',
       country:     form.get('country')?.toString() ?? 'HK',
       is_default:  form.get('is_default') === 'on'
     };

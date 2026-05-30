@@ -35,14 +35,14 @@
 <div class="group relative flex flex-col">
   <a href="/products/{product.slug}" class="flex flex-col">
     <!-- Square media -->
-    <div class="relative aspect-square bg-paper overflow-hidden rounded-lg">
+    <div class="relative aspect-square bg-white overflow-hidden rounded-lg">
       {#if image}
         {#if isVideo(image) && !isStreamingVideo(image) && !image.thumbnail_url}
           <video src={image.url} muted playsinline preload="metadata"
                  class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]">
           </video>
         {:else if isStreamingVideo(image) && !image.thumbnail_url}
-          <div class="w-full h-full flex items-center justify-center bg-paper">
+          <div class="w-full h-full flex items-center justify-center bg-white">
             <svg class="w-12 h-12 text-ink-300" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75 5.25 3.75-5.25 3.75v-7.5Z" />
             </svg>

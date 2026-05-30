@@ -101,7 +101,6 @@
     display: block;
   }
   td.product .name { font-weight: 500; color: #19253F; }
-  td.product .sku  { color: #9CA3AF; font-size: 7.5pt; margin-top: 1px; font-variant-numeric: tabular-nums; }
   td.product .attrs { color: #6B7280; font-size: 8pt; margin-top: 1px; }
   td.idx { width: 26px; text-align: center; color: #9CA3AF; font-variant-numeric: tabular-nums; }
   td.qty { width: 40px; }
@@ -209,7 +208,6 @@
           </td>
           <td class="product">
             <div class="name">{{ $row.ProductName }}</div>
-            {{ if $row.SKU }}<div class="sku">{{ $row.SKU }}</div>{{ end }}
             {{ if $row.Attrs }}<div class="attrs">{{ $row.Attrs }}</div>{{ end }}
           </td>
           <td class="qty center">{{ $row.Quantity }}</td>

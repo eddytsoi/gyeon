@@ -37,8 +37,6 @@
   );
   let line1 = $state('');
   let city = $state('');
-  let addressState = $state('');
-  let postalCode = $state('');
   let country = $state(data.shippingCountries[0] ?? 'HK');
   let saveAddress = $state(false);
 
@@ -286,8 +284,6 @@
             ? {
                 line1: line1.trim(),
                 city: city.trim(),
-                state: addressState.trim() || undefined,
-                postal_code: postalCode.trim(),
                 country: country.trim() || 'HK'
               }
             : undefined,
@@ -493,18 +489,6 @@
                       {/each}
                     </datalist>
                   {/if}
-                </div>
-                <div>
-                  <label for="state" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_state()} <span class="text-gray-400 font-normal">{m.common_optional()}</span></label>
-                  <input id="state" type="text" bind:value={addressState}
-                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                                focus:outline-none focus:ring-2 focus:ring-gray-900" />
-                </div>
-                <div>
-                  <label for="postal" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_postal()}</label>
-                  <input id="postal" type="text" bind:value={postalCode}
-                         class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                                focus:outline-none focus:ring-2 focus:ring-gray-900" />
                 </div>
                 <div>
                   <label for="country" class="block text-xs font-medium text-gray-500 mb-1">{m.checkout_address_country()} <span class="text-red-400">*</span></label>

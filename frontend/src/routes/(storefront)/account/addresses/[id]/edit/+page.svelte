@@ -87,18 +87,6 @@
         {/if}
       </div>
       <div>
-        <label for="postal_code" class="block text-sm font-medium text-gray-700 mb-1">{m.account_address_form_postal()} <span class="text-gray-400 font-normal">{m.common_optional()}</span></label>
-        <input id="postal_code" name="postal_code" type="text" value={addr.postal_code}
-          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-      </div>
-    </div>
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label for="state" class="block text-sm font-medium text-gray-700 mb-1">{m.account_address_form_state()} <span class="text-gray-400 font-normal">{m.common_optional()}</span></label>
-        <input id="state" name="state" type="text" value={addr.state ?? ''}
-          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
-      </div>
-      <div>
         <label for="country" class="block text-sm font-medium text-gray-700 mb-1">{m.account_address_form_country()} *</label>
         <select id="country" name="country" required bind:value={country}
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">

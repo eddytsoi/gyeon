@@ -73,11 +73,10 @@
             <div class="min-w-0">
               <p class="font-medium text-gray-900 uppercase">{item.product_name}</p>
               <p class="text-xs text-gray-400 mt-0.5">
-                {item.variant_sku}
                 {#if item.variant_attrs && Object.keys(item.variant_attrs).length > 0}
-                  · {Object.values(item.variant_attrs).join(', ')}
+                  {Object.values(item.variant_attrs).join(', ')} ·
                 {/if}
-                · {m.checkout_success_qty({ quantity: item.quantity })}
+                {m.checkout_success_qty({ quantity: item.quantity })}
               </p>
             </div>
             <span class="text-gray-900 font-medium flex-shrink-0">${item.line_total.toFixed(2)}</span>

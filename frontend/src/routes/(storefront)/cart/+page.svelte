@@ -70,7 +70,6 @@
                    class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors uppercase">
                   {productDisplayName(item.product_name, item.variant_name)}
                 </a>
-                <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
               </div>
 
               <!-- Qty controls -->

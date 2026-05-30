@@ -8,6 +8,7 @@
     alt = '',
     href,
     bleed = 'full',
+    bleedSm = undefined,
     bleedLg = undefined,
     aspectRatio = 'auto',
     aspectRatioMobile = 'auto',
@@ -20,6 +21,7 @@
     alt?: string;
     href?: string;
     bleed?: BannerBleed;
+    bleedSm?: BannerBleed;
     bleedLg?: BannerBleed;
     aspectRatio?: BannerAspect;
     aspectRatioMobile?: BannerAspect;
@@ -53,19 +55,43 @@
   );
 
   // Same viewport-edge escape Section.svelte uses for bleed="full".
-  // bleed-lg overrides at the Tailwind `lg` breakpoint (≥ 1024px); the
-  // lg:w-auto/lg:ml-0/lg:mr-0 reset neutralizes the negative-margin escape
-  // when bleed="full" is paired with bleed-lg="container".
+  // Three responsive tiers: base (mobile) → `bleed-sm` at the Tailwind `sm`
+  // breakpoint (≥ 640px) → `bleed-lg` at `lg` (≥ 1024px). Each override is
+  // optional; a tier only emits its prefixed utilities when its effective
+  // value differs from the tier below it, so we never emit redundant classes.
+  // The w-auto/ml-0/mr-0 reset neutralizes the negative-margin escape when a
+  // wider tier switches "full" back to "container". `sm:` source-orders before
+  // `lg:` in Tailwind, so the wider breakpoint correctly wins.
   const bleedClass = $derived(
     (() => {
-      const base =
-        bleed === 'full' ? 'w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]' : '';
-      if (bleedLg === undefined || bleedLg === bleed) return base;
-      const lg =
-        bleedLg === 'full'
-          ? 'lg:w-screen lg:ml-[calc(50%-50vw)] lg:mr-[calc(50%-50vw)]'
-          : 'lg:w-auto lg:ml-0 lg:mr-0';
-      return base ? `${base} ${lg}` : lg;
+      // Full literal class strings (not built by prefix concat) so Tailwind's
+      // JIT scanner picks every variant up. base "container" emits nothing —
+      // the element stays in normal flow.
+      const lit = {
+        base: {
+          full: 'w-screen ml-[calc(50%-50vw)] mr-[calc(50%-50vw)]',
+          container: ''
+        },
+        sm: {
+          full: 'sm:w-screen sm:ml-[calc(50%-50vw)] sm:mr-[calc(50%-50vw)]',
+          container: 'sm:w-auto sm:ml-0 sm:mr-0'
+        },
+        lg: {
+          full: 'lg:w-screen lg:ml-[calc(50%-50vw)] lg:mr-[calc(50%-50vw)]',
+          container: 'lg:w-auto lg:ml-0 lg:mr-0'
+        }
+      } as const;
+      let out: string = lit.base[bleed];
+      let eff: BannerBleed = bleed;
+      if (bleedSm !== undefined && bleedSm !== eff) {
+        out = out ? `${out} ${lit.sm[bleedSm]}` : lit.sm[bleedSm];
+        eff = bleedSm;
+      }
+      if (bleedLg !== undefined && bleedLg !== eff) {
+        out = out ? `${out} ${lit.lg[bleedLg]}` : lit.lg[bleedLg];
+        eff = bleedLg;
+      }
+      return out;
     })()
   );
 

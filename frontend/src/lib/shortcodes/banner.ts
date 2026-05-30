@@ -12,6 +12,14 @@ export function resolveBleed(v: unknown): BannerBleed {
   return v === 'full' || v === 'container' ? v : 'full';
 }
 
+// Optional responsive override applied at the Tailwind `sm` breakpoint
+// (≥ 640px). Returns undefined when unset/empty/invalid so the consumer
+// can fall back to plain `bleed`.
+export function resolveBleedSm(v: unknown): BannerBleed | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  return v === 'full' || v === 'container' ? v : undefined;
+}
+
 // Optional responsive override applied at the Tailwind `lg` breakpoint
 // (≥ 1024px). Returns undefined when unset/empty/invalid so the consumer
 // can fall back to plain `bleed`.
