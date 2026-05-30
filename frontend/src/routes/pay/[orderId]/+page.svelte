@@ -81,7 +81,7 @@
             <div class="min-w-0">
               <p class="font-medium text-gray-900 truncate">{item.product_name}</p>
               <p class="text-xs text-gray-400">
-                {m.pay_summary_meta({ sku: item.variant_sku, quantity: item.quantity })}
+                {m.pay_summary_meta({ quantity: item.quantity })}
               </p>
             </div>
             <span class="text-gray-900 font-medium flex-shrink-0">

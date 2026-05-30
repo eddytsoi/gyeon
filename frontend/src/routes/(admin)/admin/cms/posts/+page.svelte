@@ -94,7 +94,7 @@
           <div class="js-row px-4 py-4">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-gray-900 truncate">{post.title}</p>
+                <a href="/admin/cms/posts/{post.id}" class="text-sm font-semibold text-gray-900 truncate block hover:text-gray-600 transition-colors">{post.title}</a>
                 <p class="text-xs text-gray-400 mt-0.5 font-mono">POST-{post.number}</p>
               </div>
               <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -139,7 +139,7 @@
           {#each data.posts as post}
             <tr class="js-row transition-colors">
               <td class="px-6 py-4">
-                <p class="font-medium text-gray-900">{post.title}</p>
+                <a href="/admin/cms/posts/{post.id}" class="font-medium text-gray-900 hover:text-gray-600 hover:underline transition-colors">{post.title}</a>
                 <p class="text-xs text-gray-400 font-mono mt-0.5">POST-{post.number} · /{post.slug}</p>
               </td>
               <td class="px-6 py-4 text-gray-500 max-w-xs">

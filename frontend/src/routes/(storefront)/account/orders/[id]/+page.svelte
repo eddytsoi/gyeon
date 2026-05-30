@@ -22,6 +22,8 @@
   let receiptReady = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+  // Reorder is offered once an order is paid, through to delivery.
+  const reorderStatuses = ['paid', 'processing', 'shipped', 'delivered'];
 
   async function checkReceiptCache(orderId: string): Promise<boolean> {
     try {
@@ -153,7 +155,7 @@
             {m.account_order_pay_now()}
           </a>
         {/if}
-        {#if order.status === 'delivered'}
+        {#if reorderStatuses.includes(order.status)}
           <button type="button" onclick={reorder} disabled={reordering}
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
                          text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors
@@ -228,7 +230,7 @@
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <p class="text-sm font-medium text-gray-900 uppercase">{item.product_name}</p>
-              <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ sku: item.variant_sku, quantity: item.quantity })}</p>
+              <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ quantity: item.quantity })}</p>
             </div>
             <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
           </div>

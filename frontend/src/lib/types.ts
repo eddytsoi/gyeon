@@ -312,7 +312,7 @@ export interface ShippingAddressInput {
   line2?: string;
   city: string;
   state?: string;
-  postal_code: string;
+  postal_code?: string;
   country: string;
 }
 

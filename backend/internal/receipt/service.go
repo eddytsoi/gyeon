@@ -149,7 +149,6 @@ type viewRow struct {
 	IsChild      bool
 	ImageURL     string
 	ProductName  string
-	SKU          string
 	Attrs        string
 	Quantity     int
 	UnitPriceFmt string
@@ -338,7 +337,6 @@ func assembleRows(items []orders.OrderItem, images map[string]string, currency s
 			IsChild:      false,
 			ImageURL:     images[p.item.ID],
 			ProductName:  p.item.ProductName,
-			SKU:          p.item.VariantSKU,
 			Attrs:        formatVariantAttrs(p.item.VariantAttrs),
 			Quantity:     p.item.Quantity,
 			UnitPriceFmt: fmtMoney(p.item.UnitPrice, currency),
@@ -349,7 +347,6 @@ func assembleRows(items []orders.OrderItem, images map[string]string, currency s
 				IsChild:     true,
 				ImageURL:    images[c.ID],
 				ProductName: c.ProductName,
-				SKU:         c.VariantSKU,
 				Attrs:       formatVariantAttrs(c.VariantAttrs),
 				Quantity:    c.Quantity,
 			})

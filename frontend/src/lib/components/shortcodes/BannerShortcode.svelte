@@ -2,6 +2,7 @@
   import Banner from '$lib/components/shop/Banner.svelte';
   import {
     resolveBleed,
+    resolveBleedSm,
     resolveBleedLg,
     resolveAspectRatio,
     resolveHeight,
@@ -19,6 +20,7 @@
   }
 
   const bleed = $derived(resolveBleed(attrs.bleed));
+  const bleedSm = $derived(resolveBleedSm(attrs['bleed-sm']));
   const bleedLg = $derived(resolveBleedLg(attrs['bleed-lg']));
   const aspectRatio = $derived(resolveAspectRatio(attrs['aspect-ratio']));
   const aspectRatioMobile = $derived(resolveAspectRatio(attrs['aspect-ratio-mobile']));
@@ -27,6 +29,7 @@
 
   $effect(() => {
     warnIfBad('bleed', attrs.bleed, bleed);
+    warnIfBad('bleed-sm', attrs['bleed-sm'], bleedSm ?? '');
     warnIfBad('bleed-lg', attrs['bleed-lg'], bleedLg ?? '');
     warnIfBad('aspect-ratio', attrs['aspect-ratio'], aspectRatio);
     warnIfBad('aspect-ratio-mobile', attrs['aspect-ratio-mobile'], aspectRatioMobile);
@@ -46,6 +49,7 @@
     alt={attrs.alt ?? ''}
     href={attrs.href}
     {bleed}
+    {bleedSm}
     {bleedLg}
     {aspectRatio}
     {aspectRatioMobile}
