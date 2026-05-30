@@ -997,12 +997,12 @@
                   class="w-full h-auto rounded-lg"
                   loading="lazy"
                 />
-                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                 </div>
               </div>
             {:else}
-              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                 <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
               </div>
             {/if}
@@ -1019,12 +1019,12 @@
                   class="w-full h-auto rounded-lg"
                   loading="lazy"
                 />
-                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                 </div>
               </div>
             {:else}
-              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+              <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                 <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
               </div>
             {/if}
@@ -1079,7 +1079,7 @@
                       loading="lazy"
                     />
                   {/if}
-                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                   </div>
                 {:else if id === 'howto'}
@@ -1091,7 +1091,7 @@
                       loading="lazy"
                     />
                   {/if}
-                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                   </div>
                 {:else if id === 'surfaces'}
@@ -1151,12 +1151,12 @@
                     class="w-full h-auto rounded-lg"
                     loading="lazy"
                   />
-                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                   </div>
                 </div>
               {:else}
-                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                 </div>
               {/if}
@@ -1171,12 +1171,12 @@
                     class="w-full h-auto rounded-lg"
                     loading="lazy"
                   />
-                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                  <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                   </div>
                 </div>
               {:else}
-                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none">
+                <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                 </div>
               {/if}
@@ -1267,3 +1267,20 @@
     productId={data.product.id}
   />
 {/if}
+
+<style>
+  /* PDP rich-text bodies (內容 / 使用方法). The markdown is injected via
+     {@html}, so these rules must be :global to reach the rendered content. */
+
+  /* First block sits flush with the top of its section — the markdown
+     renderer gives headings an mt-* utility we cancel here. */
+  .pdp-prose > :global(:first-child) {
+    margin-top: 0;
+  }
+
+  /* Content images render as 1:1 squares, cropped to fill. */
+  .pdp-prose :global(img) {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+</style>
