@@ -958,7 +958,7 @@
   {@const selected = new Set(data.product.compatible_surfaces ?? [])}
 
   <div class="bg-white">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+    <div class="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
 
       {#if contentLayout === 'tabs'}
       <!-- DESKTOP: horizontal tab strip with active navy underline -->
@@ -1213,7 +1213,7 @@
 <!-- ── MEDIA STRIP (4-cell row above BundleComposer) ──────────── -->
 {#if mediaStrip.length > 0}
   <div class="bg-white">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
+    <div class="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         {#each mediaStrip as m}
           <div class="aspect-square overflow-hidden rounded-lg bg-ink-300/10">
