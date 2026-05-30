@@ -57,9 +57,11 @@
             </span>
           {/if}
         </a>
-        <p class="mt-3 text-sm font-body leading-relaxed text-white/60 max-w-md">
-          {slogan || m.footer_tagline()}
-        </p>
+        {#if slogan}
+          <p class="mt-3 text-sm font-body leading-relaxed text-white/60 max-w-md">
+            {slogan}
+          </p>
+        {/if}
 
         {#if navItems.length > 0}
           <nav class="mt-6">

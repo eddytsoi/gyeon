@@ -113,7 +113,7 @@ Message:
 
 Thanks for reaching out — we've received your message and will get back to you soon.
 
-— Gyeon
+— GYEON
 `;
   }
 </script>

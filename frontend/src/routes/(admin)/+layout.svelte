@@ -434,7 +434,7 @@
           <span class="text-white font-bold text-sm">G</span>
         </div>
         <div class="md:hidden {userCollapsed ? 'xl:hidden' : 'xl:block'}">
-          <p class="font-bold text-gray-900 text-sm leading-none">Gyeon</p>
+          <p class="font-bold text-gray-900 text-sm leading-none">GYEON</p>
           <p class="text-[10px] text-gray-400 mt-0.5 leading-none">{m.admin_console()}</p>
         </div>
         <!-- Close btn (mobile only) -->

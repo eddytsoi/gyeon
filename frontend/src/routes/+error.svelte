@@ -18,7 +18,7 @@
 </script>
 
 <svelte:head>
-  <title>Error · Gyeon</title>
+  <title>Error · GYEON</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-gray-50 px-6">

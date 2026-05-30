@@ -681,7 +681,7 @@
         {/if}
 
         <!-- Name (compressed display, clamp 28-44px) -->
-        <h1 class="font-display text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.05] text-ink-900">
+        <h1 class="font-display text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.05] text-ink-900 uppercase">
           {data.product.name}
         </h1>
 

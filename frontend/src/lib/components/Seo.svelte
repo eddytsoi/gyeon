@@ -10,7 +10,7 @@
     jsonLd?: unknown;
   }
 
-  let { title, description, canonical, image, type = 'website', siteName = 'Gyeon', jsonLd }: SeoProps = $props();
+  let { title, description, canonical, image, type = 'website', siteName = 'GYEON', jsonLd }: SeoProps = $props();
 </script>
 
 <svelte:head>

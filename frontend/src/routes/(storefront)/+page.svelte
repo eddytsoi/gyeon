@@ -16,7 +16,7 @@
   const homeJsonLd = $derived({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'Gyeon',
+    name: 'GYEON',
     url: homeOrigin,
     potentialAction: {
       '@type': 'SearchAction',
@@ -28,7 +28,7 @@
 
 {#if data.mode === 'page'}
   <Seo
-    title={`${data.page.meta_title ?? data.page.title} — Gyeon`}
+    title={`${data.page.meta_title ?? data.page.title} — GYEON`}
     description={data.page.meta_desc ?? snippet(data.page.content)}
     canonical={homeOrigin}
   />

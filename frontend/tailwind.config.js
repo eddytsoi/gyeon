@@ -34,10 +34,12 @@ export default {
         alert:   '#C0392B',
       },
       fontFamily: {
-        // GT America Compressed (licensed, self-hosted via @font-face in app.css);
-        // Inter proxies Gotham until Gotham woff2 are wired in.
+        // GT America Compressed → display; Gotham → storefront body
+        // (both licensed, self-hosted via @font-face in app.css). `font-body` is
+        // used only on the storefront, so this does not affect the admin (whose
+        // base face stays Inter via the global html font-family).
         display: ['"GT America Compressed"', 'Helvetica', 'Arial', 'sans-serif'],
-        body:    ['Inter', 'Gotham', 'Helvetica', 'Arial', 'sans-serif'],
+        body:    ['Gotham', 'Helvetica', 'Arial', 'sans-serif'],
         mono:    ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       borderRadius: {

@@ -1,13 +1,16 @@
 /*
  * Gyeon brand fonts.
- *   GT America Compressed → display (licensed, self-hosted from static/fonts/)
- *   Inter                 → body    (via @fontsource; proxy for Gotham)
+ *   GT America Compressed → display          (licensed, self-hosted from static/fonts/)
+ *   Gotham                → storefront body  (self-hosted from static/fonts/)
+ *   Inter                 → admin / global base (via @fontsource)
  * @import rules must precede all other rules, so the local @font-face blocks
- * follow the Inter imports below (source order is irrelevant — the display
- * family uses its own distinct name).
+ * follow the Inter imports below (source order is irrelevant — each family uses
+ * its own distinct name).
  * GT America Compressed ships weights 100/300/400/500/700 — there is no 600 or
  * 800 face, so the CSS cascade maps font-weight 600/700/800 → Bold (700) and
- * 500 → Medium. Inter still proxies Gotham until Gotham woff2 are wired in.
+ * 500 → Medium. Gotham (Light 300 / Book 400 / Medium 500 / Bold 700) likewise
+ * has no 600 face, so font-weight 600 maps to Bold. Inter remains the admin /
+ * global base; only the storefront opts into Gotham (see body token + layout).
  */
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
@@ -50,17 +53,48 @@
   font-display: swap;
 }
 
+/* Gotham → storefront body face (self-hosted from static/fonts/). */
+@font-face {
+  font-family: 'Gotham';
+  src: url('/fonts/Gotham-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('/fonts/Gotham-Book.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('/fonts/Gotham-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gotham';
+  src: url('/fonts/Gotham-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   /*
-   * Gyeon body default. Components opt-in to font-display for headings
-   * via the Tailwind utility — body copy inherits the body face here.
+   * Global base face = Inter (admin + any non-storefront surface). The
+   * storefront root opts into `font-body` (Gotham) in its layout, so storefront
+   * body copy renders Gotham; headings everywhere opt into `font-display`.
    */
   html {
-    font-family: 'Inter', 'Gotham', 'Helvetica', 'Arial', sans-serif;
+    font-family: 'Inter', 'Helvetica', 'Arial', sans-serif;
     color: #1A1A1A; /* --gy-ink-900 */
     /* Stop iOS Safari auto-inflating text after orientation change. */
     -webkit-text-size-adjust: 100%;
