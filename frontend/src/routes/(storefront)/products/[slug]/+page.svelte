@@ -990,13 +990,15 @@
           <div role="tabpanel" id="pdp-panel-content" aria-labelledby="pdp-tab-content" tabindex="0"
                class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
             {#if data.product.banner_1_url}
-              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
-                <img
-                  src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
-                  alt=""
-                  class="w-full h-auto rounded-lg"
-                  loading="lazy"
-                />
+              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                <div class="aspect-square overflow-hidden rounded-lg">
+                  <img
+                    src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
+                    alt=""
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
                 <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                 </div>
@@ -1012,13 +1014,15 @@
           <div role="tabpanel" id="pdp-panel-howto" aria-labelledby="pdp-tab-howto" tabindex="0"
                class={data.product.banner_2_url ? '' : 'max-w-2xl'}>
             {#if data.product.banner_2_url}
-              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
-                <img
-                  src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
-                  alt=""
-                  class="w-full h-auto rounded-lg"
-                  loading="lazy"
-                />
+              <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                <div class="aspect-square overflow-hidden rounded-lg">
+                  <img
+                    src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
+                    alt=""
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
                 <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                   <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                 </div>
@@ -1144,13 +1148,15 @@
           {#if id === 'content'}
             <div class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
               {#if data.product.banner_1_url}
-                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
-                  <img
-                    src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
-                    alt=""
-                    class="w-full h-auto rounded-lg"
-                    loading="lazy"
-                  />
+                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                  <div class="aspect-square overflow-hidden rounded-lg">
+                    <img
+                      src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
+                      alt=""
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.description} refs={data.shortcodeRefs} />
                   </div>
@@ -1164,13 +1170,15 @@
           {:else if id === 'howto'}
             <div class={data.product.banner_2_url ? '' : 'max-w-2xl'}>
               {#if data.product.banner_2_url}
-                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start max-w-5xl">
-                  <img
-                    src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
-                    alt=""
-                    class="w-full h-auto rounded-lg"
-                    loading="lazy"
-                  />
+                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                  <div class="aspect-square overflow-hidden rounded-lg">
+                    <img
+                      src={data.product.banner_2_webp_url ?? data.product.banner_2_url}
+                      alt=""
+                      class="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
                   <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-none pdp-prose">
                     <MarkdownContent content={data.product.how_to_use} refs={data.shortcodeRefs} />
                   </div>
