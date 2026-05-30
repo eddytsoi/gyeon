@@ -13,7 +13,7 @@
 </script>
 
 <Seo
-  title={`${page.meta_title ?? page.title} — Gyeon`}
+  title={`${page.meta_title ?? page.title} — GYEON`}
   description={cmsDescription}
   canonical={cmsCanonical}
 />

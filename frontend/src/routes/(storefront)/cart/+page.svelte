@@ -67,7 +67,7 @@
 
               <div class="flex-1 min-w-0">
                 <a href="/products/{item.product_slug}?variant={encodeURIComponent(item.sku)}"
-                   class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors">
+                   class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors uppercase">
                   {productDisplayName(item.product_name, item.variant_name)}
                 </a>
                 <p class="text-xs text-gray-400 mt-0.5">{m.cart_item_sku({ sku: item.sku })}</p>
@@ -112,7 +112,7 @@
                                          class="w-full h-full object-cover" />
                       {/if}
                     </div>
-                    <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">
+                    <p class="flex-1 min-w-0 text-xs text-gray-500 truncate uppercase">
                       {productDisplayName(child.product_name, child.variant_name)}
                     </p>
                     <span class="text-xs text-gray-400 tabular-nums">× {child.quantity}</span>

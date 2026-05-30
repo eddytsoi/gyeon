@@ -117,7 +117,7 @@
                   </span>
                 </div>
                 <div class="min-w-0">
-                  <p class="font-display text-sm font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors">
+                  <p class="font-display text-sm font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
                     {productDisplayName(p.name, p.default_variant_name, p.kind)}
                   </p>
                   {#if p.default_variant_price != null}

@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-  <title>{page.meta_title ?? page.title} — Gyeon</title>
+  <title>{page.meta_title ?? page.title} — GYEON</title>
   {#if page.meta_desc}<meta name="description" content={page.meta_desc} />{/if}
 </svelte:head>
 

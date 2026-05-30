@@ -77,7 +77,7 @@
   {/if}
 
   <div class="flex-1 min-w-0">
-    <p class="font-display text-sm font-medium text-ink-500 line-clamp-1">{product.name}</p>
+    <p class="font-display text-sm font-medium text-ink-500 line-clamp-1 uppercase">{product.name}</p>
     {#if variant && !cannotPurchase}
       <p class="font-display text-sm font-bold tabular-nums text-ink-900">
         HK${variant.price.toFixed(2)}

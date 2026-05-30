@@ -763,7 +763,7 @@
     { key: 'smtp_password',   label: m.admin_settings_email_smtp_password(),   placeholder: m.admin_settings_email_smtp_password_placeholder(), password: true,
       hint: m.admin_settings_email_smtp_password_hint() },
     { key: 'smtp_from_email', label: m.admin_settings_email_from_email(),      placeholder: 'noreply@yourdomain.com' },
-    { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'Gyeon' },
+    { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'GYEON' },
     { key: 'public_base_url', label: m.admin_settings_email_public_base_url(), placeholder: 'https://your-storefront.com',
       hint: m.admin_settings_email_public_base_url_hint() },
     { key: 'admin_alert_email', label: m.admin_settings_email_admin_alert(),    placeholder: 'alerts@yourdomain.com',

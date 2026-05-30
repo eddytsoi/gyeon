@@ -422,7 +422,7 @@
                                class="w-full h-full object-cover" loading="lazy" />
                         {/if}
                       </div>
-                      <span class="flex-1 font-body text-sm text-ink-900 truncate">{p.name}</span>
+                      <span class="flex-1 font-body text-sm text-ink-900 truncate uppercase">{p.name}</span>
                       {#if price != null}
                         <span class="font-display text-sm font-semibold text-ink-900 tabular-nums">
                           HK${price.toFixed(2)}

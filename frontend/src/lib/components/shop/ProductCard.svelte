@@ -92,7 +92,7 @@
           {product.subtitle}
         </p>
       {/if}
-      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors">
+      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
         {product.name}
       </h3>
 

@@ -82,7 +82,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Gyeon" />
+    <meta name="apple-mobile-web-app-title" content="GYEON" />
     {#if !faviconUrl}
       <link rel="apple-touch-icon" href="/icon.svg" />
     {/if}
@@ -101,7 +101,7 @@
   {m.a11y_skip_to_content()}
 </a>
 
-<div class="min-h-screen flex flex-col bg-white">
+<div class="min-h-screen flex flex-col bg-white font-body">
   <AnnouncementStrip settings={data.publicSettings ?? []} />
   <ShippingNoticeStrip settings={data.publicSettings ?? []} role={data.customer?.role ?? null} />
   <Header
