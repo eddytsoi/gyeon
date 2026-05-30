@@ -1,4 +1,6 @@
-import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault } from '$lib/api';
+import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault, getCmsPageBySlug } from '$lib/api';
+import { scanShortcodeRefs } from '$lib/shortcodes/scan';
+import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
 
 function parseShippingCountries(raw: string | undefined): string[] {
@@ -17,21 +19,26 @@ function parseShippingCountries(raw: string | undefined): string[] {
 
 export const load: PageServerLoad = async ({ cookies }) => {
   const token = cookies.get('customer_token') ?? null;
-  const [paymentConfig, settings, shippingDefault] = await Promise.all([
+  const [paymentConfig, settings, shippingDefault, termsPage] = await Promise.all([
     getPaymentConfig().catch(() => ({ publishable_key: '', mode: 'test' as const })),
     getPublicSettings().catch(() => []),
-    getShippingDefault().catch(() => ({ configured: false }))
+    getShippingDefault().catch(() => ({ configured: false })),
+    getCmsPageBySlug('terms-and-conditions').catch(() => null)
   ]);
   const shippingCountries = parseShippingCountries(
     settings.find((s) => s.key === 'shipping_countries')?.value
   );
   const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
   const shipanyEnabled = settings.find((s) => s.key === 'shipany_enabled')?.value === 'true';
+  const termsRefs = termsPage
+    ? await resolveShortcodeRefs(scanShortcodeRefs(termsPage.content)).catch(() => null)
+    : null;
 
   if (!token) {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      termsPage, termsRefs
     };
   }
 
@@ -43,12 +50,14 @@ export const load: PageServerLoad = async ({ cookies }) => {
     ]);
     return {
       token, customer, addresses, savedCards,
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      termsPage, termsRefs
     };
   } catch {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault
+      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      termsPage, termsRefs
     };
   }
 };
