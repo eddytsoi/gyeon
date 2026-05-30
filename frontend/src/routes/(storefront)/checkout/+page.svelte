@@ -546,6 +546,10 @@
             {:else}
               <p class="text-sm text-red-500">{m.checkout_logistics_not_configured()}</p>
             {/if}
+
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mt-4">
+              <p class="text-sm leading-relaxed text-amber-800">{@html m.checkout_logistics_sf_locker_notice()}</p>
+            </div>
           </section>
         {/if}
 
