@@ -71,7 +71,7 @@
         <div class="flex flex-col gap-1">
           <div class="flex items-start justify-between gap-3 text-sm">
             <div class="min-w-0">
-              <p class="font-medium text-gray-900">{item.product_name}</p>
+              <p class="font-medium text-gray-900 uppercase">{item.product_name}</p>
               <p class="text-xs text-gray-400 mt-0.5">
                 {item.variant_sku}
                 {#if item.variant_attrs && Object.keys(item.variant_attrs).length > 0}
@@ -86,7 +86,7 @@
             <ul class="mt-1 pl-4 border-l border-gray-100 flex flex-col gap-1">
               {#each childrenByParent[item.id] as child}
                 <li class="flex items-start justify-between gap-3 text-xs text-gray-500">
-                  <span class="min-w-0 truncate">↳ {child.product_name} <span class="text-gray-400">× {child.quantity}</span></span>
+                  <span class="min-w-0 truncate uppercase">↳ {child.product_name} <span class="text-gray-400">× {child.quantity}</span></span>
                   <span class="flex-shrink-0 text-gray-400">{m.order_item_included_in_bundle()}</span>
                 </li>
               {/each}

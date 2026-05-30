@@ -184,6 +184,8 @@
   );
   // nav-list mode only: whether the top section anchor-nav bar shows (default ON)
   const showSectionNav = $derived(pdpSettings['pdp_navlist_show_nav'] !== 'false');
+  // nav-list mode only: whether each section's title heading shows (default ON)
+  const showSectionTitles = $derived(pdpSettings['pdp_navlist_show_titles'] !== 'false');
 
   // SEO derivations (computed once per render)
   const seoOrigin = $derived(siteOrigin(page.data.publicSettings));
@@ -1134,9 +1136,11 @@
 
       {#each availableTabs as id}
         <section id="pdp-section-{id}" class="scroll-mt-24 mb-16 last:mb-0">
+          {#if showSectionTitles}
           <h3 class="font-display text-xl md:text-2xl font-bold uppercase tracking-[0.12em] text-navy-900 mb-6">
             {tabLabels[id]}
           </h3>
+          {/if}
           {#if id === 'content'}
             <div class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
               {#if data.product.banner_1_url}

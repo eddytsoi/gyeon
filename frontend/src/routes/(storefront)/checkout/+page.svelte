@@ -715,7 +715,7 @@
                 <div class="flex flex-col gap-1.5">
                   <div class="flex items-start justify-between gap-3 text-sm">
                     <div class="min-w-0">
-                      <p class="font-medium text-gray-900 truncate">{variant?.product_name ? productDisplayName(variant.product_name, variant.name) : variant?.sku ?? item.variant_id.slice(0, 8) + '…'}</p>
+                      <p class="font-medium text-gray-900 truncate uppercase">{variant?.product_name ? productDisplayName(variant.product_name, variant.name) : variant?.sku ?? item.variant_id.slice(0, 8) + '…'}</p>
                       <p class="text-xs text-gray-400">{m.checkout_summary_qty({ quantity: item.quantity })}</p>
                     </div>
                     <span class="text-gray-900 font-medium flex-shrink-0 tabular-nums">
@@ -726,7 +726,7 @@
                     <ul class="pl-3 flex flex-col gap-0.5 border-l border-gray-100">
                       {#each item.children as child}
                         <li class="flex items-center justify-between gap-3 text-xs text-gray-500">
-                          <span class="truncate">↳ {productDisplayName(child.product_name, child.variant_name)}</span>
+                          <span class="truncate uppercase">↳ {productDisplayName(child.product_name, child.variant_name)}</span>
                           <span class="flex-shrink-0 tabular-nums">× {child.quantity}</span>
                         </li>
                       {/each}

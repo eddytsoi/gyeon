@@ -74,6 +74,7 @@ var publicSettingKeys = []string{
 	"pdp_complete_set_preselect_all", // storefront PDP: related-products bundle starts all-selected (true) vs none (false)
 	"pdp_content_layout",         // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
 	"pdp_navlist_show_nav",       // storefront PDP (nav-list mode): show/hide the section anchor-nav bar
+	"pdp_navlist_show_titles",    // storefront PDP (nav-list mode): show/hide each section's title heading
 	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
 }
 

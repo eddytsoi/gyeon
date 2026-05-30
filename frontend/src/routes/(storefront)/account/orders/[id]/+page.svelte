@@ -227,7 +227,7 @@
         <div class="py-3">
           <div class="flex items-center justify-between">
             <div class="flex-1">
-              <p class="text-sm font-medium text-gray-900">{item.product_name}</p>
+              <p class="text-sm font-medium text-gray-900 uppercase">{item.product_name}</p>
               <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ sku: item.variant_sku, quantity: item.quantity })}</p>
             </div>
             <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
@@ -236,7 +236,7 @@
             <ul class="mt-2 pl-4 border-l border-gray-100 flex flex-col gap-1">
               {#each childrenByParent[item.id] as child}
                 <li class="flex items-center justify-between text-xs text-gray-500">
-                  <span class="truncate">↳ {child.product_name}</span>
+                  <span class="truncate uppercase">↳ {child.product_name}</span>
                   <span class="flex-shrink-0 tabular-nums">× {child.quantity}</span>
                 </li>
               {/each}
