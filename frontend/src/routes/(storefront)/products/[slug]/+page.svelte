@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import type { ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import { isVideo, isStreamingVideo, getEmbedURL } from '$lib/media';
   import { page } from '$app/state';
   import { cubicOut } from 'svelte/easing';
@@ -689,7 +690,7 @@
 
         <!-- Subtitle in navy — match WP .product-subtitle: 16px, weight 500, lh 1.5, pulled up under name -->
         {#if data.product.subtitle}
-          <p class="font-display text-base font-medium text-navy-500 leading-[1.5] -mt-4 mb-2">
+          <p class="font-display text-base font-medium text-navy-500 leading-[1.5] -mt-6">
             {data.product.subtitle}
           </p>
         {/if}
@@ -698,13 +699,13 @@
              tease a number the visitor can't act on. The disabled CTA below
              carries the role-specific explanation. -->
         {#if selectedVariant && !cannotPurchase}
-          <div class="flex items-baseline gap-3 flex-wrap">
+          <div class="flex items-baseline gap-3 flex-wrap -mt-4">
             <span class="font-display text-4xl font-normal tabular-nums leading-none text-navy-300">
-              HK${selectedVariant.price.toFixed(2)}
+              {formatHKD(selectedVariant.price)}
             </span>
             {#if hasDiscount}
               <span class="font-display text-base line-through tabular-nums text-ink-500">
-                HK${selectedVariant.compare_at_price!.toFixed(2)}
+                {formatHKD(selectedVariant.compare_at_price!)}
               </span>
             {/if}
           </div>

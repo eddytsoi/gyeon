@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import { trackPurchase } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
@@ -82,7 +83,7 @@
                 {m.checkout_success_qty({ quantity: item.quantity })}
               </p>
             </div>
-            <span class="text-gray-900 font-medium flex-shrink-0">${item.line_total.toFixed(2)}</span>
+            <span class="text-gray-900 font-medium flex-shrink-0">{formatHKD(item.line_total)}</span>
           </div>
           {#if childrenByParent[item.id]?.length}
             <ul class="mt-1 pl-4 border-l border-gray-100 flex flex-col gap-1">
@@ -101,12 +102,12 @@
     <div class="border-t border-gray-100 pt-4 flex flex-col gap-2">
       <div class="flex justify-between text-sm text-gray-600">
         <span>{m.checkout_success_subtotal()}</span>
-        <span>${data.order.subtotal.toFixed(2)}</span>
+        <span>{formatHKD(data.order.subtotal)}</span>
       </div>
       {#if data.order.discount_amount > 0}
         <div class="flex justify-between text-sm text-green-600">
           <span>{m.checkout_success_discount()}</span>
-          <span>−${data.order.discount_amount.toFixed(2)}</span>
+          <span>−{formatHKD(data.order.discount_amount)}</span>
         </div>
       {/if}
       <div class="flex justify-between text-sm text-gray-600">
@@ -115,7 +116,7 @@
       </div>
       <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900">
         <span>{m.checkout_success_total()}</span>
-        <span>${data.order.total.toFixed(2)}</span>
+        <span>{formatHKD(data.order.total)}</span>
       </div>
       <AppliedPromotions promotions={data.order.applied_promotions ?? []} />
     </div>

@@ -623,7 +623,7 @@ func orderRef(orderNumber, orderID string) string {
 // FuncMap (template_store.go: emailFuncs):
 //   {{.X | esc}}     — HTML-escape user-controlled strings
 //   {{orderref .OrderNumber .OrderID}}  — order number with UUID fallback
-//   {{printf "%.2f" .X}}  — 2-decimal money format (built-in)
+//   {{money .X}}     — whole-HK$ money format (rounds to integer, no decimals)
 //   {{$.X}}          — access outer scope inside {{range}}
 
 // password_reset ────────────────────────────────────────────────────────────
@@ -842,8 +842,8 @@ const orderRefundedText = `{{if .CustomerName}}您好 {{.CustomerName}}，{{else
 {{if .IsFullRefund}}您的訂單 {{orderref .OrderNumber .OrderID}} 已全額退款。{{else}}您的訂單 {{orderref .OrderNumber .OrderID}} 已部分退款。{{end}}
 
 ──────── 退款明細 ────────
-退款金額：{{.Currency}} {{printf "%.2f" .RefundAmount}}
-{{if not .IsFullRefund}}訂單總額：{{.Currency}} {{printf "%.2f" .OrderTotal}}
+退款金額：{{.Currency}} {{money .RefundAmount}}
+{{if not .IsFullRefund}}訂單總額：{{.Currency}} {{money .OrderTotal}}
 {{end}}{{if .Reason}}原因：{{.Reason}}
 {{end}}
 款項將於 5–10 個工作天內退回您原本的付款方式。
@@ -865,8 +865,8 @@ const orderRefundedHTML = `<!doctype html>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">退款明細</h3>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:4px 0;color:#6b7280">退款金額</td><td style="padding:4px 0;text-align:right;font-weight:600;color:#059669">{{.Currency}} {{printf "%.2f" .RefundAmount}}</td></tr>
-        {{if not .IsFullRefund}}<tr><td style="padding:4px 0;color:#6b7280">訂單總額</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .OrderTotal}}</td></tr>{{end}}
+        <tr><td style="padding:4px 0;color:#6b7280">退款金額</td><td style="padding:4px 0;text-align:right;font-weight:600;color:#059669">{{.Currency}} {{money .RefundAmount}}</td></tr>
+        {{if not .IsFullRefund}}<tr><td style="padding:4px 0;color:#6b7280">訂單總額</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .OrderTotal}}</td></tr>{{end}}
         {{if .Reason}}<tr><td style="padding:4px 0;color:#6b7280">原因</td><td style="padding:4px 0;text-align:right">{{.Reason | esc}}</td></tr>{{end}}
       </table>
 
@@ -890,10 +890,10 @@ const paymentLinkText = `您好 {{.CustomerName}}，
 {{.PaymentURL}}
 
 ──────── 訂單明細 ────────
-{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" .LineTotal}}
+{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money .LineTotal}}
 {{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
 {{end}}{{end}}
-總額：{{.Currency}} {{printf "%.2f" .Total}}
+總額：{{.Currency}} {{money .Total}}
 
 此付款連結將於 24 小時後失效。付款成功後您會收到正式訂單確認電郵。
 
@@ -913,10 +913,10 @@ const paymentLinkHTML = `<!doctype html>
       <p style="text-align:center;margin:0 0 24px;color:#9ca3af;font-size:12px">此連結將於 24 小時後失效</p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">訂單明細</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
-        <tr><td style="padding:8px 0 0;font-weight:600">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{printf "%.2f" .Total}}</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{money .Total}}</td></tr>
       </table>
 
       <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.6">付款成功後您會收到正式訂單確認電郵。如連結無法開啟，請複製貼上至瀏覽器：<br><span style="word-break:break-all;color:#6b7280">{{.PaymentURL | esc}}</span></p>
@@ -932,10 +932,10 @@ const abandonedCartText = `{{if .CustomerName}}您好 {{.CustomerName}}，{{else
 
 您之前選購的商品仍在購物車中。為您保留如下：
 
-{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" (mul .UnitPrice .Quantity)}}
+{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money (mul .UnitPrice .Quantity)}}
 {{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
 {{end}}{{end}}
-小計：{{.Currency}} {{printf "%.2f" .Subtotal}}
+小計：{{.Currency}} {{money .Subtotal}}
 
 {{if .ResumeURL}}點此繼續結帳：
 {{.ResumeURL}}
@@ -953,10 +953,10 @@ const abandonedCartHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">{{if .CustomerName}}您好 {{.CustomerName | esc}}，{{else}}您好，{{end}} 我們為您保留了以下商品。</p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">購物車內容</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" (mul .UnitPrice .Quantity)}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money (mul .UnitPrice .Quantity)}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
-        <tr><td style="padding:8px 0 0;font-weight:600">小計</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600">小計</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{money .Subtotal}}</td></tr>
       </table>
 
       {{if .ResumeURL}}<div style="text-align:center;margin:24px 0 8px">
@@ -977,16 +977,16 @@ const orderConfirmationText = `您好 {{.CustomerName}}，
 感謝您的訂購！我們已收到您的付款，訂單編號：{{orderref .OrderNumber .OrderID}}
 
 ──────── 訂單明細 ────────
-{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" .LineTotal}}
+{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money .LineTotal}}
 {{if .Subtitle}}  {{.Subtitle}}
 {{end}}{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
 {{end}}{{end}}
-小計：     {{.Currency}} {{printf "%.2f" .Subtotal}}
-{{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{printf "%.2f" .DiscountAmount}}
+小計：     {{.Currency}} {{money .Subtotal}}
+{{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{money .DiscountAmount}}
 {{range .AppliedPromotions}}　　{{.Name}}{{if .Description}} — {{.Description}}{{end}}
-{{end}}{{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{printf "%.2f" .TaxAmount}}
+{{end}}{{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{money .TaxAmount}}
 {{end}}運費：     {{.ShippingLabel}}
-總額：     {{.Currency}} {{printf "%.2f" .Total}}
+總額：     {{.Currency}} {{money .Total}}
 
 {{if .ShippingLine1}}──────── 送貨地址 ────────
 {{.ShippingLine1}}
@@ -1013,14 +1013,14 @@ const orderConfirmationHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 {{.CustomerName | esc}}，我們已收到您的付款。訂單編號 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong></p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">訂單明細</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
-        <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
-        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{printf "%.2f" .DiscountAmount}}</td></tr>{{range .AppliedPromotions}}<tr><td colspan="2" style="padding:0 0 4px;color:#9ca3af;font-size:12px">{{.Name | esc}}{{if .Description}} — {{.Description | esc}}{{end}}</td></tr>{{end}}{{end}}
-        {{if gt .TaxAmount 0.0}}<tr><td style="padding:4px 0;color:#6b7280">{{if .TaxLabel}}{{.TaxLabel | esc}}{{else}}稅金{{end}}</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .TaxAmount}}</td></tr>{{end}}
+        <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .Subtotal}}</td></tr>
+        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{money .DiscountAmount}}</td></tr>{{range .AppliedPromotions}}<tr><td colspan="2" style="padding:0 0 4px;color:#9ca3af;font-size:12px">{{.Name | esc}}{{if .Description}} — {{.Description | esc}}{{end}}</td></tr>{{end}}{{end}}
+        {{if gt .TaxAmount 0.0}}<tr><td style="padding:4px 0;color:#6b7280">{{if .TaxLabel}}{{.TaxLabel | esc}}{{else}}稅金{{end}}</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .TaxAmount}}</td></tr>{{end}}
         <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.ShippingLabel}}</td></tr>
-        <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{printf "%.2f" .Total}}</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{money .Total}}</td></tr>
       </table>
 
       {{if .ShippingLine1}}<h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">送貨地址</h3>

@@ -6,6 +6,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { getProducts } from '$lib/api';
+  import { formatHKD } from '$lib/money';
   import type { NavItem, Customer, Product } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
@@ -425,7 +426,7 @@
                       <span class="flex-1 font-body text-sm text-ink-900 truncate uppercase">{p.name}</span>
                       {#if price != null}
                         <span class="font-display text-sm font-semibold text-ink-900 tabular-nums">
-                          HK${price.toFixed(2)}
+                          {formatHKD(price)}
                         </span>
                       {/if}
                     </a>

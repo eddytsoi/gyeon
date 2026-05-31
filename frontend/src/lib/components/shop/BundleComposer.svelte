@@ -13,6 +13,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
   import { productDisplayName } from '$lib/variant';
+  import { formatHKD, roundAmount } from '$lib/money';
   import * as m from '$lib/paraglide/messages';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
@@ -124,7 +125,7 @@
                   {/if}
                   {#if p.default_variant_price != null}
                     <p class="mt-1 font-display text-sm font-bold tabular-nums text-ink-900">
-                      HK${p.default_variant_price.toFixed(2)}
+                      {formatHKD(p.default_variant_price)}
                     </p>
                   {/if}
                 </div>
@@ -145,11 +146,11 @@
             {m.bundle_composer_total_label()}
           </p>
           <p class="mt-1 font-display text-xl md:text-2xl font-bold tabular-nums text-ink-900">
-            HK${totalSale.toFixed(2)}
+            {formatHKD(totalSale)}
           </p>
           {#if saved > 0}
             <p class="mt-1 text-sm font-display font-semibold text-success tabular-nums">
-              {m.bundle_composer_saved({ amount: saved.toFixed(2) })}
+              {m.bundle_composer_saved({ amount: roundAmount(saved) })}
             </p>
           {/if}
           <p class="mt-2 text-xs font-body text-ink-500">

@@ -11,6 +11,7 @@
    */
   import type { Product, Variant, PromoBundle, ProductImage } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import { trackAddToCart } from '$lib/tracker';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
@@ -190,7 +191,7 @@
   });
 
   function fmtMoney(n: number): string {
-    return `HK$${Math.round(n) === n ? n : n.toFixed(2)}`;
+    return formatHKD(n);
   }
 </script>
 

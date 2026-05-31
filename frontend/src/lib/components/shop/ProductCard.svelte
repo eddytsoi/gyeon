@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Product, ProductImage, Variant } from '$lib/types';
   import { isVideo, isStreamingVideo } from '$lib/media';
+  import { formatHKD } from '$lib/money';
   import * as m from '$lib/paraglide/messages';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
@@ -102,11 +103,11 @@
       {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
           <span class="font-display text-base md:text-lg font-bold tabular-nums text-ink-900">
-            HK${variant.price.toFixed(2)}
+            {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}
             <span class="text-sm font-body line-through tabular-nums text-ink-500">
-              HK${variant.compare_at_price!.toFixed(2)}
+              {formatHKD(variant.compare_at_price!)}
             </span>
           {/if}
         </div>
