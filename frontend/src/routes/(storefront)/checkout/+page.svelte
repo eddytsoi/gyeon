@@ -716,6 +716,9 @@
                   <div class="flex items-start justify-between gap-3 text-sm">
                     <div class="min-w-0">
                       <p class="font-medium text-gray-900 truncate uppercase">{variant?.product_name ? productDisplayName(variant.product_name, variant.name) : variant?.sku ?? item.variant_id.slice(0, 8) + '…'}</p>
+                      {#if item.product_subtitle}
+                        <p class="text-xs text-gray-500 truncate">{item.product_subtitle}</p>
+                      {/if}
                       <p class="text-xs text-gray-400">{m.checkout_summary_qty({ quantity: item.quantity })}</p>
                     </div>
                     <span class="text-gray-900 font-medium flex-shrink-0 tabular-nums">

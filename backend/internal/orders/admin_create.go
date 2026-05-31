@@ -64,8 +64,8 @@ type AdminCreateItem struct {
 }
 
 var (
-	ErrAdminCreateNoItems        = errors.New("at least one item is required")
-	ErrAdminCreateInvalidStatus  = errors.New("initial_status must be one of: pending, processing, cancelled")
+	ErrAdminCreateNoItems           = errors.New("at least one item is required")
+	ErrAdminCreateInvalidStatus     = errors.New("initial_status must be one of: pending, processing, cancelled")
 	ErrAdminCreateInsufficientStock = errors.New("insufficient stock for one or more items")
 	ErrAdminCreateVariantNotFound   = errors.New("variant not found")
 )
@@ -212,6 +212,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		productID   string
 		categoryID  *string
 		productName string
+		subtitle    sql.NullString
 		sku         string
 		price       float64
 		quantity    int
@@ -228,11 +229,11 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 
 		var variantName sql.NullString
 		err := s.db.QueryRowContext(ctx,
-			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, pv.name, p.kind
+			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, p.subtitle, pv.name, p.kind
 			 FROM product_variants pv
 			 JOIN products p ON p.id = pv.product_id
 			 WHERE pv.id = $1`, it.VariantID).
-			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &variantName, &li.kind)
+			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &li.subtitle, &variantName, &li.kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrAdminCreateVariantNotFound, it.VariantID)
 		}
@@ -444,11 +445,11 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		lineTotal := li.price * float64(li.quantity)
 		var item OrderItem
 		err := tx.QueryRowContext(ctx,
-			`INSERT INTO order_items (order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
-			 RETURNING id, order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total`,
-			order.ID, li.variantID, li.productName, li.sku, li.price, li.quantity, lineTotal).
-			Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ProductName,
+			`INSERT INTO order_items (order_id, variant_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 RETURNING id, order_id, variant_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total`,
+			order.ID, li.variantID, li.productName, li.subtitle, li.sku, li.price, li.quantity, lineTotal).
+			Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ProductName, &item.ProductSubtitle,
 				&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
 		if err != nil {
 			return nil, err

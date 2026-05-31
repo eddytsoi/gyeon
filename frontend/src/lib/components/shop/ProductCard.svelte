@@ -87,14 +87,14 @@
 
     <!-- Text -->
     <div class="pt-4 flex flex-col gap-1">
+      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
+        {product.name}
+      </h3>
       {#if product.subtitle}
         <p class="font-display text-[0.7438rem] md:text-[0.85rem] font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
           {product.subtitle}
         </p>
       {/if}
-      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
-        {product.name}
-      </h3>
 
       {#if product.purchasable === false}
         <!-- Role isn't allowed to buy from this product's categories — price

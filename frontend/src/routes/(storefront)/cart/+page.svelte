@@ -70,6 +70,9 @@
                    class="text-sm font-medium text-gray-900 truncate block hover:text-gray-600 transition-colors uppercase">
                   {productDisplayName(item.product_name, item.variant_name)}
                 </a>
+                {#if item.product_subtitle}
+                  <p class="text-xs text-gray-500 truncate">{item.product_subtitle}</p>
+                {/if}
               </div>
 
               <!-- Qty controls -->

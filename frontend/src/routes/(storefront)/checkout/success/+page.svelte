@@ -72,6 +72,9 @@
           <div class="flex items-start justify-between gap-3 text-sm">
             <div class="min-w-0">
               <p class="font-medium text-gray-900 uppercase">{item.product_name}</p>
+              {#if item.product_subtitle}
+                <p class="text-xs text-gray-500 mt-0.5">{item.product_subtitle}</p>
+              {/if}
               <p class="text-xs text-gray-400 mt-0.5">
                 {#if item.variant_attrs && Object.keys(item.variant_attrs).length > 0}
                   {Object.values(item.variant_attrs).join(', ')} ·

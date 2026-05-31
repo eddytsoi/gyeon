@@ -1148,7 +1148,7 @@
           {#if id === 'content'}
             <div class={data.product.banner_1_url ? '' : 'max-w-2xl'}>
               {#if data.product.banner_1_url}
-                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                <div class="grid md:grid-cols-2 gap-8 items-start">
                   <div class="aspect-square overflow-hidden rounded-lg">
                     <img
                       src={data.product.banner_1_webp_url ?? data.product.banner_1_url}
@@ -1170,7 +1170,7 @@
           {:else if id === 'howto'}
             <div class={data.product.banner_2_url ? '' : 'max-w-2xl'}>
               {#if data.product.banner_2_url}
-                <div class="grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 items-start">
+                <div class="grid md:grid-cols-2 gap-8 items-start">
                   <div class="aspect-square overflow-hidden rounded-lg">
                     <img
                       src={data.product.banner_2_webp_url ?? data.product.banner_2_url}

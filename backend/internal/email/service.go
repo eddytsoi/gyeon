@@ -87,6 +87,7 @@ func (s *Service) PublicBaseURL(ctx context.Context) string {
 
 type OrderEmailItem struct {
 	Name      string
+	Subtitle  string
 	SKU       string
 	Quantity  int
 	UnitPrice float64
@@ -977,7 +978,8 @@ const orderConfirmationText = `您好 {{.CustomerName}}，
 
 ──────── 訂單明細 ────────
 {{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{printf "%.2f" .LineTotal}}
-{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{if .Subtitle}}  {{.Subtitle}}
+{{end}}{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
 {{end}}{{end}}
 小計：     {{.Currency}} {{printf "%.2f" .Subtotal}}
 {{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{printf "%.2f" .DiscountAmount}}
@@ -1011,7 +1013,7 @@ const orderConfirmationHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 {{.CustomerName | esc}}，我們已收到您的付款。訂單編號 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong></p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">訂單明細</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{printf "%.2f" .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{printf "%.2f" .Subtotal}}</td></tr>
