@@ -16,25 +16,26 @@ type Cart struct {
 }
 
 type CartItem struct {
-	ID          string  `json:"id"`
-	CartID      string  `json:"cart_id"`
-	VariantID   string  `json:"variant_id"`
-	Quantity    int     `json:"quantity"`
-	AddedAt     string  `json:"added_at"`
-	ProductName string  `json:"product_name"`
-	ProductSlug string  `json:"product_slug"`
-	SKU         string  `json:"sku"`
-	VariantName *string `json:"variant_name,omitempty"`
-	Price       float64 `json:"price"`
-	WeightGrams *int    `json:"weight_grams,omitempty"`
-	LengthMM   *int    `json:"length_mm,omitempty"`
-	WidthMM    *int    `json:"width_mm,omitempty"`
-	HeightMM   *int    `json:"height_mm,omitempty"`
-	ImageURL    *string `json:"image_url,omitempty"`
+	ID              string  `json:"id"`
+	CartID          string  `json:"cart_id"`
+	VariantID       string  `json:"variant_id"`
+	Quantity        int     `json:"quantity"`
+	AddedAt         string  `json:"added_at"`
+	ProductName     string  `json:"product_name"`
+	ProductSubtitle *string `json:"product_subtitle,omitempty"`
+	ProductSlug     string  `json:"product_slug"`
+	SKU             string  `json:"sku"`
+	VariantName     *string `json:"variant_name,omitempty"`
+	Price           float64 `json:"price"`
+	WeightGrams     *int    `json:"weight_grams,omitempty"`
+	LengthMM        *int    `json:"length_mm,omitempty"`
+	WidthMM         *int    `json:"width_mm,omitempty"`
+	HeightMM        *int    `json:"height_mm,omitempty"`
+	ImageURL        *string `json:"image_url,omitempty"`
 	// Kind is the product type for this line ("simple" | "bundle"). The
 	// frontend uses it to decide whether to render the Children block.
-	Kind     string           `json:"kind,omitempty"`
-	Children []CartItemChild  `json:"children,omitempty"`
+	Kind     string          `json:"kind,omitempty"`
+	Children []CartItemChild `json:"children,omitempty"`
 }
 
 // CartItemChild is a component of a bundle line item, hydrated for display
@@ -154,7 +155,7 @@ func (s *CartService) GetByID(ctx context.Context, id string) (*Cart, error) {
 func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ci.id, ci.cart_id, ci.variant_id, ci.quantity, ci.added_at,
-		        p.name, p.slug, pv.sku, pv.name, pv.price, pv.weight_grams,
+		        p.name, p.subtitle, p.slug, pv.sku, pv.name, pv.price, pv.weight_grams,
 		        pv.length_mm, pv.width_mm, pv.height_mm,
 		        COALESCE(
 		            CASE WHEN vmf.mime_type LIKE 'video/%' THEN vmf.thumbnail_url END,
@@ -192,7 +193,7 @@ func (s *CartService) listItems(ctx context.Context, cartID string) ([]CartItem,
 		var item CartItem
 		var productID string
 		if err := rows.Scan(&item.ID, &item.CartID, &item.VariantID, &item.Quantity, &item.AddedAt,
-			&item.ProductName, &item.ProductSlug, &item.SKU, &item.VariantName, &item.Price, &item.WeightGrams,
+			&item.ProductName, &item.ProductSubtitle, &item.ProductSlug, &item.SKU, &item.VariantName, &item.Price, &item.WeightGrams,
 			&item.LengthMM, &item.WidthMM, &item.HeightMM, &item.ImageURL, &item.Kind, &productID); err != nil {
 			return nil, err
 		}

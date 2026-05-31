@@ -119,6 +119,9 @@
                   <p class="font-display text-sm font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
                     {productDisplayName(p.name, p.default_variant_name, p.kind)}
                   </p>
+                  {#if p.subtitle}
+                    <p class="font-display text-xs text-ink-400 line-clamp-1">{p.subtitle}</p>
+                  {/if}
                   {#if p.default_variant_price != null}
                     <p class="mt-1 font-display text-sm font-bold tabular-nums text-ink-900">
                       HK${p.default_variant_price.toFixed(2)}

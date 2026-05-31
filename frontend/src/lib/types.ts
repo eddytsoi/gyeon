@@ -163,6 +163,7 @@ export interface CartItem {
   quantity: number;
   added_at: string;
   product_name: string;
+  product_subtitle?: string | null;
   product_slug: string;
   sku: string;
   variant_name?: string | null;
@@ -195,6 +196,7 @@ export interface OrderItem {
   variant_id?: string;
   parent_item_id?: string | null;
   product_name: string;
+  product_subtitle?: string | null;
   variant_sku: string;
   variant_attrs?: Record<string, string>;
   unit_price: number;

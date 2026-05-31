@@ -230,6 +230,9 @@
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <p class="text-sm font-medium text-gray-900 uppercase">{item.product_name}</p>
+              {#if item.product_subtitle}
+                <p class="text-xs text-gray-500 mt-0.5">{item.product_subtitle}</p>
+              {/if}
               <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ quantity: item.quantity })}</p>
             </div>
             <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>

@@ -159,16 +159,17 @@ type ShippingAddress struct {
 }
 
 type OrderItem struct {
-	ID           string                 `json:"id"`
-	OrderID      string                 `json:"order_id"`
-	VariantID    *string                `json:"variant_id,omitempty"`
-	ParentItemID *string                `json:"parent_item_id,omitempty"` // set for bundle component rows
-	ProductName  string                 `json:"product_name"`
-	VariantSKU   string                 `json:"variant_sku"`
-	VariantAttrs map[string]interface{} `json:"variant_attrs,omitempty"`
-	UnitPrice    float64                `json:"unit_price"`
-	Quantity     int                    `json:"quantity"`
-	LineTotal    float64                `json:"line_total"`
+	ID              string                 `json:"id"`
+	OrderID         string                 `json:"order_id"`
+	VariantID       *string                `json:"variant_id,omitempty"`
+	ParentItemID    *string                `json:"parent_item_id,omitempty"` // set for bundle component rows
+	ProductName     string                 `json:"product_name"`
+	ProductSubtitle *string                `json:"product_subtitle,omitempty"`
+	VariantSKU      string                 `json:"variant_sku"`
+	VariantAttrs    map[string]interface{} `json:"variant_attrs,omitempty"`
+	UnitPrice       float64                `json:"unit_price"`
+	Quantity        int                    `json:"quantity"`
+	LineTotal       float64                `json:"line_total"`
 }
 
 type CustomerInfo struct {
@@ -715,6 +716,7 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		productID   string
 		categoryID  *string
 		productName string
+		subtitle    sql.NullString
 		sku         string
 		price       float64
 		quantity    int
@@ -731,11 +733,11 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 
 		var variantName sql.NullString
 		err := s.db.QueryRowContext(ctx,
-			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, pv.name, p.kind
+			`SELECT pv.sku, pv.price, pv.product_id, p.category_id, p.name, p.subtitle, pv.name, p.kind
 			 FROM product_variants pv
 			 JOIN products p ON p.id = pv.product_id
 			 WHERE pv.id = $1`, item.VariantID).
-			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &variantName, &li.kind)
+			Scan(&li.sku, &li.price, &li.productID, &li.categoryID, &li.productName, &li.subtitle, &variantName, &li.kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("variant %s not found", item.VariantID)
 		}
@@ -994,11 +996,11 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		lineTotal := li.price * float64(li.quantity)
 		var item OrderItem
 		err := tx.QueryRowContext(ctx,
-			`INSERT INTO order_items (order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)
-			 RETURNING id, order_id, variant_id, product_name, variant_sku, unit_price, quantity, line_total`,
-			order.ID, li.variantID, li.productName, li.sku, li.price, li.quantity, lineTotal).
-			Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ProductName,
+			`INSERT INTO order_items (order_id, variant_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 RETURNING id, order_id, variant_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total`,
+			order.ID, li.variantID, li.productName, li.subtitle, li.sku, li.price, li.quantity, lineTotal).
+			Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ProductName, &item.ProductSubtitle,
 				&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
 		if err != nil {
 			return nil, err
@@ -1289,8 +1291,13 @@ func (s *OrderService) PendingOrderForCart(ctx context.Context, cartID string) (
 // parent so email templates can render the bundle's contents indented.
 func buildOrderEmailItems(items []OrderItem) []email.OrderEmailItem {
 	toEmailItem := func(it OrderItem) email.OrderEmailItem {
+		subtitle := ""
+		if it.ProductSubtitle != nil {
+			subtitle = *it.ProductSubtitle
+		}
 		return email.OrderEmailItem{
 			Name:      it.ProductName,
+			Subtitle:  subtitle,
 			SKU:       it.VariantSKU,
 			Quantity:  it.Quantity,
 			UnitPrice: it.UnitPrice,
@@ -2076,7 +2083,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	order.AppliedPromotions = scanAppliedPromotions(appliedPromosRaw)
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, order_id, variant_id, parent_item_id, product_name, variant_sku, unit_price, quantity, line_total
+		`SELECT id, order_id, variant_id, parent_item_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total
 		 FROM order_items WHERE order_id = $1
 		 ORDER BY parent_item_id NULLS FIRST, id`, id)
 	if err != nil {
@@ -2085,7 +2092,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var item OrderItem
-		rows.Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ParentItemID, &item.ProductName,
+		rows.Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ParentItemID, &item.ProductName, &item.ProductSubtitle,
 			&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
 		order.Items = append(order.Items, item)
 	}

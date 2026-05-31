@@ -201,7 +201,7 @@ func SampleParamsFor(key string) any {
 				{Name: "夏季優惠", Description: "全單滿 $300 即減 $50"},
 			},
 			Items: []OrderEmailItem{
-				{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
+				{Name: "Sample Product", Subtitle: "示範副標題", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
 				{Name: "內籠基本清潔套裝", SKU: "BUNDLE-001", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
 					{Name: "Q²M INTERIORDETAILER - 500ML", SKU: "Q2M-ID-500", Quantity: 1},
 					{Name: "Q²M SCRUBPAD EVO", SKU: "Q2M-SP-EVO", Quantity: 1},
