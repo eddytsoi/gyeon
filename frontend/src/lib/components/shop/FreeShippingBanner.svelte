@@ -5,6 +5,7 @@
    * Hidden when threshold ≤ 0 (feature off).
    */
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import * as m from '$lib/paraglide/messages';
   import { resolveFreeShippingThreshold, type SiteSetting } from '$lib/shippingThreshold';
 
@@ -37,7 +38,7 @@
       </p>
     {:else}
       <p class="text-gray-700 mb-2">
-        {m.free_shipping_remaining({ amount: `HK$${remaining.toFixed(0)}` })}
+        {m.free_shipping_remaining({ amount: formatHKD(remaining) })}
       </p>
       <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div class="h-full bg-gray-900 rounded-full transition-[width] duration-300"

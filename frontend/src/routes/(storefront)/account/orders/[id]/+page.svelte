@@ -6,6 +6,7 @@
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import { renderNoticeBody } from '$lib/orderNotice';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
 
@@ -235,7 +236,7 @@
               {/if}
               <p class="text-xs text-gray-400 mt-0.5">{m.account_order_item_meta({ quantity: item.quantity })}</p>
             </div>
-            <p class="text-sm font-semibold text-gray-900 ml-4">HK${item.line_total.toFixed(2)}</p>
+            <p class="text-sm font-semibold text-gray-900 ml-4">{formatHKD(item.line_total)}</p>
           </div>
           {#if childrenByParent[item.id]?.length}
             <ul class="mt-2 pl-4 border-l border-gray-100 flex flex-col gap-1">
@@ -258,12 +259,12 @@
     <div class="flex flex-col gap-2 text-sm">
       <div class="flex justify-between text-gray-600">
         <span>{m.account_order_subtotal()}</span>
-        <span>HK${order.subtotal.toFixed(2)}</span>
+        <span>{formatHKD(order.subtotal)}</span>
       </div>
       {#if order.discount_amount > 0}
         <div class="flex justify-between text-green-600">
           <span>{m.account_order_discount()}</span>
-          <span>−HK${order.discount_amount.toFixed(2)}</span>
+          <span>−{formatHKD(order.discount_amount)}</span>
         </div>
       {/if}
       <div class="flex justify-between text-gray-600">
@@ -272,7 +273,7 @@
       </div>
       <div class="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-100 text-base">
         <span>{m.account_order_total()}</span>
-        <span>HK${order.total.toFixed(2)}</span>
+        <span>{formatHKD(order.total)}</span>
       </div>
       <AppliedPromotions promotions={order.applied_promotions ?? []} />
     </div>

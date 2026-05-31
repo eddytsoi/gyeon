@@ -1,5 +1,6 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD } from '$lib/money';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
@@ -133,7 +134,7 @@
 
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_items({ count: cartStore.itemCount })}</span>
-            <span class="tabular-nums">HK${cartStore.subtotal.toFixed(2)}</span>
+            <span class="tabular-nums">{formatHKD(cartStore.subtotal)}</span>
           </div>
           <div class="flex justify-between text-sm text-gray-600">
             <span>{m.cart_summary_shipping()}</span>
@@ -143,7 +144,7 @@
           </div>
           <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
             <span>{m.cart_summary_total()}</span>
-            <span class="tabular-nums">HK${cartStore.subtotal.toFixed(2)}</span>
+            <span class="tabular-nums">{formatHKD(cartStore.subtotal)}</span>
           </div>
 
           <a

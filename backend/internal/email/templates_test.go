@@ -80,7 +80,7 @@ func TestOrderConfirmationFields(t *testing.T) {
 	html, _ := executeTemplate("html", def.html, p)
 	text, _ := executeTemplate("text", def.text, p)
 
-	for _, want := range []string{"ORD-9999", "Widget &lt;A&gt;", "× 2", "Gadget B", "HKD 228.00", "GST", "HKD 18.00", "-HKD 20.00", "1 Test Street", "Summer Sale", "10% off", "WELCOME10"} {
+	for _, want := range []string{"ORD-9999", "Widget &lt;A&gt;", "× 2", "Gadget B", "HKD 228", "GST", "HKD 18", "-HKD 20", "1 Test Street", "Summer Sale", "10% off", "WELCOME10"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("html missing %q", want)
 		}
@@ -91,7 +91,7 @@ func TestOrderConfirmationFields(t *testing.T) {
 	if !strings.Contains(html, "Alice &lt;Test&gt;") {
 		t.Errorf("html should contain escaped CustomerName")
 	}
-	for _, want := range []string{"ORD-9999", "Widget <A>", "× 2", "Gadget B", "HKD 228.00", "GST", "HKD 18.00", "Summer Sale", "10% off", "WELCOME10"} {
+	for _, want := range []string{"ORD-9999", "Widget <A>", "× 2", "Gadget B", "HKD 228", "GST", "HKD 18", "Summer Sale", "10% off", "WELCOME10"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("text missing %q", want)
 		}

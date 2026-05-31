@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import { formatHKD } from '$lib/money';
 
   let { data }: { data: PageData } = $props();
 
@@ -91,7 +92,7 @@
           </div>
           <div class="flex items-center gap-4">
             <span class="text-sm text-gray-600">{(order.items_count ?? 0) === 1 ? m.account_orders_items_one({ count: order.items_count ?? 0 }) : m.account_orders_items_many({ count: order.items_count ?? 0 })}</span>
-            <span class="text-sm font-semibold text-gray-900">HK${order.total.toFixed(2)}</span>
+            <span class="text-sm font-semibold text-gray-900">{formatHKD(order.total)}</span>
             <span class="px-2.5 py-1 rounded-full text-xs font-medium {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
               {orderStatusLabel(order.status)}
             </span>

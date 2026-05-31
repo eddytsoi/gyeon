@@ -7,6 +7,8 @@ import (
 	"errors"
 	"html"
 	"log"
+	"math"
+	"strconv"
 	"strings"
 	texttmpl "text/template"
 )
@@ -16,11 +18,13 @@ import (
 // strings to prevent XSS; `orderref` mirrors the Go-side helper that prefers
 // the customer-facing order number and falls back to a truncated UUID;
 // `mul` multiplies a float by an int (used for line-total calc when the item
-// struct only has UnitPrice + Quantity).
+// struct only has UnitPrice + Quantity); `money` renders an amount as a whole
+// HK$ integer (rounds, no decimals) to match the storefront's 0-decimal prices.
 var emailFuncs = texttmpl.FuncMap{
 	"esc":      html.EscapeString,
 	"orderref": orderRef,
 	"mul":      func(a float64, b int) float64 { return a * float64(b) },
+	"money":    func(v float64) string { return strconv.Itoa(int(math.Round(v))) },
 }
 
 // Template is a DB-stored override for one of the compiled-in email templates.

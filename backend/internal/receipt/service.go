@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -452,10 +453,10 @@ func formatThousands(amount float64) string {
 	if negative {
 		amount = -amount
 	}
-	s := fmt.Sprintf("%.2f", amount)
-	dot := strings.IndexByte(s, '.')
-	whole := s[:dot]
-	frac := s[dot:]
+	// Receipt prices render as whole HK$ (no decimals), matching the live
+	// storefront's 0-decimal display. Round half away from zero (like the
+	// frontend Math.round) before grouping into thousands.
+	whole := fmt.Sprintf("%.0f", math.Round(amount))
 	var b strings.Builder
 	for i, c := range whole {
 		if i > 0 && (len(whole)-i)%3 == 0 {
@@ -463,7 +464,7 @@ func formatThousands(amount float64) string {
 		}
 		b.WriteRune(c)
 	}
-	out := b.String() + frac
+	out := b.String()
 	if negative {
 		return "-" + out
 	}

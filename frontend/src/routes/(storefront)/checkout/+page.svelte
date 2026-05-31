@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { formatHKD, roundAmount } from '$lib/money';
   import { checkout, getVariantByID, quoteOrder, type QuoteResult } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
@@ -694,7 +695,7 @@
                       disabled={placing || !tcAccepted}
                       class="{error ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                              hover:bg-gray-700 transition-colors disabled:opacity-50">
-                {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: total.toFixed(2) })}
+                {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: roundAmount(total) })}
               </button>
             {/if}
           </section>
@@ -722,7 +723,7 @@
                       <p class="text-xs text-gray-400">{m.checkout_summary_qty({ quantity: item.quantity })}</p>
                     </div>
                     <span class="text-gray-900 font-medium flex-shrink-0 tabular-nums">
-                      {variant ? `HK$${(variant.price * item.quantity).toFixed(2)}` : '—'}
+                      {variant ? formatHKD(variant.price * item.quantity) : '—'}
                     </span>
                   </div>
                   {#if item.children?.length}
@@ -746,7 +747,7 @@
               <div class="flex items-center justify-between bg-green-50 border border-green-100 rounded-xl px-3 py-2">
                 <div>
                   <p class="text-xs font-medium text-green-800">{appliedCouponCode}</p>
-                  <p class="text-[11px] text-green-600 tabular-nums">−HK${couponDiscountAmount.toFixed(2)}</p>
+                  <p class="text-[11px] text-green-600 tabular-nums">−{formatHKD(couponDiscountAmount)}</p>
                 </div>
                 <button type="button" onclick={removeCoupon} class="text-xs text-green-600 hover:text-green-900">{m.checkout_coupon_remove()}</button>
               </div>
@@ -772,12 +773,12 @@
           <div class="border-t border-gray-100 pt-3 flex flex-col gap-2">
             <div class="flex justify-between text-sm text-gray-600">
               <span>{m.checkout_summary_subtotal()}</span>
-              <span class="tabular-nums">{loadingVariants ? '—' : `HK$${subtotal.toFixed(2)}`}</span>
+              <span class="tabular-nums">{loadingVariants ? '—' : formatHKD(subtotal)}</span>
             </div>
             {#if discount > 0}
               <div class="flex justify-between text-sm text-green-600">
                 <span>{m.checkout_summary_discount()}</span>
-                <span class="tabular-nums">−HK${discount.toFixed(2)}</span>
+                <span class="tabular-nums">−{formatHKD(discount)}</span>
               </div>
             {/if}
             <div class="flex justify-between text-sm text-gray-600">
@@ -788,7 +789,7 @@
             </div>
             <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
               <span>{m.checkout_summary_total()}</span>
-              <span class="tabular-nums">{loadingVariants ? '—' : `HK$${total.toFixed(2)}`}</span>
+              <span class="tabular-nums">{loadingVariants ? '—' : formatHKD(total)}</span>
             </div>
             <AppliedPromotions promotions={appliedPromotionsList} />
           </div>
