@@ -682,14 +682,14 @@
           </a>
         {/if}
 
-        <!-- Name (compressed display, clamp 28-44px) -->
-        <h1 class="font-display text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.05] text-ink-900 uppercase">
+        <!-- Name — match live WP PDP: GT America Compressed, 30px flat, weight 500, grey -->
+        <h1 class="font-display text-3xl font-medium leading-[1.25] text-ink-500 uppercase">
           {data.product.name}
         </h1>
 
-        <!-- Subtitle in navy -->
+        <!-- Subtitle in navy — match WP .product-subtitle: 16px, weight 500, lh 1.5, pulled up under name -->
         {#if data.product.subtitle}
-          <p class="text-base md:text-lg font-display font-medium text-navy-500 leading-snug -mt-3">
+          <p class="font-display text-base font-medium text-navy-500 leading-[1.5] -mt-4 mb-2">
             {data.product.subtitle}
           </p>
         {/if}
@@ -699,11 +699,11 @@
              carries the role-specific explanation. -->
         {#if selectedVariant && !cannotPurchase}
           <div class="flex items-baseline gap-3 flex-wrap">
-            <span class="font-display text-3xl md:text-4xl font-bold tabular-nums tracking-tight text-ink-900">
+            <span class="font-display text-4xl font-normal tabular-nums leading-none text-navy-300">
               HK${selectedVariant.price.toFixed(2)}
             </span>
             {#if hasDiscount}
-              <span class="font-body text-base md:text-lg line-through tabular-nums text-ink-500">
+              <span class="font-display text-base line-through tabular-nums text-ink-500">
                 HK${selectedVariant.compare_at_price!.toFixed(2)}
               </span>
             {/if}
