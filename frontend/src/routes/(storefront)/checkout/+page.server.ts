@@ -20,7 +20,7 @@ function parseShippingCountries(raw: string | undefined): string[] {
 export const load: PageServerLoad = async ({ cookies }) => {
   const token = cookies.get('customer_token') ?? null;
   const [paymentConfig, settings, shippingDefault, termsPage] = await Promise.all([
-    getPaymentConfig().catch(() => ({ publishable_key: '', mode: 'test' as const })),
+    getPaymentConfig().catch(() => ({ publishable_key: '', mode: 'test' as const, country: 'HK' })),
     getPublicSettings().catch(() => []),
     getShippingDefault().catch((): ShippingDefault => ({ configured: false })),
     getCmsPageBySlug('terms-and-conditions').catch(() => null)
@@ -30,6 +30,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
   );
   const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
   const shipanyEnabled = settings.find((s) => s.key === 'shipany_enabled')?.value === 'true';
+  const checkoutLayout = settings.find((s) => s.key === 'checkout_page_layout')?.value || 'classic';
   const termsRefs = termsPage
     ? await resolveShortcodeRefs(scanShortcodeRefs(termsPage.content)).catch(() => null)
     : null;
@@ -38,7 +39,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
       saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
-      termsPage, termsRefs
+      termsPage, termsRefs, checkoutLayout
     };
   }
 
@@ -51,13 +52,13 @@ export const load: PageServerLoad = async ({ cookies }) => {
     return {
       token, customer, addresses, savedCards,
       saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
-      termsPage, termsRefs
+      termsPage, termsRefs, checkoutLayout
     };
   } catch {
     return {
       token: null, customer: null, addresses: [], savedCards: [],
       saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
-      termsPage, termsRefs
+      termsPage, termsRefs, checkoutLayout
     };
   }
 };

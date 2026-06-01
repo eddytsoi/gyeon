@@ -215,6 +215,9 @@
   // Managed by the Account Page Layout card (Commerce tab). Excluded from
   // textSettings so the generic loop doesn't double-render the select input.
   const ACCOUNT_LAYOUT_KEYS = new Set(['account_page_layout']);
+  // Managed by the Checkout Page Layout card (Commerce tab). Excluded from
+  // textSettings so the generic loop doesn't double-render the select input.
+  const CHECKOUT_LAYOUT_KEYS = new Set(['checkout_page_layout']);
   // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
   // from textSettings so the generic "Other" loop doesn't double-render
   // its <input>.
@@ -378,6 +381,7 @@
         !SITE_NAME_KEYS.has(s.key) &&
         !PDP_SECTIONS_KEYS.has(s.key) &&
         !ACCOUNT_LAYOUT_KEYS.has(s.key) &&
+        !CHECKOUT_LAYOUT_KEYS.has(s.key) &&
         !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
@@ -439,6 +443,9 @@
   // Account page layout: "classic" (sidebar shell) or "modern" (top tab bar).
   // Reactive so the hint line under the select updates as the admin switches.
   let accountPageLayout = $state(settingValue('account_page_layout') || 'classic');
+  // Checkout page layout: "classic" (current multi-section page) or "modern"
+  // (stepped layout + single-step payment). Reactive so the hint updates live.
+  let checkoutPageLayout = $state(settingValue('checkout_page_layout') || 'classic');
   const pdpNavlistShowNavSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_nav'));
   let pdpNavlistShowNavOn = $state(pdpNavlistShowNavSetting?.value !== 'false'); // default ON
   const pdpNavlistShowTitlesSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_titles'));
@@ -1944,6 +1951,29 @@
           {accountPageLayout === 'modern'
             ? m.admin_settings_account_page_layout_hint_modern()
             : m.admin_settings_account_page_layout_hint_classic()}
+        </p>
+      </div>
+    </div>
+
+    <!-- Checkout page layout — switches the storefront checkout between the
+         classic multi-section page and the new modern stepped layout. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_label_checkout_page_layout()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_checkout_page_layout_subtitle()}</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <select id="checkout_page_layout" name="checkout_page_layout" bind:value={checkoutPageLayout}
+                aria-label={m.admin_settings_label_checkout_page_layout()}
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="classic">{m.admin_settings_checkout_page_layout_option_classic()}</option>
+          <option value="modern">{m.admin_settings_checkout_page_layout_option_modern()}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {checkoutPageLayout === 'modern'
+            ? m.admin_settings_checkout_page_layout_hint_modern()
+            : m.admin_settings_checkout_page_layout_hint_classic()}
         </p>
       </div>
     </div>

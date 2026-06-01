@@ -188,6 +188,7 @@
 
   "checkout_title": "Checkout — GYEON",
   "checkout_heading": "Checkout",
+  "checkout_modern_step_contact": "Contact & Delivery",
   "checkout_cart_empty": "Your cart is empty.",
   "checkout_continue_shopping": "Continue shopping",
 
@@ -1640,6 +1641,12 @@
   "admin_settings_account_page_layout_option_modern": "Modern",
   "admin_settings_account_page_layout_hint_classic": "Sidebar menu beside the content (the original layout).",
   "admin_settings_account_page_layout_hint_modern": "A clean, single-column layout with top tabs that fits any screen size.",
+  "admin_settings_label_checkout_page_layout": "Checkout page layout",
+  "admin_settings_checkout_page_layout_subtitle": "Choose how the customer checkout page is arranged.",
+  "admin_settings_checkout_page_layout_option_classic": "Classic",
+  "admin_settings_checkout_page_layout_option_modern": "Modern",
+  "admin_settings_checkout_page_layout_hint_classic": "The current multi-section layout (the original layout).",
+  "admin_settings_checkout_page_layout_hint_modern": "A guided step-by-step layout with a single pay button that fits any screen size.",
   "admin_settings_label_pdp_navlist_show_nav": "Show section navigation",
   "admin_settings_desc_pdp_navlist_show_nav": "On: show the anchor nav bar above the sections so customers can jump between them. Off: sections still stack in order, just without the top nav bar.",
   "admin_settings_label_pdp_navlist_show_titles": "Show section titles",
