@@ -739,20 +739,44 @@ type OrderSummary struct {
 	ItemsCount int64   `json:"items_count"`
 }
 
-func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offset int) ([]OrderSummary, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT o.id, o.number, o.status, o.total, o.created_at,
-		        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
-		   FROM orders o
-		   LEFT JOIN order_items oi
-		     ON oi.order_id = o.id AND oi.parent_item_id IS NULL
-		  WHERE o.customer_id=$1
-		  GROUP BY o.id
-		  ORDER BY o.created_at DESC
-		  LIMIT $2 OFFSET $3`,
-		customerID, limit, offset)
+// ListOrders returns a page of the customer's orders plus the total matching
+// count (for pagination). status is an optional exact-match filter; search is
+// an optional keyword matched against any line item's snapshotted product_name
+// (so searching a product name lists every order that contains it).
+func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offset int, status, search string) ([]OrderSummary, int, error) {
+	// Build the shared WHERE used by both the count and the page query.
+	where := "WHERE o.customer_id = $1"
+	args := []any{customerID}
+	if status != "" {
+		args = append(args, status)
+		where += fmt.Sprintf(" AND o.status = $%d", len(args))
+	}
+	if search != "" {
+		args = append(args, search)
+		where += fmt.Sprintf(
+			" AND EXISTS (SELECT 1 FROM order_items ois WHERE ois.order_id = o.id AND ois.product_name ILIKE '%%' || $%d || '%%')",
+			len(args))
+	}
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM orders o "+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listArgs := append(append([]any{}, args...), limit, offset)
+	query := fmt.Sprintf(`SELECT o.id, o.number, o.status, o.total, o.created_at,
+	        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
+	   FROM orders o
+	   LEFT JOIN order_items oi
+	     ON oi.order_id = o.id AND oi.parent_item_id IS NULL
+	  %s
+	  GROUP BY o.id
+	  ORDER BY o.created_at DESC
+	  LIMIT $%d OFFSET $%d`, where, len(args)+1, len(args)+2)
+
+	rows, err := s.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -760,11 +784,11 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	for rows.Next() {
 		var o OrderSummary
 		if err := rows.Scan(&o.ID, &o.Number, &o.Status, &o.Total, &o.CreatedAt, &o.ItemsCount); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		orders = append(orders, o)
 	}
-	return orders, rows.Err()
+	return orders, total, rows.Err()
 }
 
 // GetOrderIDByNumber resolves a sequential order display number to the

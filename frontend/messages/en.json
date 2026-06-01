@@ -298,7 +298,7 @@
 
   "account_nav_profile": "Profile",
   "account_nav_addresses": "Addresses",
-  "account_nav_cards": "Saved Cards",
+  "account_nav_cards": "Cards",
   "account_nav_orders": "Orders",
   "account_nav_sign_out": "Sign out",
 
@@ -352,6 +352,11 @@
   "account_orders_unread_aria": "New message from store",
   "account_orders_items_one": "{count} item",
   "account_orders_items_many": "{count} items",
+  "account_orders_search_placeholder": "Search by product name…",
+  "account_orders_filter_all": "All",
+  "account_orders_count": "{count} orders",
+  "account_orders_no_results": "No orders match your search.",
+  "account_orders_clear": "Clear filters",
 
   "account_order_title": "Order {orderNumber} — GYEON",
   "account_order_back": "← Orders",

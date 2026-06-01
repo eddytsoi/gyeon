@@ -16,6 +16,26 @@
     refunded:   'bg-red-50 text-red-600'
   };
 
+  // Status filter chips — order matches $lib/orderStatus.
+  const STATUSES = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+
+  // Build an /account/orders URL preserving the active status + search unless
+  // overridden; offset resets to 0 by default so changing a filter/search
+  // jumps back to the first page.
+  function ordersUrl({ status = data.status, q = data.q, offset = 0 }: { status?: string; q?: string; offset?: number } = {}) {
+    const sp = new URLSearchParams();
+    if (status) sp.set('status', status);
+    if (q) sp.set('q', q);
+    if (offset) sp.set('offset', String(offset));
+    const s = sp.toString();
+    return '/account/orders' + (s ? `?${s}` : '');
+  }
+
+  const hasPrev = $derived(data.offset > 0);
+  const hasNext = $derived(data.offset + data.orders.length < data.total);
+  const shownFrom = $derived(data.total === 0 ? 0 : data.offset + 1);
+  const shownTo = $derived(data.offset + data.orders.length);
+
   // ── Order list magnetic spotlight ───────────────────────────────
   let listEl = $state<HTMLElement | undefined>();
   let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0 });
@@ -52,14 +72,61 @@
 <div class="flex flex-col gap-4">
   <h1 class="text-xl font-bold text-gray-900">{m.account_orders_heading()}</h1>
 
-  {#if data.orders.length === 0}
-    <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-      <p class="text-gray-400 text-sm">{m.account_orders_empty()}</p>
-      <a href="/products" class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline">
-        {m.account_orders_start_shopping()}
+  <!-- Search by product name + status filter chips (shared by both layouts). -->
+  <div class="flex flex-col gap-3">
+    <form method="GET" class="relative">
+      {#if data.status}<input type="hidden" name="status" value={data.status} />{/if}
+      <svg class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+           fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3m1.8-4.45a6.25 6.25 0 1 1-12.5 0 6.25 6.25 0 0 1 12.5 0Z" />
+      </svg>
+      <input
+        type="search" name="q" value={data.q}
+        placeholder={m.account_orders_search_placeholder()}
+        aria-label={m.account_orders_search_placeholder()}
+        class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+      />
+    </form>
+
+    <div class="flex flex-wrap gap-2">
+      <a href={ordersUrl({ status: '' })}
+         class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                {data.status === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+        {m.account_orders_filter_all()}
       </a>
+      {#each STATUSES as st}
+        <a href={ordersUrl({ status: st })}
+           class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                  {data.status === st ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+          {orderStatusLabel(st)}
+        </a>
+      {/each}
     </div>
+  </div>
+
+  {#if data.orders.length === 0}
+    {#if data.status || data.q}
+      <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+        <p class="text-gray-400 text-sm">{m.account_orders_no_results()}</p>
+        <a href="/account/orders" class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline">
+          {m.account_orders_clear()}
+        </a>
+      </div>
+    {:else}
+      <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+        <p class="text-gray-400 text-sm">{m.account_orders_empty()}</p>
+        <a href="/products" class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline">
+          {m.account_orders_start_shopping()}
+        </a>
+      </div>
+    {/if}
   {:else}
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-gray-400">{m.account_orders_count({ count: data.total })}</p>
+      {#if data.status || data.q}
+        <a href="/account/orders" class="text-xs text-gray-500 hover:text-gray-900 transition-colors">{m.account_orders_clear()}</a>
+      {/if}
+    </div>
     <div bind:this={listEl}
          onmousemove={onListMouseMove}
          onmouseleave={onListMouseLeave}
@@ -110,17 +177,20 @@
     </div>
 
     <!-- Pagination -->
-    {#if data.orders.length === 20 || data.offset > 0}
-      <div class="flex justify-between">
-        {#if data.offset > 0}
-          <a href="?offset={Math.max(0, data.offset - 20)}"
+    {#if hasPrev || hasNext}
+      <div class="flex justify-between items-center gap-4">
+        {#if hasPrev}
+          <a href={ordersUrl({ offset: Math.max(0, data.offset - data.limit) })}
             class="text-sm text-gray-600 hover:text-gray-900 transition-colors">{m.common_previous_arrow()}</a>
         {:else}
           <span></span>
         {/if}
-        {#if data.orders.length === 20}
-          <a href="?offset={data.offset + 20}"
+        <span class="text-xs text-gray-400 tabular-nums">{shownFrom}–{shownTo} / {data.total}</span>
+        {#if hasNext}
+          <a href={ordersUrl({ offset: data.offset + data.limit })}
             class="text-sm text-gray-600 hover:text-gray-900 transition-colors">{m.common_next_arrow()}</a>
+        {:else}
+          <span></span>
         {/if}
       </div>
     {/if}

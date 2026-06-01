@@ -618,8 +618,12 @@ export const deleteMyAddress = (token: string, id: string) =>
     headers: { Authorization: `Bearer ${token}` }
   });
 
-export const getMyOrders = (token: string, limit = 20, offset = 0) =>
-  request<Order[]>(`/customers/me/orders?limit=${limit}&offset=${offset}`, authed(token));
+export const getMyOrders = (token: string, limit = 20, offset = 0, status = '', search = '') => {
+  const p = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (status) p.set('status', status);
+  if (search) p.set('q', search);
+  return request<{ orders: Order[]; total: number }>(`/customers/me/orders?${p}`, authed(token));
+};
 
 export const lookupMyOrder = (token: string, n: string) =>
   request<{ id: string }>(`/customers/me/orders/lookup/${n}`, authed(token));
