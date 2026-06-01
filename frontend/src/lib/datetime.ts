@@ -1,4 +1,4 @@
-/** Order timestamp → "2026年6月1日 14:30:22" (Hong Kong time, 24h, with seconds). */
+/** Order timestamp → "2026年6月1日 14:30" (Hong Kong time, 24-hour, no seconds). */
 export function formatOrderDateTime(iso: string): string {
   const d = new Date(iso);
   const date = d.toLocaleDateString('zh-Hant', {
@@ -11,8 +11,7 @@ export function formatOrderDateTime(iso: string): string {
     timeZone: 'Asia/Hong_Kong',
     hour12: false,
     hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+    minute: '2-digit'
   });
   return `${date} ${time}`;
 }
