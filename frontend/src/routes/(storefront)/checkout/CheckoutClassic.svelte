@@ -375,7 +375,7 @@
   {:else}
     <div class="flex flex-col lg:flex-row gap-10">
       <!-- Left: Forms -->
-      <div class="flex-1 flex flex-col gap-6">
+      <div class="flex-1 min-w-0 flex flex-col gap-6">
 
         <!-- ── 1. Customer Info ────────────────────────────────── -->
         <section class="bg-white rounded-2xl border border-gray-100 p-6">
@@ -658,7 +658,7 @@
           {/if}
 
           <!-- Stripe Payment Element (hidden when using saved card) -->
-          <div id="payment-element" class="{paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
+          <div id="payment-element" class="w-full min-w-0 {paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
 
           <!-- Saved card confirmation message -->
           {#if paymentReady && !paymentElementMounted}

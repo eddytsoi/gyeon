@@ -101,7 +101,7 @@
   {m.a11y_skip_to_content()}
 </a>
 
-<div class="min-h-screen flex flex-col bg-white font-body">
+<div class="min-h-screen flex flex-col bg-white font-body overflow-x-clip">
   <AnnouncementStrip settings={data.publicSettings ?? []} />
   <ShippingNoticeStrip settings={data.publicSettings ?? []} role={data.customer?.role ?? null} />
   <Header
