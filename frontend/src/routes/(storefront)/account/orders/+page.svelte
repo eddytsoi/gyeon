@@ -82,6 +82,11 @@
       </svg>
       <input
         type="search" name="q" value={data.q}
+        onblur={(e) => {
+          // Refresh on un-focus too (not just Enter), but only when the text changed.
+          const v = e.currentTarget.value.trim();
+          if (v !== (data.q ?? '').trim()) e.currentTarget.form?.requestSubmit();
+        }}
         placeholder={m.account_orders_search_placeholder()}
         aria-label={m.account_orders_search_placeholder()}
         class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
