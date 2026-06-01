@@ -56,7 +56,22 @@
 {:else if data.accountPageLayout === 'modern'}
   <!-- Modern shell — single column with a top tab bar (Concept A). -->
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <h1 class="text-2xl font-bold text-navy-900 mb-5">{m.account_my_account_label()}</h1>
+    <!-- Heading row — 登出 sits here (not in the scrollable tab bar) so it stays
+         visible on mobile where the tabs can scroll off-screen. -->
+    <div class="flex items-center justify-between gap-4 mb-5">
+      <h1 class="text-2xl font-bold text-navy-900">{m.account_my_account_label()}</h1>
+      <form method="POST" action="/account/logout" class="shrink-0">
+        <button
+          type="submit"
+          class="inline-flex items-center gap-2 text-sm font-medium text-ink-500 transition-colors hover:text-alert"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
+          </svg>
+          {m.account_nav_sign_out()}
+        </button>
+      </form>
+    </div>
 
     <!-- Top tab bar — horizontal-scrolls on small screens so content stays at the top. -->
     <nav class="flex items-stretch gap-1 mb-8 border-b border-gray-200 overflow-x-auto
@@ -77,17 +92,6 @@
           {link.label}
         </a>
       {/each}
-      <form method="POST" action="/account/logout" class="ml-auto shrink-0 flex">
-        <button
-          type="submit"
-          class="inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-ink-500 transition-colors hover:text-alert"
-        >
-          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
-          </svg>
-          {m.account_nav_sign_out()}
-        </button>
-      </form>
     </nav>
 
     <!-- Content -->
