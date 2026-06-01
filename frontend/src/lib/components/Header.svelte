@@ -242,13 +242,6 @@
                   <p class="font-display text-sm font-semibold text-ink-900 truncate">{customer.first_name} {customer.last_name}</p>
                   <p class="text-xs text-ink-500 truncate">{customer.email}</p>
                 </div>
-                <a href="/account" onclick={() => accountOpen = false}
-                   class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
-                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                  </svg>
-                  {m.header_menu_overview()}
-                </a>
                 <a href="/account/profile" onclick={() => accountOpen = false}
                    class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
                   <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -354,7 +347,7 @@
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
           </svg>
-          {customer ? m.header_menu_overview() : m.header_aria_sign_in()}
+          {customer ? m.account_my_account_label() : m.header_aria_sign_in()}
         </a>
         <a href="/wishlist"
            onclick={() => mobileOpen = false}

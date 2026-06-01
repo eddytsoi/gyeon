@@ -32,6 +32,6 @@ export const actions: Actions = {
       return fail(500, { error: 'Registration failed. Please try again.' });
     }
 
-    throw redirect(303, '/account');
+    throw redirect(303, '/account/orders');
   }
 };

@@ -22,7 +22,7 @@ export const actions: Actions = {
       return fail(401, { error: 'Invalid email or password' });
     }
 
-    throw redirect(303, '/account');
+    throw redirect(303, '/account/orders');
   },
 
   forgotPassword: async ({ request }) => {

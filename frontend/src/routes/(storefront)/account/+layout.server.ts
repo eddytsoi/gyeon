@@ -9,7 +9,7 @@ export const load: LayoutServerLoad = async ({ cookies, url }) => {
   const isPublic = PUBLIC_PATHS.includes(url.pathname);
 
   if (!token && !isPublic) throw redirect(303, '/account/login');
-  if (token && isPublic) throw redirect(303, '/account');
+  if (token && isPublic) throw redirect(303, '/account/orders');
 
   const settings = await getPublicSettings().catch(() => []);
   const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
