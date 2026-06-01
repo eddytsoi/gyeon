@@ -146,10 +146,6 @@
           {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
         </span>
       </div>
-      <div class="border-t border-gray-100 pt-3 flex justify-between items-baseline">
-        <span class="font-display font-bold uppercase tracking-wide text-lg text-ink-900">{m.cart_summary_total()}</span>
-        <span class="font-display font-bold text-2xl tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</span>
-      </div>
     </div>
 
     <!-- Sticky bottom checkout bar — full-bleed within the column, stays
@@ -157,9 +153,9 @@
     <div class="sticky bottom-0 z-10 mt-6 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4
                 bg-white/95 backdrop-blur border-t border-gray-100">
       <div class="flex items-center gap-4">
-        <div class="flex-1 min-w-0">
-          <p class="text-xs text-ink-500">{m.cart_summary_total()}</p>
-          <p class="font-display font-bold text-2xl tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</p>
+        <div class="flex-1 min-w-0 flex items-baseline gap-2">
+          <span class="text-[1rem] leading-none text-ink-500">{m.cart_summary_total()}</span>
+          <span class="font-display font-bold text-[1.6rem] leading-none tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</span>
         </div>
         <a href="/checkout"
            class="shrink-0 px-8 py-3 bg-navy-500 hover:bg-navy-700 text-white
