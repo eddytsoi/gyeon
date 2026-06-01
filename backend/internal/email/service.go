@@ -188,6 +188,7 @@ type RefundEmailParams struct {
 
 type AbandonedCartItem struct {
 	Name      string
+	Subtitle  string
 	Quantity  int
 	UnitPrice float64
 	// Children is set for bundle parent rows so the abandoned-cart email
@@ -933,7 +934,8 @@ const abandonedCartText = `{{if .CustomerName}}您好 {{.CustomerName}}，{{else
 您之前選購的商品仍在購物車中。為您保留如下：
 
 {{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money (mul .UnitPrice .Quantity)}}
-{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{if .Subtitle}}  {{.Subtitle}}
+{{end}}{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
 {{end}}{{end}}
 小計：{{.Currency}} {{money .Subtotal}}
 
@@ -953,7 +955,7 @@ const abandonedCartHTML = `<!doctype html>
       <p style="margin:0 0 24px;color:#6b7280;font-size:14px">{{if .CustomerName}}您好 {{.CustomerName | esc}}，{{else}}您好，{{end}} 我們為您保留了以下商品。</p>
 
       <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">購物車內容</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money (mul .UnitPrice .Quantity)}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money (mul .UnitPrice .Quantity)}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
         <tr><td style="padding:8px 0 0;font-weight:600">小計</td><td style="padding:8px 0 0;text-align:right;font-weight:600">{{.Currency}} {{money .Subtotal}}</td></tr>

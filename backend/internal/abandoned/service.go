@@ -111,7 +111,7 @@ func (s *Service) ListCandidates(ctx context.Context) ([]Candidate, error) {
 
 func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.AbandonedCartItem, float64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT ci.id, COALESCE(p.name, ''), pv.name, pv.price, ci.quantity, p.kind, p.id
+		SELECT ci.id, COALESCE(p.name, ''), COALESCE(p.subtitle, ''), pv.name, pv.price, ci.quantity, p.kind, p.id
 		FROM cart_items ci
 		JOIN product_variants pv ON pv.id = ci.variant_id
 		JOIN products p ON p.id = pv.product_id
@@ -132,11 +132,12 @@ func (s *Service) cartContents(ctx context.Context, cartID string) ([]email.Aban
 	var subtotal float64
 	for rows.Next() {
 		var it email.AbandonedCartItem
-		var cartItemID, productName, productID, kind string
+		var cartItemID, productName, productSubtitle, productID, kind string
 		var variantName sql.NullString
-		if err := rows.Scan(&cartItemID, &productName, &variantName, &it.UnitPrice, &it.Quantity, &kind, &productID); err != nil {
+		if err := rows.Scan(&cartItemID, &productName, &productSubtitle, &variantName, &it.UnitPrice, &it.Quantity, &kind, &productID); err != nil {
 			return nil, 0, err
 		}
+		it.Subtitle = productSubtitle
 		if kind == "bundle" {
 			it.Name = productName
 			bundleRefs = append(bundleRefs, bundleRef{idx: len(items), productID: productID, parentQty: it.Quantity})

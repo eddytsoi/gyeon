@@ -263,7 +263,7 @@ func SampleParamsFor(key string) any {
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD",
 			Items: []AbandonedCartItem{
-				{Name: "Sample Product", Quantity: 1, UnitPrice: 100},
+				{Name: "Sample Product", Subtitle: "示範副標題", Quantity: 1, UnitPrice: 100},
 				{Name: "內籠基本清潔套裝", Quantity: 1, UnitPrice: 289, Children: []AbandonedCartItem{
 					{Name: "Q²M INTERIORDETAILER - 500ML", Quantity: 1},
 					{Name: "Q²M SCRUBPAD EVO", Quantity: 1},
