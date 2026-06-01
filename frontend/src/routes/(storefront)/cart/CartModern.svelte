@@ -73,7 +73,7 @@
                   <p class="text-xs text-ink-500 truncate mt-0.5">{item.product_subtitle}</p>
                 {/if}
                 <p class="text-xs text-ink-500 tabular-nums mt-0.5">
-                  {formatHKD(item.price)} {m.cart_price_each()}
+                  {formatHKD(item.price)}
                 </p>
               </div>
 
@@ -147,8 +147,8 @@
         </span>
       </div>
       <div class="border-t border-gray-100 pt-3 flex justify-between items-baseline">
-        <span class="font-display font-bold uppercase tracking-wide text-ink-900">{m.cart_summary_total()}</span>
-        <span class="font-display font-bold text-lg tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</span>
+        <span class="font-display font-bold uppercase tracking-wide text-lg text-ink-900">{m.cart_summary_total()}</span>
+        <span class="font-display font-bold text-2xl tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</span>
       </div>
     </div>
 
@@ -159,7 +159,7 @@
       <div class="flex items-center gap-4">
         <div class="flex-1 min-w-0">
           <p class="text-xs text-ink-500">{m.cart_summary_total()}</p>
-          <p class="font-display font-bold text-lg tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</p>
+          <p class="font-display font-bold text-2xl tabular-nums text-ink-900">{formatHKD(cartStore.subtotal)}</p>
         </div>
         <a href="/checkout"
            class="shrink-0 px-8 py-3 bg-navy-500 hover:bg-navy-700 text-white

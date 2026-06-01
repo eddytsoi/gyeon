@@ -70,6 +70,11 @@
                 {#if item.product_subtitle}
                   <p class="text-xs text-gray-500 truncate">{item.product_subtitle}</p>
                 {/if}
+                <!-- Line subtotal — stacked under the name on narrow screens so
+                     it stays visible without squeezing the product name. -->
+                <p class="sm:hidden mt-1 text-sm font-medium text-gray-900 tabular-nums">
+                  {formatHKD(item.price * item.quantity)}
+                </p>
               </div>
 
               <!-- Qty controls -->
@@ -87,6 +92,11 @@
                   aria-label={m.common_aria_increase_quantity()}
                   class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-50">+</button>
               </div>
+
+              <!-- Line subtotal (≥ sm: right-aligned column, WooCommerce-style) -->
+              <span class="hidden sm:block text-sm font-medium text-gray-900 tabular-nums whitespace-nowrap">
+                {formatHKD(item.price * item.quantity)}
+              </span>
 
               <button
                 onclick={() => cartStore.remove(item.id)}
@@ -138,9 +148,9 @@
               {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
             </span>
           </div>
-          <div class="border-t border-gray-100 pt-3 flex justify-between font-semibold text-gray-900">
-            <span>{m.cart_summary_total()}</span>
-            <span class="tabular-nums">{formatHKD(cartStore.subtotal)}</span>
+          <div class="border-t border-gray-100 pt-3 flex justify-between items-baseline font-semibold text-gray-900">
+            <span class="text-lg">{m.cart_summary_total()}</span>
+            <span class="text-xl tabular-nums">{formatHKD(cartStore.subtotal)}</span>
           </div>
 
           <a
