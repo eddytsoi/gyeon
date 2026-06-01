@@ -513,7 +513,7 @@
 
     <div class="grid lg:grid-cols-[1fr_360px] gap-6 lg:gap-10 items-start">
       <!-- Left: stepped form -->
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-4 min-w-0">
 
         <!-- ── Step 1 — Contact & Delivery ─────────────────────── -->
         <section class="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6">
@@ -742,7 +742,7 @@
               {/if}
 
               <!-- Inline deferred Payment Element (new card) -->
-              <div id="payment-element-modern" class="{cardMode === 'new' && paymentElementMounted ? '' : 'hidden'}"></div>
+              <div id="payment-element-modern" class="w-full min-w-0 {cardMode === 'new' && paymentElementMounted ? '' : 'hidden'}"></div>
               {#if cardMode === 'new' && !paymentElementMounted}
                 <p class="text-sm text-ink-300">{m.common_loading()}</p>
               {/if}
