@@ -76,6 +76,7 @@ var publicSettingKeys = []string{
 	"pdp_navlist_show_nav",       // storefront PDP (nav-list mode): show/hide the section anchor-nav bar
 	"pdp_navlist_show_titles",    // storefront PDP (nav-list mode): show/hide each section's title heading
 	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
+	"account_page_layout",        // storefront 我的帳戶 shell: "classic" (sidebar) or "modern" (top tab bar)
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local
