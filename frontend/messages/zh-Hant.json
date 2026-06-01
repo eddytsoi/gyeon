@@ -188,6 +188,7 @@
 
   "checkout_title": "結帳 — GYEON",
   "checkout_heading": "結帳",
+  "checkout_modern_step_contact": "聯絡及送貨",
   "checkout_cart_empty": "您的購物車是空的。",
   "checkout_continue_shopping": "繼續購物",
 
@@ -1640,6 +1641,12 @@
   "admin_settings_account_page_layout_option_modern": "現代",
   "admin_settings_account_page_layout_hint_classic": "側邊選單配內容（原本的版面）。",
   "admin_settings_account_page_layout_hint_modern": "簡潔的單欄版面，頂部標籤導覽，自動配合各種螢幕尺寸。",
+  "admin_settings_label_checkout_page_layout": "結帳頁版面",
+  "admin_settings_checkout_page_layout_subtitle": "選擇顧客結帳頁面的排版方式。",
+  "admin_settings_checkout_page_layout_option_classic": "經典",
+  "admin_settings_checkout_page_layout_option_modern": "現代",
+  "admin_settings_checkout_page_layout_hint_classic": "目前的多區塊版面（原本的版面）。",
+  "admin_settings_checkout_page_layout_hint_modern": "分步式版面，一步步引導、單一付款按鈕，自動配合各種螢幕尺寸。",
   "admin_settings_label_pdp_navlist_show_nav": "顯示段落導覽列",
   "admin_settings_desc_pdp_navlist_show_nav": "開：內容段落上方顯示錨點導覽列，可快速跳去各段。關：段落照樣順序顯示，淨係冇咗頂部導覽列。",
   "admin_settings_label_pdp_navlist_show_titles": "顯示段落標題",

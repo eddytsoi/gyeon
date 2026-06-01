@@ -77,6 +77,7 @@ var publicSettingKeys = []string{
 	"pdp_navlist_show_titles",    // storefront PDP (nav-list mode): show/hide each section's title heading
 	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
 	"account_page_layout",        // storefront 我的帳戶 shell: "classic" (sidebar) or "modern" (top tab bar)
+	"checkout_page_layout",       // storefront checkout: "classic" (current WooCommerce-style) or "modern" (stepped + single-step payment)
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local
