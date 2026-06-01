@@ -7,6 +7,7 @@
   import { orderStatusLabel } from '$lib/orderStatus';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { formatHKD } from '$lib/money';
+  import { formatOrderDateTime } from '$lib/datetime';
   import { renderNoticeBody } from '$lib/orderNotice';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
 
@@ -145,7 +146,7 @@
           {order.order_number || `ORD-${order.number}`}
         </h1>
         <p class="text-sm text-gray-500 mt-0.5">
-          {m.account_order_placed_on({ date: new Date(order.created_at).toLocaleDateString('en-HK', { dateStyle: 'long' }) })}
+          {m.account_order_placed_on({ date: formatOrderDateTime(order.created_at) })}
         </p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">

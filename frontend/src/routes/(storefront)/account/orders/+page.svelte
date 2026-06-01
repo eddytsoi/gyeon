@@ -3,6 +3,7 @@
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { formatHKD } from '$lib/money';
+  import { formatOrderDateTime } from '$lib/datetime';
 
   let { data }: { data: PageData } = $props();
 
@@ -160,7 +161,7 @@
                 </span>
               {/if}
             </p>
-            <p class="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
+            <p class="text-xs text-gray-400">{formatOrderDateTime(order.created_at)}</p>
           </div>
           <div class="flex items-center gap-4">
             <span class="text-sm text-gray-600">{(order.items_count ?? 0) === 1 ? m.account_orders_items_one({ count: order.items_count ?? 0 }) : m.account_orders_items_many({ count: order.items_count ?? 0 })}</span>
