@@ -224,6 +224,7 @@
   "checkout_section_logistics": "物流",
   "checkout_logistics_free": "免運費",
   "checkout_logistics_cod": "到付",
+  "checkout_logistics_sf_name": "順豐速運",
   "checkout_logistics_not_configured": "店主尚未設定預設速遞商，請聯絡店主後再下單。",
   "checkout_logistics_sf_locker_notice": "【⚠️ 順豐智能櫃取件提示】順豐現已全面更新通知系統，<strong>主要透過順豐手機 App 發送「取件碼」，不會再發送 SMS 短訊</strong>。請務必留意 <strong>SF App</strong>，以免快件逾期產生罰款。",
 
