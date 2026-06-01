@@ -531,9 +531,11 @@
               <div class="flex items-center justify-between gap-3">
                 <span class="flex items-center gap-2 font-medium text-gray-900">
                   {#if isSFCourier}
-                    <img src="/sf-express-logo.svg" alt="SF Express" class="h-6 w-auto flex-shrink-0" />
+                    <img src="/sf-express-logo.svg" alt={m.checkout_logistics_sf_name()} class="h-6 w-auto flex-shrink-0" />
+                    {m.checkout_logistics_sf_name()}
+                  {:else}
+                    {data.shippingDefault.courier_name}
                   {/if}
-                  {data.shippingDefault.courier_name}
                 </span>
                 <span class="text-sm whitespace-nowrap {shippingFree ? 'text-green-600' : 'text-gray-600'}">
                   {shippingFree ? m.checkout_logistics_free() : m.checkout_logistics_cod()}

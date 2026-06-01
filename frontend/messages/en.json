@@ -224,6 +224,7 @@
   "checkout_section_logistics": "Shipping",
   "checkout_logistics_free": "Free shipping",
   "checkout_logistics_cod": "Pay on delivery",
+  "checkout_logistics_sf_name": "SF Express",
   "checkout_logistics_not_configured": "Default courier not configured — please contact the store before ordering.",
   "checkout_logistics_sf_locker_notice": "【⚠️ SF Express Smart Locker Pickup Notice】SF Express has revamped its notification system and now <strong>sends the pickup code mainly through the SF Express mobile App — SMS text messages are no longer sent</strong>. Please keep an eye on the <strong>SF App</strong> to avoid overdue-parcel penalty charges.",
 
