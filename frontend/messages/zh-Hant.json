@@ -298,7 +298,7 @@
 
   "account_nav_profile": "個人資料",
   "account_nav_addresses": "地址",
-  "account_nav_cards": "已儲存信用卡",
+  "account_nav_cards": "信用卡",
   "account_nav_orders": "訂單",
   "account_nav_sign_out": "登出",
 
@@ -352,6 +352,11 @@
   "account_orders_unread_aria": "店舖傳來的新訊息",
   "account_orders_items_one": "{count} 件商品",
   "account_orders_items_many": "{count} 件商品",
+  "account_orders_search_placeholder": "搜尋產品名稱…",
+  "account_orders_filter_all": "全部",
+  "account_orders_count": "共 {count} 張訂單",
+  "account_orders_no_results": "搵唔到符合嘅訂單。",
+  "account_orders_clear": "清除篩選",
 
   "account_order_title": "訂單 {orderNumber} — GYEON",
   "account_order_back": "← 訂單",

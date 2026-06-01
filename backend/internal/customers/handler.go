@@ -429,17 +429,26 @@ func (h *Handler) deleteAddress(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 	customerID := auth.CustomerIDFromContext(r.Context())
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	orders, err := h.svc.ListOrders(r.Context(), customerID, limit, offset)
+	if offset < 0 {
+		offset = 0
+	}
+	status := strings.TrimSpace(q.Get("status"))
+	search := strings.TrimSpace(q.Get("q"))
+	orders, total, err := h.svc.ListOrders(r.Context(), customerID, limit, offset, status, search)
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
-	respond.JSON(w, http.StatusOK, orders)
+	respond.JSON(w, http.StatusOK, struct {
+		Orders []OrderSummary `json:"orders"`
+		Total  int            `json:"total"`
+	}{orders, total})
 }
 
 // signOutEverywhere increments this customer's token_version, instantly
