@@ -51,6 +51,8 @@
   const shippingConfigured = $derived(
     !data.shipanyEnabled || (data.shippingDefault?.configured ?? false)
   );
+  // Only brand the row with the SF logo when the configured courier is actually SF.
+  const isSFCourier = $derived(/sf|順豐/i.test(data.shippingDefault?.courier_name ?? ''));
 
   // ── Remark (section 4) ────────────────────────────────────────
   let notes = $state('');
@@ -526,8 +528,13 @@
             </div>
 
             {#if data.shippingDefault?.configured}
-              <div class="flex items-baseline justify-between gap-3">
-                <span class="font-medium text-gray-900">{data.shippingDefault.courier_name}</span>
+              <div class="flex items-center justify-between gap-3">
+                <span class="flex items-center gap-2 font-medium text-gray-900">
+                  {#if isSFCourier}
+                    <img src="/sf-express-logo.svg" alt="SF Express" class="h-6 w-auto flex-shrink-0" />
+                  {/if}
+                  {data.shippingDefault.courier_name}
+                </span>
                 <span class="text-sm whitespace-nowrap {shippingFree ? 'text-green-600' : 'text-gray-600'}">
                   {shippingFree ? m.checkout_logistics_free() : m.checkout_logistics_cod()}
                 </span>

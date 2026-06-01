@@ -1,4 +1,4 @@
-import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault, getCmsPageBySlug } from '$lib/api';
+import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault, getCmsPageBySlug, type ShippingDefault } from '$lib/api';
 import { scanShortcodeRefs } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
@@ -22,7 +22,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
   const [paymentConfig, settings, shippingDefault, termsPage] = await Promise.all([
     getPaymentConfig().catch(() => ({ publishable_key: '', mode: 'test' as const })),
     getPublicSettings().catch(() => []),
-    getShippingDefault().catch(() => ({ configured: false })),
+    getShippingDefault().catch((): ShippingDefault => ({ configured: false })),
     getCmsPageBySlug('terms-and-conditions').catch(() => null)
   ]);
   const shippingCountries = parseShippingCountries(
