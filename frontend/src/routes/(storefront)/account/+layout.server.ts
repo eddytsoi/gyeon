@@ -15,6 +15,7 @@ export const load: LayoutServerLoad = async ({ cookies, url }) => {
   const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
   const googleOAuthEnabled = settings.find((s) => s.key === 'google_oauth_enabled')?.value === 'true';
   const appleOAuthEnabled = settings.find((s) => s.key === 'apple_oauth_enabled')?.value === 'true';
+  const accountPageLayout = settings.find((s) => s.key === 'account_page_layout')?.value || 'classic';
 
   let customer = null;
   if (token) {
@@ -25,5 +26,5 @@ export const load: LayoutServerLoad = async ({ cookies, url }) => {
     });
   }
 
-  return { token, customer, saveCardsEnabled, googleOAuthEnabled, appleOAuthEnabled };
+  return { token, customer, saveCardsEnabled, googleOAuthEnabled, appleOAuthEnabled, accountPageLayout };
 };

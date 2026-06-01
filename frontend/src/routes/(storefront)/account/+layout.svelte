@@ -19,6 +19,13 @@
     { href: '/account/orders', label: m.account_nav_orders(), icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z' }
   ]);
 
+  // Modern tab order: 訂單 first (it's the /account landing page), then the rest.
+  // Classic sidebar keeps navLinks' original order untouched.
+  const tabLinks = $derived([
+    ...navLinks.filter((l) => l.href === '/account/orders'),
+    ...navLinks.filter((l) => l.href !== '/account/orders')
+  ]);
+
   // ── Sidebar magnetic spotlight ──────────────────────────────────
   let navEl = $state<HTMLElement | undefined>();
   let spotlight = $state({ visible: false, top: 0, left: 0, width: 0, height: 0, danger: false });
@@ -51,7 +58,44 @@
 
 {#if isPublicPage}
   {@render children()}
+{:else if data.accountPageLayout === 'modern'}
+  <!-- Modern shell — single column with a top tab bar (Concept A). -->
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <h1 class="text-2xl font-bold text-navy-900 mb-5">{m.account_my_account_label()}</h1>
+
+    <!-- Top tab bar — horizontal-scrolls on small screens so content stays at the top. -->
+    <nav class="flex items-stretch gap-1 mb-8 border-b border-gray-200 overflow-x-auto
+                [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {#each tabLinks as link}
+        {@const active = $page.url.pathname.startsWith(link.href)}
+        <a
+          href={link.href}
+          aria-current={active ? 'page' : undefined}
+          class="shrink-0 -mb-px border-b-2 px-4 py-3 text-sm font-medium transition-colors
+                 {active
+                   ? 'border-navy-500 text-navy-900'
+                   : 'border-transparent text-ink-500 hover:text-navy-900'}"
+        >
+          {link.label}
+        </a>
+      {/each}
+      <form method="POST" action="/account/logout" class="ml-auto shrink-0 flex">
+        <button
+          type="submit"
+          class="px-4 py-3 text-sm font-medium text-ink-500 transition-colors hover:text-alert"
+        >
+          {m.account_nav_sign_out()}
+        </button>
+      </form>
+    </nav>
+
+    <!-- Content -->
+    <div class="min-w-0">
+      {@render children()}
+    </div>
+  </div>
 {:else}
+  <!-- Classic shell (default) — sidebar + content. -->
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
     <div class="flex flex-col md:flex-row gap-8">
 
