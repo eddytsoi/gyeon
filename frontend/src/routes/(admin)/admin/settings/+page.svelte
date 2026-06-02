@@ -205,9 +205,11 @@
     'pdp_complete_set_kicker',
     'pdp_complete_set_heading',
     'pdp_complete_set_preselect_all',
+    'pdp_complete_set_layout',
     'pdp_fbt_kicker',
     'pdp_fbt_heading',
     'pdp_fbt_preselect_all',
+    'pdp_fbt_layout',
     'pdp_show_upsells',
     'pdp_upsells_kicker',
     'pdp_upsells_heading',
@@ -476,6 +478,10 @@
   let pdpFbtPreselectOn = $state(pdpFbtPreselectSetting?.value !== 'false');
   const pdpCompleteSetPreselectSetting = $derived(data.settings.find((s) => s.key === 'pdp_complete_set_preselect_all'));
   let pdpCompleteSetPreselectOn = $state(pdpCompleteSetPreselectSetting?.value !== 'false');
+  // Per-section display style: "modern" (default, BundleComposer / 現代) or
+  // "classic" (UpsellGrid / 經典). Reactive so the hint updates live.
+  let pdpFbtLayout = $state(settingValue('pdp_fbt_layout') || 'modern');
+  let pdpCompleteSetLayout = $state(settingValue('pdp_complete_set_layout') || 'modern');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1804,6 +1810,25 @@
         <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_complete_set_heading()}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_complete_set_subtitle()}</p>
       </div>
+      <!-- Display style: "modern" (BundleComposer) vs "classic" (UpsellGrid) -->
+      <div class="flex flex-col gap-1.5 pb-5 mb-5 border-b border-gray-100">
+        <label for="pdp_complete_set_layout" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_label_pdp_complete_set_layout()}
+        </label>
+        <p class="text-xs text-gray-400">{m.admin_settings_pdp_complete_set_layout_subtitle()}</p>
+        <select id="pdp_complete_set_layout" name="pdp_complete_set_layout" bind:value={pdpCompleteSetLayout}
+                aria-label={m.admin_settings_label_pdp_complete_set_layout()}
+                class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="modern">{m.admin_settings_pdp_suggestions_layout_option_modern()}</option>
+          <option value="classic">{m.admin_settings_pdp_suggestions_layout_option_classic()}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {pdpCompleteSetLayout === 'classic'
+            ? m.admin_settings_pdp_suggestions_layout_hint_classic()
+            : m.admin_settings_pdp_suggestions_layout_hint_modern()}
+        </p>
+      </div>
       <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
         <div>
           <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_complete_set_preselect_all()}</p>
@@ -1850,6 +1875,25 @@
       <div class="mb-5">
         <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_fbt_heading()}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_fbt_subtitle()}</p>
+      </div>
+      <!-- Display style: "modern" (BundleComposer) vs "classic" (UpsellGrid) -->
+      <div class="flex flex-col gap-1.5 pb-5 mb-5 border-b border-gray-100">
+        <label for="pdp_fbt_layout" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_label_pdp_fbt_layout()}
+        </label>
+        <p class="text-xs text-gray-400">{m.admin_settings_pdp_fbt_layout_subtitle()}</p>
+        <select id="pdp_fbt_layout" name="pdp_fbt_layout" bind:value={pdpFbtLayout}
+                aria-label={m.admin_settings_label_pdp_fbt_layout()}
+                class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="modern">{m.admin_settings_pdp_suggestions_layout_option_modern()}</option>
+          <option value="classic">{m.admin_settings_pdp_suggestions_layout_option_classic()}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {pdpFbtLayout === 'classic'
+            ? m.admin_settings_pdp_suggestions_layout_hint_classic()
+            : m.admin_settings_pdp_suggestions_layout_hint_modern()}
+        </p>
       </div>
       <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
         <div>

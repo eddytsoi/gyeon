@@ -12,12 +12,25 @@
   const CARD_WIDTHS = [320, 480, 640, 960];
   const CARD_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw';
 
-  let { product, image, variant, loading = 'lazy', fetchpriority = 'auto' }: {
+  let {
+    product,
+    image,
+    variant,
+    loading = 'lazy',
+    fetchpriority = 'auto',
+    align = 'center',
+    priceSize = 'default'
+  }: {
     product: Product;
     image?: ProductImage;
     variant?: Variant;
     loading?: 'lazy' | 'eager';
     fetchpriority?: 'high' | 'auto';
+    // Text alignment — centered by default across every product grid
+    // (listing, category, homepage, recently-viewed, wishlist, up-sells).
+    // priceSize 'lg' is the larger up-sells-style price, opted into by UpsellGrid.
+    align?: 'left' | 'center';
+    priceSize?: 'default' | 'lg';
   } = $props();
 
   const hasDiscount = $derived(
@@ -87,7 +100,7 @@
     </div>
 
     <!-- Text -->
-    <div class="pt-4 flex flex-col gap-1">
+    <div class="pt-4 flex flex-col gap-1 {align === 'center' ? 'text-center items-center' : ''}">
       <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
         {product.name}
       </h3>
@@ -102,7 +115,7 @@
              is hidden alongside the disabled add-to-cart on the PDP. -->
       {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
-          <span class="font-display text-base md:text-lg font-bold tabular-nums text-ink-900">
+          <span class="font-display tabular-nums text-ink-900 {priceSize === 'lg' ? 'text-2xl font-medium' : 'text-base md:text-lg font-bold'}">
             {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}

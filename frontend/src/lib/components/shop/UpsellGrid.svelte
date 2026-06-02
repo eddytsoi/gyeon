@@ -92,12 +92,12 @@
         {#each items as p (p.id)}
           {@const enabled = canAdd(p)}
           <li class="flex flex-col">
-            <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} />
+            <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} align="center" priceSize="lg" />
             <button
               type="button"
               onclick={() => addOne(p)}
               disabled={!enabled || adding[p.id]}
-              class="mt-3 w-full h-10 px-4 rounded-md font-display font-bold text-xs uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
+              class="mt-3 w-full max-w-[200px] mx-auto h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
                      {!enabled
                        ? 'bg-ink-300 cursor-not-allowed'
                        : added[p.id]
