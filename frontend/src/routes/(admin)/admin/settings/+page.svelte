@@ -213,6 +213,7 @@
     'pdp_show_upsells',
     'pdp_upsells_kicker',
     'pdp_upsells_heading',
+    'pdp_upsells_layout',
     'pdp_content_layout',
     'pdp_navlist_show_nav',
     'pdp_navlist_show_titles'
@@ -482,6 +483,9 @@
   // "classic" (UpsellGrid / 經典). Reactive so the hint updates live.
   let pdpFbtLayout = $state(settingValue('pdp_fbt_layout') || 'modern');
   let pdpCompleteSetLayout = $state(settingValue('pdp_complete_set_layout') || 'modern');
+  // Up-sells display: "normal" (default, full-width grid) or "mini" (compact
+  // horizontal cards in the PDP right column). Reactive so the hint updates live.
+  let pdpUpsellsLayout = $state(settingValue('pdp_upsells_layout') || 'normal');
 
   const faviconSetting = $derived(data.settings.find((s) => s.key === 'favicon_url'));
   let faviconUrl = $state(faviconSetting?.value ?? '');
@@ -1942,6 +1946,25 @@
       <div class="mb-5">
         <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_upsells_heading()}</h2>
         <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_upsells_subtitle()}</p>
+      </div>
+      <!-- Display style: "normal" (full-width UpsellGrid) vs "mini" (right-column horizontal cards) -->
+      <div class="flex flex-col gap-1.5 pb-5 mb-5 border-b border-gray-100">
+        <label for="pdp_upsells_layout" class="text-sm font-semibold text-gray-900">
+          {m.admin_settings_label_pdp_upsells_layout()}
+        </label>
+        <p class="text-xs text-gray-400">{m.admin_settings_pdp_upsells_layout_subtitle()}</p>
+        <select id="pdp_upsells_layout" name="pdp_upsells_layout" bind:value={pdpUpsellsLayout}
+                aria-label={m.admin_settings_label_pdp_upsells_layout()}
+                class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="normal">{m.admin_settings_pdp_upsells_layout_option_normal()}</option>
+          <option value="mini">{m.admin_settings_pdp_upsells_layout_option_mini()}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {pdpUpsellsLayout === 'mini'
+            ? m.admin_settings_pdp_upsells_layout_hint_mini()
+            : m.admin_settings_pdp_upsells_layout_hint_normal()}
+        </p>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-1.5">

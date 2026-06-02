@@ -13,6 +13,7 @@
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
   import UpsellGrid from '$lib/components/shop/UpsellGrid.svelte';
+  import UpsellMini from '$lib/components/shop/UpsellMini.svelte';
   import StickyAddToCart from '$lib/components/shop/StickyAddToCart.svelte';
   import TaobaoSelectionModal from '$lib/components/shop/TaobaoSelectionModal.svelte';
   import TaobaoImageBrowserModal from '$lib/components/shop/TaobaoImageBrowserModal.svelte';
@@ -190,6 +191,10 @@
   const showUpsells = $derived(pdpSettings['pdp_show_upsells'] !== 'false');
   const upsellsKicker = $derived(pdpSettings['pdp_upsells_kicker'] || undefined);
   const upsellsHeading = $derived(pdpSettings['pdp_upsells_heading'] || undefined);
+  // Up-sells display: "normal" (default) = full-width UpsellGrid below the
+  // product; "mini" = compact horizontal cards in the right column under the
+  // product info. See migration 117.
+  const upsellsLayout = $derived(pdpSettings['pdp_upsells_layout'] === 'mini' ? 'mini' : 'normal');
   const completeSetPreselectAll = $derived(pdpSettings['pdp_complete_set_preselect_all'] !== 'false');
   const contentLayout = $derived(
     pdpSettings['pdp_content_layout'] === 'nav-list' ? 'nav-list' : 'tabs'
@@ -680,8 +685,16 @@
         {/if}
       </div>
 
-      <!-- RIGHT: Product Info (sticky on lg+) -->
-      <div class="flex flex-col gap-6 lg:pt-2 lg:sticky lg:top-24 lg:self-start"
+      <!-- RIGHT column. Wrapper stretches to the gallery height so the inner
+           info block stays sticky across the full image, while the "mini"
+           up-sells (when enabled) sit below it in normal flow. -->
+      <div class="flex flex-col lg:self-stretch">
+      <!-- Product Info. Sticky on lg+ in the normal layout. In "mini" layout the
+           up-sells sit below it in the same column, so stickiness is dropped to
+           avoid the pinned info overlapping the mini cards on scroll. No
+           self-start: as a flex child it stays full-width (align-self stretch);
+           the wrapper above owns the grid-cell alignment. -->
+      <div class="flex flex-col gap-6 lg:pt-2 {upsellsLayout === 'mini' ? '' : 'lg:sticky lg:top-24'}"
            bind:this={summaryEl}>
 
         <!-- Category eyebrow chip -->
@@ -877,6 +890,12 @@
         <WishlistButton productID={data.product.id} variant="full" class="w-full sm:w-auto" />
 
       </div>
+
+      <!-- Up-sells "mini" — compact horizontal cards below the product info. -->
+      {#if upsellsLayout === 'mini' && showUpsells && data.upsells.length > 0}
+        <UpsellMini items={data.upsells} heading={upsellsHeading ?? m.product_detail_upsells_heading()} />
+      {/if}
+      </div>
     </div>
   </div>
 </div>
@@ -924,7 +943,8 @@
 {/if}
 
 <!-- ── UP-SELLS (WooCommerce alternatives — merchant-curated, not FBT) ─── -->
-{#if showUpsells && data.upsells.length > 0}
+<!-- "mini" layout renders inside the right product-info column instead (above). -->
+{#if showUpsells && upsellsLayout === 'normal' && data.upsells.length > 0}
   <UpsellGrid
     items={data.upsells}
     kicker={upsellsKicker ?? m.product_detail_upsells_kicker()}
