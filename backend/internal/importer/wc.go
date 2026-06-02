@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // errMediaSlugNotFound is returned by resolveMediaSlug when WP's media
@@ -269,10 +270,13 @@ type wcClient struct {
 
 func newWCClient(baseURL, key, secret string) *wcClient {
 	return &wcClient{
-		baseURL:        baseURL,
-		key:            key,
-		secret:         secret,
-		httpClient:     &http.Client{},
+		baseURL: baseURL,
+		key:     key,
+		secret:  secret,
+		// Per-request timeout so a hung WooCommerce endpoint can't block a
+		// detached background import goroutine forever (the requests are built
+		// without a context, so they're otherwise uninterruptible).
+		httpClient:     &http.Client{Timeout: 60 * time.Second},
 		mediaSlugCache: make(map[string]wpMediaItem),
 	}
 }

@@ -49,6 +49,33 @@
   onMount(() => {
     const fromHash = window.location.hash.slice(1) as TabId;
     if (TABS.some((t) => t.id === fromHash)) activeTab = fromHash;
+
+    // Reconnect to a running / just-finished products import so reloading or
+    // returning to the page resumes the live view instead of showing idle.
+    (async () => {
+      try {
+        const res = await fetch('/api/v1/admin/import/woocommerce/status', {
+          headers: { Authorization: `Bearer ${data.token}` }
+        });
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!j.exists) return;
+        progress = j.progress as Progress;
+        if (j.running) {
+          step = 'importing';
+          startPolling();
+        } else if (j.failed) {
+          step = 'error';
+          errorMsg = j.fail_msg || m.admin_import_run_error();
+        } else {
+          step = 'done';
+        }
+      } catch {
+        /* status unreachable — leave UI idle */
+      }
+    })();
+
+    return () => stopPolling();
   });
 
   function setTab(id: TabId) {
@@ -92,6 +119,12 @@
 
   let savingCreds = $state(false);
   let testingConn = $state(false);
+
+  // Products import now runs as a detached server-side job; the page polls
+  // /status to render progress and reconnects on mount. pollTimer drives the
+  // poll loop; cancelling tracks the in-flight Cancel request.
+  let pollTimer = $state<ReturnType<typeof setInterval> | null>(null);
+  let cancelling = $state(false);
 
   const credsConfigured = $derived(
     wcUrl.trim() !== '' && wcKey.trim() !== '' && wcSecret.trim() !== ''
@@ -201,7 +234,7 @@
 
     step = 'importing';
     try {
-      const res = await fetch('/api/v1/admin/import/woocommerce/stream', {
+      const res = await fetch('/api/v1/admin/import/woocommerce/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
         body: JSON.stringify({
@@ -215,40 +248,82 @@
         })
       });
 
-      if (!res.ok || !res.body) {
+      // 409 = an import is already running (e.g. started in another tab). Attach
+      // to the live job by polling rather than surfacing an error.
+      if (res.status === 409) {
+        startPolling();
+        return;
+      }
+      if (!res.ok) {
         errorMsg = (await res.text()) || m.admin_import_stream_failed_default();
         step = 'error';
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const messages = buffer.split('\n\n');
-        buffer = messages.pop() ?? '';
-        for (const msg of messages) {
-          const dataLine = msg.split('\n').find(l => l.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            const update: Progress = JSON.parse(dataLine.slice(6));
-            progress = update;
-            if (update.done) { step = 'done'; }
-          } catch { /* ignore malformed */ }
-        }
-      }
-
-      if (step === 'importing') {
-        errorMsg = m.admin_import_stream_dropped();
-        step = 'error';
-      }
+      // The import now runs on the server, decoupled from this request — poll
+      // for progress. Leaving the page is safe; onMount reconnects on return.
+      startPolling();
     } catch {
       errorMsg = m.admin_import_run_error();
       step = 'error';
+    }
+  }
+
+  // ── Background products-import polling ────────────────────────────
+  function startPolling() {
+    stopPolling();
+    pollStatus(); // immediate first read so the UI doesn't wait a full tick
+    pollTimer = setInterval(pollStatus, 1000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function pollStatus() {
+    try {
+      const res = await fetch('/api/v1/admin/import/woocommerce/status', {
+        headers: { Authorization: `Bearer ${data.token}` }
+      });
+      if (!res.ok) return; // transient; next tick retries
+      const j = await res.json();
+      if (!j.exists) {
+        stopPolling();
+        step = 'idle';
+        return;
+      }
+      progress = j.progress as Progress;
+      if (j.running) {
+        step = 'importing';
+      } else if (j.failed) {
+        stopPolling();
+        errorMsg = j.fail_msg || m.admin_import_run_error();
+        step = 'error';
+      } else {
+        stopPolling();
+        step = 'done';
+      }
+    } catch {
+      /* transient network error — keep polling */
+    }
+  }
+
+  async function cancelImport() {
+    cancelling = true;
+    try {
+      await fetch('/api/v1/admin/import/woocommerce/cancel', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${data.token}` }
+      });
+      // Don't flip step here — the poll loop observes running=false and settles
+      // into done/error once the server finishes the current product.
+    } catch {
+      /* ignore — poll will reflect the eventual state */
+    } finally {
+      cancelling = false;
     }
   }
 
@@ -498,6 +573,7 @@
   }
 
   function reset() {
+    stopPolling();
     step = 'idle';
     errorMsg = '';
     progress = null;
@@ -729,6 +805,16 @@
                 {m.admin_import_progress_current({ name: progress.current_product })}
               </p>
             {/if}
+          </div>
+        {/if}
+
+        {#if step === 'importing'}
+          <div class="pt-4 border-t border-gray-100">
+            <p class="text-xs text-gray-400">{m.admin_import_safe_to_leave()}</p>
+            <button onclick={cancelImport} disabled={cancelling}
+                    class="mt-2 text-xs text-red-500 underline hover:text-red-700 transition-colors disabled:opacity-50">
+              {cancelling ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
+            </button>
           </div>
         {/if}
 

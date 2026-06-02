@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
@@ -93,6 +95,27 @@ type EmailSender interface {
 	SendAccountSetupEmail(ctx context.Context, p email.PasswordResetParams) error
 }
 
+// importJob is the in-memory snapshot of the single running (or last-finished)
+// products import. Guarded by Service.jobMu. Deliberately NOT persisted: the
+// import runs in a detached goroutine, so a process restart kills it and the
+// snapshot is lost — acceptable because the import is idempotent (upsert), so
+// the admin just re-runs. The whole point of holding it here (vs tying the run
+// to the HTTP request) is that closing/leaving the admin page no longer aborts
+// the import; the page reconnects by polling ProductsJobStatus.
+type importJob struct {
+	Running   bool           `json:"running"`
+	Progress  ProgressUpdate `json:"progress"`
+	StartedAt time.Time      `json:"started_at"`
+	EndedAt   *time.Time     `json:"ended_at,omitempty"`
+	// Failed is set only when the goroutine aborted abnormally (a recovered
+	// panic). A normal finish has Failed=false and Progress.Done=true; per-row
+	// errors live in Progress.Errors.
+	Failed  bool   `json:"failed"`
+	FailMsg string `json:"fail_msg,omitempty"`
+	// cancel signals the run to stop. Unexported so json.Marshal skips it.
+	cancel context.CancelFunc
+}
+
 // Service orchestrates the WooCommerce → Gyeon product / customers / orders
 // import. customerSvc / emailSvc are used only by the customers import to
 // optionally send setup-password emails to newly-inserted customers.
@@ -104,6 +127,12 @@ type Service struct {
 	settingsSvc *settings.Service
 	customerSvc *customers.Service
 	emailSvc    EmailSender
+
+	// jobMu guards job — the single in-memory products-import snapshot. job is
+	// nil until the first import starts and is retained (not cleared) after a
+	// run finishes so a returning page can read the final result.
+	jobMu sync.Mutex
+	job   *importJob
 }
 
 // NewService creates an import Service. The *sql.DB is used by the
@@ -214,6 +243,85 @@ func matchesProductType(productType, wcProductType string) bool {
 	}
 }
 
+// StartProductsImport launches the products import in a detached goroutine
+// whose context is derived from context.Background() — NOT from any HTTP
+// request — so the run survives the admin closing/leaving the page. Returns
+// false if an import is already running (caller responds 409). Progress is
+// published into the in-memory job snapshot and read back via
+// ProductsJobStatus; cancel via CancelProductsImport.
+func (s *Service) StartProductsImport(req ImportRequest) bool {
+	s.jobMu.Lock()
+	if s.job != nil && s.job.Running {
+		s.jobMu.Unlock()
+		return false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.job = &importJob{
+		Running:   true,
+		StartedAt: time.Now(),
+		Progress:  ProgressUpdate{Errors: []string{}},
+		cancel:    cancel,
+	}
+	s.jobMu.Unlock()
+
+	// send copies each ProgressUpdate into the job snapshot under the lock. The
+	// Errors slice is detached so a reader can't observe it mid-append (the
+	// run mutates p.Errors in place across send() calls).
+	send := func(p ProgressUpdate) {
+		cp := p
+		cp.Errors = append([]string(nil), p.Errors...)
+		s.jobMu.Lock()
+		if s.job != nil {
+			s.job.Progress = cp
+		}
+		s.jobMu.Unlock()
+	}
+
+	go func() {
+		defer cancel()
+		defer func() {
+			s.jobMu.Lock()
+			now := time.Now()
+			if s.job != nil {
+				s.job.Running = false
+				s.job.EndedAt = &now
+				if r := recover(); r != nil {
+					s.job.Failed = true
+					s.job.FailMsg = fmt.Sprintf("import panicked: %v", r)
+				}
+			}
+			s.jobMu.Unlock()
+		}()
+		s.RunStreaming(ctx, req, send)
+	}()
+	return true
+}
+
+// ProductsJobStatus returns a copy of the current/last import snapshot, and
+// false if no import has started this process lifetime.
+func (s *Service) ProductsJobStatus() (importJob, bool) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+	if s.job == nil {
+		return importJob{}, false
+	}
+	return *s.job, true
+}
+
+// CancelProductsImport signals the running import to stop and returns false if
+// nothing is running. Cancellation takes effect at the next ctx-aware step
+// (between products) — in-flight WooCommerce HTTP fetches ignore ctx, so it is
+// "stop soon", not "stop instantly".
+func (s *Service) CancelProductsImport() bool {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+	if s.job == nil || !s.job.Running || s.job.cancel == nil {
+		return false
+	}
+	s.job.cancel()
+	return true
+}
+
 // RunStreaming performs the full import, calling send() with a ProgressUpdate
 // after each meaningful step. The final call always has Done = true.
 func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func(ProgressUpdate)) {
@@ -293,6 +401,11 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	} else {
 	pages:
 		for page := 1; ; page++ {
+			// Stop promptly if the run was cancelled (admin hit Cancel). Checked
+			// before fetching the next page so we don't make a wasted WC call.
+			if ctx.Err() != nil {
+				break pages
+			}
 			products, err := wc.fetchProducts(page, wcType)
 			if err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("fetch products page %d: %v", page, err))
@@ -303,6 +416,11 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 			}
 			for _, prod := range products {
 				if req.Limit > 0 && p.ProcessedProducts >= req.Limit {
+					break pages
+				}
+				// Cancelled mid-page: stop within one product rather than
+				// churning failing DB writes through the rest of the catalog.
+				if ctx.Err() != nil {
 					break pages
 				}
 				// Defensive client-side filter — server-side ?type= is missing

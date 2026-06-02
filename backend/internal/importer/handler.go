@@ -70,9 +70,12 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ImportStream handles POST /api/v1/admin/import/woocommerce/stream.
-// Streams Server-Sent Events with ProgressUpdate JSON as import progresses.
-func (h *Handler) ImportStream(w http.ResponseWriter, r *http.Request) {
+// StartImport handles POST /api/v1/admin/import/woocommerce/start.
+// Launches the products import as a detached background job (decoupled from
+// this request, so closing/leaving the admin page does not abort it) and
+// returns 202 immediately. Returns 409 if an import is already running.
+// Progress is read back via ImportStatus; stop via CancelImport.
+func (h *Handler) StartImport(w http.ResponseWriter, r *http.Request) {
 	var req ImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respond.BadRequest(w, "invalid request body")
@@ -82,26 +85,41 @@ func (h *Handler) ImportStream(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+	if !h.svc.StartProductsImport(req) {
+		respond.Error(w, http.StatusConflict, "an import is already running")
 		return
 	}
+	respond.JSON(w, http.StatusAccepted, map[string]bool{"running": true})
+}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
-
-	send := func(p ProgressUpdate) {
-		b, _ := json.Marshal(p)
-		fmt.Fprintf(w, "data: %s\n\n", b)
-		flusher.Flush()
+// ImportStatus handles GET /api/v1/admin/import/woocommerce/status.
+// Returns the latest progress snapshot of the products import plus a running
+// flag, so a returning page can reconnect. When no import has run this process
+// lifetime, returns {exists:false, running:false}.
+func (h *Handler) ImportStatus(w http.ResponseWriter, r *http.Request) {
+	job, ok := h.svc.ProductsJobStatus()
+	if !ok {
+		respond.JSON(w, http.StatusOK, map[string]any{"exists": false, "running": false})
+		return
 	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"exists":   true,
+		"running":  job.Running,
+		"failed":   job.Failed,
+		"fail_msg": job.FailMsg,
+		"progress": job.Progress,
+	})
+}
 
-	h.svc.RunStreaming(r.Context(), req, send)
+// CancelImport handles POST /api/v1/admin/import/woocommerce/cancel.
+// Signals the running products import to stop (takes effect within one
+// product). Returns 200 if a job was signalled, 409 if nothing is running.
+func (h *Handler) CancelImport(w http.ResponseWriter, r *http.Request) {
+	if !h.svc.CancelProductsImport() {
+		respond.Error(w, http.StatusConflict, "no import is running")
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]bool{"cancelling": true})
 }
 
 // CustomersTest handles POST /api/v1/admin/import/woocommerce/customers/test.
