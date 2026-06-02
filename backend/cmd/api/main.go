@@ -612,7 +612,36 @@ func main() {
 		r.With(optionalCustomerMW).Mount("/categories", categoryHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/products", productHandler.Routes())
 		r.With(optionalCustomerMW).Mount("/cart", orders.NewCartHandler(cartSvc).Routes())
-		r.Mount("/orders", orders.NewOrderHandler(orderSvc, productSvc).PublicRoutes())
+		publicOrderHandler := orders.NewOrderHandler(orderSvc, productSvc)
+		// Synchronous payment reconcile for the checkout-success page. The
+		// pending→paid flip normally rides the async Stripe webhook, which can
+		// lag the customer's redirect (or fail entirely). When the success page
+		// reads back a still-pending order, verify the PaymentIntent directly
+		// with Stripe and, if succeeded, mark it paid via the same path the
+		// webhook uses (also sends the confirmation email, clears the cart, and
+		// awards loyalty points).
+		publicOrderHandler.SetPaymentReconciler(func(ctx context.Context, paymentIntentID string) {
+			pi, err := paymentSvc.FetchPaymentIntent(ctx, paymentIntentID)
+			if err != nil {
+				log.Printf("reconcile payment_intent %s: %v", paymentIntentID, err)
+				return
+			}
+			if pi == nil || pi.Status != "succeeded" {
+				return
+			}
+			var pmType, cardBrand, cardLast4 string
+			if pi.PaymentMethod != nil && pi.PaymentMethod.ID != "" {
+				if t, b, l4, _, _, derr := paymentSvc.FetchPaymentMethodDetails(ctx, pi.PaymentMethod.ID); derr != nil {
+					log.Printf("reconcile: fetch pm details %s: %v", pi.PaymentMethod.ID, derr)
+				} else {
+					pmType, cardBrand, cardLast4 = t, b, l4
+				}
+			}
+			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4); err != nil {
+				log.Printf("reconcile: mark paid for payment_intent %s: %v", paymentIntentID, err)
+			}
+		})
+		r.Mount("/orders", publicOrderHandler.PublicRoutes())
 
 		// Public media lookup — resolves [photo-grid] source names to canonical
 		// /uploads/... URLs during storefront SSR. Read-only, no auth: the
