@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -18,6 +19,13 @@ import (
 type OrderHandler struct {
 	svc        *OrderService
 	productSvc *shop.ProductService
+	// reconcilePayment, when set, is invoked by the public success-page lookup
+	// for a still-pending order: it verifies the PaymentIntent with Stripe and
+	// marks the order paid synchronously. The pending→paid flip otherwise only
+	// happens via the async Stripe webhook, which can lag the customer's
+	// redirect to the success page (or fail to be delivered at all). Wired in
+	// main.go; left nil on the admin handler.
+	reconcilePayment func(ctx context.Context, paymentIntentID string)
 }
 
 // NewOrderHandler builds an OrderHandler. productSvc is optional — it is
@@ -26,6 +34,12 @@ type OrderHandler struct {
 // Other entry points (public checkout, list/get/etc.) work without it.
 func NewOrderHandler(svc *OrderService, productSvc *shop.ProductService) *OrderHandler {
 	return &OrderHandler{svc: svc, productSvc: productSvc}
+}
+
+// SetPaymentReconciler wires the synchronous Stripe reconcile used by the
+// public checkout-success lookup (see OrderHandler.reconcilePayment).
+func (h *OrderHandler) SetPaymentReconciler(fn func(ctx context.Context, paymentIntentID string)) {
+	h.reconcilePayment = fn
 }
 
 // PublicRoutes registers the customer-facing storefront endpoints. These are
@@ -109,6 +123,18 @@ func (h *OrderHandler) getPublic(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respond.InternalError(w)
 		return
+	}
+	// The order flips pending→paid via the async Stripe webhook, which can lag
+	// the customer's redirect to this success page (or fail to be delivered at
+	// all). If we still see a pending order, reconcile against Stripe and
+	// re-read, so the confirmation page doesn't show a stale "待付款".
+	// MarkPaidByPaymentIntent no-ops once the order is already paid, so a later
+	// webhook for the same PI won't double-fire the side effects.
+	if order.Status == StatusPending && h.reconcilePayment != nil {
+		h.reconcilePayment(r.Context(), pi)
+		if updated, rerr := h.svc.GetByIDForPaymentIntent(r.Context(), id, pi); rerr == nil {
+			order = updated
+		}
 	}
 	respond.JSON(w, http.StatusOK, order)
 }
