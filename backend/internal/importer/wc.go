@@ -43,27 +43,33 @@ type wcDimensions struct {
 }
 
 type wcProduct struct {
-	ID            int                 `json:"id"`
-	Name          string              `json:"name"`
-	Slug          string              `json:"slug"`
-	SKU           string              `json:"sku"`
-	Type          string              `json:"type"`
-	Status        string              `json:"status"`
+	ID               int                 `json:"id"`
+	Name             string              `json:"name"`
+	Slug             string              `json:"slug"`
+	SKU              string              `json:"sku"`
+	Type             string              `json:"type"`
+	Status           string              `json:"status"`
 	Description      string              `json:"description"`
 	ShortDescription string              `json:"short_description"`
 	RegularPrice     string              `json:"regular_price"`
-	SalePrice     string              `json:"sale_price"`
-	StockQuantity *int                `json:"stock_quantity"`
-	Weight        string              `json:"weight"`
-	Dimensions    wcDimensions        `json:"dimensions"`
-	Categories    []wcProductCategory `json:"categories"`
-	Images        []wcImage           `json:"images"`
-	Variations    []int               `json:"variations"`
+	SalePrice        string              `json:"sale_price"`
+	StockQuantity    *int                `json:"stock_quantity"`
+	Weight           string              `json:"weight"`
+	Dimensions       wcDimensions        `json:"dimensions"`
+	Categories       []wcProductCategory `json:"categories"`
+	Images           []wcImage           `json:"images"`
+	Variations       []int               `json:"variations"`
 	// BundledItems is populated only when WooCommerce Product Bundles is
 	// active and the product Type is "bundle". Each entry references a
 	// component product (and optionally a specific variation) along with
 	// the default quantity to ship inside the bundle.
 	BundledItems []wcBundledItem `json:"bundled_items"`
+	// UpsellIDs / CrossSellIDs are WooCommerce's ordered, merchant-curated
+	// relationship lists (WC product IDs). Reconciled to Gyeon UUIDs in a
+	// second pass after the full product import (targets may not exist yet
+	// mid-run) and stored in product_upsells / product_cross_sells.
+	UpsellIDs    []int `json:"upsell_ids"`
+	CrossSellIDs []int `json:"cross_sell_ids"`
 	// MetaData carries WC custom meta (including ACF fields). We decode
 	// values as RawMessage because ACF stores arrays/objects under some
 	// keys; the helpers on wcMeta extract the string form when callers

@@ -12,6 +12,7 @@
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
+  import UpsellGrid from '$lib/components/shop/UpsellGrid.svelte';
   import StickyAddToCart from '$lib/components/shop/StickyAddToCart.svelte';
   import TaobaoSelectionModal from '$lib/components/shop/TaobaoSelectionModal.svelte';
   import TaobaoImageBrowserModal from '$lib/components/shop/TaobaoImageBrowserModal.svelte';
@@ -179,6 +180,10 @@
   const fbtKicker = $derived(pdpSettings['pdp_fbt_kicker'] || undefined);
   const fbtHeading = $derived(pdpSettings['pdp_fbt_heading'] || undefined);
   const fbtPreselectAll = $derived(pdpSettings['pdp_fbt_preselect_all'] !== 'false');
+  // WooCommerce up-sells (alternatives) — separate from FBT above.
+  const showUpsells = $derived(pdpSettings['pdp_show_upsells'] !== 'false');
+  const upsellsKicker = $derived(pdpSettings['pdp_upsells_kicker'] || undefined);
+  const upsellsHeading = $derived(pdpSettings['pdp_upsells_heading'] || undefined);
   const completeSetPreselectAll = $derived(pdpSettings['pdp_complete_set_preselect_all'] !== 'false');
   const contentLayout = $derived(
     pdpSettings['pdp_content_layout'] === 'nav-list' ? 'nav-list' : 'tabs'
@@ -910,6 +915,15 @@
     </div>
   </div>
 </div>
+{/if}
+
+<!-- ── UP-SELLS (WooCommerce alternatives — merchant-curated, not FBT) ─── -->
+{#if showUpsells && data.upsells.length > 0}
+  <UpsellGrid
+    items={data.upsells}
+    kicker={upsellsKicker ?? m.product_detail_upsells_kicker()}
+    heading={upsellsHeading ?? m.product_detail_upsells_heading()}
+  />
 {/if}
 
 <!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->

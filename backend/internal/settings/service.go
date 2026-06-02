@@ -31,54 +31,60 @@ var publicSettingKeys = []string{
 	"tax_label",
 	"tax_inclusive",
 	"public_base_url",
-	"ga4_measurement_id",         // P3 #26 — read by storefront tracker
-	"meta_pixel_id",              // P3 #26
-	"free_shipping_threshold_hkd", // P3 #29 — used by checkout summary + free-ship banner
-	"free_shipping_threshold_enabled", // master switch (paired with the amount above)
+	"ga4_measurement_id",                        // P3 #26 — read by storefront tracker
+	"meta_pixel_id",                             // P3 #26
+	"free_shipping_threshold_hkd",               // P3 #29 — used by checkout summary + free-ship banner
+	"free_shipping_threshold_enabled",           // master switch (paired with the amount above)
 	"free_shipping_threshold_installer_hkd",     // installer (施工店) tier override, read by storefront when customer.role = installer
 	"free_shipping_threshold_installer_enabled", // master switch for the installer threshold (no fallback to the default when off)
-	"favicon_url",                // injected into <svelte:head> on storefront + admin
-	"company_logo_url",           // storefront header logo image URL
-	"company_logo_height_px",     // storefront header logo render height (px)
-	"company_logo_footer_url",       // storefront footer logo image URL
-	"company_logo_footer_height_px", // storefront footer logo render height (px)
-	"site_notice",                // storefront announcement strip copy
-	"site_notice_enabled",        // storefront announcement strip on/off toggle
-	"site_notice_bg_color",       // storefront announcement strip background color
-	"site_notice_text_color",     // storefront announcement strip text color
-	"site_notice_text_size",      // storefront announcement strip font size (px)
-	"shipping_notice_bg_color",   // storefront shipping notice strip background color
-	"shipping_notice_text_color", // storefront shipping notice strip text color
-	"shipping_notice_text_size",  // storefront shipping notice strip font size (px)
-	"shipping_notice_eligible_bg_color",   // strip background once cart subtotal hits the free-shipping threshold
-	"shipping_notice_eligible_text_color", // strip text color once cart subtotal hits the free-shipping threshold
-	"recaptcha_enabled",          // forms shortcode reads this to decide whether to load grecaptcha
-	"recaptcha_site_key",         // public reCAPTCHA v3 site key — loaded by storefront
-	"google_oauth_enabled",       // storefront login/register reads this to show the "Sign in with Google" button
-	"apple_oauth_enabled",        // storefront login/register reads this to show the "Sign in with Apple" button
-	"homepage_page_id",           // CMS page id used as the storefront homepage; empty = default template
-	"blog_enabled",               // when 'false', storefront /blog routes 404 and nav links to /blog are hidden
-	"pwa_enabled",                // when 'false', storefront hides PWA tags and unregisters the service worker
-	"shipany_enabled",            // master toggle that drives the storefront logistics card (default-courier mode)
-	"pdp_taobao_layout_enabled",  // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
-	"social_media",               // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
-	"website_slogan",             // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
-	"pdp_show_specs_strip",       // storefront PDP toggle: dark-blue 4-points specs strip
-	"pdp_show_complete_set",      // storefront PDP toggle: "相關產品" related-products BundleComposer
-	"pdp_complete_set_kicker",    // storefront PDP override for the related-products kicker; empty falls back to i18n
-	"pdp_complete_set_heading",   // storefront PDP override for the related-products heading; empty falls back to i18n
-	"pdp_show_fbt",               // storefront PDP toggle: "其他客人都會買埋呢啲" frequently-bought-together BundleComposer
-	"pdp_fbt_kicker",             // storefront PDP override for the FBT kicker; empty falls back to i18n
-	"pdp_fbt_heading",            // storefront PDP override for the FBT heading; empty falls back to i18n
-	"pdp_fbt_preselect_all",      // storefront PDP: FBT bundle starts all-selected (true) vs none (false)
-	"pdp_complete_set_preselect_all", // storefront PDP: related-products bundle starts all-selected (true) vs none (false)
-	"pdp_content_layout",         // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
-	"pdp_navlist_show_nav",       // storefront PDP (nav-list mode): show/hide the section anchor-nav bar
-	"pdp_navlist_show_titles",    // storefront PDP (nav-list mode): show/hide each section's title heading
-	"pdp_show_stock_count",       // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
-	"account_page_layout",        // storefront 我的帳戶 shell: "classic" (sidebar) or "modern" (top tab bar)
-	"checkout_page_layout",       // storefront checkout: "classic" (current WooCommerce-style) or "modern" (stepped + single-step payment)
-	"cart_page_layout",           // storefront cart: "classic" (current two-column) or "modern" (single-column receipt)
+	"favicon_url",                               // injected into <svelte:head> on storefront + admin
+	"company_logo_url",                          // storefront header logo image URL
+	"company_logo_height_px",                    // storefront header logo render height (px)
+	"company_logo_footer_url",                   // storefront footer logo image URL
+	"company_logo_footer_height_px",             // storefront footer logo render height (px)
+	"site_notice",                               // storefront announcement strip copy
+	"site_notice_enabled",                       // storefront announcement strip on/off toggle
+	"site_notice_bg_color",                      // storefront announcement strip background color
+	"site_notice_text_color",                    // storefront announcement strip text color
+	"site_notice_text_size",                     // storefront announcement strip font size (px)
+	"shipping_notice_bg_color",                  // storefront shipping notice strip background color
+	"shipping_notice_text_color",                // storefront shipping notice strip text color
+	"shipping_notice_text_size",                 // storefront shipping notice strip font size (px)
+	"shipping_notice_eligible_bg_color",         // strip background once cart subtotal hits the free-shipping threshold
+	"shipping_notice_eligible_text_color",       // strip text color once cart subtotal hits the free-shipping threshold
+	"recaptcha_enabled",                         // forms shortcode reads this to decide whether to load grecaptcha
+	"recaptcha_site_key",                        // public reCAPTCHA v3 site key — loaded by storefront
+	"google_oauth_enabled",                      // storefront login/register reads this to show the "Sign in with Google" button
+	"apple_oauth_enabled",                       // storefront login/register reads this to show the "Sign in with Apple" button
+	"homepage_page_id",                          // CMS page id used as the storefront homepage; empty = default template
+	"blog_enabled",                              // when 'false', storefront /blog routes 404 and nav links to /blog are hidden
+	"pwa_enabled",                               // when 'false', storefront hides PWA tags and unregisters the service worker
+	"shipany_enabled",                           // master toggle that drives the storefront logistics card (default-courier mode)
+	"pdp_taobao_layout_enabled",                 // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
+	"social_media",                              // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
+	"website_slogan",                            // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
+	"pdp_show_specs_strip",                      // storefront PDP toggle: dark-blue 4-points specs strip
+	"pdp_show_complete_set",                     // storefront PDP toggle: "相關產品" related-products BundleComposer
+	"pdp_complete_set_kicker",                   // storefront PDP override for the related-products kicker; empty falls back to i18n
+	"pdp_complete_set_heading",                  // storefront PDP override for the related-products heading; empty falls back to i18n
+	"pdp_show_fbt",                              // storefront PDP toggle: "其他客人都會買埋呢啲" frequently-bought-together BundleComposer
+	"pdp_fbt_kicker",                            // storefront PDP override for the FBT kicker; empty falls back to i18n
+	"pdp_fbt_heading",                           // storefront PDP override for the FBT heading; empty falls back to i18n
+	"pdp_fbt_preselect_all",                     // storefront PDP: FBT bundle starts all-selected (true) vs none (false)
+	"pdp_complete_set_preselect_all",            // storefront PDP: related-products bundle starts all-selected (true) vs none (false)
+	"pdp_content_layout",                        // storefront PDP layout for 內容 / 使用方法 / 適用表面: "tabs" or "nav-list"
+	"pdp_navlist_show_nav",                      // storefront PDP (nav-list mode): show/hide the section anchor-nav bar
+	"pdp_navlist_show_titles",                   // storefront PDP (nav-list mode): show/hide each section's title heading
+	"pdp_show_stock_count",                      // storefront PDP toggle: show exact stock count vs generic "in stock" indicator
+	"account_page_layout",                       // storefront 我的帳戶 shell: "classic" (sidebar) or "modern" (top tab bar)
+	"checkout_page_layout",                      // storefront checkout: "classic" (current WooCommerce-style) or "modern" (stepped + single-step payment)
+	"cart_page_layout",                          // storefront cart: "classic" (current two-column) or "modern" (single-column receipt)
+	"pdp_show_upsells",                          // storefront PDP toggle: WooCommerce up-sells (alternatives) grid — separate from FBT
+	"pdp_upsells_kicker",                        // storefront PDP override for the up-sells kicker; empty falls back to i18n
+	"pdp_upsells_heading",                       // storefront PDP override for the up-sells heading; empty falls back to i18n
+	"cart_show_cross_sells",                     // storefront cart toggle: WooCommerce cross-sells (complements) section
+	"cart_cross_sells_kicker",                   // storefront cart override for the cross-sells kicker; empty falls back to i18n
+	"cart_cross_sells_heading",                  // storefront cart override for the cross-sells heading; empty falls back to i18n
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

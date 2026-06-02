@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 
 	"gyeon/backend/internal/auth"
@@ -59,9 +61,9 @@ var productSearchFields = []string{"p.name", "p.slug", "p.number::text"}
 // in Go after the SQL query (see annotateProductsPurchasable); defaults to
 // true for any path where roleRules is not wired (admin reads, tests).
 type Product struct {
-	ID                 string   `json:"id"`
-	Number             int64    `json:"number"`
-	CategoryID         *string  `json:"category_id,omitempty"`
+	ID         string  `json:"id"`
+	Number     int64   `json:"number"`
+	CategoryID *string `json:"category_id,omitempty"`
 	// CategoryIDs is the full set of categories the product belongs to
 	// (including the primary CategoryID, when set). Populated on single-item
 	// reads; nil/empty on list endpoints where we don't fan out per-row.
@@ -75,40 +77,40 @@ type Product struct {
 	CompatibleSurfaces []string `json:"compatible_surfaces"`
 	// WCSku mirrors the original WooCommerce product SKU captured at import.
 	// Separate from any generated value; nil for manually-created products.
-	WCSku              *string  `json:"wc_sku,omitempty"`
+	WCSku *string `json:"wc_sku,omitempty"`
 	// Hero video + banner / media strip slots. Video is a YouTube ID
 	// (rendered as an embed). Banner / media slots point at media_files
 	// rows; the Banner*URL / Media*URL fields are hydrated only by
 	// single-product reads (GetBySlug / GetByID) — they stay nil on list
 	// queries so we don't pay 6 LEFT JOINs per row.
-	VideoID            *string  `json:"video_id,omitempty"`
-	Banner1MediaID     *string  `json:"banner_1_media_id,omitempty"`
-	Banner2MediaID     *string  `json:"banner_2_media_id,omitempty"`
-	Media1MediaID      *string  `json:"media_1_media_id,omitempty"`
-	Media2MediaID      *string  `json:"media_2_media_id,omitempty"`
-	Media3MediaID      *string  `json:"media_3_media_id,omitempty"`
-	Media4MediaID      *string  `json:"media_4_media_id,omitempty"`
-	Banner1URL         *string  `json:"banner_1_url,omitempty"`
-	Banner1WebpURL     *string  `json:"banner_1_webp_url,omitempty"`
-	Banner2URL         *string  `json:"banner_2_url,omitempty"`
-	Banner2WebpURL     *string  `json:"banner_2_webp_url,omitempty"`
-	Media1URL          *string  `json:"media_1_url,omitempty"`
-	Media1WebpURL      *string  `json:"media_1_webp_url,omitempty"`
-	Media2URL          *string  `json:"media_2_url,omitempty"`
-	Media2WebpURL      *string  `json:"media_2_webp_url,omitempty"`
-	Media3URL          *string  `json:"media_3_url,omitempty"`
-	Media3WebpURL      *string  `json:"media_3_webp_url,omitempty"`
-	Media4URL          *string  `json:"media_4_url,omitempty"`
-	Media4WebpURL      *string  `json:"media_4_webp_url,omitempty"`
-	Status             string   `json:"status"`
-	Kind               string   `json:"kind"` // "simple" | "bundle"
-	Purchasable        bool     `json:"purchasable"`
+	VideoID        *string `json:"video_id,omitempty"`
+	Banner1MediaID *string `json:"banner_1_media_id,omitempty"`
+	Banner2MediaID *string `json:"banner_2_media_id,omitempty"`
+	Media1MediaID  *string `json:"media_1_media_id,omitempty"`
+	Media2MediaID  *string `json:"media_2_media_id,omitempty"`
+	Media3MediaID  *string `json:"media_3_media_id,omitempty"`
+	Media4MediaID  *string `json:"media_4_media_id,omitempty"`
+	Banner1URL     *string `json:"banner_1_url,omitempty"`
+	Banner1WebpURL *string `json:"banner_1_webp_url,omitempty"`
+	Banner2URL     *string `json:"banner_2_url,omitempty"`
+	Banner2WebpURL *string `json:"banner_2_webp_url,omitempty"`
+	Media1URL      *string `json:"media_1_url,omitempty"`
+	Media1WebpURL  *string `json:"media_1_webp_url,omitempty"`
+	Media2URL      *string `json:"media_2_url,omitempty"`
+	Media2WebpURL  *string `json:"media_2_webp_url,omitempty"`
+	Media3URL      *string `json:"media_3_url,omitempty"`
+	Media3WebpURL  *string `json:"media_3_webp_url,omitempty"`
+	Media4URL      *string `json:"media_4_url,omitempty"`
+	Media4WebpURL  *string `json:"media_4_webp_url,omitempty"`
+	Status         string  `json:"status"`
+	Kind           string  `json:"kind"` // "simple" | "bundle"
+	Purchasable    bool    `json:"purchasable"`
 	// UseTaobaoLayout overrides the site-wide `pdp_taobao_layout_enabled`
 	// flag for this single product: nil = follow site default,
 	// true = force taobao modal layout, false = force classic layout.
-	UseTaobaoLayout    *bool    `json:"use_taobao_layout,omitempty"`
-	CreatedAt          string   `json:"created_at"`
-	UpdatedAt          string   `json:"updated_at"`
+	UseTaobaoLayout *bool  `json:"use_taobao_layout,omitempty"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 // ProductWithMeta enriches Product with quick-glance fields useful for list
@@ -167,26 +169,26 @@ type SetBundleItemsRequest struct {
 // auto-created variant so the storefront can render price/CTA without an
 // extra round-trip.
 type PromoBundle struct {
-	ID               string   `json:"id"`
-	ParentProductID  string   `json:"parent_product_id"`
-	BundleProductID  string   `json:"bundle_product_id"`
-	SortOrder        int      `json:"sort_order"`
-	Slug             string   `json:"slug"`
-	Name             string   `json:"name"`
-	Excerpt          *string  `json:"excerpt,omitempty"`
-	Status           string   `json:"status"`
-	VariantID        string   `json:"variant_id"`
-	Price            float64  `json:"price"`
-	CompareAtPrice   *float64 `json:"compare_at_price,omitempty"`
-	StockQty         int      `json:"stock_qty"`
-	PrimaryImageURL  *string  `json:"primary_image_url,omitempty"`
-	CreatedAt        string   `json:"created_at"`
+	ID              string   `json:"id"`
+	ParentProductID string   `json:"parent_product_id"`
+	BundleProductID string   `json:"bundle_product_id"`
+	SortOrder       int      `json:"sort_order"`
+	Slug            string   `json:"slug"`
+	Name            string   `json:"name"`
+	Excerpt         *string  `json:"excerpt,omitempty"`
+	Status          string   `json:"status"`
+	VariantID       string   `json:"variant_id"`
+	Price           float64  `json:"price"`
+	CompareAtPrice  *float64 `json:"compare_at_price,omitempty"`
+	StockQty        int      `json:"stock_qty"`
+	PrimaryImageURL *string  `json:"primary_image_url,omitempty"`
+	CreatedAt       string   `json:"created_at"`
 	// Purchasable mirrors the per-(role, category) gate stamped on Product /
 	// ProductWithMeta by annotate{Single,Meta}Purchasable. Defaults true and
 	// flips false when the bundle product itself sits in a blocked category
 	// for the current storefront role. Lets the taobao popup disable the row
 	// instead of silently 403-ing on cart-add.
-	Purchasable      bool     `json:"purchasable"`
+	Purchasable bool `json:"purchasable"`
 }
 
 // SetPromoBundlesRequest wraps the ordered list of bundle product IDs to
@@ -210,26 +212,26 @@ type UpsertProductTranslationRequest struct {
 }
 
 type Variant struct {
-	ID                 string   `json:"id"`
-	ProductID          string   `json:"product_id"`
-	SKU                string   `json:"sku"`
+	ID        string `json:"id"`
+	ProductID string `json:"product_id"`
+	SKU       string `json:"sku"`
 	// WCSku mirrors the original WooCommerce variant SKU captured at import.
 	// Separate from the generated SKU; nil for manually-created variants.
-	WCSku              *string  `json:"wc_sku,omitempty"`
-	Name               *string  `json:"name,omitempty"`
-	Price              float64  `json:"price"`
-	CompareAtPrice     *float64 `json:"compare_at_price,omitempty"`
-	StockQty           int      `json:"stock_qty"`
-	LowStockThreshold  *int     `json:"low_stock_threshold,omitempty"`
-	WeightGrams        *int     `json:"weight_grams,omitempty"`
-	LengthMM           *int     `json:"length_mm,omitempty"`
-	WidthMM            *int     `json:"width_mm,omitempty"`
-	HeightMM           *int     `json:"height_mm,omitempty"`
-	IsActive           bool     `json:"is_active"`
-	CreatedAt          string   `json:"created_at"`
-	UpdatedAt          string   `json:"updated_at"`
-	ProductName        *string  `json:"product_name,omitempty"`
-	ImageURL           *string  `json:"image_url,omitempty"`
+	WCSku             *string  `json:"wc_sku,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	Price             float64  `json:"price"`
+	CompareAtPrice    *float64 `json:"compare_at_price,omitempty"`
+	StockQty          int      `json:"stock_qty"`
+	LowStockThreshold *int     `json:"low_stock_threshold,omitempty"`
+	WeightGrams       *int     `json:"weight_grams,omitempty"`
+	LengthMM          *int     `json:"length_mm,omitempty"`
+	WidthMM           *int     `json:"width_mm,omitempty"`
+	HeightMM          *int     `json:"height_mm,omitempty"`
+	IsActive          bool     `json:"is_active"`
+	CreatedAt         string   `json:"created_at"`
+	UpdatedAt         string   `json:"updated_at"`
+	ProductName       *string  `json:"product_name,omitempty"`
+	ImageURL          *string  `json:"image_url,omitempty"`
 }
 
 type ProductImage struct {
@@ -249,7 +251,7 @@ type ProductImage struct {
 }
 
 type CreateProductRequest struct {
-	CategoryID         *string  `json:"category_id"`
+	CategoryID *string `json:"category_id"`
 	// CategoryIDs is the full set of categories (additional + primary). The
 	// primary CategoryID is auto-included by the sync, so callers can send
 	// just the extras or the full set — either works.
@@ -3626,4 +3628,225 @@ func (s *ProductService) RebuildCopurchase(ctx context.Context) (int, error) {
 	}
 	s.cache.DeleteByPrefix(fbtCachePrefix)
 	return int(n), nil
+}
+
+// =====================================================================
+// WooCommerce up-sells (PDP) & cross-sells (cart).
+//
+// Both are merchant-curated, ordered lists imported from WooCommerce
+// (product.upsell_ids / cross_sell_ids), stored in product_upsells /
+// product_cross_sells. Deliberately separate from the algorithmic FBT
+// feature above: no co-purchase aggregation and no daily-rotating seed —
+// the merchant's imported ordering (position) is authoritative. They
+// reuse FBT's hydration + purchasability gating helpers only.
+// =====================================================================
+
+const (
+	upsellCachePrefix    = "shop:upsells:"
+	crossSellCachePrefix = "shop:crosssells:"
+)
+
+// Upsells returns the merchant-curated WC up-sells (the "buy this instead"
+// alternatives shown on the PDP) for a product, ordered by the imported
+// position and filtered to active, role-listable, role-purchasable products.
+// Fully deterministic — unlike FrequentlyBoughtTogether there is no pool mixing
+// or daily seed.
+func (s *ProductService) Upsells(ctx context.Context, productID, locale string, limit int) ([]ProductWithMeta, error) {
+	if limit <= 0 || limit > 12 {
+		limit = 4
+	}
+	// Up-sells are a listing surface, so honour the per-role "unlisted
+	// category" set exactly like FBT does (hiddenRaw bakes the role into the
+	// cache key so roles don't share an entry).
+	hiddenIDs, hiddenRaw := s.roleListedScope(ctx)
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s", upsellCachePrefix, productID, locale, limit, hiddenRaw)
+	if v, ok := s.cache.Get(cacheKey); ok {
+		return v.([]ProductWithMeta), nil
+	}
+
+	ids, err := s.fbtScanIDs(ctx, `
+		SELECT u.upsell_product_id
+		FROM product_upsells u
+		JOIN products p ON p.id = u.upsell_product_id
+		WHERE u.product_id = $1
+		  AND p.status = 'active'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($2::uuid[])
+		  )
+		ORDER BY u.position ASC, p.created_at DESC
+		LIMIT $3`,
+		productID, fbtUUIDArray(hiddenIDs), limit)
+	if err != nil {
+		return nil, err
+	}
+
+	products, err := s.upsellHydrate(ctx, ids, locale)
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Set(cacheKey, products, s.ttl(ctx))
+	return products, nil
+}
+
+// CrossSellsForCart unions the cross-sells of the products represented by the
+// given cart variant IDs, dedupes (earliest position wins), drops products
+// already in the cart, and returns active + role-purchasable products. The
+// cart only carries variant IDs (no product UUID), so step one resolves
+// variants → products. Returns an empty slice for an empty/invalid input
+// rather than erroring on an empty ::uuid[] cast.
+func (s *ProductService) CrossSellsForCart(ctx context.Context, variantIDs []string, locale string, limit int) ([]ProductWithMeta, error) {
+	if limit <= 0 || limit > 12 {
+		limit = 4
+	}
+	// The variant IDs come straight off the client cart, so anything that isn't
+	// a UUID would abort the ::uuid[] cast. Drop invalids + de-dup, and the
+	// sorted result doubles as a stable cache key.
+	clean := sanitizeUUIDs(variantIDs)
+	if len(clean) == 0 {
+		return []ProductWithMeta{}, nil
+	}
+
+	hiddenIDs, hiddenRaw := s.roleListedScope(ctx)
+	cacheKey := fmt.Sprintf("%s%s:%s:%d:%s", crossSellCachePrefix, strings.Join(clean, ","), locale, limit, hiddenRaw)
+	if v, ok := s.cache.Get(cacheKey); ok {
+		return v.([]ProductWithMeta), nil
+	}
+
+	// Resolve cart variant IDs → distinct cart product IDs. These serve both as
+	// the "source" set (whose cross-sells we want) and the "already in cart"
+	// exclusion set below.
+	cartProductIDs, err := s.fbtScanIDs(ctx,
+		`SELECT DISTINCT product_id::text FROM product_variants WHERE id = ANY($1::uuid[])`,
+		pq.Array(clean))
+	if err != nil {
+		return nil, err
+	}
+	if len(cartProductIDs) == 0 {
+		empty := []ProductWithMeta{}
+		s.cache.Set(cacheKey, empty, s.ttl(ctx))
+		return empty, nil
+	}
+
+	ids, err := s.fbtScanIDs(ctx, `
+		SELECT cs.cross_sell_product_id::text
+		FROM product_cross_sells cs
+		JOIN products p ON p.id = cs.cross_sell_product_id
+		WHERE cs.product_id = ANY($1::uuid[])
+		  AND cs.cross_sell_product_id <> ALL($1::uuid[])
+		  AND p.status = 'active'
+		  AND NOT EXISTS (
+		      SELECT 1 FROM product_category_links pcl
+		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($2::uuid[])
+		  )
+		GROUP BY cs.cross_sell_product_id
+		ORDER BY MIN(cs.position) ASC, cs.cross_sell_product_id
+		LIMIT $3`,
+		pq.Array(cartProductIDs), fbtUUIDArray(hiddenIDs), limit)
+	if err != nil {
+		return nil, err
+	}
+
+	products, err := s.upsellHydrate(ctx, ids, locale)
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Set(cacheKey, products, s.ttl(ctx))
+	return products, nil
+}
+
+// upsellHydrate loads product IDs into ProductWithMeta (in order), stamps
+// Purchasable per the current role, and drops anything the role can't add to
+// cart — shared by Upsells and CrossSellsForCart so both apply the same gate as
+// FBT.
+func (s *ProductService) upsellHydrate(ctx context.Context, ids []string, locale string) ([]ProductWithMeta, error) {
+	if len(ids) == 0 {
+		return []ProductWithMeta{}, nil
+	}
+	products, err := s.fbtLoadProductsByIDs(ctx, ids, locale)
+	if err != nil {
+		return nil, err
+	}
+	s.annotatePurchasableMeta(ctx, products)
+	kept := make([]ProductWithMeta, 0, len(products))
+	for _, p := range products {
+		if p.Purchasable {
+			kept = append(kept, p)
+		}
+	}
+	return kept, nil
+}
+
+// ReplaceUpsells atomically replaces the up-sell list for a parent product with
+// the given ordered target IDs (position = index). Used by the importer's
+// reconcile pass; idempotent across re-imports. Unlike the admin promo-bundle
+// setter it records no audit entry (bulk import would flood the audit log) and
+// performs no per-target validation — the importer only passes IDs it already
+// resolved via GetIDByWCProductID.
+func (s *ProductService) ReplaceUpsells(ctx context.Context, productID string, upsellProductIDs []string) error {
+	return s.replaceProductRelations(ctx, "product_upsells", "upsell_product_id", productID, upsellProductIDs, upsellCachePrefix)
+}
+
+// ReplaceCrossSells is the cross-sell counterpart to ReplaceUpsells.
+func (s *ProductService) ReplaceCrossSells(ctx context.Context, productID string, crossSellProductIDs []string) error {
+	return s.replaceProductRelations(ctx, "product_cross_sells", "cross_sell_product_id", productID, crossSellProductIDs, crossSellCachePrefix)
+}
+
+// replaceProductRelations is the shared delete-by-parent + ordered-insert used
+// by ReplaceUpsells / ReplaceCrossSells. table/col are hardcoded constants (not
+// user input), so the fmt.Sprintf interpolation is safe. Self-references and
+// duplicate targets are tolerated defensively (the CHECK + PK would otherwise
+// reject them).
+func (s *ProductService) replaceProductRelations(ctx context.Context, table, col, productID string, targetIDs []string, cachePrefix string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		fmt.Sprintf(`DELETE FROM %s WHERE product_id = $1`, table), productID); err != nil {
+		return err
+	}
+	pos := 0
+	for _, tid := range targetIDs {
+		if tid == productID {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx,
+			fmt.Sprintf(`INSERT INTO %s (product_id, %s, position) VALUES ($1, $2, $3)
+			             ON CONFLICT (product_id, %s) DO UPDATE SET position = EXCLUDED.position`, table, col, col),
+			productID, tid, pos); err != nil {
+			return err
+		}
+		pos++
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.cache.DeleteByPrefix(cachePrefix)
+	return nil
+}
+
+// sanitizeUUIDs keeps only well-formed UUID strings, canonicalised (lower-case,
+// hyphenated) and de-duped, returned sorted so callers get a stable form for
+// cache keys and ANY(...) filters. The cart hands us raw variant IDs from the
+// client, so one malformed value would otherwise abort the ::uuid[] cast.
+func sanitizeUUIDs(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		parsed, err := uuid.Parse(strings.TrimSpace(v))
+		if err != nil {
+			continue
+		}
+		key := parsed.String()
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
 }

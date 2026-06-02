@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -53,12 +54,19 @@ func (h *ProductHandler) Routes() chi.Router {
 	// Single variant by ID (used by checkout for pricing)
 	r.Get("/variants/{variantID}", h.getVariantByID)
 
+	// Cart cross-sells (WooCommerce complements). Static 1-segment path — chi
+	// prefers it over /{id}, same as /by-slug and /variants above. Keyed by the
+	// cart's variant IDs so the client needn't resolve products itself.
+	r.Get("/cross-sells", h.cartCrossSells)
+
 	r.Get("/{id}/variants", h.listVariants)
 	r.Get("/{id}/images", h.listImages)
 	r.Get("/{id}/translations", h.listTranslations)
 	r.Get("/{id}/bundle-items", h.getBundleItems)
 	r.Get("/{id}/promo-bundles", h.getPromoBundles)
 	r.Get("/{id}/frequently-bought-together", h.frequentlyBoughtTogether)
+	// WooCommerce up-sells (PDP alternatives) — separate from FBT above.
+	r.Get("/{id}/upsells", h.upsells)
 	return r
 }
 
@@ -562,6 +570,42 @@ func (h *ProductHandler) frequentlyBoughtTogether(w http.ResponseWriter, r *http
 	items, err := h.svc.FrequentlyBoughtTogether(r.Context(), id, r.URL.Query().Get("lang"), limit)
 	if err != nil {
 		log.Printf("frequentlyBoughtTogether product=%s: %v", id, err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+// upsells serves the merchant-curated WC up-sells (PDP alternatives) for a
+// product. Mirrors frequentlyBoughtTogether but reads a hand-picked list, not
+// the co-purchase aggregation.
+func (h *ProductHandler) upsells(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := h.svc.Upsells(r.Context(), id, r.URL.Query().Get("lang"), limit)
+	if err != nil {
+		log.Printf("upsells product=%s: %v", id, err)
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+// cartCrossSells serves the union of cross-sells for the products in the cart,
+// keyed by the cart's variant IDs (comma-separated `variant_ids`). Products
+// already in the cart are excluded server-side. Empty/blank input yields [].
+func (h *ProductHandler) cartCrossSells(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	var variantIDs []string
+	for _, raw := range strings.Split(q.Get("variant_ids"), ",") {
+		if v := strings.TrimSpace(raw); v != "" {
+			variantIDs = append(variantIDs, v)
+		}
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	items, err := h.svc.CrossSellsForCart(r.Context(), variantIDs, q.Get("lang"), limit)
+	if err != nil {
+		log.Printf("cartCrossSells variants=%d: %v", len(variantIDs), err)
 		respond.InternalError(w)
 		return
 	}
