@@ -146,11 +146,11 @@
              is hidden alongside the disabled add-to-cart on the PDP. -->
       {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
-          <span class="font-display tabular-nums {priceColor} {priceClass}">
+          <span class="font-display {priceColor} {priceClass}">
             {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}
-            <span class="font-body line-through tabular-nums text-ink-500 {comparePriceClass}">
+            <span class="font-body line-through text-ink-500 {comparePriceClass}">
               {formatHKD(variant.compare_at_price!)}
             </span>
           {/if}
