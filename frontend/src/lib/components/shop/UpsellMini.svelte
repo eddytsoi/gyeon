@@ -58,7 +58,10 @@
       {heading ?? m.product_detail_upsells_heading()}
     </h2>
 
-    <ul class="flex flex-col gap-5">
+    <!-- Responsive columns: 1-up on mobile (<768), 2-up on tablet (768–1023,
+         where the PDP is single-column and the mini spans full width), back to
+         1-up on lg+ (>=1024) where it lives in the narrow product-info column. -->
+    <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-x-6 gap-y-5">
       {#each items as p (p.id)}
         {@const enabled = canAdd(p)}
         <li class="flex gap-4 items-start">
@@ -108,6 +111,7 @@
               </div>
             {/if}
 
+            <!-- Add-to-cart on its own (second) row, below the price. -->
             <button
               type="button"
               onclick={() => addOne(p)}
