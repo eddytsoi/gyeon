@@ -396,6 +396,7 @@
                 variant={variantOf(p)}
                 loading={i < 3 ? 'eager' : 'lazy'}
                 fetchpriority={i < 3 ? 'high' : 'auto'}
+                priceSize="list"
               />
             </li>
           {/each}

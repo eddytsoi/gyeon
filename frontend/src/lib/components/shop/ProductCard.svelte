@@ -29,8 +29,10 @@
     // Text alignment — centered by default across every product grid
     // (listing, category, homepage, recently-viewed, wishlist, up-sells).
     // priceSize 'lg' is the larger up-sells-style price, opted into by UpsellGrid.
+    // priceSize 'list' is the 24px price / 18px strikethrough used by the public
+    // products & category listings, opted into by those routes.
     align?: 'left' | 'center';
-    priceSize?: 'default' | 'lg';
+    priceSize?: 'default' | 'lg' | 'list';
   } = $props();
 
   const hasDiscount = $derived(
@@ -44,6 +46,17 @@
   );
 
   const soldOut = $derived(variant != null && variant.stock_qty === 0);
+
+  // Price block sizing. 'lg'/'list' use a 24px medium-weight price; 'list' also
+  // bumps the strikethrough compare-at price to 18px medium.
+  const priceClass = $derived(
+    priceSize === 'lg' || priceSize === 'list'
+      ? 'text-2xl font-medium'
+      : 'text-base md:text-lg font-bold'
+  );
+  const comparePriceClass = $derived(
+    priceSize === 'list' ? 'text-lg font-medium' : 'text-sm'
+  );
 </script>
 
 <div class="group relative flex flex-col">
@@ -115,11 +128,11 @@
              is hidden alongside the disabled add-to-cart on the PDP. -->
       {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
-          <span class="font-display tabular-nums text-ink-900 {priceSize === 'lg' ? 'text-2xl font-medium' : 'text-base md:text-lg font-bold'}">
+          <span class="font-display tabular-nums text-ink-900 {priceClass}">
             {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}
-            <span class="text-sm font-body line-through tabular-nums text-ink-500">
+            <span class="font-body line-through tabular-nums text-ink-500 {comparePriceClass}">
               {formatHKD(variant.compare_at_price!)}
             </span>
           {/if}
