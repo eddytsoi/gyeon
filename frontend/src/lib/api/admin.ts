@@ -1,4 +1,4 @@
-import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, RelatedProductRef, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -190,6 +190,27 @@ export const adminSetPromoBundles = (
   request<PromoBundle[]>(`/admin/products/${productID}/promo-bundles`, token, {
     method: 'PUT',
     body: JSON.stringify({ bundle_product_ids: bundleProductIDs })
+  });
+
+// WooCommerce up-sells / cross-sells — admin manual editing. The GETs hit the
+// RAW admin getters (/admin/products/...), NOT the role-filtered storefront
+// reads at /products/{id}/upsells and /products/cross-sells.
+export const adminGetUpsells = (token: string, productID: string) =>
+  request<RelatedProductRef[]>(`/admin/products/${productID}/upsells`, token);
+
+export const adminSetUpsells = (token: string, productID: string, upsellProductIDs: string[]) =>
+  request<RelatedProductRef[]>(`/admin/products/${productID}/upsells`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ upsell_product_ids: upsellProductIDs })
+  });
+
+export const adminGetCrossSells = (token: string, productID: string) =>
+  request<RelatedProductRef[]>(`/admin/products/${productID}/cross-sells`, token);
+
+export const adminSetCrossSells = (token: string, productID: string, crossSellProductIDs: string[]) =>
+  request<RelatedProductRef[]>(`/admin/products/${productID}/cross-sells`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ cross_sell_product_ids: crossSellProductIDs })
   });
 
 // Categories — admin opts out of the storefront-facing hidden filter so it
@@ -1791,6 +1812,40 @@ export const adminResolvePromoBundlesCSV = async (
   const fd = new FormData();
   fd.append('file', file);
   const res = await fetch(`${base()}/admin/products/promo-bundles/csv-resolve`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Import failed: API ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return res.json();
+};
+
+export interface ProductRefCSVResolveItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+}
+
+export interface ProductRefsCSVResolveResult {
+  items: ProductRefCSVResolveItem[];
+  skipped: number;
+  errors?: { row: number; message: string }[];
+}
+
+/** Upload a single-column CSV of product names or slugs and resolve each to an
+ *  active product (any kind). Shared by the up-sells and cross-sells editors on
+ *  the product-detail page. Bad rows surface in `errors`. */
+export const adminResolveProductRefsCSV = async (
+  token: string,
+  file: File
+): Promise<ProductRefsCSVResolveResult> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`${base()}/admin/products/related-refs/csv-resolve`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: fd

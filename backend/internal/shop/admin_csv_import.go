@@ -266,6 +266,98 @@ func isPromoHeader(cell string) bool {
 	return false
 }
 
+// ── 關聯產品 / Up-sell + cross-sell CSV ──────────────────────────────────────
+
+// ProductRefCSVResolveItem is one resolved product, shaped for the admin
+// up-sell / cross-sell editor (which hydrates the variant + image via the same
+// path a search-box pick uses, so CSV import and search converge on one
+// "add candidate" code path on the client).
+type ProductRefCSVResolveItem struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Slug   string `json:"slug"`
+	Status string `json:"status"`
+}
+
+// ProductRefsCSVResolveResult is the response for POST
+// /admin/products/related-refs/csv-resolve.
+type ProductRefsCSVResolveResult struct {
+	Items   []ProductRefCSVResolveItem `json:"items"`
+	Skipped int                        `json:"skipped"`
+	Errors  []CSVRowErr                `json:"errors,omitempty"`
+}
+
+// resolveProductRefsCSV backs POST /admin/products/related-refs/csv-resolve.
+// Shared by both the up-sell and cross-sell editors: a single-column CSV of
+// product names or slugs, each matched to one active product (any kind). The
+// header row (name/slug/product) is optional. Always 200 OK with per-row errors.
+func (h *ProductHandler) resolveProductRefsCSV(w http.ResponseWriter, r *http.Request) {
+	fh, ok := openCSVUpload(w, r)
+	if !ok {
+		return
+	}
+	defer fh.Close()
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
+	respond.JSON(w, http.StatusOK, h.resolveProductRefCSV(r.Context(), fh))
+}
+
+func (h *ProductHandler) resolveProductRefCSV(ctx context.Context, r io.Reader) *ProductRefsCSVResolveResult {
+	cr := csv.NewReader(r)
+	cr.FieldsPerRecord = -1
+
+	out := &ProductRefsCSVResolveResult{Items: []ProductRefCSVResolveItem{}}
+	seen := map[string]bool{}
+	rowNum := 0
+	headerChecked := false
+
+	for {
+		rec, rerr := cr.Read()
+		if rerr == io.EOF {
+			break
+		}
+		rowNum++
+		if rerr != nil {
+			out.Skipped++
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: rerr.Error()})
+			continue
+		}
+		if catalog.IsBlankRow(rec) {
+			continue
+		}
+		key := strings.TrimSpace(rec[0])
+		if rowNum == 1 {
+			key = strings.TrimPrefix(key, "\ufeff") // strip UTF-8 BOM
+		}
+		if !headerChecked {
+			headerChecked = true
+			if isPromoHeader(key) {
+				continue
+			}
+		}
+		if key == "" {
+			out.Skipped++
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: "name or slug is required"})
+			continue
+		}
+		match, mErr := h.svc.LookupProductByNameOrSlug(ctx, key)
+		if mErr != nil {
+			out.Skipped++
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: mErr.Error()})
+			continue
+		}
+		if seen[match.ID] {
+			continue // dedupe within the same CSV
+		}
+		seen[match.ID] = true
+		out.Items = append(out.Items, ProductRefCSVResolveItem{ID: match.ID, Name: match.Name, Slug: match.Slug, Status: match.Status})
+	}
+	return out
+}
+
 // ── shared lookup + upload helper ───────────────────────────────────────────
 
 // PromoBundleMatch is a minimal bundle-product lookup result for CSV import.
@@ -309,6 +401,53 @@ func (s *ProductService) LookupBundleProductByNameOrSlug(ctx context.Context, ke
 	}
 	if len(matches) > 1 {
 		return nil, ErrBundleProductAmbiguous
+	}
+	return &matches[0], nil
+}
+
+// ProductRefMatch is a minimal any-product lookup result for the up-sell /
+// cross-sell CSV importer.
+type ProductRefMatch struct {
+	ID     string
+	Name   string
+	Slug   string
+	Status string
+}
+
+var (
+	ErrProductRefNotFound  = errors.New("product not found")
+	ErrProductRefAmbiguous = errors.New("ambiguous product name")
+)
+
+// LookupProductByNameOrSlug resolves a CSV key to a single active product of
+// any kind, matching name (case-insensitive, trimmed) first and slug
+// (case-insensitive) as a fallback. Used by the up-sell / cross-sell CSV
+// importer — the any-kind counterpart to LookupBundleProductByNameOrSlug.
+func (s *ProductService) LookupProductByNameOrSlug(ctx context.Context, key string) (*ProductRefMatch, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, name, slug, status FROM products
+		  WHERE status = 'active'
+		    AND (LOWER(TRIM(name)) = LOWER(TRIM($1)) OR LOWER(slug) = LOWER($1))`, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var matches []ProductRefMatch
+	for rows.Next() {
+		var m ProductRefMatch
+		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.Status); err != nil {
+			return nil, err
+		}
+		matches = append(matches, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(matches) == 0 {
+		return nil, ErrProductRefNotFound
+	}
+	if len(matches) > 1 {
+		return nil, ErrProductRefAmbiguous
 	}
 	return &matches[0], nil
 }
