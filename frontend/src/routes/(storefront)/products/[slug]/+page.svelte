@@ -713,7 +713,7 @@
 
         <!-- Excerpt (body) -->
         {#if data.product.excerpt}
-          <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm max-w-md">
+          <div class="font-body text-base leading-[1.75] text-ink-900/85 prose prose-sm">
             <MarkdownContent content={data.product.excerpt} refs={data.shortcodeRefs} />
           </div>
         {/if}
