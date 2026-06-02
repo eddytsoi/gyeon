@@ -36,9 +36,9 @@
   // width ~720px there, full viewport on mobile. Eager + high priority for LCP.
   const PDP_MAIN_WIDTHS = [480, 640, 960, 1280];
   const PDP_MAIN_SIZES = '(min-width: 1024px) 720px, 100vw';
-  // Gallery thumbnails are a fixed 64px square strip (w-16 h-16).
-  const PDP_THUMB_WIDTHS = [160, 320];
-  const PDP_THUMB_SIZES = '80px';
+  // Gallery thumbnails are a fixed 96px square strip (w-24 h-24).
+  const PDP_THUMB_WIDTHS = [192, 384];
+  const PDP_THUMB_SIZES = '96px';
 
   let { data }: { data: PageData } = $props();
 
@@ -180,6 +180,12 @@
   const fbtKicker = $derived(pdpSettings['pdp_fbt_kicker'] || undefined);
   const fbtHeading = $derived(pdpSettings['pdp_fbt_heading'] || undefined);
   const fbtPreselectAll = $derived(pdpSettings['pdp_fbt_preselect_all'] !== 'false');
+  // Per-section display style: "classic" = UpsellGrid (up-sells style),
+  // "modern" (default) = BundleComposer (amazon style). See migration 116.
+  const fbtLayout = $derived(pdpSettings['pdp_fbt_layout'] === 'classic' ? 'classic' : 'modern');
+  const completeSetLayout = $derived(
+    pdpSettings['pdp_complete_set_layout'] === 'classic' ? 'classic' : 'modern'
+  );
   // WooCommerce up-sells (alternatives) — separate from FBT above.
   const showUpsells = $derived(pdpSettings['pdp_show_upsells'] !== 'false');
   const upsellsKicker = $derived(pdpSettings['pdp_upsells_kicker'] || undefined);
@@ -645,7 +651,7 @@
             {#each data.images as img}
               <button
                 onclick={() => (activeImageID = img.id)}
-                class="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-all duration-200 ease-gy
+                class="relative flex-shrink-0 w-24 h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ease-gy
                        {(activeImageID === img.id || (!activeImageID && img.is_primary))
                          ? 'opacity-100 border-navy-500'
                          : 'border-transparent opacity-50 hover:opacity-80'}"
@@ -928,12 +934,20 @@
 
 <!-- ── FREQUENTLY BOUGHT TOGETHER (from real co-purchase data) ─── -->
 {#if showFbt && data.frequentlyBoughtTogether.length > 0}
-  <BundleComposer
-    items={data.frequentlyBoughtTogether}
-    kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
-    heading={fbtHeading ?? m.product_detail_fbt_heading()}
-    preselectAll={fbtPreselectAll}
-  />
+  {#if fbtLayout === 'classic'}
+    <UpsellGrid
+      items={data.frequentlyBoughtTogether}
+      kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
+      heading={fbtHeading ?? m.product_detail_fbt_heading()}
+    />
+  {:else}
+    <BundleComposer
+      items={data.frequentlyBoughtTogether}
+      kicker={fbtKicker ?? m.product_detail_fbt_kicker()}
+      heading={fbtHeading ?? m.product_detail_fbt_heading()}
+      preselectAll={fbtPreselectAll}
+    />
+  {/if}
 {/if}
 
 <!-- ── HERO VIDEO (between specs strip and tabs) ──────────────── -->
@@ -1245,14 +1259,22 @@
   </div>
 {/if}
 
-<!-- ── BUNDLE COMPOSER (replaces flat related row, §4.7) ───────── -->
+<!-- ── COMPLETE THE SET / related (§4.7) ──────────────────────── -->
 {#if showCompleteSet}
-  <BundleComposer
-    items={data.related}
-    kicker={completeSetKicker}
-    heading={completeSetHeading}
-    preselectAll={completeSetPreselectAll}
-  />
+  {#if completeSetLayout === 'classic'}
+    <UpsellGrid
+      items={data.related}
+      kicker={completeSetKicker ?? m.product_detail_related_kicker()}
+      heading={completeSetHeading ?? m.product_detail_related_heading()}
+    />
+  {:else}
+    <BundleComposer
+      items={data.related}
+      kicker={completeSetKicker}
+      heading={completeSetHeading}
+      preselectAll={completeSetPreselectAll}
+    />
+  {/if}
 {/if}
 
 <!-- ── STICKY ADD-TO-CART BAR (mobile only, §4.8) ────────────── -->
