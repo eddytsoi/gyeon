@@ -68,15 +68,11 @@
   const priceColor = $derived(
     priceSize === 'lg' || priceSize === 'list' ? 'text-navy-500' : 'text-ink-900'
   );
-  // Up-sells-style cards ('lg') run 2-up on mobile, where the name reads a touch
-  // big and the subtitle a touch small. Trim the name a step and nudge the
-  // subtitle up on mobile only; md+ is unchanged and matches every other card.
-  const nameSize = $derived(
-    priceSize === 'lg' ? 'text-base md:text-xl' : 'text-lg md:text-xl'
-  );
-  const subtitleSize = $derived(
-    priceSize === 'lg' ? 'text-[0.8rem] md:text-[0.85rem]' : 'text-[0.7438rem] md:text-[0.85rem]'
-  );
+  // Every card shares the same name/subtitle sizing: 1rem / 0.8rem on mobile,
+  // 1.25rem / 0.85rem on md+. (Listings, category, recently-viewed, homepage,
+  // wishlist, shortcodes and up-sells all read consistently this way.)
+  const nameSize = 'text-base md:text-xl';
+  const subtitleSize = 'text-[0.8rem] md:text-[0.85rem]';
 </script>
 
 <div class="group relative flex flex-col">
