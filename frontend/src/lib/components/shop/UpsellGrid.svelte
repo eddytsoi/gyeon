@@ -25,27 +25,32 @@
     heading?: string;
   } = $props();
 
-  // Per-product transient state, keyed by product id.
+  // Per-card transient state, keyed by a per-row id (product + pinned variant +
+  // index) — the same product may appear more than once with different pinned
+  // variants, and the index keeps the key unique even if two rows resolve to the
+  // same effective variant.
   let adding = $state<Record<string, boolean>>({});
   let added = $state<Record<string, boolean>>({});
+
+  const cardKey = (p: Product, i: number) => `${p.id}:${p.default_variant_id ?? ''}:${i}`;
 
   function canAdd(p: Product): boolean {
     return !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false);
   }
 
-  async function addOne(p: Product) {
-    if (adding[p.id] || !p.default_variant_id || !canAdd(p)) return;
-    adding[p.id] = true;
+  async function addOne(p: Product, k: string) {
+    if (adding[k] || !p.default_variant_id || !canAdd(p)) return;
+    adding[k] = true;
     try {
       await cartStore.add(p.default_variant_id, 1);
       trackAddToCart({ id: p.id, name: p.name, price: p.default_variant_price ?? 0, quantity: 1 });
-      added[p.id] = true;
-      setTimeout(() => (added[p.id] = false), 2500);
+      added[k] = true;
+      setTimeout(() => (added[k] = false), 2500);
     } catch {
       // cartStore records the error; layout toast surfaces it. Swallow so the
       // rejection doesn't bubble as unhandled.
     } finally {
-      adding[p.id] = false;
+      adding[k] = false;
     }
   }
 
@@ -89,24 +94,25 @@
       </h2>
 
       <ul class="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6 md:gap-y-10">
-        {#each items as p (p.id)}
+        {#each items as p, i (cardKey(p, i))}
           {@const enabled = canAdd(p)}
+          {@const k = cardKey(p, i)}
           <li class="flex flex-col">
             <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} align="center" priceSize="lg" withVariantSuffix />
             <button
               type="button"
-              onclick={() => addOne(p)}
-              disabled={!enabled || adding[p.id]}
+              onclick={() => addOne(p, k)}
+              disabled={!enabled || adding[k]}
               class="mt-3 w-full max-w-[200px] mx-auto h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
                      {!enabled
                        ? 'bg-ink-300 cursor-not-allowed'
-                       : added[p.id]
+                       : added[k]
                          ? 'bg-success'
                          : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
             >
-              {#if added[p.id]}
+              {#if added[k]}
                 {m.bundle_composer_cta_added()}
-              {:else if adding[p.id]}
+              {:else if adding[k]}
                 {m.bundle_composer_cta_adding()}
               {:else}
                 {m.bundle_composer_cta_idle()}

@@ -11,6 +11,7 @@ import {
   adminGetUpsells, adminSetUpsells, adminGetCrossSells, adminSetCrossSells,
   adminGetSettings,
 } from '$lib/api/admin';
+import type { RelatedRefInput } from '$lib/types';
 import { extractMediaUploadLimits } from '$lib/media';
 import { resolveAdminId } from '$lib/admin/resolveId';
 
@@ -119,19 +120,29 @@ export const actions: Actions = {
     }
 
     // Persist WooCommerce up-sell / cross-sell associations for any product kind
-    // (create + edit). Same hidden-CSV pattern as promo bundles. A later
+    // (create + edit). Each ref is a {product_id, variant_id} pair (variant_id
+    // optional = default variant), sent as a JSON hidden field. A later
     // WooCommerce import may still overwrite these (Woo stays source of truth).
     {
       const relTargetId = newProductId ?? id;
-      const upsellRaw = form.get('upsell_product_ids')?.toString();
-      if (upsellRaw !== undefined) {
-        const ids = upsellRaw.split(',').map(s => s.trim()).filter(Boolean);
-        try { await adminSetUpsells(token, relTargetId, ids); } catch { /* non-fatal */ }
+      const parseRefs = (raw: string | undefined): RelatedRefInput[] | undefined => {
+        if (raw === undefined) return undefined;
+        try {
+          const parsed = JSON.parse(raw) as RelatedRefInput[];
+          return parsed
+            .filter((r) => r && typeof r.product_id === 'string' && r.product_id)
+            .map((r) => ({ product_id: r.product_id, variant_id: r.variant_id ?? null }));
+        } catch {
+          return [];
+        }
+      };
+      const upsellRefs = parseRefs(form.get('upsell_refs_json')?.toString());
+      if (upsellRefs !== undefined) {
+        try { await adminSetUpsells(token, relTargetId, upsellRefs); } catch { /* non-fatal */ }
       }
-      const crossRaw = form.get('cross_sell_product_ids')?.toString();
-      if (crossRaw !== undefined) {
-        const ids = crossRaw.split(',').map(s => s.trim()).filter(Boolean);
-        try { await adminSetCrossSells(token, relTargetId, ids); } catch { /* non-fatal */ }
+      const crossRefs = parseRefs(form.get('cross_sell_refs_json')?.toString());
+      if (crossRefs !== undefined) {
+        try { await adminSetCrossSells(token, relTargetId, crossRefs); } catch { /* non-fatal */ }
       }
     }
 

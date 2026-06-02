@@ -2,6 +2,7 @@ package shop
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"errors"
 	"io"
@@ -268,15 +269,25 @@ func isPromoHeader(cell string) bool {
 
 // ── 關聯產品 / Up-sell + cross-sell CSV ──────────────────────────────────────
 
-// ProductRefCSVResolveItem is one resolved product, shaped for the admin
-// up-sell / cross-sell editor (which hydrates the variant + image via the same
-// path a search-box pick uses, so CSV import and search converge on one
-// "add candidate" code path on the client).
+// ProductRefCSVResolveItem is one resolved up-sell / cross-sell association,
+// shaped for the admin editor row. Unlike the bundle-items resolver it allows
+// any product kind (\u55ae\u54c1 or \u5957\u88dd) and pins a concrete variant (the matched
+// variant, or a \u5957\u88dd's default variant). Carries enough detail to render the row
+// directly, so CSV import and the search-box picker converge on one client
+// "add resolved row" path.
 type ProductRefCSVResolveItem struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
-	Status string `json:"status"`
+	ProductID       string   `json:"product_id"`
+	VariantID       string   `json:"variant_id"`
+	Name            string   `json:"name"`
+	Slug            string   `json:"slug"`
+	Status          string   `json:"status"`
+	Kind            string   `json:"kind"`
+	SKU             string   `json:"sku"`
+	VariantName     *string  `json:"variant_name,omitempty"`
+	Price           *float64 `json:"price,omitempty"`
+	CompareAtPrice  *float64 `json:"compare_at_price,omitempty"`
+	StockQty        *int     `json:"stock_qty,omitempty"`
+	PrimaryImageURL *string  `json:"primary_image_url,omitempty"`
 }
 
 // ProductRefsCSVResolveResult is the response for POST
@@ -288,9 +299,10 @@ type ProductRefsCSVResolveResult struct {
 }
 
 // resolveProductRefsCSV backs POST /admin/products/related-refs/csv-resolve.
-// Shared by both the up-sell and cross-sell editors: a single-column CSV of
-// product names or slugs, each matched to one active product (any kind). The
-// header row (name/slug/product) is optional. Always 200 OK with per-row errors.
+// Shared by both the up-sell and cross-sell editors: a `name,variant` CSV (same
+// grammar as the bundle-items importer minus quantity), each row resolved to one
+// variant via MatchVariant with allowBundles=true so \u5957\u88dd resolve to their
+// default variant. Always 200 OK with per-row errors.
 func (h *ProductHandler) resolveProductRefsCSV(w http.ResponseWriter, r *http.Request) {
 	fh, ok := openCSVUpload(w, r)
 	if !ok {
@@ -309,11 +321,20 @@ func (h *ProductHandler) resolveProductRefCSV(ctx context.Context, r io.Reader) 
 	cr := csv.NewReader(r)
 	cr.FieldsPerRecord = -1
 
+	header, err := cr.Read()
+	if err == io.EOF {
+		return &ProductRefsCSVResolveResult{Items: []ProductRefCSVResolveItem{}, Errors: []CSVRowErr{{Row: 1, Message: "empty file"}}}
+	}
+	if err != nil {
+		return &ProductRefsCSVResolveResult{Items: []ProductRefCSVResolveItem{}, Errors: []CSVRowErr{{Row: 1, Message: "read header: " + err.Error()}}}
+	}
+	if err := catalog.ValidateRefHeader(header); err != nil {
+		return &ProductRefsCSVResolveResult{Items: []ProductRefCSVResolveItem{}, Errors: []CSVRowErr{{Row: 1, Message: err.Error()}}}
+	}
+
 	out := &ProductRefsCSVResolveResult{Items: []ProductRefCSVResolveItem{}}
 	seen := map[string]bool{}
-	rowNum := 0
-	headerChecked := false
-
+	rowNum := 1
 	for {
 		rec, rerr := cr.Read()
 		if rerr == io.EOF {
@@ -328,34 +349,86 @@ func (h *ProductHandler) resolveProductRefCSV(ctx context.Context, r io.Reader) 
 		if catalog.IsBlankRow(rec) {
 			continue
 		}
-		key := strings.TrimSpace(rec[0])
-		if rowNum == 1 {
-			key = strings.TrimPrefix(key, "\ufeff") // strip UTF-8 BOM
-		}
-		if !headerChecked {
-			headerChecked = true
-			if isPromoHeader(key) {
-				continue
-			}
-		}
-		if key == "" {
+		if len(rec) < 2 {
 			out.Skipped++
-			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: "name or slug is required"})
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: "expected 2 columns (name, variant)"})
 			continue
 		}
-		match, mErr := h.svc.LookupProductByNameOrSlug(ctx, key)
+		productName := strings.TrimSpace(rec[0])
+		variantHint := strings.TrimSpace(rec[1])
+		if productName == "" {
+			out.Skipped++
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: "name is required"})
+			continue
+		}
+		variantID, kind, mErr := catalog.MatchVariant(ctx, h.svc.DB(), productName, variantHint, true)
 		if mErr != nil {
 			out.Skipped++
 			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: mErr.Error()})
 			continue
 		}
-		if seen[match.ID] {
+		if seen[variantID] {
 			continue // dedupe within the same CSV
 		}
-		seen[match.ID] = true
-		out.Items = append(out.Items, ProductRefCSVResolveItem{ID: match.ID, Name: match.Name, Slug: match.Slug, Status: match.Status})
+		seen[variantID] = true
+		item, ierr := h.buildProductRefResolvedItem(ctx, variantID, kind)
+		if ierr != nil {
+			out.Skipped++
+			out.Errors = append(out.Errors, CSVRowErr{Row: rowNum, Message: "failed to enrich variant " + variantID + ": " + ierr.Error()})
+			continue
+		}
+		out.Items = append(out.Items, *item)
 	}
 	return out
+}
+
+// buildProductRefResolvedItem enriches a resolved variant id into the editor row
+// shape: target product (id, name, slug, status, kind), the pinned variant
+// (id, sku, name, price, stock), and a thumbnail (the variant's own image when
+// it has one, else the product's primary image).
+func (h *ProductHandler) buildProductRefResolvedItem(ctx context.Context, variantID, kind string) (*ProductRefCSVResolveItem, error) {
+	var it ProductRefCSVResolveItem
+	var variantName, image sql.NullString
+	var compareAt sql.NullFloat64
+	var price float64
+	var stock int
+	err := h.svc.DB().QueryRowContext(ctx, `
+		SELECT pv.product_id::text, pv.id::text, p.name, p.slug, p.status, p.kind,
+		       pv.sku, pv.name, pv.price, pv.compare_at_price, pv.stock_qty,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.product_id = pv.product_id
+		        ORDER BY (pi.variant_id = pv.id) DESC NULLS LAST,
+		                 pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS image_url
+		FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $1`, variantID).
+		Scan(&it.ProductID, &it.VariantID, &it.Name, &it.Slug, &it.Status, &it.Kind,
+			&it.SKU, &variantName, &price, &compareAt, &stock, &image)
+	if err != nil {
+		return nil, err
+	}
+	// kind from MatchVariant and p.kind agree; prefer the column value.
+	if it.Kind == "" {
+		it.Kind = kind
+	}
+	it.Price = &price
+	it.StockQty = &stock
+	if variantName.Valid {
+		it.VariantName = &variantName.String
+	}
+	if compareAt.Valid {
+		c := compareAt.Float64
+		it.CompareAtPrice = &c
+	}
+	if image.Valid {
+		it.PrimaryImageURL = &image.String
+	}
+	return &it, nil
 }
 
 // ── shared lookup + upload helper ───────────────────────────────────────────
@@ -401,53 +474,6 @@ func (s *ProductService) LookupBundleProductByNameOrSlug(ctx context.Context, ke
 	}
 	if len(matches) > 1 {
 		return nil, ErrBundleProductAmbiguous
-	}
-	return &matches[0], nil
-}
-
-// ProductRefMatch is a minimal any-product lookup result for the up-sell /
-// cross-sell CSV importer.
-type ProductRefMatch struct {
-	ID     string
-	Name   string
-	Slug   string
-	Status string
-}
-
-var (
-	ErrProductRefNotFound  = errors.New("product not found")
-	ErrProductRefAmbiguous = errors.New("ambiguous product name")
-)
-
-// LookupProductByNameOrSlug resolves a CSV key to a single active product of
-// any kind, matching name (case-insensitive, trimmed) first and slug
-// (case-insensitive) as a fallback. Used by the up-sell / cross-sell CSV
-// importer — the any-kind counterpart to LookupBundleProductByNameOrSlug.
-func (s *ProductService) LookupProductByNameOrSlug(ctx context.Context, key string) (*ProductRefMatch, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, slug, status FROM products
-		  WHERE status = 'active'
-		    AND (LOWER(TRIM(name)) = LOWER(TRIM($1)) OR LOWER(slug) = LOWER($1))`, key)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var matches []ProductRefMatch
-	for rows.Next() {
-		var m ProductRefMatch
-		if err := rows.Scan(&m.ID, &m.Name, &m.Slug, &m.Status); err != nil {
-			return nil, err
-		}
-		matches = append(matches, m)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(matches) == 0 {
-		return nil, ErrProductRefNotFound
-	}
-	if len(matches) > 1 {
-		return nil, ErrProductRefAmbiguous
 	}
 	return &matches[0], nil
 }

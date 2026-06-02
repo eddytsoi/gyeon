@@ -1,4 +1,4 @@
-import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, RelatedProductRef, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, RelatedProductRef, RelatedRefInput, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -198,19 +198,19 @@ export const adminSetPromoBundles = (
 export const adminGetUpsells = (token: string, productID: string) =>
   request<RelatedProductRef[]>(`/admin/products/${productID}/upsells`, token);
 
-export const adminSetUpsells = (token: string, productID: string, upsellProductIDs: string[]) =>
+export const adminSetUpsells = (token: string, productID: string, refs: RelatedRefInput[]) =>
   request<RelatedProductRef[]>(`/admin/products/${productID}/upsells`, token, {
     method: 'PUT',
-    body: JSON.stringify({ upsell_product_ids: upsellProductIDs })
+    body: JSON.stringify({ upsell_refs: refs })
   });
 
 export const adminGetCrossSells = (token: string, productID: string) =>
   request<RelatedProductRef[]>(`/admin/products/${productID}/cross-sells`, token);
 
-export const adminSetCrossSells = (token: string, productID: string, crossSellProductIDs: string[]) =>
+export const adminSetCrossSells = (token: string, productID: string, refs: RelatedRefInput[]) =>
   request<RelatedProductRef[]>(`/admin/products/${productID}/cross-sells`, token, {
     method: 'PUT',
-    body: JSON.stringify({ cross_sell_product_ids: crossSellProductIDs })
+    body: JSON.stringify({ cross_sell_refs: refs })
   });
 
 // Categories — admin opts out of the storefront-facing hidden filter so it
@@ -1824,10 +1824,18 @@ export const adminResolvePromoBundlesCSV = async (
 };
 
 export interface ProductRefCSVResolveItem {
-  id: string;
+  product_id: string;
+  variant_id: string;
   name: string;
   slug: string;
   status: string;
+  kind: string;
+  sku: string;
+  variant_name?: string | null;
+  price?: number | null;
+  compare_at_price?: number | null;
+  stock_qty?: number | null;
+  primary_image_url?: string | null;
 }
 
 export interface ProductRefsCSVResolveResult {
@@ -1836,9 +1844,9 @@ export interface ProductRefsCSVResolveResult {
   errors?: { row: number; message: string }[];
 }
 
-/** Upload a single-column CSV of product names or slugs and resolve each to an
- *  active product (any kind). Shared by the up-sells and cross-sells editors on
- *  the product-detail page. Bad rows surface in `errors`. */
+/** Upload a `name,variant` CSV and resolve each row to a product + variant (any
+ *  kind; 套裝 resolve to their default variant). Shared by the up-sells and
+ *  cross-sells editors on the product-detail page. Bad rows surface in `errors`. */
 export const adminResolveProductRefsCSV = async (
   token: string,
   file: File
