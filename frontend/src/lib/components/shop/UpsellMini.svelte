@@ -11,6 +11,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { trackAddToCart } from '$lib/tracker';
   import { formatHKD } from '$lib/money';
+  import { productDisplayName } from '$lib/variant';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -89,7 +90,7 @@
           <div class="flex-1 min-w-0 flex flex-col gap-1">
             <a href="/products/{p.slug}" class="group">
               <h3 class="font-display text-lg font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
-                {p.name}
+                {productDisplayName(p.name, p.default_variant_name, p.kind)}
               </h3>
               {#if p.subtitle}
                 <p class="font-display text-[0.85rem] font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
@@ -99,8 +100,8 @@
             </a>
 
             {#if p.purchasable !== false && p.default_variant_price != null}
-              <div class="mt-1 flex items-baseline gap-2">
-                <span class="font-display tabular-nums text-ink-900 text-2xl font-medium">
+              <div class="mt-0 flex items-baseline gap-2">
+                <span class="font-display tabular-nums text-ink-900 text-xl font-medium">
                   {formatHKD(p.default_variant_price)}
                 </span>
                 {#if hasDiscount(p)}
@@ -116,7 +117,7 @@
               type="button"
               onclick={() => addOne(p)}
               disabled={!enabled || adding[p.id]}
-              class="mt-2 self-start h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
+              class="mt-0 self-start h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
                      {!enabled
                        ? 'bg-ink-300 cursor-not-allowed'
                        : added[p.id]

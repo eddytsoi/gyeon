@@ -92,7 +92,7 @@
         {#each items as p (p.id)}
           {@const enabled = canAdd(p)}
           <li class="flex flex-col">
-            <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} align="center" priceSize="lg" />
+            <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} align="center" priceSize="lg" withVariantSuffix />
             <button
               type="button"
               onclick={() => addOne(p)}

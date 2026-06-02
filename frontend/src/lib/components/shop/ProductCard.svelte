@@ -2,6 +2,7 @@
   import type { Product, ProductImage, Variant } from '$lib/types';
   import { isVideo, isStreamingVideo } from '$lib/media';
   import { formatHKD } from '$lib/money';
+  import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
@@ -19,7 +20,8 @@
     loading = 'lazy',
     fetchpriority = 'auto',
     align = 'center',
-    priceSize = 'default'
+    priceSize = 'default',
+    withVariantSuffix = false
   }: {
     product: Product;
     image?: ProductImage;
@@ -33,6 +35,9 @@
     // products & category listings, opted into by those routes.
     align?: 'left' | 'center';
     priceSize?: 'default' | 'lg' | 'list';
+    // Append the variant suffix to the name (e.g. "InteriorDetailer 500ML") —
+    // opted into by the up-sells-style cards (UpsellGrid). Off for plain listings.
+    withVariantSuffix?: boolean;
   } = $props();
 
   const hasDiscount = $derived(
@@ -115,7 +120,9 @@
     <!-- Text -->
     <div class="pt-4 flex flex-col gap-1 {align === 'center' ? 'text-center items-center' : ''}">
       <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
-        {product.name}
+        {withVariantSuffix
+          ? productDisplayName(product.name, product.default_variant_name, product.kind)
+          : product.name}
       </h3>
       {#if product.subtitle}
         <p class="font-display text-[0.7438rem] md:text-[0.85rem] font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
