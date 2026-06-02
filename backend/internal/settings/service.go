@@ -84,6 +84,7 @@ var publicSettingKeys = []string{
 	"pdp_show_upsells",                          // storefront PDP toggle: WooCommerce up-sells (alternatives) grid — separate from FBT
 	"pdp_upsells_kicker",                        // storefront PDP override for the up-sells kicker; empty falls back to i18n
 	"pdp_upsells_heading",                       // storefront PDP override for the up-sells heading; empty falls back to i18n
+	"pdp_upsells_layout",                        // storefront PDP: up-sells section style — "normal" (full-width UpsellGrid) or "mini" (right-column horizontal cards)
 	"cart_show_cross_sells",                     // storefront cart toggle: WooCommerce cross-sells (complements) section
 	"cart_cross_sells_kicker",                   // storefront cart override for the cross-sells kicker; empty falls back to i18n
 	"cart_cross_sells_heading",                  // storefront cart override for the cross-sells heading; empty falls back to i18n
