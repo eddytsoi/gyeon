@@ -1091,6 +1091,8 @@
   "admin_product_edit_crosssells_empty": "No cross-sells linked yet.",
   "admin_product_edit_import_error_row": "Row {row}: {message}",
   "admin_product_edit_import_error_more": "… and {n} more",
+  "admin_product_edit_related_simple_badge": "Single",
+  "admin_product_edit_related_csv_hint": "Search to add (pick a variant), or import a name,variant CSV. Single products or bundles.",
 
   "admin_product_edit_media_heading": "Media",
   "admin_product_edit_media_saving_order": "Saving order…",

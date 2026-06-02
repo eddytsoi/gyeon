@@ -197,14 +197,23 @@ type SetPromoBundlesRequest struct {
 	BundleProductIDs []string `json:"bundle_product_ids"`
 }
 
+// RelatedRefInput is one ordered up-sell / cross-sell association from the admin
+// editor: the target product plus an optional pinned variant. VariantID nil means
+// "use the target's default variant at render time" (the importer path), a
+// concrete value pins that variant. Order in the request array is the position.
+type RelatedRefInput struct {
+	ProductID string  `json:"product_id"`
+	VariantID *string `json:"variant_id,omitempty"`
+}
+
 // SetUpsellsRequest / SetCrossSellsRequest wrap the ordered list of target
-// product IDs for the admin up-sell / cross-sell editors.
+// associations for the admin up-sell / cross-sell editors.
 type SetUpsellsRequest struct {
-	UpsellProductIDs []string `json:"upsell_product_ids"`
+	UpsellRefs []RelatedRefInput `json:"upsell_refs"`
 }
 
 type SetCrossSellsRequest struct {
-	CrossSellProductIDs []string `json:"cross_sell_product_ids"`
+	CrossSellRefs []RelatedRefInput `json:"cross_sell_refs"`
 }
 
 type ProductTranslation struct {
@@ -3674,8 +3683,8 @@ func (s *ProductService) Upsells(ctx context.Context, productID, locale string, 
 		return v.([]ProductWithMeta), nil
 	}
 
-	ids, err := s.fbtScanIDs(ctx, `
-		SELECT u.upsell_product_id
+	pins, err := s.scanRelatedPins(ctx, `
+		SELECT u.upsell_product_id::text, u.variant_id
 		FROM product_upsells u
 		JOIN products p ON p.id = u.upsell_product_id
 		WHERE u.product_id = $1
@@ -3691,7 +3700,7 @@ func (s *ProductService) Upsells(ctx context.Context, productID, locale string, 
 		return nil, err
 	}
 
-	products, err := s.upsellHydrate(ctx, ids, locale)
+	products, err := s.upsellHydratePinned(ctx, pins, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -3738,8 +3747,8 @@ func (s *ProductService) CrossSellsForCart(ctx context.Context, variantIDs []str
 		return empty, nil
 	}
 
-	ids, err := s.fbtScanIDs(ctx, `
-		SELECT cs.cross_sell_product_id::text
+	pins, err := s.scanRelatedPins(ctx, `
+		SELECT cs.cross_sell_product_id::text, cs.variant_id
 		FROM product_cross_sells cs
 		JOIN products p ON p.id = cs.cross_sell_product_id
 		WHERE cs.product_id = ANY($1::uuid[])
@@ -3749,7 +3758,7 @@ func (s *ProductService) CrossSellsForCart(ctx context.Context, variantIDs []str
 		      SELECT 1 FROM product_category_links pcl
 		      WHERE pcl.product_id = p.id AND pcl.category_id = ANY($2::uuid[])
 		  )
-		GROUP BY cs.cross_sell_product_id
+		GROUP BY cs.cross_sell_product_id, cs.variant_id
 		ORDER BY MIN(cs.position) ASC, cs.cross_sell_product_id
 		LIMIT $3`,
 		pq.Array(cartProductIDs), fbtUUIDArray(hiddenIDs), limit)
@@ -3757,7 +3766,7 @@ func (s *ProductService) CrossSellsForCart(ctx context.Context, variantIDs []str
 		return nil, err
 	}
 
-	products, err := s.upsellHydrate(ctx, ids, locale)
+	products, err := s.upsellHydratePinned(ctx, pins, locale)
 	if err != nil {
 		return nil, err
 	}
@@ -3765,26 +3774,158 @@ func (s *ProductService) CrossSellsForCart(ctx context.Context, variantIDs []str
 	return products, nil
 }
 
-// upsellHydrate loads product IDs into ProductWithMeta (in order), stamps
-// Purchasable per the current role, and drops anything the role can't add to
-// cart — shared by Upsells and CrossSellsForCart so both apply the same gate as
-// FBT.
-func (s *ProductService) upsellHydrate(ctx context.Context, ids []string, locale string) ([]ProductWithMeta, error) {
-	if len(ids) == 0 {
+// relatedPin is one ordered storefront up-sell / cross-sell entry: the target
+// product plus its stored variant pin (nil = render the default variant).
+type relatedPin struct {
+	ProductID string
+	VariantID *string
+}
+
+// scanRelatedPins runs a SELECT (product_id, variant_id) query and returns the
+// rows in order. Pin-aware counterpart to fbtScanIDs.
+func (s *ProductService) scanRelatedPins(ctx context.Context, query string, args ...any) ([]relatedPin, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	pins := make([]relatedPin, 0, 16)
+	for rows.Next() {
+		var p relatedPin
+		if err := rows.Scan(&p.ProductID, &p.VariantID); err != nil {
+			return nil, err
+		}
+		pins = append(pins, p)
+	}
+	return pins, rows.Err()
+}
+
+// variantOverride is the per-pin variant display data (price/stock/name/image)
+// used to override a hydrated product's default-variant fields on the storefront.
+type variantOverride struct {
+	ID             string
+	Price          *float64
+	CompareAtPrice *float64
+	StockQty       *int
+	Name           *string
+	ImageURL       *string
+}
+
+// loadVariantOverrides batch-loads display data for the given (active) variant
+// IDs. Inactive / deleted variants are simply absent from the result, so callers
+// fall back to the product's default variant.
+func (s *ProductService) loadVariantOverrides(ctx context.Context, variantIDs []string) (map[string]variantOverride, error) {
+	out := make(map[string]variantOverride, len(variantIDs))
+	if len(variantIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name,
+		       (SELECT COALESCE(
+		            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+		            mf.webp_url, mf.url, pi.url)
+		        FROM product_images pi
+		        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+		        WHERE pi.variant_id = pv.id
+		        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+		        LIMIT 1) AS image_url
+		FROM product_variants pv
+		WHERE pv.id = ANY($1::uuid[]) AND pv.is_active = TRUE`, pq.Array(variantIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ov variantOverride
+		var price float64
+		var compare sql.NullFloat64
+		var stock int
+		var name, img sql.NullString
+		if err := rows.Scan(&ov.ID, &price, &compare, &stock, &name, &img); err != nil {
+			return nil, err
+		}
+		ov.Price = &price
+		if compare.Valid {
+			c := compare.Float64
+			ov.CompareAtPrice = &c
+		}
+		ov.StockQty = &stock
+		if name.Valid {
+			n := name.String
+			ov.Name = &n
+		}
+		if img.Valid {
+			i := img.String
+			ov.ImageURL = &i
+		}
+		out[ov.ID] = ov
+	}
+	return out, rows.Err()
+}
+
+// upsellHydratePinned loads the pinned up-sell / cross-sell entries into
+// ProductWithMeta (in order), overriding the default-variant fields with each
+// pin's variant when one is set, stamps Purchasable per the current role, and
+// drops anything the role can't add to cart. Shared by Upsells and
+// CrossSellsForCart. The same product may appear more than once (different pins),
+// so purchasability is computed on the distinct products and applied by id.
+func (s *ProductService) upsellHydratePinned(ctx context.Context, pins []relatedPin, locale string) ([]ProductWithMeta, error) {
+	if len(pins) == 0 {
 		return []ProductWithMeta{}, nil
+	}
+	// Distinct product ids (first-seen order) + distinct non-nil variant ids.
+	seenID := make(map[string]struct{}, len(pins))
+	ids := make([]string, 0, len(pins))
+	seenVID := make(map[string]struct{}, len(pins))
+	vids := make([]string, 0, len(pins))
+	for _, p := range pins {
+		if _, ok := seenID[p.ProductID]; !ok {
+			seenID[p.ProductID] = struct{}{}
+			ids = append(ids, p.ProductID)
+		}
+		if p.VariantID != nil && *p.VariantID != "" {
+			if _, ok := seenVID[*p.VariantID]; !ok {
+				seenVID[*p.VariantID] = struct{}{}
+				vids = append(vids, *p.VariantID)
+			}
+		}
 	}
 	products, err := s.fbtLoadProductsByIDs(ctx, ids, locale)
 	if err != nil {
 		return nil, err
 	}
 	s.annotatePurchasableMeta(ctx, products)
-	kept := make([]ProductWithMeta, 0, len(products))
-	for _, p := range products {
-		if p.Purchasable {
-			kept = append(kept, p)
-		}
+	byID := make(map[string]ProductWithMeta, len(products))
+	for _, pm := range products {
+		byID[pm.ID] = pm
 	}
-	return kept, nil
+	overrides, err := s.loadVariantOverrides(ctx, vids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ProductWithMeta, 0, len(pins))
+	for _, pin := range pins {
+		pm, ok := byID[pin.ProductID]
+		if !ok || !pm.Purchasable {
+			continue
+		}
+		if pin.VariantID != nil && *pin.VariantID != "" {
+			if ov, ok := overrides[*pin.VariantID]; ok {
+				id := ov.ID
+				pm.DefaultVariantID = &id
+				pm.DefaultVariantPrice = ov.Price
+				pm.DefaultVariantCompareAtPrice = ov.CompareAtPrice
+				pm.DefaultVariantStockQty = ov.StockQty
+				pm.DefaultVariantName = ov.Name
+				if ov.ImageURL != nil {
+					pm.PrimaryImageURL = ov.ImageURL
+				}
+			}
+			// override absent (variant inactive/deleted) → keep product default
+		}
+		out = append(out, pm)
+	}
+	return out, nil
 }
 
 // ReplaceUpsells atomically replaces the up-sell list for a parent product with
@@ -3792,22 +3933,35 @@ func (s *ProductService) upsellHydrate(ctx context.Context, ids []string, locale
 // reconcile pass; idempotent across re-imports. Unlike the admin promo-bundle
 // setter it records no audit entry (bulk import would flood the audit log) and
 // performs no per-target validation — the importer only passes IDs it already
-// resolved via GetIDByWCProductID.
+// resolved via GetIDByWCProductID. The importer never pins a variant, so every
+// ref is stored with variant_id NULL (default-variant-at-render-time).
 func (s *ProductService) ReplaceUpsells(ctx context.Context, productID string, upsellProductIDs []string) error {
-	return s.replaceProductRelations(ctx, "product_upsells", "upsell_product_id", productID, upsellProductIDs, upsellCachePrefix)
+	return s.replaceProductRelations(ctx, "product_upsells", "upsell_product_id", productID, productRefsFromIDs(upsellProductIDs), upsellCachePrefix)
 }
 
 // ReplaceCrossSells is the cross-sell counterpart to ReplaceUpsells.
 func (s *ProductService) ReplaceCrossSells(ctx context.Context, productID string, crossSellProductIDs []string) error {
-	return s.replaceProductRelations(ctx, "product_cross_sells", "cross_sell_product_id", productID, crossSellProductIDs, crossSellCachePrefix)
+	return s.replaceProductRelations(ctx, "product_cross_sells", "cross_sell_product_id", productID, productRefsFromIDs(crossSellProductIDs), crossSellCachePrefix)
+}
+
+// productRefsFromIDs wraps a list of target product IDs as variant-less refs
+// (variant_id NULL) for the importer / any product-only caller.
+func productRefsFromIDs(ids []string) []RelatedRefInput {
+	refs := make([]RelatedRefInput, 0, len(ids))
+	for _, id := range ids {
+		refs = append(refs, RelatedRefInput{ProductID: id})
+	}
+	return refs
 }
 
 // replaceProductRelations is the shared delete-by-parent + ordered-insert used
-// by ReplaceUpsells / ReplaceCrossSells. table/col are hardcoded constants (not
-// user input), so the fmt.Sprintf interpolation is safe. Self-references and
-// duplicate targets are tolerated defensively (the CHECK + PK would otherwise
-// reject them).
-func (s *ProductService) replaceProductRelations(ctx context.Context, table, col, productID string, targetIDs []string, cachePrefix string) error {
+// by ReplaceUpsells / ReplaceCrossSells / SetUpsells / SetCrossSells. table/col
+// are hardcoded constants (not user input), so the fmt.Sprintf interpolation is
+// safe. The full set for the parent is deleted first, so there is no insert
+// conflict to resolve; self-references and exact-duplicate (target, variant)
+// pairs are skipped defensively (the partial unique indexes would otherwise
+// reject the latter). A NULL pin and a concrete pin for the same target coexist.
+func (s *ProductService) replaceProductRelations(ctx context.Context, table, col, productID string, refs []RelatedRefInput, cachePrefix string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -3819,14 +3973,22 @@ func (s *ProductService) replaceProductRelations(ctx context.Context, table, col
 		return err
 	}
 	pos := 0
-	for _, tid := range targetIDs {
-		if tid == productID {
+	seen := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		if ref.ProductID == productID {
 			continue
 		}
+		dupKey := ref.ProductID + "|"
+		if ref.VariantID != nil {
+			dupKey += *ref.VariantID
+		}
+		if _, dup := seen[dupKey]; dup {
+			continue
+		}
+		seen[dupKey] = struct{}{}
 		if _, err := tx.ExecContext(ctx,
-			fmt.Sprintf(`INSERT INTO %s (product_id, %s, position) VALUES ($1, $2, $3)
-			             ON CONFLICT (product_id, %s) DO UPDATE SET position = EXCLUDED.position`, table, col, col),
-			productID, tid, pos); err != nil {
+			fmt.Sprintf(`INSERT INTO %s (product_id, %s, variant_id, position) VALUES ($1, $2, $3, $4)`, table, col),
+			productID, ref.ProductID, ref.VariantID, pos); err != nil {
 			return err
 		}
 		pos++
@@ -3875,7 +4037,11 @@ func sanitizeUUIDs(in []string) []string {
 
 // RelatedProductRef is one curated up-sell / cross-sell association, shaped for
 // the admin editor row. ProductID is the *target* (the up-sell or cross-sell
-// product); the parent product is implicit in the query.
+// product); the parent product is implicit in the query. VariantID is the stored
+// pin (NULL = no pin, render the default variant); the Price/StockQty/VariantName
+// fields describe the *effective* variant (pinned-or-default) for display. Kind
+// is the target product's kind ('simple' | 'bundle') so the editor can show a
+// 單品 / 套裝 badge.
 type RelatedProductRef struct {
 	ProductID       string   `json:"product_id"`
 	Position        int      `json:"position"`
@@ -3883,7 +4049,9 @@ type RelatedProductRef struct {
 	Name            string   `json:"name"`
 	Excerpt         *string  `json:"excerpt,omitempty"`
 	Status          string   `json:"status"`
+	Kind            string   `json:"kind"`
 	VariantID       *string  `json:"variant_id,omitempty"`
+	VariantName     *string  `json:"variant_name,omitempty"`
 	Price           *float64 `json:"price,omitempty"`
 	CompareAtPrice  *float64 `json:"compare_at_price,omitempty"`
 	StockQty        *int     `json:"stock_qty,omitempty"`
@@ -3903,22 +4071,26 @@ func (s *ProductService) ListCrossSells(ctx context.Context, productID string) (
 }
 
 // listRelatedRefs is the shared raw-list query for ListUpsells / ListCrossSells.
-// Mirrors ListPromoBundles' join shape (target product + its default active
-// variant via LATERAL + LATERAL primary image), ordered by position. table/col
-// are hardcoded constants so the fmt.Sprintf interpolation is safe. The variant
-// join is LATERAL+LIMIT 1 (not a plain JOIN like promo-bundles) because a
-// target can be a simple product with several active variants — a plain join
-// would emit one row per variant and duplicate the association.
+// Returns the stored variant pin (r.variant_id, NULL when none) plus the
+// *effective* variant for display — the pinned variant when set, otherwise the
+// target's default active variant via the LATERAL. table/col are hardcoded
+// constants so the fmt.Sprintf interpolation is safe. The default-variant join
+// is LATERAL+LIMIT 1 because a simple target can have several active variants —
+// a plain join would emit one row per variant and duplicate the association.
 func (s *ProductService) listRelatedRefs(ctx context.Context, table, col, productID string) ([]RelatedProductRef, error) {
 	query := fmt.Sprintf(`
-		SELECT r.%s, r.position,
-		       p.slug, p.name, p.excerpt, p.status,
-		       defv.id, defv.price, defv.compare_at_price, defv.stock_qty,
+		SELECT r.%s, r.position, r.variant_id,
+		       p.slug, p.name, p.excerpt, p.status, p.kind,
+		       COALESCE(pinv.price, defv.price),
+		       COALESCE(pinv.compare_at_price, defv.compare_at_price),
+		       COALESCE(pinv.stock_qty, defv.stock_qty),
+		       COALESCE(pinv.name, defv.name),
 		       pi.url
 		FROM %s r
 		JOIN products p ON p.id = r.%s
+		LEFT JOIN product_variants pinv ON pinv.id = r.variant_id
 		LEFT JOIN LATERAL (
-		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty, pv.name
 		    FROM product_variants pv
 		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
 		    ORDER BY pv.sort_order ASC, pv.created_at ASC
@@ -3941,9 +4113,9 @@ func (s *ProductService) listRelatedRefs(ctx context.Context, table, col, produc
 	for rows.Next() {
 		var ref RelatedProductRef
 		if err := rows.Scan(
-			&ref.ProductID, &ref.Position,
-			&ref.Slug, &ref.Name, &ref.Excerpt, &ref.Status,
-			&ref.VariantID, &ref.Price, &ref.CompareAtPrice, &ref.StockQty,
+			&ref.ProductID, &ref.Position, &ref.VariantID,
+			&ref.Slug, &ref.Name, &ref.Excerpt, &ref.Status, &ref.Kind,
+			&ref.Price, &ref.CompareAtPrice, &ref.StockQty, &ref.VariantName,
 			&ref.PrimaryImageURL,
 		); err != nil {
 			return nil, err
@@ -3954,40 +4126,53 @@ func (s *ProductService) listRelatedRefs(ctx context.Context, table, col, produc
 }
 
 // SetUpsells atomically replaces a product's up-sell associations with the given
-// ordered target IDs (admin editor). Audited. Mirrors SetPromoBundles but allows
-// any product as a target (no kind restriction); it delegates the tx to
-// replaceProductRelations and layers validation + audit on top.
-func (s *ProductService) SetUpsells(ctx context.Context, productID string, upsellProductIDs []string) ([]RelatedProductRef, error) {
+// ordered refs (admin editor). Audited. Mirrors SetPromoBundles but allows any
+// product as a target (no kind restriction) and an optional per-ref variant pin;
+// it delegates the tx to replaceProductRelations and layers validation + audit
+// on top.
+func (s *ProductService) SetUpsells(ctx context.Context, productID string, refs []RelatedRefInput) ([]RelatedProductRef, error) {
 	return s.setRelatedRefs(ctx, "product_upsells", "upsell_product_id", upsellCachePrefix,
-		"product.upsells.set", "product_upsells", productID, upsellProductIDs, s.ListUpsells)
+		"product.upsells.set", "product_upsells", productID, refs, s.ListUpsells)
 }
 
 // SetCrossSells is the cross-sell counterpart to SetUpsells.
-func (s *ProductService) SetCrossSells(ctx context.Context, productID string, crossSellProductIDs []string) ([]RelatedProductRef, error) {
+func (s *ProductService) SetCrossSells(ctx context.Context, productID string, refs []RelatedRefInput) ([]RelatedProductRef, error) {
 	return s.setRelatedRefs(ctx, "product_cross_sells", "cross_sell_product_id", crossSellCachePrefix,
-		"product.cross_sells.set", "product_cross_sells", productID, crossSellProductIDs, s.ListCrossSells)
+		"product.cross_sells.set", "product_cross_sells", productID, refs, s.ListCrossSells)
 }
 
 // setRelatedRefs is the shared validate + audited-replace used by SetUpsells /
-// SetCrossSells. lister is the matching List* used for the before/after audit
-// snapshots and the returned result.
+// SetCrossSells. Validates each target exists, is not the parent, and — when a
+// variant is pinned — that the variant belongs to that target product. lister is
+// the matching List* used for the before/after audit snapshots and the result.
 func (s *ProductService) setRelatedRefs(
 	ctx context.Context,
 	table, col, cachePrefix, action, entityType, productID string,
-	targetIDs []string,
+	refs []RelatedRefInput,
 	lister func(context.Context, string) ([]RelatedProductRef, error),
 ) ([]RelatedProductRef, error) {
-	for _, tid := range targetIDs {
-		if tid == productID {
-			return nil, fmt.Errorf("a product cannot reference itself: %s", tid)
+	for _, ref := range refs {
+		if ref.ProductID == productID {
+			return nil, fmt.Errorf("a product cannot reference itself: %s", ref.ProductID)
 		}
 		var exists bool
 		if err := s.db.QueryRowContext(ctx,
-			`SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)`, tid).Scan(&exists); err != nil {
+			`SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)`, ref.ProductID).Scan(&exists); err != nil {
 			return nil, err
 		}
 		if !exists {
-			return nil, fmt.Errorf("product %s not found", tid)
+			return nil, fmt.Errorf("product %s not found", ref.ProductID)
+		}
+		if ref.VariantID != nil && *ref.VariantID != "" {
+			var ok bool
+			if err := s.db.QueryRowContext(ctx,
+				`SELECT EXISTS(SELECT 1 FROM product_variants WHERE id = $1 AND product_id = $2)`,
+				*ref.VariantID, ref.ProductID).Scan(&ok); err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, fmt.Errorf("variant %s does not belong to product %s", *ref.VariantID, ref.ProductID)
+			}
 		}
 	}
 
@@ -3995,7 +4180,7 @@ func (s *ProductService) setRelatedRefs(
 	if s.audit != nil {
 		before, _ = lister(ctx, productID)
 	}
-	if err := s.replaceProductRelations(ctx, table, col, productID, targetIDs, cachePrefix); err != nil {
+	if err := s.replaceProductRelations(ctx, table, col, productID, refs, cachePrefix); err != nil {
 		return nil, err
 	}
 	after, err := lister(ctx, productID)

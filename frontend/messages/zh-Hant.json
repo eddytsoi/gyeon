@@ -1091,6 +1091,8 @@
   "admin_product_edit_crosssells_empty": "尚未連結任何 cross-sell。",
   "admin_product_edit_import_error_row": "第 {row} 行：{message}",
   "admin_product_edit_import_error_more": "… 還有 {n} 行",
+  "admin_product_edit_related_simple_badge": "單品",
+  "admin_product_edit_related_csv_hint": "搜尋新增（可選規格），或匯入 name,variant CSV。可揀單品或套裝。",
 
   "admin_product_edit_media_heading": "媒體",
   "admin_product_edit_media_saving_order": "儲存順序中…",

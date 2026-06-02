@@ -1,25 +1,28 @@
 <script lang="ts">
   /*
-   * Admin editor for a product's WooCommerce up-sells OR cross-sells — a
-   * product-to-product picker with search, single-column CSV import, and
-   * drag-reorder. Mirrors the 優惠套裝 (promo-bundles) editor on the product
-   * edit page, generalised so both relation types reuse one component.
+   * Admin editor for a product's WooCommerce up-sells OR cross-sells. Mirrors
+   * the 套裝內容 (bundle contents) editor: a ProductPicker with variant pills,
+   * a `name,variant` CSV importer, and drag-reorder — but each entry may be a
+   * 單品 (simple) OR a 套裝 (bundle) product, and pins a specific variant.
    *
-   * The selected target IDs are emitted as a comma-separated hidden input
+   * The selected (product, variant) refs are emitted as a JSON hidden input
    * (name={hiddenName}) so the parent <form>'s ?/saveProduct action persists
-   * them via adminSetUpsells / adminSetCrossSells. Any product is a valid
-   * target (no kind filter), so the search box is unfiltered.
+   * them via adminSetUpsells / adminSetCrossSells. The same product may appear
+   * more than once with different variants; only a self-reference (the product
+   * being edited) is excluded from the picker.
    */
   import type { RelatedProductRef } from '$lib/types';
-  import { adminGetVariants, adminGetImages, adminResolveProductRefsCSV } from '$lib/api/admin';
-  import ProductSearchSelect from '$lib/components/admin/ProductSearchSelect.svelte';
+  import { adminResolveProductRefsCSV } from '$lib/api/admin';
+  import type { ProductRefCSVResolveItem } from '$lib/api/admin';
+  import ProductPicker from '$lib/components/admin/ProductPicker.svelte';
+  import type { ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { sortable } from '$lib/actions/sortable';
   import { notify } from '$lib/stores/notifications.svelte';
   import * as m from '$lib/paraglide/messages';
 
   const TINY_THUMB_WIDTHS = [160];
-  const TINY_THUMB_SIZES = '32px';
+  const TINY_THUMB_SIZES = '40px';
 
   let {
     token,
@@ -30,7 +33,6 @@
     heading,
     subtitle,
     addHeading,
-    searchPlaceholder,
     emptyText
   }: {
     token: string;
@@ -44,83 +46,99 @@
     heading: string;
     subtitle: string;
     addHeading: string;
-    searchPlaceholder: string;
     emptyText: string;
   } = $props();
 
-  type EditableRef = RelatedProductRef & { _localId: string };
-  let refs = $state<EditableRef[]>((items ?? []).map((r) => ({ ...r, _localId: r.product_id })));
-  // Re-seed from the freshly-saved server state after a reload (invalidateAll).
-  $effect(() => {
-    refs = (items ?? []).map((r) => ({ ...r, _localId: r.product_id }));
-  });
-
-  const idsCsv = $derived(refs.map((r) => r.product_id).join(','));
-  // Hide from the search box: targets already added + the product itself.
-  const excludedIds = $derived(
-    [productId, ...refs.map((r) => r.product_id)].filter((x): x is string => !!x)
-  );
-
-  // A product to add — either an AdminProductRow (search pick) or a CSV-resolved
-  // row (id/name/slug/status). Variant + image are hydrated on the fly because
-  // the admin product list omits them.
-  type Candidate = {
-    id: string;
+  type EditableRef = {
+    _localId: string;
+    product_id: string;
+    variant_id: string | null;
+    kind: string;
     name: string;
     slug: string;
-    status: string;
-    default_variant_id?: string | null;
-    default_variant_price?: number | null;
-    default_variant_compare_at_price?: number | null;
-    default_variant_stock_qty?: number | null;
+    variant_name?: string | null;
+    price?: number | null;
+    compare_at_price?: number | null;
+    stock_qty?: number | null;
     primary_image_url?: string | null;
   };
 
-  async function addCandidate(candidate: Candidate): Promise<boolean> {
-    if (candidate.id === productId) return false;
-    if (refs.some((r) => r.product_id === candidate.id)) return false;
+  // A stable per-row key. Uniqueness is at the (product, variant) level, so this
+  // is unique even when the same product appears twice with different variants.
+  const localId = (productID: string, variantID: string | null) =>
+    `${productID}:${variantID ?? ''}`;
 
-    let variantId: string | null = candidate.default_variant_id ?? null;
-    let price: number | null = candidate.default_variant_price ?? null;
-    let compareAt: number | null = candidate.default_variant_compare_at_price ?? null;
-    let stockQty: number | null = candidate.default_variant_stock_qty ?? null;
-    let imageUrl: string | null = candidate.primary_image_url ?? null;
+  function seed(rows: RelatedProductRef[]): EditableRef[] {
+    return (rows ?? []).map((r) => ({
+      _localId: localId(r.product_id, r.variant_id ?? null),
+      product_id: r.product_id,
+      variant_id: r.variant_id ?? null,
+      kind: r.kind,
+      name: r.name,
+      slug: r.slug,
+      variant_name: r.variant_name,
+      price: r.price,
+      compare_at_price: r.compare_at_price,
+      stock_qty: r.stock_qty,
+      primary_image_url: r.primary_image_url
+    }));
+  }
 
-    if (token) {
-      try {
-        const [variants, images] = await Promise.all([
-          adminGetVariants(token, candidate.id).catch(() => []),
-          adminGetImages(token, candidate.id).catch(() => [])
-        ]);
-        const dv = variants[0];
-        if (dv) {
-          variantId = dv.id;
-          price = dv.price;
-          compareAt = dv.compare_at_price ?? null;
-          stockQty = dv.stock_qty;
-        }
-        const primary = images.find((img) => img.is_primary) ?? images[0];
-        if (primary?.url) imageUrl = primary.url;
-      } catch { /* non-fatal — keep candidate fallbacks */ }
+  let refs = $state<EditableRef[]>(seed(items));
+  // Re-seed from the freshly-saved server state after a reload (invalidateAll).
+  $effect(() => {
+    refs = seed(items);
+  });
+
+  const refsJson = $derived(
+    JSON.stringify(refs.map((r) => ({ product_id: r.product_id, variant_id: r.variant_id })))
+  );
+
+  // Add a resolved row; rejects an exact (product, variant) duplicate.
+  function addRow(row: Omit<EditableRef, '_localId'>): boolean {
+    const lid = localId(row.product_id, row.variant_id);
+    if (refs.some((r) => r._localId === lid)) {
+      notify.warning(
+        m.admin_product_edit_bundle_duplicate_title(),
+        m.admin_product_edit_bundle_duplicate_body({ sku: row.variant_name || row.name })
+      );
+      return false;
     }
-
-    refs = [...refs, {
-      _localId: crypto.randomUUID(),
-      product_id: candidate.id,
-      position: refs.length,
-      slug: candidate.slug,
-      name: candidate.name,
-      status: candidate.status,
-      variant_id: variantId,
-      price,
-      compare_at_price: compareAt,
-      stock_qty: stockQty,
-      primary_image_url: imageUrl
-    }];
+    refs = [...refs, { _localId: lid, ...row }];
     return true;
   }
 
-  // CSV import (one product name or slug per row)
+  function addFromPicker(p: ProductPickerAddPayload) {
+    addRow({
+      product_id: p.variant.product_id,
+      variant_id: p.variant.id,
+      kind: p.productKind,
+      name: p.productName,
+      slug: p.productSlug,
+      variant_name: p.productKind === 'bundle' ? null : (p.variant.name ?? null),
+      price: p.variant.price,
+      compare_at_price: p.variant.compare_at_price ?? null,
+      stock_qty: p.variant.stock_qty,
+      primary_image_url: p.variant.image_url ?? p.primaryImageUrl ?? null
+    });
+  }
+
+  function addFromCSV(it: ProductRefCSVResolveItem): boolean {
+    return addRow({
+      product_id: it.product_id,
+      variant_id: it.variant_id,
+      kind: it.kind,
+      name: it.name,
+      slug: it.slug,
+      variant_name: it.kind === 'bundle' ? null : (it.variant_name ?? null),
+      price: it.price,
+      compare_at_price: it.compare_at_price,
+      stock_qty: it.stock_qty,
+      primary_image_url: it.primary_image_url
+    });
+  }
+
+  // CSV import (name,variant per row)
   let csvInputEl = $state<HTMLInputElement | null>(null);
   let importing = $state(false);
   let importErrors = $state<{ row: number; message: string }[] | undefined>(undefined);
@@ -138,7 +156,7 @@
       const result = await adminResolveProductRefsCSV(token, file);
       importErrors = result.errors;
       let added = 0;
-      for (const it of result.items) { if (await addCandidate(it)) added++; }
+      for (const it of result.items) { if (addFromCSV(it)) added++; }
       if (added > 0) {
         if (result.skipped > 0) {
           notify.error(m.admin_order_create_items_import_partial({ ok: String(added), skip: String(result.skipped) }));
@@ -156,8 +174,8 @@
     }
   }
 
-  function removeRef(localId: string) {
-    refs = refs.filter((r) => r._localId !== localId);
+  function removeRef(localIdValue: string) {
+    refs = refs.filter((r) => r._localId !== localIdValue);
   }
 
   function onReorder(orderedIds: string[]) {
@@ -176,9 +194,12 @@
 
   <div class="px-6 py-4 border-b border-gray-100">
     <div class="flex items-center justify-between mb-2">
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{addHeading}</span>
+      <div class="min-w-0">
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{addHeading}</span>
+        <p class="text-[11px] text-gray-400 mt-0.5">{m.admin_product_edit_related_csv_hint()}</p>
+      </div>
       <button type="button" onclick={openCSVPicker} disabled={importing}
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex-shrink-0">
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
@@ -199,9 +220,9 @@
         </ul>
       </div>
     {/if}
-    <ProductSearchSelect {token} excludeIds={excludedIds}
-                         onSelect={addCandidate}
-                         placeholder={searchPlaceholder} />
+    <ProductPicker {token} mode="variant-only" kind="" showQuantity={false}
+                   excludeProductIds={[productId]}
+                   onAdd={addFromPicker} />
   </div>
 
   {#if refs.length === 0}
@@ -227,8 +248,24 @@
             <div class="w-10 h-10 rounded bg-gray-100"></div>
           {/if}
           <div class="flex-1 min-w-0">
-            <div class="text-sm text-gray-900 truncate">{r.name}</div>
-            <div class="text-xs text-gray-400 font-mono">{r.slug}</div>
+            <div class="text-sm text-gray-900 truncate flex items-center gap-2">
+              <span class="truncate">{r.name}</span>
+              {#if r.kind === 'bundle'}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 flex-shrink-0">
+                  {m.admin_order_create_items_bundle_badge()}
+                </span>
+              {:else}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 flex-shrink-0">
+                  {m.admin_product_edit_related_simple_badge()}
+                </span>
+              {/if}
+              {#if r.kind !== 'bundle' && r.variant_name}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-900 text-white flex-shrink-0">
+                  {r.variant_name}
+                </span>
+              {/if}
+            </div>
+            <div class="text-xs text-gray-400 font-mono truncate">{r.slug}</div>
           </div>
           {#if r.price != null}
             <div class="text-sm text-gray-900 whitespace-nowrap">
@@ -247,5 +284,5 @@
     </ul>
   {/if}
 
-  <input type="hidden" form={formId} name={hiddenName} value={idsCsv} />
+  <input type="hidden" form={formId} name={hiddenName} value={refsJson} />
 </section>

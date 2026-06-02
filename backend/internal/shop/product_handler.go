@@ -595,7 +595,7 @@ func (h *ProductHandler) setUpsells(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "invalid request body")
 		return
 	}
-	items, err := h.svc.SetUpsells(r.Context(), id, req.UpsellProductIDs)
+	items, err := h.svc.SetUpsells(r.Context(), id, req.UpsellRefs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respond.NotFound(w)
@@ -624,7 +624,7 @@ func (h *ProductHandler) setCrossSells(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "invalid request body")
 		return
 	}
-	items, err := h.svc.SetCrossSells(r.Context(), id, req.CrossSellProductIDs)
+	items, err := h.svc.SetCrossSells(r.Context(), id, req.CrossSellRefs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respond.NotFound(w)

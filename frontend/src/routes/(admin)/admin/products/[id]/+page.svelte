@@ -1384,24 +1384,22 @@
     token={data.token}
     productId={data.product?.id ?? ''}
     items={data.upsells ?? []}
-    hiddenName="upsell_product_ids"
+    hiddenName="upsell_refs_json"
     formId="product-form"
     heading={m.admin_product_edit_upsells_heading()}
     subtitle={m.admin_product_edit_upsells_subtitle()}
     addHeading={m.admin_product_edit_upsells_add_heading()}
-    searchPlaceholder={m.admin_product_edit_upsells_search_placeholder()}
     emptyText={m.admin_product_edit_upsells_empty()}
   />
   <RelatedProductsEditor
     token={data.token}
     productId={data.product?.id ?? ''}
     items={data.crossSells ?? []}
-    hiddenName="cross_sell_product_ids"
+    hiddenName="cross_sell_refs_json"
     formId="product-form"
     heading={m.admin_product_edit_crosssells_heading()}
     subtitle={m.admin_product_edit_crosssells_subtitle()}
     addHeading={m.admin_product_edit_crosssells_add_heading()}
-    searchPlaceholder={m.admin_product_edit_crosssells_search_placeholder()}
     emptyText={m.admin_product_edit_crosssells_empty()}
   />
 

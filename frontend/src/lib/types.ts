@@ -131,11 +131,24 @@ export interface RelatedProductRef {
   name: string;
   excerpt?: string | null;
   status: string;
+  // Target product kind ('simple' | 'bundle') — drives the 單品 / 套裝 row badge.
+  kind: string;
+  // The stored variant pin (null = no pin, render the default variant). The
+  // price/stock/variant_name fields describe the effective (pinned-or-default)
+  // variant for display.
   variant_id?: string | null;
+  variant_name?: string | null;
   price?: number | null;
   compare_at_price?: number | null;
   stock_qty?: number | null;
   primary_image_url?: string | null;
+}
+
+// RelatedRefInput is the per-association payload the admin up-sell / cross-sell
+// editors send on save: the target product plus an optional pinned variant.
+export interface RelatedRefInput {
+  product_id: string;
+  variant_id?: string | null;
 }
 
 export interface Variant {

@@ -7,6 +7,7 @@
   export type ProductPickerAddPayload = {
     variant: Variant;
     productName: string;
+    productSlug: string;
     productKind: 'simple' | 'bundle' | string;
     primaryImageUrl?: string | null;
     quantity: number;
@@ -21,11 +22,17 @@
   // kind (optional) restricts the search to products of that kind ('simple' |
   // 'bundle'); empty searches all. Used by the product-detail bundle-contents
   // picker to surface only simple products as components.
-  let { token, onAdd, mode = 'order', kind = '' }: {
+  // showQuantity (default true) toggles the qty stepper — the up-sell /
+  // cross-sell editors set it false (associations have no quantity).
+  // excludeProductIds drops those products from the search results (e.g. the
+  // product being edited, to prevent a self-reference).
+  let { token, onAdd, mode = 'order', kind = '', showQuantity = true, excludeProductIds = [] }: {
     token: string;
     onAdd: (payload: ProductPickerAddPayload) => void;
     mode?: 'order' | 'variant-only';
     kind?: string;
+    showQuantity?: boolean;
+    excludeProductIds?: string[];
   } = $props();
 
   let query = $state('');
@@ -54,7 +61,7 @@
       searching = true;
       try {
         const res = await adminGetProducts(token, 8, 0, trimmed, '', kind);
-        results = res.items ?? [];
+        results = (res.items ?? []).filter((p) => !excludeProductIds.includes(p.id));
       } catch {
         results = [];
       } finally {
@@ -119,6 +126,7 @@
     onAdd({
       variant,
       productName: selectedProduct.name,
+      productSlug: selectedProduct.slug,
       productKind: selectedProduct.kind ?? 'simple',
       primaryImageUrl: variant.image_url ?? selectedProduct.primary_image_url ?? null,
       quantity: qty,
@@ -307,16 +315,18 @@
 
       <!-- Qty + Add -->
       <div class="flex items-center gap-3">
-        <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-          <button type="button" onclick={decQty}
-                  class="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
-                  aria-label="decrease">−</button>
-          <input type="number" min="1" value={qty} oninput={onQtyInput}
-                 class="w-12 text-center text-sm py-1.5 focus:outline-none" />
-          <button type="button" onclick={incQty}
-                  class="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
-                  aria-label="increase">+</button>
-        </div>
+        {#if showQuantity}
+          <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+            <button type="button" onclick={decQty}
+                    class="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+                    aria-label="decrease">−</button>
+            <input type="number" min="1" value={qty} oninput={onQtyInput}
+                   class="w-12 text-center text-sm py-1.5 focus:outline-none" />
+            <button type="button" onclick={incQty}
+                    class="px-2.5 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+                    aria-label="increase">+</button>
+          </div>
+        {/if}
         <button type="button" onclick={handleAdd}
                 disabled={!selectedVariantId}
                 class="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium

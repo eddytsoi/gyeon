@@ -19,10 +19,24 @@ import (
 // imports. Both the stock-mutation and admin-order importers expect this.
 const ExpectedImportHeader = "name,variant,quantity"
 
+// ExpectedRefImportHeader is the canonical CSV header for the up-sell /
+// cross-sell importer \u2014 name + variant, no quantity (associations, not lines).
+const ExpectedRefImportHeader = "name,variant"
+
 // ValidateHeader normalises the first CSV row (BOM strip, trim, lowercase,
 // trailing whitespace tolerance) and returns an error when it does not
 // match ExpectedImportHeader.
 func ValidateHeader(header []string) error {
+	return validateHeaderEquals(header, ExpectedImportHeader)
+}
+
+// ValidateRefHeader is the ValidateHeader counterpart for the name,variant
+// up-sell / cross-sell importer.
+func ValidateRefHeader(header []string) error {
+	return validateHeaderEquals(header, ExpectedRefImportHeader)
+}
+
+func validateHeaderEquals(header []string, expected string) error {
 	if len(header) > 0 {
 		header[0] = strings.TrimPrefix(header[0], "\ufeff")
 	}
@@ -31,8 +45,8 @@ func ValidateHeader(header []string) error {
 	for i := range parts {
 		parts[i] = strings.TrimSpace(parts[i])
 	}
-	if strings.Join(parts, ",") != ExpectedImportHeader {
-		return errors.New("expected header: " + ExpectedImportHeader)
+	if strings.Join(parts, ",") != expected {
+		return errors.New("expected header: " + expected)
 	}
 	return nil
 }
