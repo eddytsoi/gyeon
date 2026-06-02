@@ -197,6 +197,16 @@ type SetPromoBundlesRequest struct {
 	BundleProductIDs []string `json:"bundle_product_ids"`
 }
 
+// SetUpsellsRequest / SetCrossSellsRequest wrap the ordered list of target
+// product IDs for the admin up-sell / cross-sell editors.
+type SetUpsellsRequest struct {
+	UpsellProductIDs []string `json:"upsell_product_ids"`
+}
+
+type SetCrossSellsRequest struct {
+	CrossSellProductIDs []string `json:"cross_sell_product_ids"`
+}
+
 type ProductTranslation struct {
 	Locale      string  `json:"locale"`
 	Name        string  `json:"name"`
@@ -3849,4 +3859,149 @@ func sanitizeUUIDs(in []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// =====================================================================
+// Admin manual editing of up-sells / cross-sells.
+//
+// The storefront getters (Upsells / CrossSellsForCart) return role-filtered,
+// purchasability-gated ProductWithMeta. The admin product-edit page instead
+// needs the RAW curated list — every association, in position order, with
+// enough product detail to render the editor row. These mirror ListPromoBundles
+// / SetPromoBundles, but the join tables have a composite PK (no surrogate id)
+// and any product may be a target (no kind restriction). Writes are audited;
+// the importer keeps using the audit-free Replace* path above.
+// =====================================================================
+
+// RelatedProductRef is one curated up-sell / cross-sell association, shaped for
+// the admin editor row. ProductID is the *target* (the up-sell or cross-sell
+// product); the parent product is implicit in the query.
+type RelatedProductRef struct {
+	ProductID       string   `json:"product_id"`
+	Position        int      `json:"position"`
+	Slug            string   `json:"slug"`
+	Name            string   `json:"name"`
+	Excerpt         *string  `json:"excerpt,omitempty"`
+	Status          string   `json:"status"`
+	VariantID       *string  `json:"variant_id,omitempty"`
+	Price           *float64 `json:"price,omitempty"`
+	CompareAtPrice  *float64 `json:"compare_at_price,omitempty"`
+	StockQty        *int     `json:"stock_qty,omitempty"`
+	PrimaryImageURL *string  `json:"primary_image_url,omitempty"`
+}
+
+// ListUpsells returns the raw curated up-sell associations for a product in
+// position order (admin editor). Unlike the storefront Upsells() it does no
+// role filtering and no cap.
+func (s *ProductService) ListUpsells(ctx context.Context, productID string) ([]RelatedProductRef, error) {
+	return s.listRelatedRefs(ctx, "product_upsells", "upsell_product_id", productID)
+}
+
+// ListCrossSells is the cross-sell counterpart to ListUpsells.
+func (s *ProductService) ListCrossSells(ctx context.Context, productID string) ([]RelatedProductRef, error) {
+	return s.listRelatedRefs(ctx, "product_cross_sells", "cross_sell_product_id", productID)
+}
+
+// listRelatedRefs is the shared raw-list query for ListUpsells / ListCrossSells.
+// Mirrors ListPromoBundles' join shape (target product + its default active
+// variant via LATERAL + LATERAL primary image), ordered by position. table/col
+// are hardcoded constants so the fmt.Sprintf interpolation is safe. The variant
+// join is LATERAL+LIMIT 1 (not a plain JOIN like promo-bundles) because a
+// target can be a simple product with several active variants — a plain join
+// would emit one row per variant and duplicate the association.
+func (s *ProductService) listRelatedRefs(ctx context.Context, table, col, productID string) ([]RelatedProductRef, error) {
+	query := fmt.Sprintf(`
+		SELECT r.%s, r.position,
+		       p.slug, p.name, p.excerpt, p.status,
+		       defv.id, defv.price, defv.compare_at_price, defv.stock_qty,
+		       pi.url
+		FROM %s r
+		JOIN products p ON p.id = r.%s
+		LEFT JOIN LATERAL (
+		    SELECT pv.id, pv.price, pv.compare_at_price, pv.stock_qty
+		    FROM product_variants pv
+		    WHERE pv.product_id = p.id AND pv.is_active = TRUE
+		    ORDER BY pv.sort_order ASC, pv.created_at ASC
+		    LIMIT 1
+		) defv ON TRUE
+		LEFT JOIN LATERAL (
+		    SELECT url FROM product_images
+		    WHERE product_id = p.id
+		    ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+		    LIMIT 1
+		) pi ON TRUE
+		WHERE r.product_id = $1
+		ORDER BY r.position ASC`, col, table, col)
+	rows, err := s.db.QueryContext(ctx, query, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]RelatedProductRef, 0)
+	for rows.Next() {
+		var ref RelatedProductRef
+		if err := rows.Scan(
+			&ref.ProductID, &ref.Position,
+			&ref.Slug, &ref.Name, &ref.Excerpt, &ref.Status,
+			&ref.VariantID, &ref.Price, &ref.CompareAtPrice, &ref.StockQty,
+			&ref.PrimaryImageURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, ref)
+	}
+	return items, rows.Err()
+}
+
+// SetUpsells atomically replaces a product's up-sell associations with the given
+// ordered target IDs (admin editor). Audited. Mirrors SetPromoBundles but allows
+// any product as a target (no kind restriction); it delegates the tx to
+// replaceProductRelations and layers validation + audit on top.
+func (s *ProductService) SetUpsells(ctx context.Context, productID string, upsellProductIDs []string) ([]RelatedProductRef, error) {
+	return s.setRelatedRefs(ctx, "product_upsells", "upsell_product_id", upsellCachePrefix,
+		"product.upsells.set", "product_upsells", productID, upsellProductIDs, s.ListUpsells)
+}
+
+// SetCrossSells is the cross-sell counterpart to SetUpsells.
+func (s *ProductService) SetCrossSells(ctx context.Context, productID string, crossSellProductIDs []string) ([]RelatedProductRef, error) {
+	return s.setRelatedRefs(ctx, "product_cross_sells", "cross_sell_product_id", crossSellCachePrefix,
+		"product.cross_sells.set", "product_cross_sells", productID, crossSellProductIDs, s.ListCrossSells)
+}
+
+// setRelatedRefs is the shared validate + audited-replace used by SetUpsells /
+// SetCrossSells. lister is the matching List* used for the before/after audit
+// snapshots and the returned result.
+func (s *ProductService) setRelatedRefs(
+	ctx context.Context,
+	table, col, cachePrefix, action, entityType, productID string,
+	targetIDs []string,
+	lister func(context.Context, string) ([]RelatedProductRef, error),
+) ([]RelatedProductRef, error) {
+	for _, tid := range targetIDs {
+		if tid == productID {
+			return nil, fmt.Errorf("a product cannot reference itself: %s", tid)
+		}
+		var exists bool
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)`, tid).Scan(&exists); err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, fmt.Errorf("product %s not found", tid)
+		}
+	}
+
+	var before []RelatedProductRef
+	if s.audit != nil {
+		before, _ = lister(ctx, productID)
+	}
+	if err := s.replaceProductRelations(ctx, table, col, productID, targetIDs, cachePrefix); err != nil {
+		return nil, err
+	}
+	after, err := lister(ctx, productID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, action, entityType, productID, before, after)
+	return after, nil
 }

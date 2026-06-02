@@ -120,6 +120,24 @@ export interface PromoBundle {
   purchasable?: boolean;
 }
 
+// RelatedProductRef is one curated up-sell / cross-sell association as returned
+// by the admin getters (ListUpsells / ListCrossSells). `product_id` is the
+// target (the up-sell or cross-sell) product; the parent is implicit. Used by
+// the admin product-edit up-sells / cross-sells editors.
+export interface RelatedProductRef {
+  product_id: string;
+  position: number;
+  slug: string;
+  name: string;
+  excerpt?: string | null;
+  status: string;
+  variant_id?: string | null;
+  price?: number | null;
+  compare_at_price?: number | null;
+  stock_qty?: number | null;
+  primary_image_url?: string | null;
+}
+
 export interface Variant {
   id: string;
   product_id: string;

@@ -5,6 +5,7 @@
   import StockMovementTable from '$lib/components/admin/StockMovementTable.svelte';
   import ProductPicker, { type ProductPickerAddPayload } from '$lib/components/admin/ProductPicker.svelte';
   import ProductSearchSelect from '$lib/components/admin/ProductSearchSelect.svelte';
+  import RelatedProductsEditor from '$lib/components/admin/RelatedProductsEditor.svelte';
   import type { PageData } from './$types';
   import type { BundleItem, Product, PromoBundle } from '$lib/types';
   import { showResult, notify } from '$lib/stores/notifications.svelte';
@@ -1377,6 +1378,32 @@
       {/if}
     </section>
   {/if}
+
+  <!-- ── Up-Sells / Cross-Sells (WooCommerce manual associations, any kind) ── -->
+  <RelatedProductsEditor
+    token={data.token}
+    productId={data.product?.id ?? ''}
+    items={data.upsells ?? []}
+    hiddenName="upsell_product_ids"
+    formId="product-form"
+    heading={m.admin_product_edit_upsells_heading()}
+    subtitle={m.admin_product_edit_upsells_subtitle()}
+    addHeading={m.admin_product_edit_upsells_add_heading()}
+    searchPlaceholder={m.admin_product_edit_upsells_search_placeholder()}
+    emptyText={m.admin_product_edit_upsells_empty()}
+  />
+  <RelatedProductsEditor
+    token={data.token}
+    productId={data.product?.id ?? ''}
+    items={data.crossSells ?? []}
+    hiddenName="cross_sell_product_ids"
+    formId="product-form"
+    heading={m.admin_product_edit_crosssells_heading()}
+    subtitle={m.admin_product_edit_crosssells_subtitle()}
+    addHeading={m.admin_product_edit_crosssells_add_heading()}
+    searchPlaceholder={m.admin_product_edit_crosssells_search_placeholder()}
+    emptyText={m.admin_product_edit_crosssells_empty()}
+  />
 
   <!-- ── Media ── -->
   <section class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">

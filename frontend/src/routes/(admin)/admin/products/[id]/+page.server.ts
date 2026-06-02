@@ -8,6 +8,7 @@ import {
   adminAddImage, adminUpdateImage, adminDeleteImage,
   adminGetBundleItems, adminSetBundleItems,
   adminGetPromoBundles, adminSetPromoBundles,
+  adminGetUpsells, adminSetUpsells, adminGetCrossSells, adminSetCrossSells,
   adminGetSettings,
 } from '$lib/api/admin';
 import { extractMediaUploadLimits } from '$lib/media';
@@ -44,12 +45,16 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   // The component/bundle pickers now search on demand, so no product list is
   // preloaded here.
   const wantsPromoBundles = !isNew && !isBundle;
-  const [bundleItems, promoBundles] = await Promise.all([
+  // Up-sells / cross-sells apply to any product kind, so fetch for every
+  // existing (non-new) product.
+  const [bundleItems, promoBundles, upsells, crossSells] = await Promise.all([
     isBundle ? adminGetBundleItems(token, id).catch(() => []) : Promise.resolve([]),
-    wantsPromoBundles ? adminGetPromoBundles(token, id).catch(() => []) : Promise.resolve([])
+    wantsPromoBundles ? adminGetPromoBundles(token, id).catch(() => []) : Promise.resolve([]),
+    isNew ? Promise.resolve([]) : adminGetUpsells(token, id).catch(() => []),
+    isNew ? Promise.resolve([]) : adminGetCrossSells(token, id).catch(() => [])
   ]);
 
-  return { product, categories, variants, images, mediaFiles, bundleItems, promoBundles, isNew, uploadLimits, token };
+  return { product, categories, variants, images, mediaFiles, bundleItems, promoBundles, upsells, crossSells, isNew, uploadLimits, token };
 };
 
 export const actions: Actions = {
@@ -110,6 +115,23 @@ export const actions: Actions = {
       if (promoRaw !== undefined) {
         const ids = promoRaw.split(',').map(s => s.trim()).filter(Boolean);
         try { await adminSetPromoBundles(token, promoTargetId, ids); } catch { /* non-fatal */ }
+      }
+    }
+
+    // Persist WooCommerce up-sell / cross-sell associations for any product kind
+    // (create + edit). Same hidden-CSV pattern as promo bundles. A later
+    // WooCommerce import may still overwrite these (Woo stays source of truth).
+    {
+      const relTargetId = newProductId ?? id;
+      const upsellRaw = form.get('upsell_product_ids')?.toString();
+      if (upsellRaw !== undefined) {
+        const ids = upsellRaw.split(',').map(s => s.trim()).filter(Boolean);
+        try { await adminSetUpsells(token, relTargetId, ids); } catch { /* non-fatal */ }
+      }
+      const crossRaw = form.get('cross_sell_product_ids')?.toString();
+      if (crossRaw !== undefined) {
+        const ids = crossRaw.split(',').map(s => s.trim()).filter(Boolean);
+        try { await adminSetCrossSells(token, relTargetId, ids); } catch { /* non-fatal */ }
       }
     }
 

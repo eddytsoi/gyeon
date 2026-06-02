@@ -101,10 +101,22 @@ func (h *ProductHandler) AdminWriteRoutes() chi.Router {
 	r.Put("/{id}/bundle-items", h.setBundleItems)
 	r.Put("/{id}/promo-bundles", h.setPromoBundles)
 
+	// Admin manual editing of WooCommerce up-sells / cross-sells. These are the
+	// RAW curated lists (getUpsells/getCrossSells → ListUpsells/ListCrossSells),
+	// distinct from the role-filtered storefront reads at /products/{id}/upsells
+	// and /products/cross-sells.
+	r.Get("/{id}/upsells", h.getUpsells)
+	r.Put("/{id}/upsells", h.setUpsells)
+	r.Get("/{id}/cross-sells", h.getCrossSells)
+	r.Put("/{id}/cross-sells", h.setCrossSells)
+
 	// CSV import resolvers for the product-detail bundle sections. Static
 	// 2-segment paths — chi prefers these over /{id}/... so no conflict.
 	r.Post("/bundle-items/csv-resolve", h.resolveBundleItemsCSV)
 	r.Post("/promo-bundles/csv-resolve", h.resolvePromoBundlesCSV)
+	// Shared by both the up-sell and cross-sell editors (single-column CSV →
+	// any product). Static 2-segment path.
+	r.Post("/related-refs/csv-resolve", h.resolveProductRefsCSV)
 
 	// Admin-only rebuild of the "frequently bought together" aggregation.
 	// Pointed at by an external cron — mirrors the abandoned-cart pattern.
@@ -553,6 +565,66 @@ func (h *ProductHandler) setPromoBundles(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	items, err := h.svc.SetPromoBundles(r.Context(), id, req.BundleProductIDs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respond.NotFound(w)
+			return
+		}
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+// getUpsells / getCrossSells return the RAW curated association lists for the
+// admin editor (unfiltered, in position order), unlike the storefront reads.
+func (h *ProductHandler) getUpsells(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	items, err := h.svc.ListUpsells(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) setUpsells(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req SetUpsellsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	items, err := h.svc.SetUpsells(r.Context(), id, req.UpsellProductIDs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respond.NotFound(w)
+			return
+		}
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) getCrossSells(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	items, err := h.svc.ListCrossSells(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, items)
+}
+
+func (h *ProductHandler) setCrossSells(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req SetCrossSellsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	items, err := h.svc.SetCrossSells(r.Context(), id, req.CrossSellProductIDs)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respond.NotFound(w)
