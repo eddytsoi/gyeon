@@ -263,6 +263,12 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	// the run finishes (products that no longer exist in WC).
 	seenWCProductIDs := make([]int, 0, p.TotalProducts)
 
+	// WC up-sell / cross-sell lists collected during the product loop and
+	// reconciled to Gyeon UUIDs in a second pass below (targets may not exist
+	// yet when a given product is imported). Keyed by WC product ID.
+	wcUpsells := make(map[int][]int)
+	wcCrossSells := make(map[int][]int)
+
 	if req.ProductID > 0 {
 		prod, err := wc.fetchProduct(req.ProductID)
 		if err != nil {
@@ -279,6 +285,7 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 			} else {
 				s.importProduct(ctx, wc, prod, categoryMap, &p)
 			}
+			recordWCRelations(wcUpsells, wcCrossSells, prod)
 			p.ProcessedProducts++
 			p.CurrentProduct = ""
 			send(p)
@@ -312,12 +319,18 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 				} else {
 					s.importProduct(ctx, wc, prod, categoryMap, &p)
 				}
+				recordWCRelations(wcUpsells, wcCrossSells, prod)
 				p.ProcessedProducts++
 				p.CurrentProduct = ""
 				send(p)
 			}
 		}
 	}
+
+	// Second pass: every product in this run now exists, so map the collected
+	// WC up-sell / cross-sell IDs to Gyeon UUIDs and (re)populate the join
+	// tables. Runs before stale cleanup so deletions don't race the reconcile.
+	s.reconcileUpsellsCrossSells(ctx, wcUpsells, wcCrossSells, &p)
 
 	// Stale cleanup: delete WC-imported products whose WC ID was not seen
 	// in this run. Skipped under Limit > 0 or ProductID > 0 — a partial run
@@ -335,6 +348,59 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 
 	p.Done = true
 	send(p)
+}
+
+// recordWCRelations stashes a product's WC up-sell / cross-sell ID lists for
+// the post-import reconcile pass. Empty/nil lists are recorded too so a
+// re-import clears relations that were removed in WC — mirroring how product
+// images are refreshed per product.
+func recordWCRelations(upsells, crossSells map[int][]int, prod wcProduct) {
+	upsells[prod.ID] = prod.UpsellIDs
+	crossSells[prod.ID] = prod.CrossSellIDs
+}
+
+// reconcileUpsellsCrossSells resolves the collected WC up-sell / cross-sell ID
+// lists to Gyeon product UUIDs and replaces the product_upsells /
+// product_cross_sells rows for each parent. Runs as a second pass so targets
+// imported later in the same run still resolve. Idempotent across re-imports
+// (Replace* clears + reinserts per parent). Unresolved targets — WC products
+// not imported into Gyeon (e.g. a filtered-out type, or a deleted product) —
+// are silently skipped.
+func (s *Service) reconcileUpsellsCrossSells(ctx context.Context, wcUpsells, wcCrossSells map[int][]int, p *ProgressUpdate) {
+	resolved := make(map[int]string) // WC id → Gyeon uuid ("" = unresolvable)
+	resolve := func(wcID int) (string, bool) {
+		if id, seen := resolved[wcID]; seen {
+			return id, id != ""
+		}
+		id, err := s.productSvc.GetIDByWCProductID(ctx, wcID)
+		if err != nil {
+			resolved[wcID] = ""
+			return "", false
+		}
+		resolved[wcID] = id
+		return id, true
+	}
+
+	apply := func(label string, lists map[int][]int, replace func(context.Context, string, []string) error) {
+		for wcParent, targets := range lists {
+			parentID, ok := resolve(wcParent)
+			if !ok {
+				continue
+			}
+			ids := make([]string, 0, len(targets))
+			for _, t := range targets {
+				if id, ok := resolve(t); ok && id != parentID {
+					ids = append(ids, id)
+				}
+			}
+			if err := replace(ctx, parentID, ids); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("%s for WC product %d: %v", label, wcParent, err))
+			}
+		}
+	}
+
+	apply("reconcile up-sells", wcUpsells, s.productSvc.ReplaceUpsells)
+	apply("reconcile cross-sells", wcCrossSells, s.productSvc.ReplaceCrossSells)
 }
 
 func (s *Service) syncCategories(ctx context.Context, wc *wcClient, p *ProgressUpdate) (map[string]string, error) {

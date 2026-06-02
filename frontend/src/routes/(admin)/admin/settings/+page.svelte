@@ -208,9 +208,19 @@
     'pdp_fbt_kicker',
     'pdp_fbt_heading',
     'pdp_fbt_preselect_all',
+    'pdp_show_upsells',
+    'pdp_upsells_kicker',
+    'pdp_upsells_heading',
     'pdp_content_layout',
     'pdp_navlist_show_nav',
     'pdp_navlist_show_titles'
+  ]);
+  // Managed by the Cart Cross-Sells card (Commerce tab). Excluded from
+  // textSettings so the generic loop doesn't double-render these inputs.
+  const CART_CROSS_SELLS_KEYS = new Set([
+    'cart_show_cross_sells',
+    'cart_cross_sells_kicker',
+    'cart_cross_sells_heading'
   ]);
   // Managed by the Account Page Layout card (Commerce tab). Excluded from
   // textSettings so the generic loop doesn't double-render the select input.
@@ -386,6 +396,7 @@
         !ACCOUNT_LAYOUT_KEYS.has(s.key) &&
         !CHECKOUT_LAYOUT_KEYS.has(s.key) &&
         !CART_LAYOUT_KEYS.has(s.key) &&
+        !CART_CROSS_SELLS_KEYS.has(s.key) &&
         !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
@@ -439,6 +450,8 @@
   let pdpShowCompleteSetOn = $state(pdpShowCompleteSetSetting?.value !== 'false');
   const pdpShowFbtSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_fbt'));
   let pdpShowFbtOn = $state(pdpShowFbtSetting?.value !== 'false');
+  const pdpShowUpsellsSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_upsells'));
+  let pdpShowUpsellsOn = $state(pdpShowUpsellsSetting?.value !== 'false');
   const pdpShowStockCountSetting = $derived(data.settings.find((s) => s.key === 'pdp_show_stock_count'));
   let pdpShowStockCountOn = $state(pdpShowStockCountSetting?.value !== 'false');
   // PDP content layout + the nav-list-only "show section nav" toggle. Layout is
@@ -451,6 +464,8 @@
   // (stepped layout + single-step payment). Reactive so the hint updates live.
   let checkoutPageLayout = $state(settingValue('checkout_page_layout') || 'classic');
   let cartPageLayout = $state(settingValue('cart_page_layout') || 'classic');
+  const cartShowCrossSellsSetting = $derived(data.settings.find((s) => s.key === 'cart_show_cross_sells'));
+  let cartShowCrossSellsOn = $state(cartShowCrossSellsSetting?.value !== 'false');
   const pdpNavlistShowNavSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_nav'));
   let pdpNavlistShowNavOn = $state(pdpNavlistShowNavSetting?.value !== 'false'); // default ON
   const pdpNavlistShowTitlesSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_titles'));
@@ -1748,6 +1763,24 @@
 
       <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
         <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_upsells()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_upsells()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (pdpShowUpsellsOn = !pdpShowUpsellsOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {pdpShowUpsellsOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={pdpShowUpsellsOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {pdpShowUpsellsOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="pdp_show_upsells" value={pdpShowUpsellsOn ? 'true' : 'false'} />
+      </div>
+
+      <div class="flex items-center justify-between gap-4 py-4 border-t border-gray-100">
+        <div>
           <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_pdp_show_stock_count()}</p>
           <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_pdp_show_stock_count()}</p>
         </div>
@@ -1859,6 +1892,37 @@
       </div>
     </div>
 
+    <!-- Up-Sells labels (kicker + heading overrides). WooCommerce alternatives
+         shown on the PDP — separate from FBT. Empty falls back to i18n. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pdp_upsells_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pdp_upsells_subtitle()}</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_upsells_kicker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_upsells_kicker()}
+          </label>
+          <input id="pdp_upsells_kicker" name="pdp_upsells_kicker" type="text"
+                 value={settingValue('pdp_upsells_kicker') || ''}
+                 placeholder={m.admin_settings_pdp_upsells_kicker_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="pdp_upsells_heading" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_pdp_upsells_heading()}
+          </label>
+          <input id="pdp_upsells_heading" name="pdp_upsells_heading" type="text"
+                 value={settingValue('pdp_upsells_heading') || ''}
+                 placeholder={m.admin_settings_pdp_upsells_heading_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+    </div>
+
     <!-- FBT excluded category slugs — JSON array of slugs. Products linked
          to any of these categories are dropped from all three FBT pools. -->
     <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
@@ -1957,6 +2021,55 @@
             ? m.admin_settings_cart_page_layout_hint_modern()
             : m.admin_settings_cart_page_layout_hint_classic()}
         </p>
+      </div>
+    </div>
+
+    <!-- Cart cross-sells — WooCommerce complements promoted in the cart based
+         on its contents. Toggle + kicker/heading overrides. Empty falls back
+         to i18n. Separate from the PDP FBT section. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_cart_cross_sells_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_cart_cross_sells_subtitle()}</p>
+      </div>
+      <div class="flex items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-100">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_cart_show_cross_sells()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_desc_cart_show_cross_sells()}</p>
+        </div>
+        <button type="button"
+                onclick={() => (cartShowCrossSellsOn = !cartShowCrossSellsOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {cartShowCrossSellsOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={cartShowCrossSellsOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {cartShowCrossSellsOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="cart_show_cross_sells" value={cartShowCrossSellsOn ? 'true' : 'false'} />
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="cart_cross_sells_kicker" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_cart_cross_sells_kicker()}
+          </label>
+          <input id="cart_cross_sells_kicker" name="cart_cross_sells_kicker" type="text"
+                 value={settingValue('cart_cross_sells_kicker') || ''}
+                 placeholder={m.admin_settings_cart_cross_sells_kicker_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="cart_cross_sells_heading" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_cart_cross_sells_heading()}
+          </label>
+          <input id="cart_cross_sells_heading" name="cart_cross_sells_heading" type="text"
+                 value={settingValue('cart_cross_sells_heading') || ''}
+                 placeholder={m.admin_settings_cart_cross_sells_heading_placeholder()}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
       </div>
     </div>
 

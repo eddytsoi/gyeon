@@ -2,6 +2,7 @@
   import { cartStore } from '$lib/stores/cart.svelte';
   import { formatHKD } from '$lib/money';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
+  import CartCrossSells from '$lib/components/shop/CartCrossSells.svelte';
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
@@ -21,6 +22,16 @@
   const shippingFree = $derived(
     freeShippingEnabled && freeShippingThreshold() > 0 && cartStore.subtotal >= freeShippingThreshold()
   );
+
+  // WooCommerce cross-sells (complements). Toggle + label overrides come from
+  // site settings, mirroring the PDP FBT/related sections; empty overrides fall
+  // back to the i18n strings inside CartCrossSells.
+  const settingsMap = $derived<Record<string, string>>(
+    Object.fromEntries((data.publicSettings ?? []).map((s) => [s.key, s.value]))
+  );
+  const showCrossSells = $derived(settingsMap['cart_show_cross_sells'] !== 'false');
+  const crossSellsKicker = $derived(settingsMap['cart_cross_sells_kicker'] || undefined);
+  const crossSellsHeading = $derived(settingsMap['cart_cross_sells_heading'] || undefined);
 </script>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -168,5 +179,9 @@
     </div>
   {/if}
 </div>
+
+{#if showCrossSells}
+  <CartCrossSells kicker={crossSellsKicker} heading={crossSellsHeading} />
+{/if}
 
 <RecentlyViewed />

@@ -1,4 +1,4 @@
-import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems, getProductPromoBundles, getFrequentlyBoughtTogether, getPublicSettings } from '$lib/api';
+import { getProductBySlug, getProducts, getProductImages, getProductVariants, getCategories, getProductBundleItems, getProductPromoBundles, getFrequentlyBoughtTogether, getProductUpsells, getPublicSettings } from '$lib/api';
 import { error } from '@sveltejs/kit';
 import { scanShortcodeRefsMany } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
@@ -40,7 +40,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
   }
   const related = pool.slice(0, 4);
 
-  const [variants, images, bundleItems, promoBundles, settings, shortcodeRefs, frequentlyBoughtTogether, ...relatedImages] = await Promise.all([
+  const [variants, images, bundleItems, promoBundles, settings, shortcodeRefs, frequentlyBoughtTogether, upsells, ...relatedImages] = await Promise.all([
     getProductVariants(product.id).catch(() => []),
     getProductImages(product.id).catch(() => []),
     product.kind === 'bundle' ? getProductBundleItems(product.id).catch(() => []) : Promise.resolve([]),
@@ -49,6 +49,8 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     getPublicSettings().catch(() => []),
     resolveShortcodeRefs(scanShortcodeRefsMany(product.description, product.how_to_use, product.excerpt)),
     getFrequentlyBoughtTogether(product.id, 4, token).catch(() => []),
+    // WooCommerce up-sells (alternatives). Like FBT, scoped to non-bundle PDPs.
+    product.kind !== 'bundle' ? getProductUpsells(product.id, 4, token).catch(() => []) : Promise.resolve([]),
     ...related.map((p) => getProductImages(p.id).catch(() => []))
   ]);
 
@@ -76,6 +78,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     category,
     related: relatedWithImage,
     frequentlyBoughtTogether,
+    upsells,
     shortcodeRefs,
     useTaobaoLayout
   };

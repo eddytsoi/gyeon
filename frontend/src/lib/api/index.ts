@@ -212,6 +212,19 @@ export const getFrequentlyBoughtTogether = (id: string, limit = 4, token?: strin
     `/products/${id}/frequently-bought-together?limit=${limit}`,
     token ? authed(token) : undefined
   );
+// WooCommerce up-sells (PDP alternatives) — merchant-curated, separate from FBT.
+export const getProductUpsells = (id: string, limit = 4, token?: string | null) =>
+  request<Product[]>(
+    `/products/${id}/upsells?limit=${limit}`,
+    token ? authed(token) : undefined
+  );
+// WooCommerce cross-sells for the cart — union of the cart products' cross-sells,
+// keyed by the cart's variant IDs (the client cart has no product UUID).
+export const getCartCrossSells = (variantIDs: string[], limit = 4, token?: string | null) =>
+  request<Product[]>(
+    `/products/cross-sells?variant_ids=${variantIDs.map(encodeURIComponent).join(',')}&limit=${limit}`,
+    token ? authed(token) : undefined
+  );
 
 export const getOrCreateCart = (sessionToken: string, customerID?: string) =>
   request<Cart>('/cart', {
