@@ -360,40 +360,66 @@ func recordWCRelations(upsells, crossSells map[int][]int, prod wcProduct) {
 }
 
 // reconcileUpsellsCrossSells resolves the collected WC up-sell / cross-sell ID
-// lists to Gyeon product UUIDs and replaces the product_upsells /
-// product_cross_sells rows for each parent. Runs as a second pass so targets
-// imported later in the same run still resolve. Idempotent across re-imports
-// (Replace* clears + reinserts per parent). Unresolved targets — WC products
-// not imported into Gyeon (e.g. a filtered-out type, or a deleted product) —
-// are silently skipped.
+// lists to Gyeon refs and replaces the product_upsells / product_cross_sells
+// rows for each parent. A target that is a top-level product resolves to that
+// product (no variant pin); a target that is a WC variation resolves to its
+// parent product with the specific variant pinned. Runs as a second pass so
+// targets imported later in the same run still resolve. Idempotent across
+// re-imports (Replace* clears + reinserts per parent). Unresolved targets — WC
+// products / variations not imported into Gyeon (e.g. a filtered-out type, or a
+// deleted product) — are silently skipped.
 func (s *Service) reconcileUpsellsCrossSells(ctx context.Context, wcUpsells, wcCrossSells map[int][]int, p *ProgressUpdate) {
-	resolved := make(map[int]string) // WC id → Gyeon uuid ("" = unresolvable)
-	resolve := func(wcID int) (string, bool) {
-		if id, seen := resolved[wcID]; seen {
-			return id, id != ""
+	// WC up-sell / cross-sell IDs can point at either a top-level product or a
+	// specific variation (a child of a variable product). Resolve product-first
+	// (the common case, unchanged), then fall back to the variation lookup and
+	// pin that variant. Hits and misses are memoized so a repeated ID isn't
+	// re-queried.
+	type resolvedRef struct {
+		ref shop.RelatedRefInput // ref.ProductID == "" means unresolvable
+		ok  bool
+	}
+	cache := make(map[int]resolvedRef)
+	resolve := func(wcID int) (shop.RelatedRefInput, bool) {
+		if r, seen := cache[wcID]; seen {
+			return r.ref, r.ok
 		}
-		id, err := s.productSvc.GetIDByWCProductID(ctx, wcID)
-		if err != nil {
-			resolved[wcID] = ""
-			return "", false
+		if id, err := s.productSvc.GetIDByWCProductID(ctx, wcID); err == nil {
+			ref := shop.RelatedRefInput{ProductID: id}
+			cache[wcID] = resolvedRef{ref: ref, ok: true}
+			return ref, true
 		}
-		resolved[wcID] = id
-		return id, true
+		if prodID, varID, err := s.productSvc.GetVariantRefByWCVariationID(ctx, wcID); err == nil {
+			v := varID
+			ref := shop.RelatedRefInput{ProductID: prodID, VariantID: &v}
+			cache[wcID] = resolvedRef{ref: ref, ok: true}
+			return ref, true
+		}
+		cache[wcID] = resolvedRef{ok: false}
+		return shop.RelatedRefInput{}, false
 	}
 
-	apply := func(label string, lists map[int][]int, replace func(context.Context, string, []string) error) {
+	apply := func(label string, lists map[int][]int, replace func(context.Context, string, []shop.RelatedRefInput) error) {
 		for wcParent, targets := range lists {
-			parentID, ok := resolve(wcParent)
-			if !ok {
+			parent, ok := resolve(wcParent)
+			// The list owner must be a top-level product — the join row hangs the
+			// whole list on its product_id. (Real WC parents always resolve as a
+			// product; the variant guard is just defensive.)
+			if !ok || parent.VariantID != nil {
 				continue
 			}
-			ids := make([]string, 0, len(targets))
+			refs := make([]shop.RelatedRefInput, 0, len(targets))
 			for _, t := range targets {
-				if id, ok := resolve(t); ok && id != parentID {
-					ids = append(ids, id)
+				ref, ok := resolve(t)
+				// Skip unresolved targets and self-references: a target whose
+				// product is the list owner would violate
+				// CHECK (product_id <> upsell_product_id), even when it carries a
+				// distinct variant pin.
+				if !ok || ref.ProductID == parent.ProductID {
+					continue
 				}
+				refs = append(refs, ref)
 			}
-			if err := replace(ctx, parentID, ids); err != nil {
+			if err := replace(ctx, parent.ProductID, refs); err != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("%s for WC product %d: %v", label, wcParent, err))
 			}
 		}
