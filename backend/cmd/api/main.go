@@ -807,7 +807,11 @@ func main() {
 				r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)
 				r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
 				r.Post("/admin/import/woocommerce/test", importHandler.Test)
-				r.Post("/admin/import/woocommerce/stream", importHandler.ImportStream)
+				// Products import runs as a detached background job (survives the
+				// admin leaving the page); poll status, cancel to stop.
+				r.Post("/admin/import/woocommerce/start", importHandler.StartImport)
+				r.Get("/admin/import/woocommerce/status", importHandler.ImportStatus)
+				r.Post("/admin/import/woocommerce/cancel", importHandler.CancelImport)
 				r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
 				r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
 				r.Post("/admin/import/woocommerce/orders/test", importHandler.OrdersTest)
