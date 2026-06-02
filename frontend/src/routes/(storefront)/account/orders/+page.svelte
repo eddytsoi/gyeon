@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { goto } from '$app/navigation';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { formatHKD } from '$lib/money';
@@ -73,9 +74,25 @@
 <div class="flex flex-col gap-4">
   <h1 class="text-xl font-bold text-gray-900">{m.account_orders_heading()}</h1>
 
-  <!-- Search by product name + status filter chips (shared by both layouts). -->
-  <div class="flex flex-col gap-3">
-    <form method="GET" class="relative">
+  <!-- Status dropdown (left) + search by product name (right).
+       Phones stack into two rows; ≥sm sits side-by-side. -->
+  <div class="flex flex-col sm:flex-row gap-3">
+    <!-- Status filter — native <select>, navigates on change -->
+    <select
+      value={data.status}
+      onchange={(e) => goto(ordersUrl({ status: e.currentTarget.value }), { invalidateAll: true })}
+      aria-label={m.account_orders_filter_label()}
+      class="max-sm:w-full sm:w-48 shrink-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+             focus:outline-none focus:ring-2 focus:ring-gray-900"
+    >
+      <option value="">{m.account_orders_filter_all()}</option>
+      {#each STATUSES as st}
+        <option value={st}>{orderStatusLabel(st)}</option>
+      {/each}
+    </select>
+
+    <!-- Search by product name (fills remaining width) -->
+    <form method="GET" class="relative flex-1">
       {#if data.status}<input type="hidden" name="status" value={data.status} />{/if}
       <svg class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -93,21 +110,6 @@
         class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
       />
     </form>
-
-    <div class="flex flex-wrap gap-2">
-      <a href={ordersUrl({ status: '' })}
-         class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                {data.status === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-        {m.account_orders_filter_all()}
-      </a>
-      {#each STATUSES as st}
-        <a href={ordersUrl({ status: st })}
-           class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                  {data.status === st ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-          {orderStatusLabel(st)}
-        </a>
-      {/each}
-    </div>
   </div>
 
   {#if data.orders.length === 0}

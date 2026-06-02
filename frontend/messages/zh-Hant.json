@@ -44,6 +44,7 @@
   "header_menu_profile": "個人資料",
   "header_menu_orders": "訂單",
   "header_menu_addresses": "地址",
+  "header_menu_cards": "信用卡",
   "header_menu_sign_out": "登出",
 
   "footer_logo": "GYEON",
@@ -355,6 +356,7 @@
   "account_orders_items_many": "{count} 件商品",
   "account_orders_search_placeholder": "搜尋產品名稱…",
   "account_orders_filter_all": "全部",
+  "account_orders_filter_label": "篩選訂單狀態",
   "account_orders_count": "共 {count} 張訂單",
   "account_orders_no_results": "搵唔到符合嘅訂單。",
   "account_orders_clear": "清除篩選",
