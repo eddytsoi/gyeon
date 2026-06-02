@@ -724,11 +724,15 @@
              carries the role-specific explanation. -->
         {#if selectedVariant && !cannotPurchase}
           <div class="flex items-baseline gap-3 flex-wrap -mt-4">
-            <span class="font-display text-4xl font-normal tabular-nums leading-none text-navy-300">
+            <!-- Proportional (not tabular) figures: GT America Compressed's tabular
+                 digits pad to a uniform wide advance, which reads loose/spaced-out
+                 on this condensed face. The standalone hero price needs no column
+                 alignment, so use the font's tight proportional figures. -->
+            <span class="font-display text-4xl font-normal leading-none text-navy-300">
               {formatHKD(selectedVariant.price)}
             </span>
             {#if hasDiscount}
-              <span class="font-display text-base line-through tabular-nums text-ink-500">
+              <span class="font-display text-base line-through text-ink-500">
                 {formatHKD(selectedVariant.compare_at_price!)}
               </span>
             {/if}

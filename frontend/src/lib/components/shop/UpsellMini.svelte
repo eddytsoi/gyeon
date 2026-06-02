@@ -107,7 +107,7 @@
 
             {#if p.purchasable !== false && p.default_variant_price != null}
               <div class="mt-0 flex items-baseline gap-2">
-                <span class="font-display tabular-nums text-ink-900 text-xl font-medium">
+                <span class="font-display tabular-nums text-navy-500 text-xl font-medium">
                   {formatHKD(p.default_variant_price)}
                 </span>
                 {#if hasDiscount(p)}
