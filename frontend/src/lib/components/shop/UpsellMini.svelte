@@ -2,7 +2,7 @@
   /*
    * Compact "mini" variant of the PDP up-sells block. Instead of the full-width
    * UpsellGrid (a grid of vertical ProductCards), this renders a vertical stack
-   * of horizontal cards — 120×120 image on the left; name / subtitle / price /
+   * of horizontal cards — 124×124 image on the left; name / subtitle / price /
    * quick-add on the right — sized to sit in the PDP right column, in the gap
    * below the product info. Shows a heading only (no kicker). Reuses the same
    * one-click add-to-cart logic as UpsellGrid.
@@ -73,10 +73,10 @@
         {@const k = cardKey(p, i)}
         <li class="flex gap-4 items-start">
           <a href="/products/{p.slug}" class="group flex-shrink-0">
-            <div class="w-[120px] h-[120px] rounded-lg overflow-hidden bg-white">
+            <div class="w-[124px] h-[124px] rounded-lg overflow-hidden bg-white">
               {#if p.primary_image_url}
                 <ResponsiveImage src={p.primary_image_url} alt={p.name}
-                                 widths={[120, 240]} sizes="120px"
+                                 widths={[124, 248]} sizes="124px"
                                  class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
               {:else}
                 <div class="w-full h-full flex items-center justify-center text-ink-300">
