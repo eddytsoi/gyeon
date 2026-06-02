@@ -1737,6 +1737,19 @@ func (s *ProductService) GetIDByWCProductID(ctx context.Context, wcID int) (stri
 	return id, err
 }
 
+// GetVariantRefByWCVariationID resolves a WC *variation* ID (a child of a
+// variable product) to the Gyeon (parent product UUID, variant UUID) pair.
+// Up-sell / cross-sell rows store the top-level product in upsell_product_id
+// (NOT NULL FK → products) and the pinned child in variant_id, so the importer
+// needs both halves. Returns sql.ErrNoRows when the variation was never
+// imported (parent filtered out / deleted) — caller skips that target.
+func (s *ProductService) GetVariantRefByWCVariationID(ctx context.Context, wcVariationID int) (productID, variantID string, err error) {
+	err = s.db.QueryRowContext(ctx,
+		`SELECT product_id::text, id::text FROM product_variants WHERE wc_variation_id = $1`,
+		wcVariationID).Scan(&productID, &variantID)
+	return productID, variantID, err
+}
+
 // UpsertWCProductRequest carries the WC-derived fields for an upsert.
 // Kind defaults to "simple" when empty; pass "bundle" for WC Product
 // Bundles imports so CreateWCProduct also seeds the auto-generated
@@ -3929,29 +3942,19 @@ func (s *ProductService) upsellHydratePinned(ctx context.Context, pins []related
 }
 
 // ReplaceUpsells atomically replaces the up-sell list for a parent product with
-// the given ordered target IDs (position = index). Used by the importer's
-// reconcile pass; idempotent across re-imports. Unlike the admin promo-bundle
-// setter it records no audit entry (bulk import would flood the audit log) and
-// performs no per-target validation — the importer only passes IDs it already
-// resolved via GetIDByWCProductID. The importer never pins a variant, so every
-// ref is stored with variant_id NULL (default-variant-at-render-time).
-func (s *ProductService) ReplaceUpsells(ctx context.Context, productID string, upsellProductIDs []string) error {
-	return s.replaceProductRelations(ctx, "product_upsells", "upsell_product_id", productID, productRefsFromIDs(upsellProductIDs), upsellCachePrefix)
+// the given ordered refs (position = index). Used by the importer's reconcile
+// pass; idempotent across re-imports. Unlike the admin promo-bundle setter it
+// records no audit entry (bulk import would flood the audit log) and performs
+// no per-target validation — the importer only passes refs it already resolved.
+// A ref may pin a variant (variant_id) when the WC up-sell target was a
+// variation rather than a top-level product; product-only targets leave it NULL.
+func (s *ProductService) ReplaceUpsells(ctx context.Context, productID string, refs []RelatedRefInput) error {
+	return s.replaceProductRelations(ctx, "product_upsells", "upsell_product_id", productID, refs, upsellCachePrefix)
 }
 
 // ReplaceCrossSells is the cross-sell counterpart to ReplaceUpsells.
-func (s *ProductService) ReplaceCrossSells(ctx context.Context, productID string, crossSellProductIDs []string) error {
-	return s.replaceProductRelations(ctx, "product_cross_sells", "cross_sell_product_id", productID, productRefsFromIDs(crossSellProductIDs), crossSellCachePrefix)
-}
-
-// productRefsFromIDs wraps a list of target product IDs as variant-less refs
-// (variant_id NULL) for the importer / any product-only caller.
-func productRefsFromIDs(ids []string) []RelatedRefInput {
-	refs := make([]RelatedRefInput, 0, len(ids))
-	for _, id := range ids {
-		refs = append(refs, RelatedRefInput{ProductID: id})
-	}
-	return refs
+func (s *ProductService) ReplaceCrossSells(ctx context.Context, productID string, refs []RelatedRefInput) error {
+	return s.replaceProductRelations(ctx, "product_cross_sells", "cross_sell_product_id", productID, refs, crossSellCachePrefix)
 }
 
 // replaceProductRelations is the shared delete-by-parent + ordered-insert used
