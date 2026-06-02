@@ -78,9 +78,12 @@
   {/if}
 
   <div class="flex-1 min-w-0">
-    <p class="font-display text-sm font-medium text-ink-500 line-clamp-1 uppercase">{product.name}</p>
+    <p class="font-display text-base font-medium text-ink-500 line-clamp-1 uppercase">{product.name}</p>
     {#if variant && !cannotPurchase}
-      <p class="font-display text-sm font-bold tabular-nums text-ink-900">
+      <!-- Proportional (not tabular) figures: matches the hero price — GT America
+           Compressed's tabular digits read loose, and a single price needs no
+           column alignment. -->
+      <p class="font-display text-base font-normal text-navy-500">
         {formatHKD(variant.price)}
       </p>
     {/if}

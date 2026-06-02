@@ -62,6 +62,21 @@
   const comparePriceClass = $derived(
     priceSize === 'list' ? 'text-lg font-medium' : 'text-sm'
   );
+  // Listing & up-sells-style cards ('list'/'lg') show the price in navy; the
+  // 'default' card (homepage, recently-viewed, wishlist, shortcodes) keeps ink.
+  // The strikethrough compare-at price stays ink-500 in every size.
+  const priceColor = $derived(
+    priceSize === 'lg' || priceSize === 'list' ? 'text-navy-500' : 'text-ink-900'
+  );
+  // Up-sells-style cards ('lg') run 2-up on mobile, where the name reads a touch
+  // big and the subtitle a touch small. Trim the name a step and nudge the
+  // subtitle up on mobile only; md+ is unchanged and matches every other card.
+  const nameSize = $derived(
+    priceSize === 'lg' ? 'text-base md:text-xl' : 'text-lg md:text-xl'
+  );
+  const subtitleSize = $derived(
+    priceSize === 'lg' ? 'text-[0.8rem] md:text-[0.85rem]' : 'text-[0.7438rem] md:text-[0.85rem]'
+  );
 </script>
 
 <div class="group relative flex flex-col">
@@ -119,13 +134,13 @@
 
     <!-- Text -->
     <div class="pt-4 flex flex-col gap-1 {align === 'center' ? 'text-center items-center' : ''}">
-      <h3 class="font-display text-lg md:text-xl font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
+      <h3 class="font-display {nameSize} font-medium text-ink-500 line-clamp-2 group-hover:text-navy-500 transition-colors uppercase">
         {withVariantSuffix
           ? productDisplayName(product.name, product.default_variant_name, product.kind)
           : product.name}
       </h3>
       {#if product.subtitle}
-        <p class="font-display text-[0.7438rem] md:text-[0.85rem] font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
+        <p class="font-display {subtitleSize} font-normal text-ink-900 line-clamp-1 tracking-wide uppercase">
           {product.subtitle}
         </p>
       {/if}
@@ -135,7 +150,7 @@
              is hidden alongside the disabled add-to-cart on the PDP. -->
       {:else if variant}
         <div class="mt-1 flex items-baseline gap-2">
-          <span class="font-display tabular-nums text-ink-900 {priceClass}">
+          <span class="font-display tabular-nums {priceColor} {priceClass}">
             {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}

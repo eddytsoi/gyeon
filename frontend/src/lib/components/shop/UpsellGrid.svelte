@@ -103,7 +103,7 @@
               type="button"
               onclick={() => addOne(p, k)}
               disabled={!enabled || adding[k]}
-              class="mt-3 w-full max-w-[200px] mx-auto h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
+              class="mt-3 self-center h-10 px-4 rounded-md font-display font-bold text-sm uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
                      {!enabled
                        ? 'bg-ink-300 cursor-not-allowed'
                        : added[k]
