@@ -242,13 +242,6 @@
                   <p class="font-display text-sm font-semibold text-ink-900 truncate">{customer.first_name} {customer.last_name}</p>
                   <p class="text-xs text-ink-500 truncate">{customer.email}</p>
                 </div>
-                <a href="/account/profile" onclick={() => accountOpen = false}
-                   class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
-                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                  </svg>
-                  {m.header_menu_profile()}
-                </a>
                 <a href="/account/orders" onclick={() => accountOpen = false}
                    class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
                   <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -256,12 +249,26 @@
                   </svg>
                   {m.header_menu_orders()}
                 </a>
+                <a href="/account/profile" onclick={() => accountOpen = false}
+                   class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                  </svg>
+                  {m.header_menu_profile()}
+                </a>
                 <a href="/account/addresses" onclick={() => accountOpen = false}
                    class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
                   <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                   </svg>
                   {m.header_menu_addresses()}
+                </a>
+                <a href="/account/cards" onclick={() => accountOpen = false}
+                   class="flex items-center gap-2 px-4 py-2 text-sm font-body text-ink-900 hover:bg-paper hover:text-navy-500 transition-colors">
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                  </svg>
+                  {m.header_menu_cards()}
                 </a>
                 <div class="border-t border-ink-300/60 mt-1 pt-1">
                   <form method="POST" action="/account/logout">
