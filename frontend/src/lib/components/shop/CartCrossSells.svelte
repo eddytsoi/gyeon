@@ -2,16 +2,16 @@
   /*
    * WooCommerce cross-sells — complementary products promoted in the cart
    * based on its contents. The cart is client-side (no server loader), so we
-   * fetch from the browser keyed by the cart's variant IDs and reuse
-   * BundleComposer (the "row of mini-cards + running total + add all" widget)
-   * with preselectAll={false} — the cart is a deliberate moment, so nothing is
-   * pre-checked. Products already in the cart are excluded server-side.
-   * Mounted just above RecentlyViewed in both cart layouts.
+   * fetch from the browser keyed by the cart's variant IDs and render the
+   * shared UpsellGrid (the "grid of product cards, each with a quick-add
+   * button" surface) so cross-sells match the PDP up-sells style. Products
+   * already in the cart are excluded server-side. Mounted just above
+   * RecentlyViewed in both cart layouts.
    */
   import type { Product } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { getCartCrossSells } from '$lib/api';
-  import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
+  import UpsellGrid from '$lib/components/shop/UpsellGrid.svelte';
   import * as m from '$lib/paraglide/messages';
 
   let {
@@ -53,10 +53,9 @@
 </script>
 
 {#if items.length > 0}
-  <BundleComposer
+  <UpsellGrid
     {items}
     kicker={kicker ?? m.cart_cross_sells_kicker()}
     heading={heading ?? m.cart_cross_sells_heading()}
-    preselectAll={false}
   />
 {/if}

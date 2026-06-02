@@ -1,14 +1,17 @@
 <script lang="ts">
   /*
-   * WooCommerce up-sells — the "buy this instead" alternatives shown on the
-   * PDP. Unlike the FBT / "complete the set" BundleComposer, up-sells are
-   * alternatives: each is a plain linked ProductCard (click through to the
-   * product), with no checkboxes / running total / "add all" — adding an
-   * alternative alongside the viewed product would be semantically wrong.
-   * The kicker + heading shell mirrors BundleComposer so the section reads as
-   * part of the same design system while staying clearly distinct from FBT.
+   * The shared "grid of product cards, each with a quick-add button" surface.
+   * Used for both the PDP up-sells ("buy this instead" alternatives) and the
+   * cart cross-sells (complementary products) — see CartCrossSells. Each card
+   * is a linked ProductCard (click through to the product) plus its own
+   * "Add to Cart" button that one-click adds the product's default variant.
+   * The kicker + heading shell mirrors BundleComposer (still used for the FBT
+   * / "complete the set" section) so all suggestion sections read as one
+   * design system.
    */
   import type { Product, ProductImage, Variant } from '$lib/types';
+  import { cartStore } from '$lib/stores/cart.svelte';
+  import { trackAddToCart } from '$lib/tracker';
   import ProductCard from '$lib/components/shop/ProductCard.svelte';
   import * as m from '$lib/paraglide/messages';
 
@@ -21,6 +24,30 @@
     kicker?: string;
     heading?: string;
   } = $props();
+
+  // Per-product transient state, keyed by product id.
+  let adding = $state<Record<string, boolean>>({});
+  let added = $state<Record<string, boolean>>({});
+
+  function canAdd(p: Product): boolean {
+    return !!(p.default_variant_id && (p.default_variant_stock_qty ?? 0) > 0 && p.purchasable !== false);
+  }
+
+  async function addOne(p: Product) {
+    if (adding[p.id] || !p.default_variant_id || !canAdd(p)) return;
+    adding[p.id] = true;
+    try {
+      await cartStore.add(p.default_variant_id, 1);
+      trackAddToCart({ id: p.id, name: p.name, price: p.default_variant_price ?? 0, quantity: 1 });
+      added[p.id] = true;
+      setTimeout(() => (added[p.id] = false), 2500);
+    } catch {
+      // cartStore records the error; layout toast surfaces it. Swallow so the
+      // rejection doesn't bubble as unhandled.
+    } finally {
+      adding[p.id] = false;
+    }
+  }
 
   // Adapt the flattened ProductWithMeta row (default_variant_* + primary_image_url)
   // into ProductCard's image/variant props — same shape the /products grid uses.
@@ -63,8 +90,28 @@
 
       <ul class="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6 md:gap-y-10">
         {#each items as p (p.id)}
-          <li>
+          {@const enabled = canAdd(p)}
+          <li class="flex flex-col">
             <ProductCard product={p} image={imageOf(p)} variant={variantOf(p)} />
+            <button
+              type="button"
+              onclick={() => addOne(p)}
+              disabled={!enabled || adding[p.id]}
+              class="mt-3 w-full h-10 px-4 rounded-md font-display font-bold text-xs uppercase tracking-[0.1em] transition-all duration-200 ease-gy text-white
+                     {!enabled
+                       ? 'bg-ink-300 cursor-not-allowed'
+                       : added[p.id]
+                         ? 'bg-success'
+                         : 'bg-navy-500 hover:bg-navy-700 active:scale-[0.98]'}"
+            >
+              {#if added[p.id]}
+                {m.bundle_composer_cta_added()}
+              {:else if adding[p.id]}
+                {m.bundle_composer_cta_adding()}
+              {:else}
+                {m.bundle_composer_cta_idle()}
+              {/if}
+            </button>
           </li>
         {/each}
       </ul>
