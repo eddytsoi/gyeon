@@ -135,6 +135,7 @@
       const label = BRAND_LABELS[o.card_brand.toLowerCase()] ?? o.card_brand;
       return `${label} •••• ${o.card_last4}`;
     }
+    if (o.payment_method === 'bank_transfer') return m.bank_transfer_radio_label();
     if (o.payment_method) return o.payment_method;
     return m.admin_products_dash();
   }

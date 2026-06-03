@@ -146,6 +146,31 @@ type PaymentLinkParams struct {
 	PaymentURL    string
 }
 
+// BankTransferOnHoldParams drives the "order received — awaiting bank transfer"
+// email sent to installer / installer_v2 customers at checkout (the order is on
+// hold until an admin confirms the wire). Carries the order summary plus the
+// bank-account details, resolved from site settings at send time and serialized
+// into the queue payload so the worker renders without re-reading settings.
+type BankTransferOnHoldParams struct {
+	OrderID           string
+	OrderNumber       string // customer-facing, e.g. ORD-0001
+	CustomerName      string
+	CustomerEmail     string
+	Items             []OrderEmailItem
+	Subtotal          float64
+	ShippingLabel     string
+	DiscountAmount    float64
+	AppliedPromotions []EmailPromotion
+	Total             float64
+	Currency          string
+	OrderURL          string // links the customer back to /account/orders/{id}
+	BankAccountName   string // 名稱
+	BankName          string // 銀行
+	BankAccountNumber string // 賬戶
+	WhatsAppDisplay   string // human-readable WhatsApp number
+	WhatsAppURL       string // wa.me link target
+}
+
 type PasswordResetParams struct {
 	CustomerName  string
 	CustomerEmail string
@@ -335,6 +360,24 @@ func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams)
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
+// SendBankTransferOnHold sends the "order received — please complete your bank
+// transfer" email for an offline (installer) order placed on hold.
+func (s *Service) SendBankTransferOnHold(ctx context.Context, p BankTransferOnHoldParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+	subject, html, text := s.applyTemplate(ctx, "bank_transfer_on_hold", p, func() (string, string, string) {
+		return renderDefault("subject:bank_transfer_on_hold", bankTransferOnHoldSubject, p),
+			renderDefault("html:bank_transfer_on_hold", bankTransferOnHoldHTML, p),
+			renderDefault("text:bank_transfer_on_hold", bankTransferOnHoldText, p)
+	})
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
 // SendOrderShipped notifies the customer that their order has shipped, with
 // optional carrier / tracking info.
 func (s *Service) SendOrderShipped(ctx context.Context, p ShippedEmailParams) error {
@@ -456,6 +499,20 @@ func (s *Service) RenderTemplate(ctx context.Context, key string, params any) (s
 			return renderDefault("subject:order_confirmation", orderConfirmationSubject, p),
 				renderDefault("html:order_confirmation", orderConfirmationHTML, p),
 				renderDefault("text:order_confirmation", orderConfirmationText, p)
+		})
+		return subject, text, html, nil
+	case "bank_transfer_on_hold":
+		p, ok := params.(BankTransferOnHoldParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render bank_transfer_on_hold: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "bank_transfer_on_hold", p, func() (string, string, string) {
+			return renderDefault("subject:bank_transfer_on_hold", bankTransferOnHoldSubject, p),
+				renderDefault("html:bank_transfer_on_hold", bankTransferOnHoldHTML, p),
+				renderDefault("text:bank_transfer_on_hold", bankTransferOnHoldText, p)
 		})
 		return subject, text, html, nil
 	case "order_shipped":
@@ -1034,6 +1091,70 @@ const orderConfirmationHTML = `<!doctype html>
   <a href="{{.SetupURL}}" style="display:inline-block;padding:10px 20px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">設定密碼</a>
   <p style="margin:12px 0 0;color:#9ca3af;font-size:12px">此連結將於 7 日後失效，且只可使用一次。</p>
 </div>{{end}}
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`
+
+const bankTransferOnHoldSubject = `訂單已收到，等待付款 — {{orderref .OrderNumber .OrderID}}`
+
+const bankTransferOnHoldText = `您好 {{.CustomerName}}，
+
+感謝您的訂購！您的訂單已處於保留狀態，直到我們確認收到您的銀行轉賬後才會繼續處理。訂單編號：{{orderref .OrderNumber .OrderID}}
+
+──────── 銀行匯款資訊 ────────
+名稱：{{.BankAccountName}}
+銀行：{{.BankName}}
+賬戶：{{.BankAccountNumber}}
+
+請完成付款後將入數紀錄截圖並 WhatsApp 傳送到 {{.WhatsAppDisplay}}
+{{.WhatsAppURL}}
+
+──────── 訂單明細 ────────
+{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money .LineTotal}}
+{{if .Subtitle}}  {{.Subtitle}}
+{{end}}{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{end}}{{end}}
+小計：     {{.Currency}} {{money .Subtotal}}
+{{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{money .DiscountAmount}}
+{{end}}運費：     {{.ShippingLabel}}
+總額：     {{.Currency}} {{money .Total}}
+
+{{if .OrderURL}}查看訂單狀態：{{.OrderURL}}
+
+{{end}}如有任何疑問，歡迎回覆此電郵。
+
+— Gyeon`
+
+const bankTransferOnHoldHTML = `<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>訂單已收到，等待付款</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">訂單已收到，等待付款</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">您好 {{.CustomerName | esc}}，感謝您的訂購。您的訂單將處於保留狀態，直到我們確認收到付款才會繼續處理。訂單編號 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong></p>
+
+      <div style="margin:0 0 24px;padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb">
+        <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 12px">銀行匯款資訊</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.8">
+          <tr><td style="color:#6b7280;width:64px">名稱</td><td style="color:#111827;font-weight:500">{{.BankAccountName | esc}}</td></tr>
+          <tr><td style="color:#6b7280">銀行</td><td style="color:#111827;font-weight:500">{{.BankName | esc}}</td></tr>
+          <tr><td style="color:#6b7280">賬戶</td><td style="color:#111827;font-weight:500;font-variant-numeric:tabular-nums">{{.BankAccountNumber | esc}}</td></tr>
+        </table>
+        <p style="margin:14px 0 0;color:#374151;font-size:14px;line-height:1.6">請完成付款後將入數紀錄截圖並 WhatsApp 傳送到 <a href="{{.WhatsAppURL}}" style="color:#111827;font-weight:600">{{.WhatsAppDisplay | esc}}</a></p>
+      </div>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">訂單明細</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .Subtotal}}</td></tr>
+        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{money .DiscountAmount}}</td></tr>{{range .AppliedPromotions}}<tr><td colspan="2" style="padding:0 0 4px;color:#9ca3af;font-size:12px">{{.Name | esc}}{{if .Description}} — {{.Description | esc}}{{end}}</td></tr>{{end}}{{end}}
+        <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.ShippingLabel}}</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{money .Total}}</td></tr>
+      </table>
+
+      {{if .OrderURL}}<p style="margin:24px 0 0"><a href="{{.OrderURL}}" style="display:inline-block;padding:10px 20px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">查看訂單狀態</a></p>{{end}}
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
   </div>

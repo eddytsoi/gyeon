@@ -36,6 +36,20 @@ const (
 	StatusRefunded   OrderStatus = "refunded"
 )
 
+// Bank-transfer payment constants. Bank transfer is the offline method offered
+// only to installer / installer_v2 customers: no Stripe PaymentIntent is
+// created, the order sits on hold until an admin confirms the wire, and the
+// cart is cleared at checkout (there is no webhook to do it later).
+const (
+	PaymentMethodBankTransfer = "bank_transfer"
+	// PaymentStatusAwaitingBankTransfer is distinct from the Stripe
+	// 'requires_payment_method' state so a bank-transfer order is never confused
+	// with an awaiting-card order and is never matched by a Stripe webhook
+	// lookup (it has no payment_intent_id). It is IS DISTINCT FROM 'succeeded',
+	// so the pending-order resume logic still treats it as unpaid.
+	PaymentStatusAwaitingBankTransfer = "awaiting_bank_transfer"
+)
+
 // OrderAppliedPromotion is the per-order snapshot of one campaign or coupon
 // that contributed to discount_amount. Kept on the order so the success
 // page / account order detail can show "why" the discount was applied even
@@ -209,6 +223,13 @@ type CheckoutRequest struct {
 	// Set internally by callers that have no Stripe.js (e.g. MCP); never read
 	// from JSON so REST clients cannot trigger spam.
 	SendPaymentLink bool `json:"-"`
+	// VerifiedRole is the storefront role proven by the customer's auth token
+	// (cookie/Bearer), set by the HTTP handler from request context — never read
+	// from JSON. Empty for guests / unverified callers. It is the *sole*
+	// authority for choosing the payment method, so a spoofed body CustomerID
+	// can't unlock bank transfer: installer / installer_v2 ⇒ bank transfer,
+	// everyone else ⇒ Stripe.
+	VerifiedRole string `json:"-"`
 }
 
 type CheckoutResult struct {
@@ -260,6 +281,7 @@ type AuditEntry struct {
 type EmailSender interface {
 	PublicBaseURL(ctx context.Context) string
 	SendPaymentLink(ctx context.Context, p email.PaymentLinkParams) error
+	SendBankTransferOnHold(ctx context.Context, p email.BankTransferOnHoldParams) error
 	SendOrderConfirmation(ctx context.Context, p email.OrderEmailParams) error
 	SendOrderShipped(ctx context.Context, p email.ShippedEmailParams) error
 	SendOrderRefunded(ctx context.Context, p email.RefundEmailParams) error
@@ -655,6 +677,13 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		customerName = strings.TrimSpace(req.CustomerInfo.FirstName + " " + req.CustomerInfo.LastName)
 	}
 
+	// Choose the payment method from the *verified* role only (set by the HTTP
+	// handler from the auth token), never from the body-derived customerRole —
+	// otherwise a guest spoofing an installer's customer_id could place a no-pay
+	// bank-transfer order. installer / installer_v2 ⇒ bank transfer (offline,
+	// on hold); everyone else (customer / guest / unverified) ⇒ Stripe.
+	useBankTransfer := req.VerifiedRole == customers.RoleInstaller || req.VerifiedRole == customers.RoleInstallerV2
+
 	// Resolve shipping address: existing id, or insert new
 	shippingAddressID := req.ShippingAddressID
 	if (shippingAddressID == nil || *shippingAddressID == "") && req.ShippingAddress != nil {
@@ -848,10 +877,16 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		for _, li := range lines {
 			want[li.variantID] += li.quantity
 		}
-		if pendingOrderMatchesCart(existing, want, total) {
+		// Resume only when the existing order's payment method still matches the
+		// current shopper's required one. If the role (and therefore the method)
+		// changed since — e.g. a customer was promoted to installer between
+		// attempts — the stale Stripe/bank order is superseded and a fresh one in
+		// the correct method is created below.
+		existingIsBankTransfer := existing.PaymentMethod != nil && *existing.PaymentMethod == PaymentMethodBankTransfer
+		if existingIsBankTransfer == useBankTransfer && pendingOrderMatchesCart(existing, want, total) {
 			return s.resumePendingOrder(ctx, existing, shippingAddressID, customerEmail, customerPhone, customerName, req.Notes)
 		}
-		note := "Superseded — cart changed before payment"
+		note := "Superseded — cart or payment method changed before payment"
 		if _, cerr := s.UpdateStatus(ctx, existing.ID, UpdateStatusRequest{Status: StatusCancelled, Note: &note}); cerr != nil {
 			return nil, fmt.Errorf("cancel superseded order %s: %w", existing.ID, cerr)
 		}
@@ -936,18 +971,29 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 	appliedPromos := buildAppliedPromotions(discountResult)
 	appliedJSON := marshalAppliedPromotions(appliedPromos)
 
+	// Stripe orders start awaiting a card with the method set later by the
+	// webhook; bank-transfer orders record the method up front and sit in the
+	// distinct 'awaiting_bank_transfer' state with no PaymentIntent.
+	paymentStatusInit := "requires_payment_method"
+	var paymentMethodPtr *string
+	if useBankTransfer {
+		paymentStatusInit = PaymentStatusAwaitingBankTransfer
+		m := PaymentMethodBankTransfer
+		paymentMethodPtr = &m
+	}
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
-		                     customer_email, customer_phone, customer_name, payment_status,
+		                     customer_email, customer_phone, customer_name, payment_status, payment_method,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, 'requires_payment_method', $14, $15, $16, $17, $18)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
 		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
-		emailPtr, phonePtr, namePtr,
+		emailPtr, phonePtr, namePtr, paymentStatusInit, paymentMethodPtr,
 		carrierPtr, servicePtr, nil, nil, req.CartID).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
@@ -1065,9 +1111,22 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		go s.onCreated(context.Background(), &order)
 	}
 
+	result := &CheckoutResult{Order: &order}
+	if useBankTransfer {
+		// Bank transfer is offline: no PaymentIntent, no client_secret. The order
+		// stays on hold (status=pending, payment_status=awaiting_bank_transfer)
+		// until an admin confirms the wire. There is no Stripe webhook to clear
+		// the cart later, so do it now (mirrors MarkPaidByPaymentIntent), and
+		// email the customer the transfer instructions.
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM cart_items WHERE cart_id = $1`, req.CartID); err != nil {
+			log.Printf("clear cart for bank-transfer order %s: %v", order.ID, err)
+		}
+		s.sendBankTransferOnHoldEmail(ctx, &order)
+		return result, nil
+	}
+
 	// Create Stripe PaymentIntent (outside the order tx — Stripe is the source of truth for the PI;
 	// if this fails after the order is committed, the order can be retried/cancelled separately).
-	result := &CheckoutResult{Order: &order}
 	if s.paymentSvc != nil {
 		intent, err := s.paymentSvc.CreatePaymentIntent(ctx, payment.CreateIntentParams{
 			AmountCents: int64(total*100 + 0.5), // round to nearest cent
@@ -1168,6 +1227,26 @@ func (s *OrderService) resumePendingOrder(ctx context.Context, order *Order, shi
 	}
 	if name != "" {
 		namePtr = &name
+	}
+
+	// Bank-transfer orders have no Stripe PaymentIntent and must never be flipped
+	// to a Stripe payment_status. Caller only reaches here when the existing
+	// order's method matches the current shopper, so refresh the snapshot, keep
+	// it on hold, and return without touching Stripe.
+	if order.PaymentMethod != nil && *order.PaymentMethod == PaymentMethodBankTransfer {
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE orders SET
+			    shipping_address_id = COALESCE($2, shipping_address_id),
+			    customer_email = COALESCE($3, customer_email),
+			    customer_phone = COALESCE($4, customer_phone),
+			    customer_name  = COALESCE($5, customer_name),
+			    notes = COALESCE($6, notes),
+			    updated_at = now()
+			 WHERE id = $1`,
+			order.ID, shippingAddressID, emailPtr, phonePtr, namePtr, notes); err != nil {
+			return nil, fmt.Errorf("refresh pending bank-transfer order %s: %w", order.ID, err)
+		}
+		return &CheckoutResult{Order: order}, nil
 	}
 
 	if _, err := s.db.ExecContext(ctx,
@@ -1688,6 +1767,102 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 	if err != nil {
 		log.Printf("send order confirmation email for order %s: %v", order.ID, err)
 	}
+}
+
+// sendBankTransferOnHoldEmail emails an installer the bank-transfer instructions
+// for an order placed on hold. Best-effort — a send failure must not fail
+// checkout (the storefront also shows the same details on the success page).
+func (s *OrderService) sendBankTransferOnHoldEmail(ctx context.Context, order *Order) {
+	if s.emailSvc == nil || order.CustomerEmail == nil || *order.CustomerEmail == "" {
+		return
+	}
+
+	name := ""
+	if order.CustomerName != nil {
+		name = *order.CustomerName
+	}
+
+	emailPromos := make([]email.EmailPromotion, 0, len(order.AppliedPromotions))
+	for _, p := range order.AppliedPromotions {
+		desc := ""
+		if p.Description != nil {
+			desc = *p.Description
+		}
+		emailPromos = append(emailPromos, email.EmailPromotion{Name: p.Name, Description: desc})
+	}
+
+	orderURL := ""
+	if base := s.emailSvc.PublicBaseURL(ctx); base != "" {
+		orderURL = fmt.Sprintf("%s/account/orders/%s", base, order.ID)
+	}
+
+	bank := s.bankTransferSettings(ctx)
+
+	err := s.emailSvc.SendBankTransferOnHold(ctx, email.BankTransferOnHoldParams{
+		OrderID:           order.ID,
+		OrderNumber:       order.OrderNumber,
+		CustomerName:      name,
+		CustomerEmail:     *order.CustomerEmail,
+		Items:             buildOrderEmailItems(order.Items),
+		Subtotal:          order.Subtotal,
+		ShippingLabel:     ShippingLabel(order, "zh-Hant"),
+		DiscountAmount:    order.DiscountAmount,
+		AppliedPromotions: emailPromos,
+		Total:             order.Total,
+		Currency:          "HKD",
+		OrderURL:          orderURL,
+		BankAccountName:   bank.accountName,
+		BankName:          bank.bankName,
+		BankAccountNumber: bank.accountNumber,
+		WhatsAppDisplay:   bank.whatsappDisplay,
+		WhatsAppURL:       bank.whatsappURL,
+	})
+	if err != nil {
+		log.Printf("send bank-transfer on-hold email for order %s: %v", order.ID, err)
+	}
+}
+
+type bankTransferDetails struct {
+	accountName     string
+	bankName        string
+	accountNumber   string
+	whatsappDisplay string
+	whatsappURL     string
+}
+
+// bankTransferSettings reads the admin-configured bank-transfer account details
+// from site_settings (best-effort; missing rows yield empty strings).
+func (s *OrderService) bankTransferSettings(ctx context.Context) bankTransferDetails {
+	var d bankTransferDetails
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT key, value FROM site_settings WHERE key = ANY($1)`,
+		pq.Array([]string{
+			"bank_transfer_account_name", "bank_transfer_bank_name", "bank_transfer_account_number",
+			"bank_transfer_whatsapp_display", "bank_transfer_whatsapp_url",
+		}))
+	if err != nil {
+		return d
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			continue
+		}
+		switch k {
+		case "bank_transfer_account_name":
+			d.accountName = v
+		case "bank_transfer_bank_name":
+			d.bankName = v
+		case "bank_transfer_account_number":
+			d.accountNumber = v
+		case "bank_transfer_whatsapp_display":
+			d.whatsappDisplay = v
+		case "bank_transfer_whatsapp_url":
+			d.whatsappURL = v
+		}
+	}
+	return d
 }
 
 type lowStockDec struct {

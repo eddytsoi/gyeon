@@ -15,11 +15,19 @@
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import SecurePaymentNote from '$lib/components/shop/SecurePaymentNote.svelte';
+  import BankTransferNotice from '$lib/components/shop/BankTransferNotice.svelte';
+  import { isBankTransferRole, resolveBankTransfer } from '$lib/bankTransfer';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
+
+  // Payment method is fixed by the customer's role: installer / installer_v2 pay
+  // by bank transfer (no Stripe), everyone else pays by Stripe. The backend
+  // enforces this authoritatively from the auth token; this only picks the UI.
+  const isBankTransfer = $derived(isBankTransferRole(data.customer?.role));
+  const bankDetails = $derived(resolveBankTransfer(data.publicSettings ?? []));
 
   let variantMap = $state<Record<string, Variant>>({});
   let loadingVariants = $state(true);
@@ -221,10 +229,47 @@
     loadingVariants = false;
 
     // Load Stripe with the publishable key from server-side payment config.
-    if (data.paymentConfig?.publishable_key) {
+    // Skip entirely for bank-transfer (installer) checkout — there is no card.
+    if (!isBankTransfer && data.paymentConfig?.publishable_key) {
       stripe = await loadStripe(data.paymentConfig.publishable_key);
     }
   });
+
+  // Bank-transfer checkout: create the on-hold order (no Stripe) and go straight
+  // to the confirmation page, which shows the transfer instructions.
+  async function placeBankTransferOrder() {
+    if (!activeCart) {
+      error = m.checkout_cart_empty_error();
+      return;
+    }
+    if (!formValid) return;
+    placing = true;
+    error = '';
+    try {
+      const result = await checkout(activeCart.id, {
+        customerID: data.customer?.id,
+        customerInfo: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim(),
+          phone: phone.trim()
+        },
+        shippingAddressID: addressMode === 'saved' ? selectedAddressID : undefined,
+        shippingAddress:
+          addressMode === 'new'
+            ? { line1: line1.trim(), city: city.trim(), country: country.trim() || 'HK' }
+            : undefined,
+        saveAddress: addressMode === 'new' && saveAddress,
+        shippingFee: 0,
+        couponCode: couponValid ? appliedCouponCode : undefined,
+        notes: notes.trim() || undefined
+      });
+      await goto(`/checkout/success?order=${result.order.id}&method=bank_transfer`);
+    } catch (e) {
+      error = e instanceof Error ? e.message : m.checkout_payment_start_failed();
+      placing = false;
+    }
+  }
 
   async function applyCoupon() {
     const code = couponCode.trim();
@@ -572,31 +617,35 @@
             <h2 class="font-semibold text-gray-900">{m.checkout_section_payment()}</h2>
           </div>
 
-          {#if !paymentReady}
-            <p class="text-xs text-gray-400 mb-4">
-              {m.checkout_payment_hint_new()}
-            </p>
-            <button type="button"
-                    onclick={continueToPayment}
-                    disabled={!formValid || paymentMounting || !stripe}
-                    class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
-                           hover:bg-gray-700 transition-colors disabled:opacity-50">
-              {paymentMounting ? m.checkout_preparing_payment() : m.checkout_continue_to_payment()}
-            </button>
-            {#if !stripe && data.paymentConfig?.publishable_key === ''}
-              <p class="mt-3 text-xs text-red-500">{m.checkout_no_payment_setup()}</p>
+          {#if isBankTransfer}
+            <BankTransferNotice variant="radio" details={bankDetails} />
+          {:else}
+            {#if !paymentReady}
+              <p class="text-xs text-gray-400 mb-4">
+                {m.checkout_payment_hint_new()}
+              </p>
+              <button type="button"
+                      onclick={continueToPayment}
+                      disabled={!formValid || paymentMounting || !stripe}
+                      class="w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
+                             hover:bg-gray-700 transition-colors disabled:opacity-50">
+                {paymentMounting ? m.checkout_preparing_payment() : m.checkout_continue_to_payment()}
+              </button>
+              {#if !stripe && data.paymentConfig?.publishable_key === ''}
+                <p class="mt-3 text-xs text-red-500">{m.checkout_no_payment_setup()}</p>
+              {/if}
             {/if}
-          {/if}
 
-          <!-- Stripe Payment Element -->
-          {#if paymentReady && paymentElementMounted}
-            <div class="mb-4"><SecurePaymentNote /></div>
+            <!-- Stripe Payment Element -->
+            {#if paymentReady && paymentElementMounted}
+              <div class="mb-4"><SecurePaymentNote /></div>
+            {/if}
+            <div id="payment-element" class="w-full min-w-0 {paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
           {/if}
-          <div id="payment-element" class="w-full min-w-0 {paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
         </section>
 
         <!-- ── Pay ─────────────────────────────────────────────── -->
-        {#if error || paymentReady}
+        {#if error || paymentReady || isBankTransfer}
           <section class="bg-white rounded-2xl border border-gray-100 p-6">
             {#if pendingOrderID && error}
               <!-- Payment failed AFTER the order was created. Reassure the
@@ -616,7 +665,15 @@
               <p class="text-sm text-red-500 leading-relaxed">{error}</p>
             {/if}
 
-            {#if paymentReady}
+            {#if isBankTransfer}
+              <button type="button"
+                      onclick={placeBankTransferOrder}
+                      disabled={placing || !formValid}
+                      class="{error ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
+                             hover:bg-gray-700 transition-colors disabled:opacity-50">
+                {placing ? m.checkout_pay_processing() : m.checkout_place_order_bank_transfer()}
+              </button>
+            {:else if paymentReady}
               <button type="button"
                       onclick={confirmPay}
                       disabled={placing || !tcAccepted}

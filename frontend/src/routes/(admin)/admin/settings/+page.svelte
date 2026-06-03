@@ -260,6 +260,17 @@
     'stripe_live_secret_key',
     'stripe_webhook_secret'
   ]);
+  // Rendered by the dedicated Bank Transfer subsection. Must be excluded from the
+  // catch-all textSettings list, otherwise each key renders a second generic
+  // input with the same name and the empty duplicate clobbers the value on save.
+  const BANK_TRANSFER_KEYS = new Set([
+    'bank_transfer_enabled',
+    'bank_transfer_account_name',
+    'bank_transfer_bank_name',
+    'bank_transfer_account_number',
+    'bank_transfer_whatsapp_display',
+    'bank_transfer_whatsapp_url'
+  ]);
 
   const STRIPE_COUNTRY_OPTIONS = [
     { value: 'AU', label: 'Australia' }, { value: 'AT', label: 'Austria' },
@@ -393,6 +404,7 @@
         !MEDIA_LIMIT_KEYS.has(s.key) &&
         !FORM_UPLOAD_KEYS.has(s.key) &&
         !PAYMENT_KEYS.has(s.key) &&
+        !BANK_TRANSFER_KEYS.has(s.key) &&
         !SMTP_KEYS.has(s.key) &&
         !SHIPPING_KEYS.has(s.key) &&
         !SOCIAL_MEDIA_KEYS.has(s.key) &&
@@ -629,6 +641,7 @@
   }
 
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
+  let bankTransferEnabled = $state(settingValue('bank_transfer_enabled') !== 'false');
   let lowStockAlertEnabled = $state(settingValue('low_stock_alert_enabled') !== 'false');
   // ── Tax ─────────────────────────────────────────────────────────
   let taxEnabled = $state(settingValue('tax_enabled') === 'true');
@@ -3025,6 +3038,67 @@
           <PasswordInput id="stripe_webhook_secret" name="stripe_webhook_secret"
                          value={settingValue('stripe_webhook_secret')}
                          placeholder="whsec_..." />
+        </div>
+      </div>
+
+      <!-- Bank transfer (installer / installer_v2 only) -->
+      <div class="pt-5 mt-5 border-t border-gray-100">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_bank_transfer_heading()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_bank_transfer_subtitle()}</p>
+          </div>
+          <button type="button" role="switch"
+                  onclick={() => (bankTransferEnabled = !bankTransferEnabled)}
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors
+                         {bankTransferEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                  aria-checked={bankTransferEnabled}>
+            <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow
+                         transition duration-200 {bankTransferEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+        </div>
+        <input type="hidden" name="bank_transfer_enabled" value={bankTransferEnabled ? 'true' : 'false'} />
+
+        <div class="flex flex-col gap-4 mt-4">
+          <div class="flex flex-col gap-1.5">
+            <label for="bank_transfer_account_name" class="text-xs font-medium text-gray-600">{m.admin_settings_bank_transfer_account_name()}</label>
+            <input id="bank_transfer_account_name" name="bank_transfer_account_name" type="text"
+                   value={settingValue('bank_transfer_account_name')}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label for="bank_transfer_bank_name" class="text-xs font-medium text-gray-600">{m.admin_settings_bank_transfer_bank_name()}</label>
+              <input id="bank_transfer_bank_name" name="bank_transfer_bank_name" type="text"
+                     value={settingValue('bank_transfer_bank_name')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="bank_transfer_account_number" class="text-xs font-medium text-gray-600">{m.admin_settings_bank_transfer_account_number()}</label>
+              <input id="bank_transfer_account_number" name="bank_transfer_account_number" type="text"
+                     value={settingValue('bank_transfer_account_number')}
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="bank_transfer_whatsapp_display" class="text-xs font-medium text-gray-600">{m.admin_settings_bank_transfer_whatsapp_display()}</label>
+              <input id="bank_transfer_whatsapp_display" name="bank_transfer_whatsapp_display" type="text"
+                     value={settingValue('bank_transfer_whatsapp_display')}
+                     placeholder="3468 0832"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label for="bank_transfer_whatsapp_url" class="text-xs font-medium text-gray-600">{m.admin_settings_bank_transfer_whatsapp_url()}</label>
+              <input id="bank_transfer_whatsapp_url" name="bank_transfer_whatsapp_url" type="text"
+                     value={settingValue('bank_transfer_whatsapp_url')}
+                     placeholder="https://wa.me/85234680832"
+                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
+            </div>
+          </div>
         </div>
       </div>
     </div>

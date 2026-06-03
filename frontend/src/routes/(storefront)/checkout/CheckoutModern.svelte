@@ -16,11 +16,19 @@
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import Eyebrow from '$lib/components/shop/Eyebrow.svelte';
   import SecurePaymentNote from '$lib/components/shop/SecurePaymentNote.svelte';
+  import BankTransferNotice from '$lib/components/shop/BankTransferNotice.svelte';
+  import { isBankTransferRole, resolveBankTransfer } from '$lib/bankTransfer';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
 
   let { data }: { data: PageData } = $props();
+
+  // Payment method is fixed by the customer's role: installer / installer_v2 pay
+  // by bank transfer (no Stripe), everyone else pays by Stripe. The backend
+  // enforces this authoritatively from the auth token; this only picks the UI.
+  const isBankTransfer = $derived(isBankTransferRole(data.customer?.role));
+  const bankDetails = $derived(resolveBankTransfer(data.publicSettings ?? []));
 
   let variantMap = $state<Record<string, Variant>>({});
   let loadingVariants = $state(true);
@@ -222,10 +230,47 @@
     variantMap = map;
     loadingVariants = false;
 
-    if (data.paymentConfig?.publishable_key) {
+    // Skip Stripe entirely for bank-transfer (installer) checkout — no card.
+    if (!isBankTransfer && data.paymentConfig?.publishable_key) {
       stripe = await loadStripe(data.paymentConfig.publishable_key);
     }
   });
+
+  // Bank-transfer checkout: create the on-hold order (no Stripe) and go straight
+  // to the confirmation page, which shows the transfer instructions.
+  async function placeBankTransferOrder() {
+    if (!activeCart) {
+      error = m.checkout_cart_empty_error();
+      return;
+    }
+    if (!formValid) return;
+    placing = true;
+    error = '';
+    try {
+      const result = await checkout(activeCart.id, {
+        customerID: data.customer?.id,
+        customerInfo: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim(),
+          phone: phone.trim()
+        },
+        shippingAddressID: addressMode === 'saved' ? selectedAddressID : undefined,
+        shippingAddress:
+          addressMode === 'new'
+            ? { line1: line1.trim(), city: city.trim(), country: country.trim() || 'HK' }
+            : undefined,
+        saveAddress: addressMode === 'new' && saveAddress,
+        shippingFee: 0,
+        couponCode: couponValid ? appliedCouponCode : undefined,
+        notes: notes.trim() || undefined
+      });
+      await goto(`/checkout/success?order=${result.order.id}&method=bank_transfer`);
+    } catch (e) {
+      error = e instanceof Error ? e.message : m.checkout_payment_start_failed();
+      placing = false;
+    }
+  }
 
   async function applyCoupon() {
     const code = couponCode.trim();
@@ -268,7 +313,7 @@
     if (!step1Valid) return;
     currentStep = 2;
     await tick();
-    await maybeMountPayment();
+    if (!isBankTransfer) await maybeMountPayment();
     document.getElementById('checkout-step-2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -670,14 +715,18 @@
 
           {#if currentStep === 2}
             <div class="flex flex-col gap-5">
-              <!-- Inline deferred Payment Element -->
-              <SecurePaymentNote />
-              <div id="payment-element-modern" class="w-full min-w-0 {paymentElementMounted ? '' : 'hidden'}"></div>
-              {#if !paymentElementMounted}
-                <p class="text-sm text-ink-300">{m.common_loading()}</p>
-              {/if}
-              {#if !stripe && data.paymentConfig?.publishable_key === ''}
-                <p class="text-xs text-alert">{m.checkout_no_payment_setup()}</p>
+              {#if isBankTransfer}
+                <BankTransferNotice variant="radio" details={bankDetails} />
+              {:else}
+                <!-- Inline deferred Payment Element -->
+                <SecurePaymentNote />
+                <div id="payment-element-modern" class="w-full min-w-0 {paymentElementMounted ? '' : 'hidden'}"></div>
+                {#if !paymentElementMounted}
+                  <p class="text-sm text-ink-300">{m.common_loading()}</p>
+                {/if}
+                {#if !stripe && data.paymentConfig?.publishable_key === ''}
+                  <p class="text-xs text-alert">{m.checkout_no_payment_setup()}</p>
+                {/if}
               {/if}
 
               <!-- Terms & conditions -->
@@ -714,10 +763,17 @@
                 <p class="text-sm text-alert leading-relaxed">{error}</p>
               {/if}
 
-              <button type="button" onclick={pay} disabled={!formValid || placing || !stripe}
-                      class="w-full py-3.5 bg-navy-500 text-white font-display font-bold uppercase tracking-[0.12em] text-sm rounded-xl hover:bg-navy-700 transition-colors disabled:opacity-40">
-                {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: roundAmount(total) })}
-              </button>
+              {#if isBankTransfer}
+                <button type="button" onclick={placeBankTransferOrder} disabled={!formValid || placing}
+                        class="w-full py-3.5 bg-navy-500 text-white font-display font-bold uppercase tracking-[0.12em] text-sm rounded-xl hover:bg-navy-700 transition-colors disabled:opacity-40">
+                  {placing ? m.checkout_pay_processing() : m.checkout_place_order_bank_transfer()}
+                </button>
+              {:else}
+                <button type="button" onclick={pay} disabled={!formValid || placing || !stripe}
+                        class="w-full py-3.5 bg-navy-500 text-white font-display font-bold uppercase tracking-[0.12em] text-sm rounded-xl hover:bg-navy-700 transition-colors disabled:opacity-40">
+                  {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: roundAmount(total) })}
+                </button>
+              {/if}
             </div>
           {/if}
         </section>
