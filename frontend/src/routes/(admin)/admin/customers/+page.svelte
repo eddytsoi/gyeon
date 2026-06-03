@@ -62,6 +62,7 @@
         <option value="">{m.admin_customers_filter_role_all()}</option>
         <option value="customer">{m.admin_role_customer()}</option>
         <option value="installer">{m.admin_role_installer()}</option>
+        <option value="installer_v2">{m.admin_role_installer_v2()}</option>
       </select>
     </label>
   </div>
@@ -109,7 +110,11 @@
               </td>
               <td class="px-5 py-3">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                             {customer.role === 'installer' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}">
+                             {customer.role === 'installer'
+                    ? 'bg-amber-50 text-amber-700'
+                    : customer.role === 'installer_v2'
+                      ? 'bg-sky-50 text-sky-700'
+                      : 'bg-gray-100 text-gray-600'}">
                   {customerRoleLabel(customer.role)}
                 </span>
               </td>

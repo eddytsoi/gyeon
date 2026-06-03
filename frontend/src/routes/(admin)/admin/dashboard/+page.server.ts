@@ -21,7 +21,7 @@ import {
 } from '$lib/api/admin';
 import type { PageServerLoad } from './$types';
 
-const VALID_ROLES = ['customer', 'installer'];
+const VALID_ROLES = ['customer', 'installer', 'installer_v2'];
 
 function localISO(d: Date): string {
   const y = d.getFullYear();

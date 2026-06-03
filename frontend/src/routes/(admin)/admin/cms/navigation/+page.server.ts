@@ -36,6 +36,7 @@ function extractHiddenRoles(data: FormData): string[] {
   const roles: string[] = [];
   if (data.get('hide_customer')) roles.push('customer');
   if (data.get('hide_installer')) roles.push('installer');
+  if (data.get('hide_installer_v2')) roles.push('installer_v2');
   return roles;
 }
 

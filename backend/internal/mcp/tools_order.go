@@ -39,7 +39,7 @@ func registerOrderTools(s *mcpserver.MCPServer, orderSvc *orders.OrderService, p
 		mcplib.WithDescription("Validate a coupon code and preview the discount amount for a given subtotal"),
 		mcplib.WithString("code", mcplib.Description("Coupon code to validate"), mcplib.Required()),
 		mcplib.WithNumber("subtotal", mcplib.Description("Order subtotal to compute the discount against"), mcplib.Required()),
-		mcplib.WithString("customer_role", mcplib.Description("Optional customer role for a logged-in shopper ('customer' or 'installer'). Omit for guests.")),
+		mcplib.WithString("customer_role", mcplib.Description("Optional customer role for a logged-in shopper ('customer', 'installer', or 'installer_v2'). Omit for guests.")),
 		mcplib.WithBoolean("is_guest", mcplib.Description("Explicit guest flag. When omitted, treated as guest iff customer_role is empty.")),
 	), func(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 		code, err := req.RequireString("code")

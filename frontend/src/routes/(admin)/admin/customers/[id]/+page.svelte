@@ -4,6 +4,7 @@
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import type { CustomerRole } from '$lib/types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -13,10 +14,10 @@
   let savingRole = $state(false);
   // Track the selected role locally so the <select> reflects unsaved edits.
   // Falls back to the loaded customer role; re-syncs after a successful save.
-  let roleDraft = $state<'customer' | 'installer'>(data.customer?.role ?? 'customer');
+  let roleDraft = $state<CustomerRole>(data.customer?.role ?? 'customer');
   $effect(() => {
     if (form?.roleSaved && form.role) {
-      roleDraft = form.role as 'customer' | 'installer';
+      roleDraft = form.role as CustomerRole;
     }
   });
 
@@ -136,6 +137,7 @@
           >
             <option value="customer">{m.admin_role_customer()}</option>
             <option value="installer">{m.admin_role_installer()}</option>
+            <option value="installer_v2">{m.admin_role_installer_v2()}</option>
           </select>
         </div>
         <SaveButton

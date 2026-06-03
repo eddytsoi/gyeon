@@ -473,7 +473,7 @@ func normalizeHiddenRoles(in []string) ([]string, error) {
 			continue
 		}
 		switch role {
-		case customers.RoleCustomer, customers.RoleInstaller:
+		case customers.RoleCustomer, customers.RoleInstaller, customers.RoleInstallerV2:
 			// valid
 		default:
 			return nil, fmt.Errorf("%w: %q", ErrInvalidNavRole, raw)

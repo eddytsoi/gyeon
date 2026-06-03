@@ -34,8 +34,10 @@ var publicSettingKeys = []string{
 	"meta_pixel_id",                             // P3 #26
 	"free_shipping_threshold_hkd",               // P3 #29 — used by checkout summary + free-ship banner
 	"free_shipping_threshold_enabled",           // master switch (paired with the amount above)
-	"free_shipping_threshold_installer_hkd",     // installer (施工店) tier override, read by storefront when customer.role = installer
-	"free_shipping_threshold_installer_enabled", // master switch for the installer threshold (no fallback to the default when off)
+	"free_shipping_threshold_installer_hkd",        // installer (施工店) tier override, read by storefront when customer.role = installer
+	"free_shipping_threshold_installer_enabled",    // master switch for the installer threshold (no fallback to the default when off)
+	"free_shipping_threshold_installer_v2_hkd",     // installer_v2 (施工店_v2) tier override, read by storefront when customer.role = installer_v2
+	"free_shipping_threshold_installer_v2_enabled", // master switch for the installer_v2 threshold (no fallback to the default when off)
 	"favicon_url",                               // injected into <svelte:head> on storefront + admin
 	"company_logo_url",                          // storefront header logo image URL
 	"company_logo_height_px",                    // storefront header logo render height (px)

@@ -19,11 +19,11 @@
   let minOrder = $state<string>(c?.min_order_amount != null ? String(c.min_order_amount) : '');
   let maxOrder = $state<string>(c?.max_order_amount != null ? String(c.max_order_amount) : '');
   let maxUses = $state<string>(c?.max_uses != null ? String(c.max_uses) : '');
-  let allowedRoles = $state<CustomerRole[]>(c?.allowed_roles ?? ['customer', 'installer']);
+  let allowedRoles = $state<CustomerRole[]>(c?.allowed_roles ?? ['customer', 'installer', 'installer_v2']);
   let allowGuests = $state<boolean>(c?.allow_guests ?? true);
   let isActive = $state<boolean>(c?.is_active ?? true);
 
-  const ROLE_OPTIONS: CustomerRole[] = ['customer', 'installer'];
+  const ROLE_OPTIONS: CustomerRole[] = ['customer', 'installer', 'installer_v2'];
   function toggleRole(role: CustomerRole, checked: boolean) {
     if (checked) {
       if (!allowedRoles.includes(role)) allowedRoles = [...allowedRoles, role];

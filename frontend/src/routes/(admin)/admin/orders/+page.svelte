@@ -185,7 +185,7 @@
 
   const NEEDS_ACTION = ['pending', 'paid', 'processing'] as const;
 
-  const ROLES = ['customer', 'installer'] as const;
+  const ROLES = ['customer', 'installer', 'installer_v2'] as const;
 
   const statusColour: Record<string, string> = {
     pending:    'bg-amber-50 text-amber-700',
@@ -198,12 +198,14 @@
   };
 
   const roleColour: Record<string, string> = {
-    customer:  'bg-gray-50 text-gray-700',
-    installer: 'bg-orange-50 text-orange-700',
+    customer:     'bg-gray-50 text-gray-700',
+    installer:    'bg-orange-50 text-orange-700',
+    installer_v2: 'bg-sky-50 text-sky-700',
   };
 
   function roleLabel(role: string): string {
     if (role === 'installer') return m.admin_orders_filter_role_installer();
+    if (role === 'installer_v2') return m.admin_orders_filter_role_installer_v2();
     if (role === 'customer') return m.admin_orders_filter_role_customer();
     return role;
   }
@@ -495,9 +497,9 @@
           <td class="px-5 py-3 text-gray-700 hidden md:table-cell">
             <span class="inline-flex items-center gap-1.5">
               {order.customer_name || '—'}
-              {#if order.customer_role === 'installer'}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {roleColour.installer}">
-                  {roleLabel('installer')}
+              {#if order.customer_role && order.customer_role !== 'customer'}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {roleColour[order.customer_role] ?? roleColour.installer}">
+                  {roleLabel(order.customer_role)}
                 </span>
               {/if}
             </span>

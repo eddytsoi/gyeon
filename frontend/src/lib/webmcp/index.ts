@@ -168,7 +168,7 @@ const tools: ToolDefinition[] = [
       properties: {
         code: { type: 'string' },
         subtotal: { type: 'number', minimum: 0 },
-        customer_role: { type: 'string', enum: ['customer', 'installer'] },
+        customer_role: { type: 'string', enum: ['customer', 'installer', 'installer_v2'] },
         is_guest: { type: 'boolean' }
       },
       required: ['code', 'subtotal']

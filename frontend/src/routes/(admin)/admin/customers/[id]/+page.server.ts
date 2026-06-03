@@ -39,7 +39,7 @@ export const actions: Actions = {
     if (!token) throw redirect(303, '/admin/login');
     const form = await request.formData();
     const role = String(form.get('role') ?? '') as CustomerRole;
-    if (role !== 'customer' && role !== 'installer') {
+    if (role !== 'customer' && role !== 'installer' && role !== 'installer_v2') {
       return fail(400, { roleError: 'invalid role' });
     }
     try {

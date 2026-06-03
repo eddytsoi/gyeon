@@ -241,8 +241,9 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 
 	first, last := resolveName(wc)
 	phone := nullableString(wc.Billing.Phone)
-	// WC custom roles "installer" and "installerv2" both map to Gyeon's
-	// "installer" role; everything else is treated as a regular customer.
+	// WC role "installer" maps to Gyeon "installer"; WC "installer_v2"
+	// (or the legacy condensed "installerv2") maps to the distinct
+	// "installer_v2" tier; everything else is a regular customer.
 	// See customers.NormalizeRole for the canonical mapping.
 	role := customers.NormalizeRole(wc.Role)
 

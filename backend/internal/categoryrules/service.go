@@ -294,7 +294,7 @@ var ErrInvalidRole = errors.New("invalid role")
 
 func ValidateRole(role string) error {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case customers.RoleCustomer, customers.RoleInstaller:
+	case customers.RoleCustomer, customers.RoleInstaller, customers.RoleInstallerV2:
 		return nil
 	default:
 		return ErrInvalidRole

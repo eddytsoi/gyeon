@@ -182,7 +182,9 @@
     'free_shipping_threshold_hkd',
     'free_shipping_threshold_enabled',
     'free_shipping_threshold_installer_hkd',
-    'free_shipping_threshold_installer_enabled'
+    'free_shipping_threshold_installer_enabled',
+    'free_shipping_threshold_installer_v2_hkd',
+    'free_shipping_threshold_installer_v2_enabled'
   ]);
   const SHIPPING_KEYS = new Set(['shipping_countries']);
   // Managed by the Social Media section (General tab). Same reason as above:
@@ -344,6 +346,7 @@
     currency: m.admin_settings_label_currency(),
     free_shipping_threshold_hkd: m.admin_settings_label_free_shipping_threshold_hkd(),
     free_shipping_threshold_installer_hkd: m.admin_settings_label_free_shipping_threshold_installer_hkd(),
+    free_shipping_threshold_installer_v2_hkd: m.admin_settings_label_free_shipping_threshold_installer_v2_hkd(),
     ga4_measurement_id: m.admin_settings_label_ga4_measurement_id(),
     loyalty_enabled: m.admin_settings_label_loyalty_enabled(),
     loyalty_points_per_hkd: m.admin_settings_label_loyalty_points_per_hkd(),
@@ -369,6 +372,7 @@
     currency: m.admin_settings_desc_currency(),
     free_shipping_threshold_hkd: m.admin_settings_desc_free_shipping_threshold_hkd(),
     free_shipping_threshold_installer_hkd: m.admin_settings_desc_free_shipping_threshold_installer_hkd(),
+    free_shipping_threshold_installer_v2_hkd: m.admin_settings_desc_free_shipping_threshold_installer_v2_hkd(),
     ga4_measurement_id: m.admin_settings_desc_ga4_measurement_id(),
     loyalty_enabled: m.admin_settings_desc_loyalty_enabled(),
     loyalty_points_per_hkd: m.admin_settings_desc_loyalty_points_per_hkd(),
@@ -424,6 +428,7 @@
   const currencySetting = $derived(data.settings.find((s) => s.key === 'currency'));
   const freeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_hkd'));
   const installerFreeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_installer_hkd'));
+  const installerV2FreeShippingSetting = $derived(data.settings.find((s) => s.key === 'free_shipping_threshold_installer_v2_hkd'));
   const cacheTTLSettings = $derived(data.settings.filter((s) => CACHE_TTL_KEYS.has(s.key)));
   const tokenTTLSettings = $derived(data.settings.filter((s) => TOKEN_TTL_KEYS.has(s.key)));
   const cloudflareSettings = $derived(data.settings.filter((s) => CLOUDFLARE_KEYS.has(s.key)));
@@ -681,6 +686,7 @@
   // ── Free shipping threshold (master toggle drives paid-by-receiver below) ──
   let freeShippingEnabled = $state(settingValue('free_shipping_threshold_enabled') === 'true');
   let installerFreeShippingEnabled = $state(settingValue('free_shipping_threshold_installer_enabled') === 'true');
+  let installerV2FreeShippingEnabled = $state(settingValue('free_shipping_threshold_installer_v2_enabled') === 'true');
 
   // ── ShipAny ─────────────────────────────────────────────────────
   let shipanyOn = $state(settingValue('shipany_enabled') === 'true');
@@ -2278,6 +2284,46 @@
 
         {#if !installerFreeShippingEnabled}
           <p class="mt-3 text-xs text-gray-500">{m.admin_settings_free_shipping_threshold_installer_disabled_hint()}</p>
+        {/if}
+      </div>
+    {/if}
+
+    {#if installerV2FreeShippingSetting}
+      <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_label_free_shipping_threshold_installer_v2_enabled()}</h2>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_free_shipping_threshold_installer_v2_subtitle()}</p>
+          </div>
+          <button type="button"
+                  onclick={() => (installerV2FreeShippingEnabled = !installerV2FreeShippingEnabled)}
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                         transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                         {installerV2FreeShippingEnabled ? 'bg-green-500' : 'bg-gray-200'}"
+                  role="switch"
+                  aria-checked={installerV2FreeShippingEnabled}>
+            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                         transition duration-200 {installerV2FreeShippingEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+          <input type="hidden" name="free_shipping_threshold_installer_v2_enabled" value={installerV2FreeShippingEnabled ? 'true' : 'false'} />
+        </div>
+
+        <div class="flex flex-col gap-1.5 {installerV2FreeShippingEnabled ? '' : 'opacity-50'}">
+          <label for="free_shipping_threshold_installer_v2_hkd" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_label_free_shipping_threshold_installer_v2_hkd()}
+          </label>
+          {#if SETTING_DESCS['free_shipping_threshold_installer_v2_hkd'] ?? installerV2FreeShippingSetting.description}
+            <p class="text-xs text-gray-400 -mt-0.5">{SETTING_DESCS['free_shipping_threshold_installer_v2_hkd'] ?? installerV2FreeShippingSetting.description}</p>
+          {/if}
+          <input id="free_shipping_threshold_installer_v2_hkd" name="free_shipping_threshold_installer_v2_hkd" type="text"
+                 value={installerV2FreeShippingSetting.value}
+                 disabled={!installerV2FreeShippingEnabled}
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:bg-gray-50 disabled:cursor-not-allowed" />
+        </div>
+
+        {#if !installerV2FreeShippingEnabled}
+          <p class="mt-3 text-xs text-gray-500">{m.admin_settings_free_shipping_threshold_installer_v2_disabled_hint()}</p>
         {/if}
       </div>
     {/if}

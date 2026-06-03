@@ -1,0 +1,12 @@
+-- Add the installer_v2 (施工店_v2) storefront customer role.
+--
+-- Migrated from WooCommerce, whose role set now includes a separate
+-- "installer_v2" alongside "installer". Until now the importer folded
+-- "installerv2" into "installer"; this adds the distinct enum value so the
+-- tier can be tracked, filtered, priced, and shipped on its own.
+--
+-- ALTER TYPE ... ADD VALUE must commit before any statement references the new
+-- value, so this migration does NOTHING ELSE. Settings/defaults that use the
+-- literal live in 119_installer_v2_defaults.sql, applied as a separate
+-- transaction.
+ALTER TYPE customer_role ADD VALUE IF NOT EXISTS 'installer_v2';
