@@ -8,7 +8,7 @@ const KNOWN_STATUSES = new Set([
   'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
 ]);
 
-const KNOWN_ROLES = new Set(['customer', 'installer']);
+const KNOWN_ROLES = new Set(['customer', 'installer', 'installer_v2']);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

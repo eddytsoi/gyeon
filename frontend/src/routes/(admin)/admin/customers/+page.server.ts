@@ -16,7 +16,10 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const activeParam = url.searchParams.get('active') ?? '';
   const active = activeParam === 'active' || activeParam === 'inactive' ? activeParam : undefined;
   const roleParam = url.searchParams.get('role') ?? '';
-  const role = roleParam === 'customer' || roleParam === 'installer' ? (roleParam as CustomerRole) : undefined;
+  const role =
+    roleParam === 'customer' || roleParam === 'installer' || roleParam === 'installer_v2'
+      ? (roleParam as CustomerRole)
+      : undefined;
 
   const res = await adminGetCustomers(token, PAGE_SIZE, offset, q, { active, role }).catch(() => ({ items: [], total: 0 }));
 

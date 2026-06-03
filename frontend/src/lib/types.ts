@@ -394,7 +394,7 @@ export interface NavMenu {
   updated_at: string;
 }
 
-export type CustomerRole = 'customer' | 'installer';
+export type CustomerRole = 'customer' | 'installer' | 'installer_v2';
 
 /**
  * Map a CustomerRole to its localised label. Reuses the admin role labels
@@ -403,7 +403,9 @@ export type CustomerRole = 'customer' | 'installer';
  */
 import * as m from '$lib/paraglide/messages';
 export function customerRoleLabel(role: CustomerRole | string | null | undefined): string {
-  return role === 'installer' ? m.admin_role_installer() : m.admin_role_customer();
+  if (role === 'installer') return m.admin_role_installer();
+  if (role === 'installer_v2') return m.admin_role_installer_v2();
+  return m.admin_role_customer();
 }
 
 export interface Customer {

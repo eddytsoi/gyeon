@@ -651,6 +651,7 @@
 
   "admin_role_customer": "Customer",
   "admin_role_installer": "Installer",
+  "admin_role_installer_v2": "Installer v2",
 
   "admin_category_roles_title": "Category Role Rules — GYEON Admin",
   "admin_category_roles_heading": "Category Role Rules",
@@ -677,6 +678,7 @@
   "admin_orders_col_shipping": "Shipping",
   "admin_orders_filter_role_customer": "Customer",
   "admin_orders_filter_role_installer": "Installer",
+  "admin_orders_filter_role_installer_v2": "Installer v2",
   "admin_orders_filter_shipping_address": "Address delivery",
   "admin_orders_filter_shipping_pickup": "Pickup point",
   "admin_orders_filter_carrier_all": "All carriers",
@@ -1921,6 +1923,11 @@
   "admin_settings_free_shipping_threshold_installer_subtitle": "Independent threshold for installer (施工店) customers. When disabled, installers always pay SF freight-collect — no fallback to the default threshold.",
   "admin_settings_free_shipping_threshold_installer_disabled_hint": "Disabled: installer orders are always booked as SF freight-collect, regardless of the default threshold.",
   "admin_settings_desc_free_shipping_threshold_installer_hkd": "Order subtotal (HKD) at or above which shipping is free for installer (施工店) customers. 0 = disabled.",
+  "admin_settings_label_free_shipping_threshold_installer_v2_hkd": "Installer v2 free shipping threshold (HKD)",
+  "admin_settings_label_free_shipping_threshold_installer_v2_enabled": "Installer v2 free shipping threshold",
+  "admin_settings_free_shipping_threshold_installer_v2_subtitle": "Independent threshold for installer_v2 (施工店_v2) customers. When disabled, they always pay SF freight-collect — no fallback to the default threshold.",
+  "admin_settings_free_shipping_threshold_installer_v2_disabled_hint": "Disabled: installer_v2 orders are always booked as SF freight-collect, regardless of the default threshold.",
+  "admin_settings_desc_free_shipping_threshold_installer_v2_hkd": "Order subtotal (HKD) at or above which shipping is free for installer_v2 (施工店_v2) customers. 0 = disabled.",
   "admin_settings_shipany_paid_by_receiver_hint_auto_on": "Automatically on because the free-shipping threshold is disabled.",
   "admin_settings_shipany_paid_by_receiver_hint_computed": "Computed per order: free when the cart subtotal reaches the free-shipping threshold; otherwise paid by receiver.",
   "admin_settings_label_ga4_measurement_id": "GA4 measurement ID",

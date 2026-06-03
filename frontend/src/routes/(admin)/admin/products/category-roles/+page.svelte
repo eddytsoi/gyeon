@@ -7,12 +7,14 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
-  const ROLES: CustomerRole[] = ['customer', 'installer'];
+  const ROLES: CustomerRole[] = ['customer', 'installer', 'installer_v2'];
 
   // Resolves the enum value to its localized label. Centralized so the role
   // header cell and any future per-role copy stay in sync.
   function roleLabel(role: CustomerRole): string {
-    return role === 'installer' ? m.admin_role_installer() : m.admin_role_customer();
+    if (role === 'installer') return m.admin_role_installer();
+    if (role === 'installer_v2') return m.admin_role_installer_v2();
+    return m.admin_role_customer();
   }
 
   // Build a local state map keyed by `${role}::${category_id}` so each cell

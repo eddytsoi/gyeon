@@ -25,6 +25,7 @@
   let fTarget = $state('_self');
   let fHideCustomer = $state(false);
   let fHideInstaller = $state(false);
+  let fHideInstallerV2 = $state(false);
 
   function openAddItem() {
     editingItem = null;
@@ -33,6 +34,7 @@
     fTarget = '_self';
     fHideCustomer = false;
     fHideInstaller = false;
+    fHideInstallerV2 = false;
     showItemForm = true;
   }
 
@@ -44,6 +46,7 @@
     const hidden = item.hidden_for_roles ?? [];
     fHideCustomer = hidden.includes('customer');
     fHideInstaller = hidden.includes('installer');
+    fHideInstallerV2 = hidden.includes('installer_v2');
     showItemForm = true;
   }
 
@@ -294,6 +297,11 @@
               <input type="checkbox" name="hide_installer" value="1" bind:checked={fHideInstaller}
                      class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
               {m.admin_role_installer()}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" name="hide_installer_v2" value="1" bind:checked={fHideInstallerV2}
+                     class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+              {m.admin_role_installer_v2()}
             </label>
           </div>
           <p class="mt-1.5 text-xs text-gray-400">{m.admin_cms_navigation_hide_for_roles_hint()}</p>

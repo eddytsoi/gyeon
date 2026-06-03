@@ -40,13 +40,13 @@ func (h *AnalyticsHandler) Routes() chi.Router {
 
 // ── Shared dashboard filters ─────────────────────────────────────────────────
 
-var validDashRoles = map[string]bool{"customer": true, "installer": true}
+var validDashRoles = map[string]bool{"customer": true, "installer": true, "installer_v2": true}
 
 // dashFilters is the parsed, validated set of dashboard filters. The zero value
 // of Roles / CategorySlug means "no filter on that dimension".
 type dashFilters struct {
 	From, To     time.Time
-	Roles        []string // validated subset of {customer, installer}
+	Roles        []string // validated subset of {customer, installer, installer_v2}
 	CategorySlug string   // "" = all categories
 }
 

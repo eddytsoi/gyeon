@@ -158,7 +158,7 @@
     <div class="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1 border-t border-gray-50">
       <div class="flex items-center gap-2">
         <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_role_label()}</span>
-        {#each ['customer', 'installer'] as role}
+        {#each ['customer', 'installer', 'installer_v2'] as role}
           <button onclick={() => toggleRole(role)}
                   class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
                          {data.roles.includes(role) ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">

@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
   return { categories, rules: rulesRes.rules };
 };
 
-const ROLES: CustomerRole[] = ['customer', 'installer'];
+const ROLES: CustomerRole[] = ['customer', 'installer', 'installer_v2'];
 
 export const actions: Actions = {
   save: async ({ request, cookies }) => {

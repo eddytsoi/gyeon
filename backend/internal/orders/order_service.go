@@ -439,14 +439,18 @@ func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orde
 }
 
 // freeShippingThresholdKeys picks the (enabled, amount) site_settings keys
-// for the given customer role. Installers (施工店) have their own pair so
-// admins can offer a different free-shipping bar without touching the
-// default that applies to guests + role=customer.
+// for the given customer role. Installer (施工店) and installer_v2 (施工店_v2)
+// each have their own pair so admins can offer a different free-shipping bar
+// without touching the default that applies to guests + role=customer.
 func freeShippingThresholdKeys(role string) (enabledKey, amountKey string) {
-	if role == customers.RoleInstaller {
+	switch role {
+	case customers.RoleInstaller:
 		return "free_shipping_threshold_installer_enabled", "free_shipping_threshold_installer_hkd"
+	case customers.RoleInstallerV2:
+		return "free_shipping_threshold_installer_v2_enabled", "free_shipping_threshold_installer_v2_hkd"
+	default:
+		return "free_shipping_threshold_enabled", "free_shipping_threshold_hkd"
 	}
-	return "free_shipping_threshold_enabled", "free_shipping_threshold_hkd"
 }
 
 // freeShippingThresholdHKD reads the admin-configured threshold (P3 #29)

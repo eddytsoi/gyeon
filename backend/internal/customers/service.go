@@ -28,24 +28,30 @@ type Customer struct {
 	LastName  string  `json:"last_name"`
 	Phone     *string `json:"phone,omitempty"`
 	IsActive  bool    `json:"is_active"`
-	Role      string  `json:"role"` // customer_role enum: 'customer' | 'installer'
+	Role      string  `json:"role"` // customer_role enum: 'customer' | 'installer' | 'installer_v2'
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
 }
 
 // RoleCustomer is the storefront default and what anonymous visitors are
-// treated as. RoleInstaller is the elevated tier admins can grant.
+// treated as. RoleInstaller and RoleInstallerV2 are the elevated tiers admins
+// can grant; they mirror the WooCommerce "installer" / "installer_v2" roles.
 const (
-	RoleCustomer  = "customer"
-	RoleInstaller = "installer"
+	RoleCustomer    = "customer"
+	RoleInstaller   = "installer"
+	RoleInstallerV2 = "installer_v2"
 )
 
 // NormalizeRole maps any incoming role string (admin form value, WC role, …)
-// to a canonical enum value. Unknown values fall through to "customer" so a
-// typo never escalates privileges or breaks a column NOT NULL constraint.
+// to a canonical enum value. The WC role arrives as "installer_v2" or the
+// legacy condensed "installerv2"; both resolve to the distinct installer_v2
+// tier (no longer folded into installer). Unknown values fall through to
+// "customer" so a typo never escalates privileges or breaks a NOT NULL column.
 func NormalizeRole(s string) string {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case RoleInstaller, "installerv2":
+	case RoleInstallerV2, "installerv2":
+		return RoleInstallerV2
+	case RoleInstaller:
 		return RoleInstaller
 	default:
 		return RoleCustomer
