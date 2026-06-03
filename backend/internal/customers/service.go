@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -800,4 +801,84 @@ func (s *Service) GetOrderIDByNumber(ctx context.Context, customerID string, n i
 		`SELECT id FROM orders WHERE number=$1 AND customer_id=$2`,
 		n, customerID).Scan(&id)
 	return id, err
+}
+
+// PurchasedProduct is one product the customer has ever bought, aggregated
+// across every paid-or-later order. Powers the "曾經購買" account page: a
+// product-level (not order-level) view for quick re-ordering plus order/bundle
+// provenance. ProductID is nil when the bought variant has since been deleted
+// (variant_id SET NULL) — such rows are grouped by snapshot name and shown as
+// read-only history (no buy-again). Sources is passed straight through from the
+// SQL json_agg below.
+type PurchasedProduct struct {
+	ProductID        *string         `json:"product_id,omitempty"`
+	ProductName      string          `json:"product_name"`
+	TotalQuantity    int64           `json:"total_quantity"`
+	FirstPurchasedAt string          `json:"first_purchased_at"`
+	LastPurchasedAt  string          `json:"last_purchased_at"`
+	Sources          json.RawMessage `json:"sources"`
+}
+
+// ListPurchasedProducts returns every product the customer has bought, one row
+// per product (variants of the same product collapse together), most-recently
+// purchased first. Each row carries its provenance in `sources`: which order,
+// when, how many, and — for bundle components — which bundle it came in
+// (`bundle_name`, null for standalone purchases).
+//
+// Only paid-or-later orders count (pending/cancelled/refunded excluded). The
+// grouping key is the resolved product id, falling back to the lower-cased
+// snapshot name when the variant has been deleted, so a discontinued product
+// still appears as a single history entry. A bundle parent row (kind='bundle',
+// parent_item_id IS NULL) resolves to the bundle product itself, so buying a
+// bundle surfaces both the bundle ("再買成個套裝") and its components.
+func (s *Service) ListPurchasedProducts(ctx context.Context, customerID string) ([]PurchasedProduct, error) {
+	const query = `
+SELECT
+  MAX(pv.product_id::text)                       AS product_id,
+  MAX(oi.product_name)                           AS product_name,
+  SUM(oi.quantity)::bigint                        AS total_quantity,
+  MIN(o.created_at)::text                         AS first_purchased_at,
+  MAX(o.created_at)::text                         AS last_purchased_at,
+  json_agg(json_build_object(
+    'order_id',      o.id,
+    'order_number',  o.number,
+    'purchased_at',  o.created_at,
+    'quantity',      oi.quantity,
+    'variant_sku',   oi.variant_sku,
+    'variant_attrs', oi.variant_attrs,
+    'bundle_name',   parent.product_name
+  ) ORDER BY o.created_at DESC)                   AS sources
+FROM order_items oi
+JOIN orders o                 ON o.id = oi.order_id
+LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+LEFT JOIN order_items parent  ON parent.id = oi.parent_item_id
+WHERE o.customer_id = $1
+  AND o.status IN ('paid', 'processing', 'shipped', 'delivered')
+GROUP BY COALESCE(pv.product_id::text, 'name:' || lower(oi.product_name))
+ORDER BY MAX(o.created_at) DESC`
+
+	rows, err := s.db.QueryContext(ctx, query, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]PurchasedProduct, 0)
+	for rows.Next() {
+		var (
+			p         PurchasedProduct
+			productID sql.NullString
+			sources   []byte
+		)
+		if err := rows.Scan(&productID, &p.ProductName, &p.TotalQuantity,
+			&p.FirstPurchasedAt, &p.LastPurchasedAt, &sources); err != nil {
+			return nil, err
+		}
+		if productID.Valid {
+			p.ProductID = &productID.String
+		}
+		p.Sources = json.RawMessage(sources)
+		products = append(products, p)
+	}
+	return products, rows.Err()
 }

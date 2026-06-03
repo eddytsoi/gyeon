@@ -307,6 +307,30 @@ export interface OrderNotice {
   created_at: string;
 }
 
+// One purchase occurrence of a product, surfaced in the "曾經購買" account page
+// expand panel. bundle_name is set when the item was a component of a bundle.
+export interface PurchasedSource {
+  order_id: string;
+  order_number: number;
+  purchased_at: string;
+  quantity: number;
+  variant_sku: string;
+  variant_attrs?: Record<string, string>;
+  bundle_name?: string | null;
+}
+
+// A product the customer has ever bought, aggregated across all paid-or-later
+// orders (one row per product). product_id is null when the bought variant has
+// since been deleted — such rows render as read-only history (no buy-again).
+export interface PurchasedProduct {
+  product_id?: string | null;
+  product_name: string;
+  total_quantity: number;
+  first_purchased_at: string;
+  last_purchased_at: string;
+  sources: PurchasedSource[];
+}
+
 export interface PaymentConfig {
   publishable_key: string;
   mode: 'test' | 'live';
