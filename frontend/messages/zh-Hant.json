@@ -1584,6 +1584,8 @@
   "account_order_receipt_download": "下載收據",
   "account_order_receipt_cached_tooltip": "已準備好，即點即下載",
   "account_order_reorder": "再次訂購",
+  "account_order_share_list": "分享購物清單",
+  "account_order_share_list_native_title": "我的 GYEON 購物清單",
   "account_order_reorder_adding": "加入中…",
   "account_order_pay_now": "立即付款",
   "admin_media_picker_choose": "由媒體庫揀選",

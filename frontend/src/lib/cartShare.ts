@@ -25,6 +25,38 @@ export function encodeSharedCart(items: SharedItem[]): string {
     .replace(/=+$/, '');
 }
 
+// Full shareable URL for a set of lines, pointing at the /cart/shared import
+// route. Browser-only (window + btoa); call from a click handler / onMount.
+export function buildShareUrl(items: SharedItem[]): string {
+  return `${window.location.origin}/cart/shared?c=${encodeSharedCart(items)}`;
+}
+
+// Share a URL via the native share sheet (mobile), falling back to copying it
+// to the clipboard, then to prompt() as a last resort. Returns which path was
+// taken so the caller can show the right inline confirmation.
+export async function shareOrCopyUrl(
+  url: string,
+  nativeTitle: string,
+  promptLabel: string
+): Promise<'shared' | 'copied' | 'prompted'> {
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: nativeTitle, url });
+      return 'shared';
+    } catch {
+      // user dismissed the sheet, or share failed — fall through to clipboard
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    return 'copied';
+  } catch {
+    // clipboard blocked (insecure context / denied permission) — last resort
+    window.prompt(promptLabel, url);
+    return 'prompted';
+  }
+}
+
 // Tolerant decode: never throws. Garbage or tampered input yields the valid
 // subset (or []), so the import page can still redirect cleanly instead of
 // hanging on a broken link.

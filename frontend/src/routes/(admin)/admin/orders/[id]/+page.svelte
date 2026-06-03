@@ -5,6 +5,7 @@
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
+  import { renderNoticeBody } from '$lib/orderNotice';
   import { receiptCache } from '$lib/stores/receiptCache.svelte';
   import { notify } from '$lib/stores/notifications.svelte';
 
@@ -548,7 +549,7 @@
                 {m.admin_order_notices_system_badge()}
               </span>
               <div class="flex-1 min-w-0">
-                <p class="text-gray-700 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-gray-700 whitespace-pre-wrap break-words">{@html renderNoticeBody(n.body)}</p>
                 <p class="text-xs text-gray-400 mt-1">
                   {#if n.status}
                     <span class="{statusColour[n.status] ?? 'bg-gray-100 text-gray-500'} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium mr-2">{orderStatusLabel(n.status)}</span>
@@ -563,7 +564,7 @@
                 {m.admin_order_notices_admin_badge()}
               </span>
               <div class="flex-1 min-w-0">
-                <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-gray-900 whitespace-pre-wrap break-words">{@html renderNoticeBody(n.body)}</p>
                 <p class="text-xs text-gray-400 mt-1">
                   {fmtNoticeTime(n.created_at)}
                   {#if !n.read_at}
@@ -578,7 +579,7 @@
                 {m.admin_order_notices_customer_badge()}
               </span>
               <div class="flex-1 min-w-0">
-                <p class="text-gray-900 whitespace-pre-wrap break-words">{n.body}</p>
+                <p class="text-gray-900 whitespace-pre-wrap break-words">{@html renderNoticeBody(n.body)}</p>
                 <p class="text-xs text-gray-400 mt-1">{fmtNoticeTime(n.created_at)}</p>
               </div>
             </div>
