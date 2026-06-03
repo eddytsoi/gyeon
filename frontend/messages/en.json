@@ -240,7 +240,8 @@
   "checkout_tc_link_label": "Terms & Conditions",
 
   "checkout_section_payment": "Payment method",
-  "secure_payment_title": "Encrypted & securely processed by Stripe",
+  "secure_payment_title_pre": "Encrypted & securely processed by ",
+  "secure_payment_title_post": "",
   "secure_payment_subtitle": "GYEON HK never sees or stores your full card number.",
   "checkout_card_saved_tab": "Saved payment methods",
   "checkout_card_new_tab": "Use new card",
