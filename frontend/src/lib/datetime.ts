@@ -15,3 +15,13 @@ export function formatOrderDateTime(iso: string): string {
   });
   return `${date} ${time}`;
 }
+
+/** Order timestamp → "2026年6月1日" (Hong Kong time, date only). */
+export function formatOrderDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('zh-Hant', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}

@@ -98,6 +98,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Put("/me/addresses/{addressID}", h.updateAddress)
 		r.Delete("/me/addresses/{addressID}", h.deleteAddress)
 		r.Get("/me/orders", h.listOrders)
+		r.Get("/me/products/purchased", h.listPurchasedProducts)
 		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
 		r.Get("/me/orders/{id}", h.getOrder)
 		r.Get("/me/orders/{id}/payment-info", h.getOrderPaymentInfo)
@@ -449,6 +450,19 @@ func (h *Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		Orders []OrderSummary `json:"orders"`
 		Total  int            `json:"total"`
 	}{orders, total})
+}
+
+// listPurchasedProducts powers the "曾經購買" account page: every product the
+// authenticated customer has ever bought (across all paid-or-later orders),
+// aggregated to one row per product with order/bundle provenance attached.
+func (h *Handler) listPurchasedProducts(w http.ResponseWriter, r *http.Request) {
+	customerID := auth.CustomerIDFromContext(r.Context())
+	products, err := h.svc.ListPurchasedProducts(r.Context(), customerID)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, products)
 }
 
 // signOutEverywhere increments this customer's token_version, instantly

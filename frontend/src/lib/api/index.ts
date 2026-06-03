@@ -1,4 +1,4 @@
-import type { Address, BundleItem, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, PromoBundle, ShippingAddressInput, Variant } from '$lib/types';
+import type { Address, BundleItem, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, PromoBundle, PurchasedProduct, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -636,6 +636,12 @@ export const getMyOrders = (token: string, limit = 20, offset = 0, status = '', 
 
 export const lookupMyOrder = (token: string, n: string) =>
   request<{ id: string }>(`/customers/me/orders/lookup/${n}`, authed(token));
+
+// Every product the current customer has ever bought (paid-or-later orders),
+// aggregated to one row per product with order/bundle provenance. Powers the
+// "曾經購買" account page.
+export const getMyPurchasedProducts = (token: string) =>
+  request<PurchasedProduct[]>(`/customers/me/products/purchased`, authed(token));
 
 // Authenticated read of a single order owned by the current customer. The
 // backend 404s if the order belongs to someone else.
