@@ -280,8 +280,8 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 		f.HasUnread = true
 	}
 
-	// `role` is a comma-separated list (customer, installer). Unknown values
-	// are silently dropped — mirrors the status param contract.
+	// `role` is a comma-separated list (customer, installer, installer_v2).
+	// Unknown values are silently dropped — mirrors the status param contract.
 	if raw := q.Get("role"); raw != "" {
 		for _, s := range strings.Split(raw, ",") {
 			s = strings.TrimSpace(s)

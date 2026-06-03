@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import type { ProductImage } from '$lib/types';
+  import { customerRoleLabel } from '$lib/types';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { formatHKD } from '$lib/money';
   import { isVideo, isStreamingVideo, getEmbedURL } from '$lib/media';
@@ -396,7 +397,7 @@
   const ctaAvailable = $derived(!cannotPurchase && (data.useTaobaoLayout ? anyAvailable : inStock));
   const cannotPurchaseLabel = $derived(
     m.product_detail_role_cannot_purchase({
-      role: data.customer?.role === 'installer' ? m.admin_role_installer() : m.admin_role_customer()
+      role: customerRoleLabel(data.customer?.role)
     })
   );
   const hasDiscount = $derived(
