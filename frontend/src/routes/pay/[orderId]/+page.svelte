@@ -3,6 +3,7 @@
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import SecurePaymentNote from '$lib/components/shop/SecurePaymentNote.svelte';
 
   let { data }: { data: PageData } = $props();
 
@@ -117,6 +118,8 @@
       <h2 class="font-semibold text-gray-900 mb-4">{m.pay_payment_heading()}</h2>
       {#if mounting}
         <p class="text-sm text-gray-400">{m.pay_payment_loading()}</p>
+      {:else}
+        <div class="mb-4"><SecurePaymentNote /></div>
       {/if}
       <div id="payment-element" class={mounting ? 'hidden' : ''}></div>
     </section>
