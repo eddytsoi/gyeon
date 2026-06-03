@@ -6,6 +6,7 @@
   // backend). Styled with neutral design-system tokens so it reads well on the
   // white card backgrounds used by both checkout layouts and the /pay page.
   import * as m from '$lib/paraglide/messages';
+  import StripeWordmark from './StripeWordmark.svelte';
 </script>
 
 <div class="flex items-start gap-2.5 rounded-xl border border-gray-100 bg-paper px-3.5 py-3">
@@ -26,7 +27,7 @@
     <circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" />
   </svg>
   <div class="min-w-0">
-    <p class="text-sm font-medium text-ink-900">{m.secure_payment_title()}</p>
+    <p class="text-sm font-medium text-ink-900">{m.secure_payment_title_pre()}<StripeWordmark class="inline-block h-3.5 w-auto align-[-0.2em]" />{m.secure_payment_title_post()}</p>
     <p class="text-xs text-ink-500 mt-0.5">{m.secure_payment_subtitle()}</p>
   </div>
 </div>
