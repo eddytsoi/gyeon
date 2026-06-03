@@ -15,6 +15,7 @@
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import Eyebrow from '$lib/components/shop/Eyebrow.svelte';
+  import SecurePaymentNote from '$lib/components/shop/SecurePaymentNote.svelte';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
@@ -742,6 +743,9 @@
               {/if}
 
               <!-- Inline deferred Payment Element (new card) -->
+              {#if cardMode === 'new'}
+                <SecurePaymentNote />
+              {/if}
               <div id="payment-element-modern" class="w-full min-w-0 {cardMode === 'new' && paymentElementMounted ? '' : 'hidden'}"></div>
               {#if cardMode === 'new' && !paymentElementMounted}
                 <p class="text-sm text-ink-300">{m.common_loading()}</p>

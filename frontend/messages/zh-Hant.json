@@ -240,6 +240,8 @@
   "checkout_tc_link_label": "條款及細則",
 
   "checkout_section_payment": "付款方式",
+  "secure_payment_title": "由 Stripe 加密並安全處理付款",
+  "secure_payment_subtitle": "GYEON 不會接觸或儲存您的完整信用卡號碼。",
   "checkout_card_saved_tab": "已儲存的付款方式",
   "checkout_card_new_tab": "使用新信用卡",
   "checkout_card_save_for_later": "儲存此信用卡以便日後使用",

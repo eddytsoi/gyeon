@@ -14,6 +14,7 @@
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import SecurePaymentNote from '$lib/components/shop/SecurePaymentNote.svelte';
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
@@ -658,6 +659,9 @@
           {/if}
 
           <!-- Stripe Payment Element (hidden when using saved card) -->
+          {#if paymentReady && paymentElementMounted}
+            <div class="mb-4"><SecurePaymentNote /></div>
+          {/if}
           <div id="payment-element" class="w-full min-w-0 {paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
 
           <!-- Saved card confirmation message -->
