@@ -624,7 +624,12 @@ func main() {
 				log.Printf("reconcile: mark paid for payment_intent %s: %v", paymentIntentID, err)
 			}
 		})
-		r.Mount("/orders", publicOrderHandler.PublicRoutes())
+		// optionalCustomerMW plumbs the verified customer id + storefront role
+		// from the customer_token (cookie/Bearer) into the request context.
+		// Checkout reads it to decide the payment method authoritatively — an
+		// installer is routed to bank transfer and a guest can never trigger it
+		// from a spoofed body customer_id. Never rejects, so guest checkout works.
+		r.With(optionalCustomerMW).Mount("/orders", publicOrderHandler.PublicRoutes())
 
 		// Public media lookup — resolves [photo-grid] source names to canonical
 		// /uploads/... URLs during storefront SSR. Read-only, no auth: the

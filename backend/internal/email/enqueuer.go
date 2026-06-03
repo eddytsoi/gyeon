@@ -98,6 +98,10 @@ func (e *QueueEnqueuer) SendPaymentLink(ctx context.Context, p PaymentLinkParams
 	return e.enqueueTemplated(ctx, "payment_link", p.CustomerEmail, p, "checkout.payment_link", "order", p.OrderID)
 }
 
+func (e *QueueEnqueuer) SendBankTransferOnHold(ctx context.Context, p BankTransferOnHoldParams) error {
+	return e.enqueueTemplated(ctx, "bank_transfer_on_hold", p.CustomerEmail, p, "order.bank_transfer_on_hold", "order", p.OrderID)
+}
+
 func (e *QueueEnqueuer) SendPasswordResetEmail(ctx context.Context, p PasswordResetParams) error {
 	if p.ExpiryHours == 0 {
 		p.ExpiryHours = 24
@@ -375,6 +379,12 @@ func decodeParams(key string, raw json.RawMessage) (any, error) {
 		return p, nil
 	case "payment_link":
 		var p PaymentLinkParams
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		return p, nil
+	case "bank_transfer_on_hold":
+		var p BankTransferOnHoldParams
 		if err := json.Unmarshal(raw, &p); err != nil {
 			return nil, err
 		}

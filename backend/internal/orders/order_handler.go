@@ -390,6 +390,16 @@ func (h *OrderHandler) checkout(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "cart_id is required")
 		return
 	}
+	// Trust only the customer proven by the auth token, never a body-supplied
+	// customer_id. When a customer is logged in, their verified id overrides the
+	// body so the order links to the right account; their verified role decides
+	// the payment method. Guests have no token: VerifiedRole stays empty ⇒
+	// Stripe-only, so no one can place a no-pay bank-transfer order by spoofing
+	// an installer's customer_id. (MCP/admin callers bypass this handler.)
+	if vid := auth.CustomerIDFromContext(r.Context()); vid != "" {
+		req.CustomerID = &vid
+	}
+	req.VerifiedRole = auth.CustomerRoleFromContext(r.Context())
 	result, err := h.svc.Checkout(r.Context(), req)
 	if errors.Is(err, ErrEmptyCart) {
 		respond.BadRequest(w, "cart is empty")

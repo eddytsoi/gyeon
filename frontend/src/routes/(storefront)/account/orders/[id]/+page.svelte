@@ -11,11 +11,20 @@
   import { formatOrderDateTime } from '$lib/datetime';
   import { renderNoticeBody } from '$lib/orderNotice';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
+  import BankTransferNotice from '$lib/components/shop/BankTransferNotice.svelte';
+  import { resolveBankTransfer } from '$lib/bankTransfer';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   const order = $derived(data.order);
   const notices = $derived(data.notices ?? []);
+
+  // A still-pending bank-transfer order shows the transfer instructions so the
+  // customer can re-read the account details and complete the wire.
+  const showBankTransfer = $derived(
+    order.status === 'pending' && order.payment_method === 'bank_transfer'
+  );
+  const bankDetails = $derived(resolveBankTransfer(data.publicSettings ?? []));
 
   // ── Receipt cache lightning-icon ────────────────────────────────────────
   // No customer-side SSE in this app, so we poll the cache-status endpoint
@@ -275,6 +284,14 @@
       </div>
     {/if}
   </div>
+
+  {#if showBankTransfer}
+    <!-- Bank-transfer instructions for an order still awaiting payment -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6">
+      <h2 class="font-semibold text-gray-900 mb-4">{m.bank_transfer_on_hold_heading()}</h2>
+      <BankTransferNotice variant="plain" details={bankDetails} />
+    </div>
+  {/if}
 
   <!-- Items -->
   <div class="bg-white rounded-2xl border border-gray-100 p-6">

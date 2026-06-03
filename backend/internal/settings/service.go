@@ -89,6 +89,12 @@ var publicSettingKeys = []string{
 	"cart_show_cross_sells",                     // storefront cart toggle: WooCommerce cross-sells (complements) section
 	"cart_cross_sells_kicker",                   // storefront cart override for the cross-sells kicker; empty falls back to i18n
 	"cart_cross_sells_heading",                  // storefront cart override for the cross-sells heading; empty falls back to i18n
+	"bank_transfer_enabled",                     // master toggle for the bank-transfer method (installer / installer_v2 only)
+	"bank_transfer_account_name",                // bank-transfer payee name (名稱) rendered in the storefront notice
+	"bank_transfer_bank_name",                   // bank-transfer bank name (銀行) rendered in the storefront notice
+	"bank_transfer_account_number",              // bank-transfer account number (賬戶) rendered in the storefront notice
+	"bank_transfer_whatsapp_display",            // human-readable WhatsApp number shown in the bank-transfer instruction
+	"bank_transfer_whatsapp_url",                // wa.me link target for the bank-transfer WhatsApp number
 }
 
 // AuditRecorder mirrors the minimal shape of audit.Service.Record, kept local

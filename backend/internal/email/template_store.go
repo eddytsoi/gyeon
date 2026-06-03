@@ -239,6 +239,26 @@ func SampleParamsFor(key string) any {
 				}},
 			},
 		}
+	case "bank_transfer_on_hold":
+		return BankTransferOnHoldParams{
+			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
+			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
+			Currency: "HKD", Subtotal: 389, DiscountAmount: 0, Total: 389,
+			ShippingLabel:     "順豐速運（到付）",
+			BankAccountName:   "Miracle Trading International Limited",
+			BankName:          "HSBC",
+			BankAccountNumber: "747-242725-838",
+			WhatsAppDisplay:   "3468 0832",
+			WhatsAppURL:       "https://wa.me/85234680832",
+			OrderURL:          "https://example.com/account/orders/00000000",
+			Items: []OrderEmailItem{
+				{Name: "Sample Product", SKU: "SKU-001", Quantity: 1, UnitPrice: 100, LineTotal: 100},
+				{Name: "內籠基本清潔套裝", SKU: "BUNDLE-001", Quantity: 1, UnitPrice: 289, LineTotal: 289, Children: []OrderEmailItem{
+					{Name: "Q²M INTERIORDETAILER - 500ML", Quantity: 1},
+					{Name: "Q²M SCRUBPAD EVO", Quantity: 1},
+				}},
+			},
+		}
 	case "password_reset":
 		return PasswordResetParams{
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
@@ -297,6 +317,11 @@ func VariablesFor(key string) []string {
 	case "payment_link":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".PaymentURL", ".Total", ".Currency"}
+	case "bank_transfer_on_hold":
+		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".Currency",
+			".Subtotal", ".DiscountAmount", ".ShippingLabel", ".Total", ".Items",
+			".BankAccountName", ".BankName", ".BankAccountNumber",
+			".WhatsAppDisplay", ".WhatsAppURL", ".OrderURL"}
 	case "password_reset", "account_setup":
 		return []string{".CustomerName", ".CustomerEmail", ".ResetURL", ".ExpiryHours"}
 	case "admin_message":
@@ -314,7 +339,7 @@ func VariablesFor(key string) []string {
 func AllKeys() []string {
 	return []string{
 		"order_confirmation", "order_shipped", "order_refunded",
-		"payment_link", "password_reset", "account_setup", "admin_message",
+		"payment_link", "bank_transfer_on_hold", "password_reset", "account_setup", "admin_message",
 		"abandoned_cart", "low_stock_alert",
 	}
 }
@@ -330,6 +355,8 @@ func DisplayName(key string) string {
 		return "Order refunded"
 	case "payment_link":
 		return "Payment link"
+	case "bank_transfer_on_hold":
+		return "Bank transfer (on hold)"
 	case "password_reset":
 		return "Password reset"
 	case "account_setup":

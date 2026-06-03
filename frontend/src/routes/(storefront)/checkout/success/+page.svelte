@@ -7,8 +7,12 @@
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
+  import BankTransferNotice from '$lib/components/shop/BankTransferNotice.svelte';
+  import { resolveBankTransfer } from '$lib/bankTransfer';
 
   let { data }: { data: PageData } = $props();
+
+  const bankDetails = $derived(resolveBankTransfer(data.publicSettings ?? []));
 
   // Group order items by parent_item_id so bundle component rows render
   // indented under their bundle parent line (mirrors the account order page
@@ -32,6 +36,9 @@
     cartStore.init();
     // P3 #26 — purchase event. The success page is the natural place to fire
     // it: by the time the customer lands here Stripe has confirmed payment.
+    // Bank-transfer orders are still on hold (awaiting the wire), so a
+    // "purchase" conversion would be premature — skip it here.
+    if (data.bankTransfer) return;
     const o = data.order;
     trackPurchase(
       o.id,
@@ -52,16 +59,31 @@
 
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
   <div class="text-center mb-10">
-    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-      <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-      </svg>
+    <div class="w-16 h-16 {data.bankTransfer ? 'bg-yellow-100' : 'bg-green-100'} rounded-full flex items-center justify-center mx-auto mb-6">
+      {#if data.bankTransfer}
+        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      {:else}
+        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      {/if}
     </div>
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">{m.checkout_success_heading()}</h1>
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">{data.bankTransfer ? m.bank_transfer_on_hold_heading() : m.checkout_success_heading()}</h1>
     <p class="text-gray-500">
       {@html m.checkout_success_body({ orderNumber: `<strong class="text-gray-900">${data.order.order_number || `ORD-${data.order.number}`}</strong>` })}
     </p>
+    {#if data.bankTransfer}
+      <p class="text-gray-500 mt-1">{m.bank_transfer_on_hold_body()}</p>
+    {/if}
   </div>
+
+  {#if data.bankTransfer}
+    <div class="mb-6">
+      <BankTransferNotice variant="plain" details={bankDetails} />
+    </div>
+  {/if}
 
   <!-- Order summary card -->
   <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
