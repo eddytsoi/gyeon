@@ -1584,6 +1584,8 @@
   "account_order_receipt_download": "Download Receipt",
   "account_order_receipt_cached_tooltip": "Ready — downloads instantly",
   "account_order_reorder": "Order Again",
+  "account_order_share_list": "Share shopping list",
+  "account_order_share_list_native_title": "My GYEON shopping list",
   "account_order_reorder_adding": "Adding…",
   "account_order_pay_now": "Pay now",
   "admin_media_picker_choose": "Choose from Media",

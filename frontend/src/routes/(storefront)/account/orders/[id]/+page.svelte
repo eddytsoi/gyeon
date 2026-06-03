@@ -6,6 +6,7 @@
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { cartStore } from '$lib/stores/cart.svelte';
+  import { buildShareUrl, shareOrCopyUrl } from '$lib/cartShare';
   import { formatHKD } from '$lib/money';
   import { formatOrderDateTime } from '$lib/datetime';
   import { renderNoticeBody } from '$lib/orderNotice';
@@ -63,7 +64,10 @@
     });
   });
 
-  onDestroy(() => stopPolling());
+  onDestroy(() => {
+    stopPolling();
+    if (listCopiedTimer) clearTimeout(listCopiedTimer);
+  });
 
   function stopPolling() {
     if (pollTimer) {
@@ -113,6 +117,31 @@
     }
   }
 
+  // Share shopping list: build a /cart/shared link from this order's lines, so
+  // a recipient lands on a cart pre-filled with the same items. Reuses the
+  // share-cart codec; same parent-line set as reorder (bundles re-expand
+  // server-side, so child rows are excluded to avoid double-adding).
+  const shareItems = $derived(
+    parentItems
+      .filter((it) => it.variant_id)
+      .map((it) => ({ variantId: it.variant_id as string, quantity: it.quantity }))
+  );
+  let listCopied = $state(false);
+  let listCopiedTimer: ReturnType<typeof setTimeout> | null = null;
+  async function shareList() {
+    const url = buildShareUrl(shareItems);
+    const result = await shareOrCopyUrl(
+      url,
+      m.account_order_share_list_native_title(),
+      m.account_order_share_list()
+    );
+    if (result === 'copied') {
+      listCopied = true;
+      if (listCopiedTimer) clearTimeout(listCopiedTimer);
+      listCopiedTimer = setTimeout(() => (listCopied = false), 2000);
+    }
+  }
+
   const statusColors: Record<string, string> = {
     pending:    'bg-yellow-50 text-yellow-700 border-yellow-100',
     paid:       'bg-blue-50 text-blue-700 border-blue-100',
@@ -156,6 +185,30 @@
                     bg-amber-500 text-white hover:bg-amber-600 transition-colors">
             {m.account_order_pay_now()}
           </a>
+        {/if}
+        {#if reorderStatuses.includes(order.status) && shareItems.length > 0}
+          <button type="button" onclick={shareList}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+                         text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
+            {#if listCopied}
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              {m.cart_share_copied()}
+            {:else}
+              <!-- share-nodes icon (left of label) -->
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              {m.account_order_share_list()}
+            {/if}
+          </button>
         {/if}
         {#if reorderStatuses.includes(order.status)}
           <button type="button" onclick={reorder} disabled={reordering}

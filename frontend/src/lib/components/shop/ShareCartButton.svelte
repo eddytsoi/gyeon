@@ -1,46 +1,25 @@
 <script lang="ts">
   import { cartStore } from '$lib/stores/cart.svelte';
-  import { encodeSharedCart } from '$lib/cartShare';
+  import { buildShareUrl, shareOrCopyUrl } from '$lib/cartShare';
   import * as m from '$lib/paraglide/messages';
 
   // Builds a shareable URL of the current cart and either invokes the native
   // share sheet (mobile) or copies to clipboard (desktop), flashing an inline
-  // "copied" confirmation. Clipboard usage mirrors admin/media +
-  // admin/PasswordInput, which already use navigator.clipboard.writeText.
+  // "copied" confirmation.
   let copied = $state(false);
   let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
-  function buildUrl(): string {
+  async function share() {
     const items = (cartStore.cart?.items ?? []).map((i) => ({
       variantId: i.variant_id,
       quantity: i.quantity
     }));
-    return `${window.location.origin}/cart/shared?c=${encodeSharedCart(items)}`;
-  }
-
-  function flashCopied() {
-    copied = true;
-    if (copiedTimer) clearTimeout(copiedTimer);
-    copiedTimer = setTimeout(() => (copied = false), 2000);
-  }
-
-  async function share() {
-    const url = buildUrl();
-    // Web Share API (mobile) lets the user pick WhatsApp etc directly.
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: m.cart_share_native_title(), url });
-        return;
-      } catch {
-        // user dismissed the sheet, or share failed — fall through to clipboard
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      flashCopied();
-    } catch {
-      // clipboard blocked (insecure context / denied permission) — last resort
-      window.prompt(m.cart_share_button(), url);
+    const url = buildShareUrl(items);
+    const result = await shareOrCopyUrl(url, m.cart_share_native_title(), m.cart_share_button());
+    if (result === 'copied') {
+      copied = true;
+      if (copiedTimer) clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => (copied = false), 2000);
     }
   }
 </script>
