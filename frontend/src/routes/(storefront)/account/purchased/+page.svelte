@@ -15,6 +15,7 @@
   import { getProductByID, getProductImages, getProductVariants } from '$lib/api';
   import type { Product, ProductImage, Variant, PurchasedProduct } from '$lib/types';
   import { formatHKD } from '$lib/money';
+  import { variantSuffix } from '$lib/variant';
   import { formatOrderDate } from '$lib/datetime';
   import { isVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
@@ -29,7 +30,8 @@
     purchased: PurchasedProduct;
     product?: Product;
     image?: ProductImage;
-    variant?: Variant; // cheapest live variant, for single-variant buy-again
+    variant?: Variant; // cheapest live variant — display default & single-variant fast path
+    variants: Variant[]; // ALL live variants, cheapest-first; [] for unavailable rows
     variantCount: number;
   };
 
@@ -38,6 +40,11 @@
   let adding = $state<Record<string, boolean>>({});
   let added = $state<Record<string, boolean>>({});
   let open = $state<Record<string, boolean>>({});
+  // Multi-variant buy-again: which row's spec picker is expanded, and the
+  // variant the user has selected within it. Both keyed by keyOf, mirroring
+  // the adding/added/open records above.
+  let picking = $state<Record<string, boolean>>({});
+  let selectedId = $state<Record<string, string>>({});
 
   // Stable per-row key: product id when known, else the snapshot name bucket
   // (mirrors the backend grouping key).
@@ -54,7 +61,7 @@
     cards = await Promise.all(
       list.map(async (purchased): Promise<Card> => {
         if (!purchased.product_id) {
-          return { purchased, variantCount: 0 };
+          return { purchased, variants: [], variantCount: 0 };
         }
         try {
           const [product, images, variants] = await Promise.all([
@@ -62,16 +69,18 @@
             getProductImages(purchased.product_id).catch(() => [] as ProductImage[]),
             getProductVariants(purchased.product_id).catch(() => [] as Variant[])
           ]);
+          const sorted = variants.slice().sort((a, b) => a.price - b.price);
           return {
             purchased,
             product,
             image: images.find((i) => i.is_primary) ?? images[0],
-            variant: variants.slice().sort((a, b) => a.price - b.price)[0],
-            variantCount: variants.length
+            variant: sorted[0],
+            variants: sorted,
+            variantCount: sorted.length
           };
         } catch {
           // Product gone since purchase — fall back to history-only.
-          return { purchased, variantCount: 0 };
+          return { purchased, variants: [], variantCount: 0 };
         }
       })
     );
@@ -94,6 +103,57 @@
     adding = { ...adding, [k]: true };
     try {
       await cartStore.add(card.variant.id);
+      added = { ...added, [k]: true };
+      setTimeout(() => {
+        added = { ...added, [k]: false };
+      }, 2000);
+    } catch {
+      // cartStore records the error; the storefront layout shows the toast.
+    } finally {
+      adding = { ...adding, [k]: false };
+    }
+  }
+
+  // ── Multi-variant inline spec picker ──────────────────────────────
+  // Cheapest in-stock variant, else cheapest overall. `variants` is already
+  // sorted cheapest-first, so the first in-stock entry is the cheapest one.
+  function defaultVariant(card: Card): Variant | undefined {
+    return card.variants.find((v) => v.stock_qty > 0) ?? card.variants[0];
+  }
+
+  // The variant the row should price and that "add" will use: the user's pick
+  // if any (and still resolvable), otherwise the row default.
+  function activeVariant(card: Card): Variant | undefined {
+    const id = selectedId[keyOf(card.purchased)];
+    return (id ? card.variants.find((v) => v.id === id) : undefined) ?? defaultVariant(card);
+  }
+
+  function togglePicker(card: Card) {
+    const k = keyOf(card.purchased);
+    const next = !picking[k];
+    // Seed the default selection on first open so a price shows and "add"
+    // works without an extra click.
+    if (next && !selectedId[k]) {
+      const def = defaultVariant(card);
+      if (def) selectedId = { ...selectedId, [k]: def.id };
+    }
+    picking = { ...picking, [k]: next };
+  }
+
+  function selectVariant(card: Card, v: Variant) {
+    if (v.stock_qty <= 0) return; // chips are disabled, but guard anyway
+    selectedId = { ...selectedId, [keyOf(card.purchased)]: v.id };
+  }
+
+  // Add the active (selected, or default) variant for a multi-variant row.
+  // Mirrors addToCart's adding/added 2s feedback, reusing the same records.
+  async function addSelected(card: Card) {
+    const v = activeVariant(card);
+    if (!v || v.stock_qty <= 0) return;
+    const k = keyOf(card.purchased);
+    adding = { ...adding, [k]: true };
+    try {
+      await cartStore.add(v.id);
       added = { ...added, [k]: true };
       setTimeout(() => {
         added = { ...added, [k]: false };
@@ -141,10 +201,11 @@
         {@const p = card.purchased}
         {@const k = keyOf(p)}
         {@const src = thumb(card.image)}
-        {@const soldOut = card.variant != null && card.variant.stock_qty === 0}
         {@const multi = card.variantCount > 1}
-        {@const hasDiscount =
-          card.variant?.compare_at_price != null && card.variant.compare_at_price > card.variant.price}
+        {@const picker = picking[k] === true}
+        {@const sel = activeVariant(card)}
+        {@const soldOut = card.variants.length > 0 && card.variants.every((v) => v.stock_qty === 0)}
+        {@const hasDiscount = sel?.compare_at_price != null && sel.compare_at_price > sel.price}
         {@const expanded = open[k] === true}
         <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div class="p-4 flex items-start gap-4">
@@ -198,11 +259,11 @@
                   : m.purchased_meta_orders_many({ count: orderCount(p) })}
               </p>
 
-              {#if card.product && card.variant}
+              {#if card.product && sel}
                 <div class="mt-1.5 flex items-baseline gap-2">
-                  <span class="text-base font-bold text-gray-900">{formatHKD(card.variant.price)}</span>
+                  <span class="text-base font-bold text-gray-900">{formatHKD(sel.price)}</span>
                   {#if hasDiscount}
-                    <span class="text-sm text-gray-400 line-through">{formatHKD(card.variant.compare_at_price!)}</span>
+                    <span class="text-sm text-gray-400 line-through">{formatHKD(sel.compare_at_price!)}</span>
                   {/if}
                 </div>
               {/if}
@@ -217,12 +278,25 @@
                     {m.product_card_out_of_stock()}
                   </span>
                 {:else if multi}
-                  <a
-                    href="/products/{card.product.slug}"
+                  <button
+                    type="button"
+                    onclick={() => togglePicker(card)}
+                    aria-expanded={picker}
+                    aria-controls="purchased-picker-{k}"
                     class="px-3 py-1.5 text-sm font-medium text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     {m.wishlist_select_options()}
-                  </a>
+                  </button>
+                  {#if picker}
+                    <button
+                      type="button"
+                      disabled={adding[k] || !sel || sel.stock_qty <= 0}
+                      onclick={() => addSelected(card)}
+                      class="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-60"
+                    >
+                      {added[k] ? m.product_detail_added() : m.product_detail_add_to_cart()}
+                    </button>
+                  {/if}
                 {:else if card.variant}
                   <button
                     type="button"
@@ -234,6 +308,34 @@
                   </button>
                 {/if}
               </div>
+
+              <!-- Inline spec picker (multi-variant rows) -->
+              {#if card.product && !soldOut && multi && picker}
+                <div
+                  id="purchased-picker-{k}"
+                  transition:slide={{ duration: 200, easing: cubicOut }}
+                  class="mt-2.5 flex flex-wrap gap-2"
+                >
+                  {#each card.variants as v (v.id)}
+                    {@const isSelected = sel?.id === v.id}
+                    {@const isAvailable = v.stock_qty > 0}
+                    <button
+                      type="button"
+                      onclick={() => selectVariant(card, v)}
+                      disabled={!isAvailable}
+                      aria-pressed={isSelected}
+                      class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+                             {isSelected
+                               ? 'bg-gray-900 border-gray-900 text-white'
+                               : isAvailable
+                                 ? 'border-gray-300 text-gray-900 hover:bg-gray-50'
+                                 : 'border-gray-200 text-gray-400 line-through cursor-not-allowed opacity-60'}"
+                    >
+                      {variantSuffix(v.name) || v.sku}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
             </div>
           </div>
 
