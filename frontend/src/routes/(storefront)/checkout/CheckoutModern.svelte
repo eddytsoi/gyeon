@@ -6,7 +6,7 @@
   import { checkout, getVariantByID, quoteOrder, type QuoteResult } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
-  import type { SavedPaymentMethod, Variant } from '$lib/types';
+  import type { Variant } from '$lib/types';
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import { productDisplayName } from '$lib/variant';
@@ -66,16 +66,6 @@
   let couponCode = $state('');
   let appliedCouponCode = $state('');
   let validatingCoupon = $state(false);
-
-  // ── Saved cards ───────────────────────────────────────────────
-  const savedCards: SavedPaymentMethod[] = data.savedCards ?? [];
-  const hasSavedCards = savedCards.length > 0;
-  type CardMode = 'saved' | 'new';
-  let cardMode = $state<CardMode>(hasSavedCards ? 'saved' : 'new');
-  let selectedCardID = $state<string>(
-    savedCards.find((c) => c.is_default)?.id ?? savedCards[0]?.id ?? ''
-  );
-  let saveCard = $state(false);
 
   // ── Stripe (deferred-intent inline Payment Element) ───────────
   // Unlike the classic two-step flow, the Payment Element is created in
@@ -186,7 +176,7 @@
   // shopper sees matches the PaymentIntent created at Pay time.
   $effect(() => {
     const cents = totalCents;
-    if (elements && paymentElementMounted && cardMode === 'new' && cents > 0) {
+    if (elements && paymentElementMounted && cents > 0) {
       elements.update({ amount: cents });
     }
   });
@@ -201,8 +191,7 @@
       : line1.trim() !== '' && country.trim() !== ''
   );
   const step1Valid = $derived(customerValid && shippingValid && shippingConfigured);
-  const paySelectionValid = $derived(cardMode === 'saved' ? !!selectedCardID : true);
-  const formValid = $derived(step1Valid && tcAccepted && paySelectionValid);
+  const formValid = $derived(step1Valid && tcAccepted);
 
   // Collapsed step-1 summary shown once the shopper advances to payment.
   const selectedAddress = $derived(data.addresses?.find((a) => a.id === selectedAddressID));
@@ -257,7 +246,7 @@
   // Create + mount the deferred Payment Element once we're on the payment
   // step in new-card mode. Safe to call repeatedly (guards on mounted flag).
   async function maybeMountPayment() {
-    if (paymentElementMounted || cardMode !== 'new' || !stripe || totalCents <= 0) return;
+    if (paymentElementMounted || !stripe || totalCents <= 0) return;
     const stripeCountry = data.paymentConfig?.country || 'HK';
     elements = stripe.elements({
       mode: 'payment',
@@ -267,7 +256,9 @@
     });
     const paymentElement = elements.create('payment', {
       layout: 'tabs',
-      defaultValues: { billingDetails: { address: { country: stripeCountry } } }
+      // Pass the email so Stripe Link can recognise returning customers and
+      // offer autofill / one-click checkout against their Link-saved cards.
+      defaultValues: { billingDetails: { email: email.trim(), address: { country: stripeCountry } } }
     });
     paymentElement.mount('#payment-element-modern');
     paymentElementMounted = true;
@@ -286,14 +277,6 @@
     error = '';
   }
 
-  async function setCardMode(mode: CardMode) {
-    cardMode = mode;
-    if (mode === 'new' && currentStep === 2) {
-      await tick();
-      await maybeMountPayment();
-    }
-  }
-
   // Single-step pay: validate the card field, create the order + intent via
   // the existing /orders/checkout, then confirm the deferred intent.
   async function pay() {
@@ -306,21 +289,15 @@
     placing = true;
     error = '';
     try {
-      const usingSavedCard =
-        data.saveCardsEnabled && hasSavedCards && cardMode === 'saved' && !!selectedCardID;
-      const selectedCard = usingSavedCard ? savedCards.find((c) => c.id === selectedCardID) : null;
-
-      // New card: validate the inline element before creating the order.
-      if (!usingSavedCard) {
-        if (!elements) {
-          error = m.checkout_no_payment_setup();
-          return;
-        }
-        const { error: submitError } = await elements.submit();
-        if (submitError) {
-          error = submitError.message ?? m.checkout_payment_failed();
-          return;
-        }
+      // Validate the inline card element before creating the order.
+      if (!elements) {
+        error = m.checkout_no_payment_setup();
+        return;
+      }
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        error = submitError.message ?? m.checkout_payment_failed();
+        return;
       }
 
       const result = await checkout(activeCart.id, {
@@ -339,22 +316,12 @@
         saveAddress: addressMode === 'new' && saveAddress,
         shippingFee: 0,
         couponCode: couponValid ? appliedCouponCode : undefined,
-        notes: notes.trim() || undefined,
-        saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
-        savedPaymentMethodId: selectedCard?.stripe_pm_id
+        notes: notes.trim() || undefined
       });
 
       pendingClientSecret = result.client_secret;
       pendingOrderID = result.order.id;
       pendingOrderNumber = result.order.order_number || `ORD-${result.order.number}`;
-
-      if (usingSavedCard) {
-        // Saved-card auto-confirmation isn't wired in the backend yet (same as
-        // the classic layout). Hand off to the durable /pay page so the order
-        // can still be completed rather than dead-ending on this button.
-        goto(`/pay/${result.order.id}?cs=${result.client_secret}`);
-        return;
-      }
 
       const { error: confirmError } = await stripe.confirmPayment({
         elements: elements!,
@@ -703,51 +670,10 @@
 
           {#if currentStep === 2}
             <div class="flex flex-col gap-5">
-              <!-- Saved-card tabs (logged-in + feature enabled + has saved cards) -->
-              {#if data.saveCardsEnabled && data.customer && hasSavedCards}
-                <div>
-                  <div class="flex gap-2 mb-3">
-                    <button type="button" onclick={() => setCardMode('saved')}
-                            class="px-4 py-2 rounded-xl text-sm font-medium transition-colors {cardMode === 'saved' ? 'bg-navy-500 text-white' : 'bg-gray-100 text-ink-500 hover:bg-gray-200'}">
-                      {m.checkout_card_saved_tab()}
-                    </button>
-                    <button type="button" onclick={() => setCardMode('new')}
-                            class="px-4 py-2 rounded-xl text-sm font-medium transition-colors {cardMode === 'new' ? 'bg-navy-500 text-white' : 'bg-gray-100 text-ink-500 hover:bg-gray-200'}">
-                      {m.checkout_card_new_tab()}
-                    </button>
-                  </div>
-                  {#if cardMode === 'saved'}
-                    <div class="flex flex-col gap-2">
-                      {#each savedCards as card}
-                        <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border {selectedCardID === card.id ? 'border-navy-500 bg-paper' : 'border-gray-100'}">
-                          <input type="radio" name="m_saved_card" value={card.id} bind:group={selectedCardID} class="accent-navy-500 flex-shrink-0" />
-                          <div class="flex-1 text-sm">
-                            <span class="font-medium text-ink-900 capitalize">{card.brand}</span>
-                            <span class="text-ink-500 ml-1">•••• {card.last4}</span>
-                            {#if card.is_default}<span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-ink-500 text-xs rounded-full">{m.common_default()}</span>{/if}
-                            <p class="text-ink-300 text-xs mt-0.5">{m.checkout_card_expires({ month: card.exp_month, year: card.exp_year })}</p>
-                          </div>
-                        </label>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              {/if}
-
-              <!-- Save-for-later checkbox (new card mode) -->
-              {#if data.saveCardsEnabled && data.customer && cardMode === 'new'}
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" bind:checked={saveCard} class="accent-navy-500" />
-                  <span class="text-sm text-ink-500">{m.checkout_card_save_for_later()}</span>
-                </label>
-              {/if}
-
-              <!-- Inline deferred Payment Element (new card) -->
-              {#if cardMode === 'new'}
-                <SecurePaymentNote />
-              {/if}
-              <div id="payment-element-modern" class="w-full min-w-0 {cardMode === 'new' && paymentElementMounted ? '' : 'hidden'}"></div>
-              {#if cardMode === 'new' && !paymentElementMounted}
+              <!-- Inline deferred Payment Element -->
+              <SecurePaymentNote />
+              <div id="payment-element-modern" class="w-full min-w-0 {paymentElementMounted ? '' : 'hidden'}"></div>
+              {#if !paymentElementMounted}
                 <p class="text-sm text-ink-300">{m.common_loading()}</p>
               {/if}
               {#if !stripe && data.paymentConfig?.publishable_key === ''}

@@ -44,7 +44,6 @@
   "header_menu_profile": "Profile",
   "header_menu_orders": "Orders",
   "header_menu_addresses": "Addresses",
-  "header_menu_cards": "Cards",
   "header_menu_sign_out": "Sign out",
 
   "footer_logo": "GYEON",
@@ -243,11 +242,6 @@
   "secure_payment_title_pre": "Encrypted & securely processed by ",
   "secure_payment_title_post": "",
   "secure_payment_subtitle": "GYEON HK never sees or stores your full card number.",
-  "checkout_card_saved_tab": "Saved payment methods",
-  "checkout_card_new_tab": "Use new card",
-  "checkout_card_save_for_later": "Save this card for future use",
-  "checkout_card_expires": "Expires {month}/{year}",
-  "checkout_payment_hint_saved": "After confirming, payment will be made using your saved payment method.",
   "checkout_payment_hint_new": "Once the form above is complete, click \"Continue to payment\" to enter your card details.",
   "checkout_continue_to_payment": "Continue to payment",
   "checkout_preparing_payment": "Preparing payment…",
@@ -307,7 +301,6 @@
 
   "account_nav_profile": "Profile",
   "account_nav_addresses": "Addresses",
-  "account_nav_cards": "Cards",
   "account_nav_orders": "Orders",
   "account_nav_sign_out": "Sign out",
 
@@ -416,15 +409,6 @@
   "account_address_form_delete": "Delete address",
   "account_address_form_deleting": "Deleting…",
 
-  "account_cards_title": "Saved Cards — GYEON",
-  "account_cards_heading": "Saved Cards",
-  "account_cards_empty": "No saved cards yet.",
-  "account_cards_empty_hint": "Cards are saved when you tick \"Save this card for future use\" at checkout.",
-  "account_cards_brand_last4": "{brand} •••• {last4}",
-  "account_cards_expires": "Expires {month}/{year}",
-  "account_cards_set_default": "Set default",
-  "account_cards_delete_failed": "Could not remove card. Please try again.",
-  "account_cards_default_failed": "Could not update default card. Please try again.",
 
   "password_reset_title": "Reset Password — GYEON",
   "password_reset_heading": "Reset password",
@@ -1732,8 +1716,6 @@
   "admin_settings_payment_webhook_hint_pre": "Register endpoint ",
   "admin_settings_payment_webhook_hint_mid": " in Stripe Dashboard, then paste the ",
   "admin_settings_payment_webhook_hint_post": " here.",
-  "admin_settings_payment_save_cards_heading": "Save Cards",
-  "admin_settings_payment_save_cards_hint": "Allow logged-in customers to save cards for future purchases.",
   "admin_settings_automation_heading": "Auto-create shipment on paid",
   "admin_settings_automation_subtitle": "Toggle whether paid orders should automatically create a ShipAny shipment.",
   "admin_settings_automation_auto_shipany_hint": "When enabled, every order that flips to paid enqueues a Shipany shipment in the background queue. The ShipAny API response is written as a system message on the order. Requires ShipAny to be configured above.",

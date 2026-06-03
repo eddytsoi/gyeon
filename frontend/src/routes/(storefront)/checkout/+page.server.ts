@@ -1,4 +1,4 @@
-import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getMySavedCards, getShippingDefault, getCmsPageBySlug, type ShippingDefault } from '$lib/api';
+import { getMyProfile, getMyAddresses, getPaymentConfig, getPublicSettings, getShippingDefault, getCmsPageBySlug, type ShippingDefault } from '$lib/api';
 import { scanShortcodeRefs } from '$lib/shortcodes/scan';
 import { resolveShortcodeRefs } from '$lib/shortcodes/resolve';
 import type { PageServerLoad } from './$types';
@@ -28,7 +28,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
   const shippingCountries = parseShippingCountries(
     settings.find((s) => s.key === 'shipping_countries')?.value
   );
-  const saveCardsEnabled = settings.find((s) => s.key === 'stripe_save_cards')?.value === 'true';
   const shipanyEnabled = settings.find((s) => s.key === 'shipany_enabled')?.value === 'true';
   const checkoutLayout = settings.find((s) => s.key === 'checkout_page_layout')?.value || 'classic';
   const termsRefs = termsPage
@@ -37,27 +36,26 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
   if (!token) {
     return {
-      token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      token: null, customer: null, addresses: [],
+      paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
       termsPage, termsRefs, checkoutLayout
     };
   }
 
   try {
-    const [customer, addresses, savedCards] = await Promise.all([
+    const [customer, addresses] = await Promise.all([
       getMyProfile(token),
-      getMyAddresses(token),
-      saveCardsEnabled ? getMySavedCards(token).catch(() => []) : Promise.resolve([])
+      getMyAddresses(token)
     ]);
     return {
-      token, customer, addresses, savedCards,
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      token, customer, addresses,
+      paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
       termsPage, termsRefs, checkoutLayout
     };
   } catch {
     return {
-      token: null, customer: null, addresses: [], savedCards: [],
-      saveCardsEnabled, paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
+      token: null, customer: null, addresses: [],
+      paymentConfig, shippingCountries, shipanyEnabled, shippingDefault,
       termsPage, termsRefs, checkoutLayout
     };
   }
