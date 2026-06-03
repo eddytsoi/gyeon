@@ -84,6 +84,7 @@
 
   function roleLabel(l: string): string {
     if (l === 'installer') return m.admin_role_installer();
+    if (l === 'installer_v2') return m.admin_role_installer_v2();
     if (l === 'customer') return m.admin_role_customer();
     return m.dashboard_role_guest();
   }

@@ -16,7 +16,7 @@ function parseAllowedRoles(values: FormDataEntryValue[]): CustomerRole[] {
   const seen = new Set<string>();
   for (const v of values) {
     const s = String(v).trim();
-    if ((s === 'customer' || s === 'installer') && !seen.has(s)) {
+    if ((s === 'customer' || s === 'installer' || s === 'installer_v2') && !seen.has(s)) {
       seen.add(s);
       valid.push(s as CustomerRole);
     }
