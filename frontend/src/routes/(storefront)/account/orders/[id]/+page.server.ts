@@ -7,10 +7,11 @@ import {
   markMyOrderNoticesRead
 } from '$lib/api';
 import { resolveCustomerOrderId } from '$lib/storefront/resolveOrderId';
+import { isBankTransferRole } from '$lib/bankTransfer';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, params, cookies }) => {
-  await parent();
+  const { customer } = await parent();
   const token = cookies.get('customer_token') ?? '';
   if (!token) throw redirect(303, '/account/login');
   const id = await resolveCustomerOrderId(token, params.id);
@@ -24,8 +25,14 @@ export const load: PageServerLoad = async ({ parent, params, cookies }) => {
 
   // For an unpaid pending order, resolve a fresh /pay link so the page can show
   // a "立即付款" button. 404s (already paid / not payable) leave payNowURL null.
+  // Installer / installer_v2 pay only by bank transfer (no Stripe), so skip the
+  // pay-now link (and the wasted Stripe lookup) for them entirely.
   let payNowURL: string | null = null;
-  if (order.status === 'pending' && order.payment_status !== 'succeeded') {
+  if (
+    order.status === 'pending' &&
+    order.payment_status !== 'succeeded' &&
+    !isBankTransferRole(customer?.role)
+  ) {
     const pay = await getMyOrderPaymentInfo(token, id).catch(() => null);
     if (pay?.client_secret) {
       payNowURL = `/pay/${order.id}?cs=${encodeURIComponent(pay.client_secret)}`;

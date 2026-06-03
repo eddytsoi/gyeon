@@ -5,8 +5,13 @@
   import { orderStatusLabel } from '$lib/orderStatus';
   import { formatHKD } from '$lib/money';
   import { formatOrderDateTime } from '$lib/datetime';
+  import { isBankTransferRole } from '$lib/bankTransfer';
 
   let { data }: { data: PageData } = $props();
+
+  // Installer / installer_v2 pay only by bank transfer (no Stripe), so the
+  // "立即付款" pay-now action never applies to them — hide it on their orders.
+  const hidePayNow = $derived(isBankTransferRole(data.customer?.role));
 
   const statusColors: Record<string, string> = {
     pending:    'bg-yellow-50 text-yellow-700',
@@ -171,7 +176,7 @@
             <span class="px-2.5 py-1 rounded-full text-xs font-medium {statusColors[order.status] ?? 'bg-gray-100 text-gray-600'}">
               {orderStatusLabel(order.status)}
             </span>
-            {#if order.status === 'pending' && order.payment_status !== 'succeeded'}
+            {#if order.status === 'pending' && order.payment_status !== 'succeeded' && !hidePayNow}
               <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
                 {m.account_order_pay_now()}
               </span>
