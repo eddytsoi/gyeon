@@ -20,6 +20,7 @@ var ErrNotFound = errors.New("customer not found")
 var ErrEmailTaken = errors.New("email already registered")
 var ErrInvalidCredentials = errors.New("invalid email or password")
 var ErrInvalidToken = errors.New("invalid or expired token")
+var ErrPasswordTooShort = errors.New("password must be at least 8 characters")
 
 type Customer struct {
 	ID        string  `json:"id"`
@@ -303,6 +304,48 @@ func (s *Service) IncrementTokenVersion(ctx context.Context, customerID string) 
 		return 0, ErrNotFound
 	}
 	return tv, err
+}
+
+// ChangePassword verifies the caller's current password, writes a new bcrypt
+// hash, and bumps token_version in the same UPDATE — instantly invalidating
+// every previously issued JWT (i.e. signing out other devices). Returns the new
+// token_version so the handler can mint a fresh token and keep THIS session
+// alive. Mirrors Login (verify) + IncrementTokenVersion (revoke).
+func (s *Service) ChangePassword(ctx context.Context, customerID, currentPassword, newPassword string) (int, error) {
+	if len(newPassword) < 8 {
+		return 0, ErrPasswordTooShort
+	}
+	var hash sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		`SELECT password_hash FROM customers WHERE id=$1 AND is_active=TRUE`, customerID).Scan(&hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	// NULL hash = OAuth-only / never-set account. Treat as bad credentials so we
+	// don't leak that state; the customer is steered toward "Forgot password?".
+	if !hash.Valid || hash.String == "" {
+		return 0, ErrInvalidCredentials
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash.String), []byte(currentPassword)) != nil {
+		return 0, ErrInvalidCredentials
+	}
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return 0, err
+	}
+	var tv int
+	err = s.db.QueryRowContext(ctx,
+		`UPDATE customers SET password_hash=$2, token_version = token_version + 1
+		 WHERE id=$1 RETURNING token_version`, customerID, string(newHash)).Scan(&tv)
+	if err != nil {
+		return 0, err
+	}
+	// Audit without leaking either the old hash or the new plaintext.
+	s.record(ctx, "customer.change_password", "customer", customerID, nil, nil)
+	return tv, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (*Customer, error) {

@@ -604,6 +604,19 @@ export const updateMyProfile = (
     ...authed(token)
   });
 
+// Self-service password change. Returns a fresh token (token_version bumped to
+// sign out other devices) so the caller can replace the customer_token cookie
+// and keep the current session alive.
+export const changeMyPassword = (
+  token: string,
+  data: { current_password: string; new_password: string }
+) =>
+  request<{ token: string; expires_in: number }>('/customers/me/password', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+    ...authed(token)
+  });
+
 export const getMyAddresses = (token: string) =>
   request<Address[]>('/customers/me/addresses', authed(token));
 

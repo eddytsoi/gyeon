@@ -102,6 +102,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Get("/me/orders/lookup/{number}", h.lookupOrder)
 		r.Get("/me/orders/{id}", h.getOrder)
 		r.Get("/me/orders/{id}/payment-info", h.getOrderPaymentInfo)
+		r.Put("/me/password", h.changePassword)
 		r.Post("/me/sign-out-everywhere", h.signOutEverywhere)
 	})
 	return r
@@ -463,6 +464,56 @@ func (h *Handler) listPurchasedProducts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respond.JSON(w, http.StatusOK, products)
+}
+
+// changePassword lets a signed-in customer change their own password. It
+// requires the current password (verified server-side), then revokes every
+// other session by bumping token_version — and mints a fresh token for THIS
+// session so the caller can replace its cookie and stay logged in.
+func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
+	customerID := auth.CustomerIDFromContext(r.Context())
+	if customerID == "" {
+		respond.Error(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	tv, err := h.svc.ChangePassword(r.Context(), customerID, req.CurrentPassword, req.NewPassword)
+	if errors.Is(err, ErrPasswordTooShort) {
+		respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, ErrInvalidCredentials) {
+		respond.Error(w, http.StatusUnauthorized, "current password is incorrect")
+		return
+	}
+	if errors.Is(err, ErrNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	// Drop the cached tv so other nodes see the new value immediately, then mint
+	// a fresh token carrying it so the current session survives the revocation.
+	auth.InvalidateCustomerVersion(customerID)
+	ttl := h.customerTTL(r.Context())
+	token, err := auth.GenerateCustomerToken(h.jwtSecret, customerID, tv, ttl)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]interface{}{
+		"token":      token,
+		"expires_in": int(ttl.Seconds()),
+	})
 }
 
 // signOutEverywhere increments this customer's token_version, instantly
