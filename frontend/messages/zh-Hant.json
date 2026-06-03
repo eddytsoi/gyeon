@@ -43,6 +43,7 @@
   "header_search_view_all": "查看所有結果",
   "header_menu_profile": "個人資料",
   "header_menu_orders": "訂單",
+  "header_menu_wishlist": "願望清單",
   "header_menu_addresses": "地址",
   "header_menu_sign_out": "登出",
 
@@ -84,6 +85,7 @@
   "wishlist_count_many": "已收藏 {count} 件",
   "wishlist_login_prompt": "登入以將您的願望清單同步到所有裝置。",
   "wishlist_login_link": "登入",
+  "wishlist_select_options": "選擇規格",
   "recently_viewed_heading": "最近瀏覽",
   "a11y_skip_to_content": "跳到主要內容",
   "free_shipping_remaining": "再消費 {amount} 即可享免運",
@@ -302,6 +304,7 @@
   "account_nav_profile": "個人資料",
   "account_nav_addresses": "地址",
   "account_nav_orders": "訂單",
+  "account_nav_wishlist": "願望清單",
   "account_nav_sign_out": "登出",
 
   "account_login_title": "登入 — GYEON",
