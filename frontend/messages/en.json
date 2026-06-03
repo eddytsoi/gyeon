@@ -53,7 +53,7 @@
   "footer_section_support": "Support",
   "footer_link_all_products": "All Products",
   "footer_link_my_cart": "My Cart",
-  "footer_copyright": "© {year} GYEON. All rights reserved.",
+  "footer_copyright": "© {year} GYEON HK. All rights reserved.",
 
   "home_title": "GYEON — Home",
   "home_hero_heading": "Quality, delivered.",
@@ -241,7 +241,7 @@
 
   "checkout_section_payment": "Payment method",
   "secure_payment_title": "Encrypted & securely processed by Stripe",
-  "secure_payment_subtitle": "GYEON never sees or stores your full card number.",
+  "secure_payment_subtitle": "GYEON HK never sees or stores your full card number.",
   "checkout_card_saved_tab": "Saved payment methods",
   "checkout_card_new_tab": "Use new card",
   "checkout_card_save_for_later": "Save this card for future use",
