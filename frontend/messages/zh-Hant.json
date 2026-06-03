@@ -44,7 +44,6 @@
   "header_menu_profile": "個人資料",
   "header_menu_orders": "訂單",
   "header_menu_addresses": "地址",
-  "header_menu_cards": "信用卡",
   "header_menu_sign_out": "登出",
 
   "footer_logo": "GYEON",
@@ -243,11 +242,6 @@
   "secure_payment_title_pre": "由 ",
   "secure_payment_title_post": " 加密並安全處理付款",
   "secure_payment_subtitle": "GYEON HK 不會接觸或儲存您的完整信用卡號碼。",
-  "checkout_card_saved_tab": "已儲存的付款方式",
-  "checkout_card_new_tab": "使用新信用卡",
-  "checkout_card_save_for_later": "儲存此信用卡以便日後使用",
-  "checkout_card_expires": "有效期至 {month}/{year}",
-  "checkout_payment_hint_saved": "確認後，將以您已儲存的付款方式付款。",
   "checkout_payment_hint_new": "完成上方資料後，按「繼續至付款」以輸入信用卡資料。",
   "checkout_continue_to_payment": "繼續至付款",
   "checkout_preparing_payment": "準備付款中…",
@@ -307,7 +301,6 @@
 
   "account_nav_profile": "個人資料",
   "account_nav_addresses": "地址",
-  "account_nav_cards": "信用卡",
   "account_nav_orders": "訂單",
   "account_nav_sign_out": "登出",
 
@@ -416,15 +409,6 @@
   "account_address_form_delete": "刪除地址",
   "account_address_form_deleting": "刪除中…",
 
-  "account_cards_title": "已儲存信用卡 — GYEON",
-  "account_cards_heading": "已儲存信用卡",
-  "account_cards_empty": "暫無已儲存的信用卡。",
-  "account_cards_empty_hint": "於結帳時勾選「儲存此信用卡以便日後使用」即可儲存。",
-  "account_cards_brand_last4": "{brand} •••• {last4}",
-  "account_cards_expires": "有效期至 {month}/{year}",
-  "account_cards_set_default": "設為預設",
-  "account_cards_delete_failed": "無法移除信用卡，請稍後再試。",
-  "account_cards_default_failed": "無法更新預設信用卡，請稍後再試。",
 
   "password_reset_title": "重設密碼 — GYEON",
   "password_reset_heading": "重設密碼",
@@ -1732,8 +1716,6 @@
   "admin_settings_payment_webhook_hint_pre": "於 Stripe Dashboard 註冊端點 ",
   "admin_settings_payment_webhook_hint_mid": "，然後在此貼上 ",
   "admin_settings_payment_webhook_hint_post": "。",
-  "admin_settings_payment_save_cards_heading": "儲存信用卡",
-  "admin_settings_payment_save_cards_hint": "允許已登入的顧客儲存信用卡以便日後購物。",
   "admin_settings_automation_heading": "已付款自動建單",
   "admin_settings_automation_subtitle": "切換是否自動為已付款訂單建立 ShipAny 出貨單。",
   "admin_settings_automation_auto_shipany_hint": "啟用後，每筆轉為「已付款」的訂單會把 Shipany 建單任務排入背景 queue。ShipAny API 回應會以系統訊息寫入訂單時間軸。需先於上方完成 ShipAny 設定。",

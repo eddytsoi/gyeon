@@ -1,4 +1,4 @@
-import type { Address, BundleItem, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, PromoBundle, SavedPaymentMethod, ShippingAddressInput, Variant } from '$lib/types';
+import type { Address, BundleItem, Cart, CartItem, Category, CheckoutResult, CmsPage, CmsPost, Customer, CustomerInfoInput, NavMenu, Order, OrderNotice, PaymentConfig, Product, ProductImage, PromoBundle, ShippingAddressInput, Variant } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -256,8 +256,6 @@ export const checkout = (
     shippingFee?: number;
     couponCode?: string;
     notes?: string;
-    saveCard?: boolean;
-    savedPaymentMethodId?: string;
   } = {}
 ) =>
   request<CheckoutResult>('/orders/checkout', {
@@ -271,9 +269,7 @@ export const checkout = (
       save_address: options.saveAddress ?? false,
       shipping_fee: options.shippingFee ?? 0,
       coupon_code: options.couponCode ?? null,
-      notes: options.notes ?? null,
-      save_card: options.saveCard ?? false,
-      saved_payment_method_id: options.savedPaymentMethodId ?? null
+      notes: options.notes ?? null
     })
   });
 
@@ -672,23 +668,6 @@ export const markMyOrderNoticesRead = (token: string, orderID: string) =>
 
 export const getMyOrderNoticeUnreadCounts = (token: string) =>
   request<Record<string, number>>(`/order-notices/unread-counts`, authed(token));
-
-// --- Saved payment methods ---
-
-export const getMySavedCards = (token: string) =>
-  request<SavedPaymentMethod[]>('/payments/saved-cards', authed(token));
-
-export const deleteMySavedCard = (token: string, id: string) =>
-  fetch(`${base()}/payments/saved-cards/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-export const setDefaultCard = (token: string, id: string) =>
-  fetch(`${base()}/payments/saved-cards/${id}/default`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}` }
-  });
 
 // --- Loyalty (P3 #24) ---
 

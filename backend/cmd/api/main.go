@@ -345,28 +345,11 @@ func main() {
 				log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
 			}
 		},
-		func(r *http.Request, stripeCustomerID, stripePMID string) {
-			ctx := r.Context()
-			gyeonCustomerID, err := paymentSvc.LookupCustomerByStripeID(ctx, stripeCustomerID)
-			if err != nil {
-				log.Printf("setup_intent.succeeded: lookup customer for stripe %s: %v", stripeCustomerID, err)
-				return
-			}
-			_, brand, last4, expMonth, expYear, err := paymentSvc.FetchPaymentMethodDetails(ctx, stripePMID)
-			if err != nil {
-				log.Printf("setup_intent.succeeded: fetch pm details %s: %v", stripePMID, err)
-				return
-			}
-			if err := paymentSvc.StoreSavedPaymentMethod(ctx, gyeonCustomerID, stripePMID, brand, last4, expMonth, expYear); err != nil {
-				log.Printf("setup_intent.succeeded: store pm for customer %s: %v", gyeonCustomerID, err)
-			}
-		},
 		func(r *http.Request, paymentIntentID, reason string) {
 			if err := orderSvc.RecordPaymentFailure(r.Context(), paymentIntentID, reason); err != nil {
 				log.Printf("record payment failure for payment_intent %s: %v", paymentIntentID, err)
 			}
 		},
-		customerJWTSecret,
 	)
 	statsHandler := admin.NewStatsHandler(conn)
 	analyticsHandler := admin.NewAnalyticsHandler(conn)

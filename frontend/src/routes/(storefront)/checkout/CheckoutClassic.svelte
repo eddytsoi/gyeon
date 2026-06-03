@@ -6,7 +6,7 @@
   import { checkout, getVariantByID, quoteOrder, type QuoteResult } from '$lib/api';
   import { loadStripe, type Stripe, type StripeElements } from '@stripe/stripe-js';
   import type { PageData } from './$types';
-  import type { SavedPaymentMethod, Variant } from '$lib/types';
+  import type { Variant } from '$lib/types';
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import { productDisplayName } from '$lib/variant';
@@ -67,16 +67,6 @@
   let appliedCouponCode = $state('');
   let validatingCoupon = $state(false);
 
-  // ── Saved cards (section 4) ──────────────────────────────────
-  const savedCards: SavedPaymentMethod[] = data.savedCards ?? [];
-  const hasSavedCards = savedCards.length > 0;
-  type CardMode = 'saved' | 'new';
-  let cardMode = $state<CardMode>(hasSavedCards ? 'saved' : 'new');
-  let selectedCardID = $state<string>(
-    savedCards.find((c) => c.is_default)?.id ?? savedCards[0]?.id ?? ''
-  );
-  let saveCard = $state(false);
-
   // ── Stripe Payment Element (section 4) ────────────────────────
   let stripe: Stripe | null = $state(null);
   let elements: StripeElements | null = $state(null);
@@ -86,8 +76,6 @@
   let pendingOrderID = $state<string | null>(null);
   let pendingOrderNumber = $state('');
   let paymentElementMounted = $state(false);
-  // Set when the backend returns a SetupIntent for saving the card
-  let pendingSetupClientSecret = $state<string | null>(null);
 
   // ── T&C (section 5) ───────────────────────────────────────────
   let tcAccepted = $state(false);
@@ -269,11 +257,6 @@
     paymentMounting = true;
     error = '';
     try {
-      // When using a saved card skip the payment element entirely —
-      // the backend will confirm the intent with the saved payment method.
-      const usingSavedCard = data.saveCardsEnabled && hasSavedCards && cardMode === 'saved' && selectedCardID;
-      const selectedCard = usingSavedCard ? savedCards.find((c) => c.id === selectedCardID) : null;
-
       const result = await checkout(activeCart.id, {
         customerID: data.customer?.id,
         customerInfo: {
@@ -294,31 +277,28 @@
         saveAddress: addressMode === 'new' && saveAddress,
         shippingFee: 0,
         couponCode: couponValid ? appliedCouponCode : undefined,
-        notes: notes.trim() || undefined,
-        saveCard: data.saveCardsEnabled && cardMode === 'new' && saveCard && !!data.customer,
-        savedPaymentMethodId: selectedCard?.stripe_pm_id
+        notes: notes.trim() || undefined
       });
 
       pendingClientSecret = result.client_secret;
       pendingOrderID = result.order.id;
       pendingOrderNumber = result.order.order_number || `ORD-${result.order.number}`;
-      pendingSetupClientSecret = result.setup_client_secret ?? null;
 
-      if (!usingSavedCard) {
-        const stripeCountry = data.paymentConfig?.country || 'HK';
-        elements = stripe.elements({
-          clientSecret: result.client_secret,
-          appearance: { theme: 'stripe', variables: { colorPrimary: '#111827' } }
-        });
-        const paymentElement = elements.create('payment', {
-          layout: 'tabs',
-          defaultValues: {
-            billingDetails: { address: { country: stripeCountry } }
-          }
-        });
-        paymentElement.mount('#payment-element');
-        paymentElementMounted = true;
-      }
+      const stripeCountry = data.paymentConfig?.country || 'HK';
+      elements = stripe.elements({
+        clientSecret: result.client_secret,
+        appearance: { theme: 'stripe', variables: { colorPrimary: '#111827' } }
+      });
+      const paymentElement = elements.create('payment', {
+        layout: 'tabs',
+        // Pass the email so Stripe Link can recognise returning customers and
+        // offer autofill / one-click checkout against their Link-saved cards.
+        defaultValues: {
+          billingDetails: { email: email.trim(), address: { country: stripeCountry } }
+        }
+      });
+      paymentElement.mount('#payment-element');
+      paymentElementMounted = true;
       paymentReady = true;
 
       // Scroll to payment section
@@ -593,58 +573,8 @@
           </div>
 
           {#if !paymentReady}
-            <!-- Saved cards tabs (only for logged-in customers with save_cards enabled) -->
-            {#if data.saveCardsEnabled && data.customer && hasSavedCards}
-              <div class="flex gap-2 mb-4">
-                <button type="button"
-                        onclick={() => (cardMode = 'saved')}
-                        class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
-                               {cardMode === 'saved' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                  {m.checkout_card_saved_tab()}
-                </button>
-                <button type="button"
-                        onclick={() => (cardMode = 'new')}
-                        class="px-4 py-2 rounded-xl text-sm font-medium transition-colors
-                               {cardMode === 'new' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-                  {m.checkout_card_new_tab()}
-                </button>
-              </div>
-            {/if}
-
-            <!-- Saved card list -->
-            {#if data.saveCardsEnabled && data.customer && hasSavedCards && cardMode === 'saved'}
-              <div class="flex flex-col gap-2 mb-4">
-                {#each savedCards as card}
-                  <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border
-                                {selectedCardID === card.id ? 'border-gray-900 bg-gray-50' : 'border-gray-100'}">
-                    <input type="radio" name="saved_card" value={card.id}
-                           bind:group={selectedCardID}
-                           class="accent-gray-900 flex-shrink-0" />
-                    <div class="flex-1 text-sm">
-                      <span class="font-medium text-gray-900 capitalize">{card.brand}</span>
-                      <span class="text-gray-500 ml-1">•••• {card.last4}</span>
-                      {#if card.is_default}
-                        <span class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">{m.common_default()}</span>
-                      {/if}
-                      <p class="text-gray-400 text-xs mt-0.5">{m.checkout_card_expires({ month: card.exp_month, year: card.exp_year })}</p>
-                    </div>
-                  </label>
-                {/each}
-              </div>
-            {/if}
-
-            <!-- Save card checkbox (new card mode, logged-in, feature enabled) -->
-            {#if data.saveCardsEnabled && data.customer && cardMode === 'new'}
-              <label class="flex items-center gap-2 mb-4 cursor-pointer">
-                <input type="checkbox" bind:checked={saveCard} class="accent-gray-900" />
-                <span class="text-sm text-gray-600">{m.checkout_card_save_for_later()}</span>
-              </label>
-            {/if}
-
             <p class="text-xs text-gray-400 mb-4">
-              {cardMode === 'saved' && data.saveCardsEnabled && data.customer && hasSavedCards
-                ? m.checkout_payment_hint_saved()
-                : m.checkout_payment_hint_new()}
+              {m.checkout_payment_hint_new()}
             </p>
             <button type="button"
                     onclick={continueToPayment}
@@ -658,23 +588,11 @@
             {/if}
           {/if}
 
-          <!-- Stripe Payment Element (hidden when using saved card) -->
+          <!-- Stripe Payment Element -->
           {#if paymentReady && paymentElementMounted}
             <div class="mb-4"><SecurePaymentNote /></div>
           {/if}
           <div id="payment-element" class="w-full min-w-0 {paymentReady && paymentElementMounted ? '' : 'hidden'}"></div>
-
-          <!-- Saved card confirmation message -->
-          {#if paymentReady && !paymentElementMounted}
-            {@const card = savedCards.find((c) => c.id === selectedCardID)}
-            {#if card}
-              <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
-                <span class="capitalize font-medium">{card.brand}</span>
-                <span>•••• {card.last4}</span>
-                <span class="text-gray-400 ml-auto">{m.checkout_card_expires({ month: card.exp_month, year: card.exp_year })}</span>
-              </div>
-            {/if}
-          {/if}
         </section>
 
         <!-- ── Pay ─────────────────────────────────────────────── -->

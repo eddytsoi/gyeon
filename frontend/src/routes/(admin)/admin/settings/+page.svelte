@@ -256,7 +256,6 @@
     'stripe_test_secret_key',
     'stripe_live_publishable_key',
     'stripe_live_secret_key',
-    'stripe_save_cards',
     'stripe_webhook_secret'
   ]);
 
@@ -625,7 +624,6 @@
   }
 
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
-  let stripeSaveCards = $state(settingValue('stripe_save_cards') === 'true');
   let lowStockAlertEnabled = $state(settingValue('low_stock_alert_enabled') !== 'false');
   // ── Tax ─────────────────────────────────────────────────────────
   let taxEnabled = $state(settingValue('tax_enabled') === 'true');
@@ -2982,26 +2980,6 @@
                          value={settingValue('stripe_webhook_secret')}
                          placeholder="whsec_..." />
         </div>
-      </div>
-
-      <div class="pt-5 mt-5 border-t border-gray-100 flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-semibold text-gray-900">{m.admin_settings_payment_save_cards_heading()}</p>
-          <p class="text-xs text-gray-400 mt-0.5">
-            {m.admin_settings_payment_save_cards_hint()}
-          </p>
-        </div>
-        <button type="button"
-                onclick={() => (stripeSaveCards = !stripeSaveCards)}
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
-                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
-                       {stripeSaveCards ? 'bg-green-500' : 'bg-gray-200'}"
-                role="switch"
-                aria-checked={stripeSaveCards}>
-          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
-                       transition duration-200 {stripeSaveCards ? 'translate-x-5' : 'translate-x-0'}"></span>
-        </button>
-        <input type="hidden" name="stripe_save_cards" value={stripeSaveCards ? 'true' : 'false'} />
       </div>
     </div>
 

@@ -25,7 +25,6 @@ var publicSettingKeys = []string{
 	"mcp_enabled",
 	"shipping_countries",
 	"site_locale",
-	"stripe_save_cards",
 	"tax_enabled",
 	"tax_rate",
 	"tax_label",
