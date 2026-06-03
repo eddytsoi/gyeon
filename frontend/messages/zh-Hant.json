@@ -53,7 +53,7 @@
   "footer_section_support": "客戶支援",
   "footer_link_all_products": "所有產品",
   "footer_link_my_cart": "我的購物車",
-  "footer_copyright": "© {year} GYEON。版權所有。",
+  "footer_copyright": "© {year} GYEON HK 版權所有",
 
   "home_title": "GYEON — 首頁",
   "home_hero_heading": "優質，直送到家。",
@@ -241,7 +241,7 @@
 
   "checkout_section_payment": "付款方式",
   "secure_payment_title": "由 Stripe 加密並安全處理付款",
-  "secure_payment_subtitle": "GYEON 不會接觸或儲存您的完整信用卡號碼。",
+  "secure_payment_subtitle": "GYEON HK 不會接觸或儲存您的完整信用卡號碼。",
   "checkout_card_saved_tab": "已儲存的付款方式",
   "checkout_card_new_tab": "使用新信用卡",
   "checkout_card_save_for_later": "儲存此信用卡以便日後使用",
