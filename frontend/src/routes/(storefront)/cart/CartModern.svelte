@@ -6,6 +6,7 @@
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+  import ShareCartButton from '$lib/components/shop/ShareCartButton.svelte';
   import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
@@ -157,6 +158,10 @@
           {shippingFree ? m.shipping_sf_free() : m.shipping_sf_cod()}
         </span>
       </div>
+    </div>
+
+    <div class="mt-4">
+      <ShareCartButton />
     </div>
 
     <!-- Sticky bottom checkout bar — full-bleed within the column, stays

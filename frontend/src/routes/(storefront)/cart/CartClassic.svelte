@@ -6,6 +6,7 @@
   import FreeShippingBanner from '$lib/components/shop/FreeShippingBanner.svelte';
   import PendingOrderBanner from '$lib/components/shop/PendingOrderBanner.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
+  import ShareCartButton from '$lib/components/shop/ShareCartButton.svelte';
   import { productDisplayName } from '$lib/variant';
   import * as m from '$lib/paraglide/messages';
   import { resolveFreeShippingThreshold } from '$lib/shippingThreshold';
@@ -170,6 +171,8 @@
                    hover:bg-gray-700 transition-colors text-center block">
             {m.cart_checkout()}
           </a>
+
+          <ShareCartButton />
 
           <a href="/products" class="text-center text-sm text-gray-400 hover:text-gray-700 transition-colors">
             {m.cart_continue_shopping_back()}
