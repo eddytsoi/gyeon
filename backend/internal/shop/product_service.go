@@ -1518,8 +1518,14 @@ func (s *ProductService) GetBySlug(ctx context.Context, slug, locale string) (*P
 }
 
 // GetByID fetches a product by ID. locale may be empty for base content.
+// Mirrors GetBySlug's purchasable annotation: the storefront by-id endpoint
+// (and the [products] shortcode that resolves cards through it) needs the same
+// role-aware Purchasable flag GetBySlug stamps, otherwise it would default to
+// the zero value (false) and hide the price. Role is part of the cache key for
+// the same reason it is on the slug path — Purchasable is per-(role, category).
 func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Product, error) {
-	key := fmt.Sprintf("shop:products:id:%s:%s", id, locale)
+	role := auth.CustomerRoleFromContext(ctx)
+	key := fmt.Sprintf("shop:products:id:%s:%s:%s", id, locale, role)
 	if v, ok := s.cache.Get(key); ok {
 		p := v.(Product)
 		return &p, nil
@@ -1533,6 +1539,7 @@ func (s *ProductService) GetByID(ctx context.Context, id, locale string) (*Produ
 		p.CategoryIDs = ids
 	}
 	s.hydrateMediaURLs(ctx, &p)
+	s.annotateSinglePurchasable(ctx, &p)
 	s.cache.Set(key, p, s.ttl(ctx))
 	return &p, nil
 }
