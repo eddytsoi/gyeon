@@ -335,6 +335,9 @@
     updated_customers: number;
     imported_addresses: number;
     setup_emails_queued: number;
+    skipped_fake: number;
+    removed_fake: number;
+    protected_fake: number;
     failed: number;
     current_customer?: string;
     done: boolean;
@@ -1229,6 +1232,12 @@
                 {#if customersProgress.setup_emails_queued > 0}
                   <span class="text-purple-600">{m.admin_import_customers_progress_emails({ count: customersProgress.setup_emails_queued })}</span>
                 {/if}
+                {#if customersProgress.skipped_fake > 0}
+                  <span class="text-gray-500">{m.admin_import_customers_progress_skipped_fake({ count: customersProgress.skipped_fake })}</span>
+                {/if}
+                {#if customersProgress.removed_fake > 0}
+                  <span class="text-amber-600">{m.admin_import_customers_progress_removed_fake({ count: customersProgress.removed_fake })}</span>
+                {/if}
                 {#if customersProgress.failed > 0}
                   <span class="text-red-500">{m.admin_import_progress_failed({ count: customersProgress.failed })}</span>
                 {/if}
@@ -1294,6 +1303,13 @@
         {/if}
 
         <p class="text-xs text-gray-500 mb-5">{m.admin_import_customers_intro()}</p>
+
+        <div class="flex items-start gap-2 mb-5 px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+          <svg class="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-2.99l-6.93-12a2 2 0 00-3.48 0l-6.93 12A2 2 0 005.07 19z" />
+          </svg>
+          <p class="text-xs text-amber-800 leading-relaxed">{m.admin_import_customers_fake_filter_note()}</p>
+        </div>
 
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-1.5">
