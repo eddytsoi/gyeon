@@ -836,7 +836,7 @@
              and at xl+. At md/lg (768–1279) it breaks out full-width below the grid
              instead — see the breakout band after the right column closes. -->
         {#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
-          {@render bundleCard('md:hidden xl:block', 'grid-cols-1 xl:grid-cols-2')}
+          {@render bundleCard('md:hidden xl:block', 'grid-cols-1 sm:grid-cols-2')}
         {/if}
 
         <!-- Qty + CTA. In taobao layout the qty stepper lives inside the
