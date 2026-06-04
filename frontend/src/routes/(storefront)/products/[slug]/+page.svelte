@@ -34,10 +34,11 @@
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { onMount } from 'svelte';
 
-  // PDP main image is sticky on the left in a 4fr/3fr grid on lg+: max column
-  // width ~720px there, full viewport on mobile. Eager + high priority for LCP.
+  // PDP main image sits in the left grid column: max ~720px at lg+ (4fr/3fr),
+  // ~50vw across the tablet range (md 1fr/1fr), full viewport on mobile. Eager +
+  // high priority for LCP.
   const PDP_MAIN_WIDTHS = [480, 640, 960, 1280];
-  const PDP_MAIN_SIZES = '(min-width: 1024px) 720px, 100vw';
+  const PDP_MAIN_SIZES = '(min-width: 1024px) 720px, (min-width: 768px) 50vw, 100vw';
   // Gallery thumbnails are a fixed 96px square strip (w-24 h-24).
   const PDP_THUMB_WIDTHS = [192, 384];
   const PDP_THUMB_SIZES = '96px';
@@ -509,7 +510,7 @@
       <span class="font-semibold text-navy-900 truncate max-w-[60vw]">{data.product.name}</span>
     </nav>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[4fr_3fr] gap-10 lg:gap-16 items-start">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[4fr_3fr] gap-8 md:gap-10 lg:gap-16 items-start">
 
       <!-- LEFT: Image Gallery -->
       <div class="flex flex-col gap-4">
@@ -689,13 +690,13 @@
       <!-- RIGHT column. Wrapper stretches to the gallery height so the inner
            info block stays sticky across the full image, while the "mini"
            up-sells (when enabled) sit below it in normal flow. -->
-      <div class="flex flex-col lg:self-stretch">
-      <!-- Product Info. Sticky on lg+ in the normal layout. In "mini" layout the
+      <div class="flex flex-col md:self-stretch">
+      <!-- Product Info. Sticky on md+ in the normal layout. In "mini" layout the
            up-sells sit below it in the same column, so stickiness is dropped to
            avoid the pinned info overlapping the mini cards on scroll. No
            self-start: as a flex child it stays full-width (align-self stretch);
            the wrapper above owns the grid-cell alignment. -->
-      <div class="flex flex-col gap-6 lg:pt-2 {upsellsLayout === 'mini' ? '' : 'lg:sticky lg:top-24'}"
+      <div class="flex flex-col gap-6 md:pt-2 {upsellsLayout === 'mini' ? '' : 'md:sticky md:top-24'}"
            bind:this={summaryEl}>
 
         <!-- Category eyebrow chip -->
