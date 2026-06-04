@@ -64,10 +64,10 @@
       {heading ?? m.product_detail_upsells_heading()}
     </h2>
 
-    <!-- Responsive columns: 1-up on mobile (<768), 2-up on tablet (768–1023,
-         where the PDP is single-column and the mini spans full width), back to
-         1-up on lg+ (>=1024) where it lives in the narrow product-info column. -->
-    <ul class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-x-6 gap-y-5">
+    <!-- Always single-column: the PDP hero is two-column from md (768px), so the
+         mini up-sells live in the narrow product-info column at every width. A
+         2-up grid would squeeze each horizontal card too tight there. -->
+    <ul class="grid grid-cols-1 gap-x-6 gap-y-5">
       {#each items as p, i (cardKey(p, i))}
         {@const enabled = canAdd(p)}
         {@const k = cardKey(p, i)}
