@@ -492,6 +492,53 @@
   jsonLd={seoJsonLd}
 />
 
+<!-- Bundle contents card. Rendered in two positions (in-column vs. full-width
+     breakout) toggled by responsive visibility classes — see usages below. -->
+{#snippet bundleCard(wrapperClass, ulClass)}
+  <div class="rounded-xl border border-ink-200 p-5 {wrapperClass}">
+    <p class="text-base font-display font-semibold uppercase tracking-normal text-navy-500 mb-4">
+      {m.product_detail_bundle_heading()}
+    </p>
+    <ul class="grid {ulClass} gap-x-6 gap-y-5">
+      {#each data.bundleItems as item}
+        <li class="flex items-start gap-3">
+          {#if item.component_primary_image_url}
+            <ResponsiveImage
+              src={item.component_primary_image_url}
+              alt={item.component_product_name ?? ''}
+              widths={[80, 160]}
+              sizes="(min-width: 640px) 96px, 80px"
+              class="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 object-contain rounded-md bg-white" />
+          {/if}
+          <div class="flex-1 min-w-0">
+            {#if item.component_product_slug}
+              <a href="/products/{item.component_product_slug}"
+                 class="inline-flex items-center gap-1 font-display font-semibold text-sm text-ink-900 hover:text-navy-600 transition-colors">
+                <span>{item.display_name_override || item.component_product_name}</span>
+                {#if item.quantity > 1}<span class="text-ink-500 font-body font-normal">× {item.quantity}</span>{/if}
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+                </svg>
+              </a>
+            {:else}
+              <p class="font-display font-semibold text-sm text-ink-900">
+                {item.display_name_override || item.component_product_name}
+                {#if item.quantity > 1}<span class="text-ink-500 font-normal">× {item.quantity}</span>{/if}
+              </p>
+            {/if}
+            {#if item.component_product_subtitle}
+              <p class="text-sm text-navy-600 mt-1">{item.component_product_subtitle}</p>
+            {/if}
+            {#if item.component_variant_name}
+              <p class="text-xs text-ink-500 mt-1.5">{item.component_variant_name}</p>
+            {/if}
+          </div>
+        </li>
+      {/each}
+    </ul>
+  </div>
+{/snippet}
+
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
 <div class="bg-white">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
@@ -785,50 +832,11 @@
           </div>
         {/if}
 
-        <!-- Bundle contents (above qty + CTA) -->
+        <!-- Bundle contents (above qty + CTA). In-column position: shown below md
+             and at xl+. At md/lg (768–1279) it breaks out full-width below the grid
+             instead — see the breakout band after the right column closes. -->
         {#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
-          <div class="rounded-xl border border-ink-200 p-5">
-            <p class="text-base font-display font-semibold uppercase tracking-normal text-navy-500 mb-4">
-              {m.product_detail_bundle_heading()}
-            </p>
-            <ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-5">
-              {#each data.bundleItems as item}
-                <li class="flex items-start gap-3">
-                  {#if item.component_primary_image_url}
-                    <ResponsiveImage
-                      src={item.component_primary_image_url}
-                      alt={item.component_product_name ?? ''}
-                      widths={[80, 160]}
-                      sizes="(min-width: 640px) 96px, 80px"
-                      class="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 object-contain rounded-md bg-white" />
-                  {/if}
-                  <div class="flex-1 min-w-0">
-                    {#if item.component_product_slug}
-                      <a href="/products/{item.component_product_slug}"
-                         class="inline-flex items-center gap-1 font-display font-semibold text-sm text-ink-900 hover:text-navy-600 transition-colors">
-                        <span>{item.display_name_override || item.component_product_name}</span>
-                        {#if item.quantity > 1}<span class="text-ink-500 font-body font-normal">× {item.quantity}</span>{/if}
-                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
-                        </svg>
-                      </a>
-                    {:else}
-                      <p class="font-display font-semibold text-sm text-ink-900">
-                        {item.display_name_override || item.component_product_name}
-                        {#if item.quantity > 1}<span class="text-ink-500 font-normal">× {item.quantity}</span>{/if}
-                      </p>
-                    {/if}
-                    {#if item.component_product_subtitle}
-                      <p class="text-sm text-navy-600 mt-1">{item.component_product_subtitle}</p>
-                    {/if}
-                    {#if item.component_variant_name}
-                      <p class="text-xs text-ink-500 mt-1.5">{item.component_variant_name}</p>
-                    {/if}
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          </div>
+          {@render bundleCard('md:hidden xl:block', 'grid-cols-1 xl:grid-cols-2')}
         {/if}
 
         <!-- Qty + CTA. In taobao layout the qty stepper lives inside the
@@ -905,6 +913,13 @@
         {/if}
       </div>
       </div>
+
+      <!-- Bundle contents breakout: 768px–1279px only, spans both columns full-width
+           below the grid with items in 2 columns. Reverts to the in-column card at
+           mobile (<md) and at xl+. -->
+      {#if data.product.kind === 'bundle' && data.bundleItems && data.bundleItems.length > 0}
+        {@render bundleCard('hidden md:block xl:hidden md:col-span-2', 'grid-cols-2')}
+      {/if}
 
       <!-- Up-sells "mini" tablet breakout: 768px–1023px only, spans both columns. -->
       {#if upsellsLayout === 'mini' && showUpsells && data.upsells.length > 0}
