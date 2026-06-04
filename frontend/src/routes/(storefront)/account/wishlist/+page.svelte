@@ -5,20 +5,37 @@
   // to cart and remove. Auth is enforced by account/+layout.server.ts, so we can
   // assume an authenticated session here (no guest/login-prompt branch).
   import { onMount } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { getProductByID, getProductImages, getProductVariants } from '$lib/api';
   import type { Product, ProductImage, Variant } from '$lib/types';
   import { formatHKD } from '$lib/money';
+  import { variantSuffix } from '$lib/variant';
   import { isVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
 
-  type Card = { product: Product; image?: ProductImage; variant?: Variant; variantCount: number };
+  // `variant` is the cheapest live variant (display default & single-variant
+  // fast path); `variants` is ALL live variants, cheapest-first, for the inline
+  // spec picker on multi-variant rows.
+  type Card = {
+    product: Product;
+    image?: ProductImage;
+    variant?: Variant;
+    variants: Variant[];
+    variantCount: number;
+  };
   let cards = $state<Card[]>([]);
   let loading = $state(true);
   // Transient per-product add-to-cart state (keyed by product id).
   let adding = $state<Record<string, boolean>>({});
   let added = $state<Record<string, boolean>>({});
+  // Multi-variant buy-in-place: which row's spec picker is expanded, and the
+  // variant the user has selected within it. Both keyed by product id, mirroring
+  // the adding/added records above.
+  let picking = $state<Record<string, boolean>>({});
+  let selectedId = $state<Record<string, string>>({});
 
   // Wishlist only stores product IDs, so hydrate each into product + primary
   // image + cheapest variant (mirrors the public /wishlist page). variantCount
@@ -38,11 +55,13 @@
             getProductImages(pid).catch(() => [] as ProductImage[]),
             getProductVariants(pid).catch(() => [] as Variant[])
           ]);
+          const sorted = variants.slice().sort((a, b) => a.price - b.price);
           return {
             product,
             image: images.find((i) => i.is_primary) ?? images[0],
-            variant: variants.slice().sort((a, b) => a.price - b.price)[0],
-            variantCount: variants.length
+            variant: sorted[0],
+            variants: sorted,
+            variantCount: sorted.length
           } satisfies Card;
         } catch {
           return null;
@@ -85,6 +104,57 @@
       adding = { ...adding, [card.product.id]: false };
     }
   }
+
+  // ── Multi-variant inline spec picker ──────────────────────────────
+  // Cheapest in-stock variant, else cheapest overall. `variants` is already
+  // sorted cheapest-first, so the first in-stock entry is the cheapest one.
+  function defaultVariant(card: Card): Variant | undefined {
+    return card.variants.find((v) => v.stock_qty > 0) ?? card.variants[0];
+  }
+
+  // The variant the row should price and that "add" will use: the user's pick
+  // if any (and still resolvable), otherwise the row default.
+  function activeVariant(card: Card): Variant | undefined {
+    const id = selectedId[card.product.id];
+    return (id ? card.variants.find((v) => v.id === id) : undefined) ?? defaultVariant(card);
+  }
+
+  function togglePicker(card: Card) {
+    const k = card.product.id;
+    const next = !picking[k];
+    // Seed the default selection on first open so a price shows and "add"
+    // works without an extra click.
+    if (next && !selectedId[k]) {
+      const def = defaultVariant(card);
+      if (def) selectedId = { ...selectedId, [k]: def.id };
+    }
+    picking = { ...picking, [k]: next };
+  }
+
+  function selectVariant(card: Card, v: Variant) {
+    if (v.stock_qty <= 0) return; // chips are disabled, but guard anyway
+    selectedId = { ...selectedId, [card.product.id]: v.id };
+  }
+
+  // Add the active (selected, or default) variant for a multi-variant row.
+  // Mirrors addToCart's adding/added 2s feedback, reusing the same records.
+  async function addSelected(card: Card) {
+    const v = activeVariant(card);
+    if (!v || v.stock_qty <= 0) return;
+    const k = card.product.id;
+    adding = { ...adding, [k]: true };
+    try {
+      await cartStore.add(v.id);
+      added = { ...added, [k]: true };
+      setTimeout(() => {
+        added = { ...added, [k]: false };
+      }, 2000);
+    } catch {
+      // cartStore records the error; the storefront layout shows the toast.
+    } finally {
+      adding = { ...adding, [k]: false };
+    }
+  }
 </script>
 
 <svelte:head>
@@ -119,11 +189,13 @@
   {:else}
     <div class="flex flex-col gap-3">
       {#each cards as card (card.product.id)}
+        {@const k = card.product.id}
         {@const src = thumb(card.image)}
-        {@const soldOut = card.variant != null && card.variant.stock_qty === 0}
         {@const multi = card.variantCount > 1}
-        {@const hasDiscount =
-          card.variant?.compare_at_price != null && card.variant.compare_at_price > card.variant.price}
+        {@const picker = picking[k] === true}
+        {@const sel = activeVariant(card)}
+        {@const soldOut = card.variants.length > 0 && card.variants.every((v) => v.stock_qty === 0)}
+        {@const hasDiscount = sel?.compare_at_price != null && sel.compare_at_price > sel.price}
         <div class="bg-white rounded-2xl border border-gray-100 p-4 flex items-start gap-4">
           <!-- Thumbnail -->
           <a href="/products/{card.product.slug}" class="shrink-0">
@@ -152,11 +224,11 @@
               {card.product.name}
             </a>
 
-            {#if card.variant}
+            {#if sel}
               <div class="mt-1 flex items-baseline gap-2">
-                <span class="text-base font-bold text-gray-900">{formatHKD(card.variant.price)}</span>
+                <span class="text-base font-bold text-gray-900">{formatHKD(sel.price)}</span>
                 {#if hasDiscount}
-                  <span class="text-sm text-gray-400 line-through">{formatHKD(card.variant.compare_at_price!)}</span>
+                  <span class="text-sm text-gray-400 line-through">{formatHKD(sel.compare_at_price!)}</span>
                 {/if}
               </div>
             {:else}
@@ -169,23 +241,64 @@
                   {m.product_card_out_of_stock()}
                 </span>
               {:else if multi}
-                <a
-                  href="/products/{card.product.slug}"
+                <button
+                  type="button"
+                  onclick={() => togglePicker(card)}
+                  aria-expanded={picker}
+                  aria-controls="wishlist-picker-{k}"
                   class="px-3 py-1.5 text-sm font-medium text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   {m.wishlist_select_options()}
-                </a>
+                </button>
+                {#if picker}
+                  <button
+                    type="button"
+                    disabled={adding[k] || !sel || sel.stock_qty <= 0}
+                    onclick={() => addSelected(card)}
+                    class="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-60"
+                  >
+                    {added[k] ? m.product_detail_added() : m.product_detail_add_to_cart()}
+                  </button>
+                {/if}
               {:else if card.variant}
                 <button
                   type="button"
-                  disabled={adding[card.product.id]}
+                  disabled={adding[k]}
                   onclick={() => addToCart(card)}
                   class="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-60"
                 >
-                  {added[card.product.id] ? m.product_detail_added() : m.product_detail_add_to_cart()}
+                  {added[k] ? m.product_detail_added() : m.product_detail_add_to_cart()}
                 </button>
               {/if}
             </div>
+
+            <!-- Inline spec picker (multi-variant rows) -->
+            {#if !soldOut && multi && picker}
+              <div
+                id="wishlist-picker-{k}"
+                transition:slide={{ duration: 200, easing: cubicOut }}
+                class="mt-2.5 flex flex-wrap gap-2"
+              >
+                {#each card.variants as v (v.id)}
+                  {@const isSelected = sel?.id === v.id}
+                  {@const isAvailable = v.stock_qty > 0}
+                  <button
+                    type="button"
+                    onclick={() => selectVariant(card, v)}
+                    disabled={!isAvailable}
+                    aria-pressed={isSelected}
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors
+                           {isSelected
+                             ? 'bg-gray-900 border-gray-900 text-white'
+                             : isAvailable
+                               ? 'border-gray-300 text-gray-900 hover:bg-gray-50'
+                               : 'border-gray-200 text-gray-400 line-through cursor-not-allowed opacity-60'}"
+                  >
+                    {variantSuffix(v.name) || v.sku}
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
 
           <!-- Remove -->
