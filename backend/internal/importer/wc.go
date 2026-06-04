@@ -158,14 +158,19 @@ type wcCustomerAddress struct {
 }
 
 type wcCustomer struct {
-	ID        int               `json:"id"`
-	Email     string            `json:"email"`
-	FirstName string            `json:"first_name"`
-	LastName  string            `json:"last_name"`
-	Username  string            `json:"username"`
-	Role      string            `json:"role"`
-	Billing   wcCustomerAddress `json:"billing"`
-	Shipping  wcCustomerAddress `json:"shipping"`
+	ID        int    `json:"id"`
+	Email     string `json:"email"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	// IsPayingCustomer is WC's read-only flag, true once the customer has
+	// completed at least one paid order. It's the strongest "this account is
+	// real" signal and the first gate in looksLikeFakeAccount — a paying
+	// customer is never treated as fake regardless of missing name/phone.
+	IsPayingCustomer bool              `json:"is_paying_customer"`
+	Billing          wcCustomerAddress `json:"billing"`
+	Shipping         wcCustomerAddress `json:"shipping"`
 }
 
 // wcOrderBilling adds Email on top of wcCustomerAddress because the order
