@@ -1,7 +1,7 @@
 import { getCategories, getProductsFiltered, getProductsListPage, type ProductListFilters } from '$lib/api';
 import type { PageServerLoad } from './$types';
 
-const SORT_VALUES = new Set(['new', 'price_asc', 'price_desc', 'name']);
+const SORT_VALUES = new Set(['featured', 'new', 'price_asc', 'price_desc', 'name']);
 const INITIAL_LIMIT = 12;
 const PRICE_BOUND_FLOOR = 100;
 
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
   const q = url.searchParams.get('q') ?? '';
   const category = url.searchParams.get('category') ?? '';
   const sortRaw = url.searchParams.get('sort') ?? '';
-  const sort = (SORT_VALUES.has(sortRaw) ? sortRaw : 'new') as ProductListFilters['sort'];
+  const sort = (SORT_VALUES.has(sortRaw) ? sortRaw : 'featured') as ProductListFilters['sort'];
   const minPrice = parsePositiveFloat(url.searchParams.get('min_price'));
   const maxPrice = parsePositiveFloat(url.searchParams.get('max_price'));
 

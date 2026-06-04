@@ -782,18 +782,18 @@
                         focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label for="wc_sku" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_wc_sku()}</label>
-          <input id="wc_sku" name="wc_sku" type="text" maxlength="255"
-                 value={data.product?.wc_sku ?? ''}
-                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                        focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
-        </div>
-        <div class="flex flex-col gap-1.5 sm:col-span-2">
           <label for="subtitle" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_subtitle()}</label>
           <input id="subtitle" name="subtitle" type="text" maxlength="255"
                  value={data.product?.subtitle ?? ''}
                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="wc_sku" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_wc_sku()}</label>
+          <input id="wc_sku" name="wc_sku" type="text" maxlength="255"
+                 value={data.product?.wc_sku ?? ''}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 font-mono" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_status()}</label>
@@ -847,6 +847,13 @@
             <option value="off">{m.admin_product_edit_pdp_layout_classic()}</option>
             <option value="on">{m.admin_product_edit_pdp_layout_taobao()}</option>
           </select>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="custom_order" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_product_edit_label_custom_order()}</label>
+          <input id="custom_order" name="custom_order" type="number" step="1" min="0"
+                 value={data.product?.custom_order ?? ''}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
         <div class="flex flex-col gap-1.5 sm:col-span-2">
           <div class="flex items-center justify-between">

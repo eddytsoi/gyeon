@@ -60,7 +60,7 @@
       : 'text-base md:text-lg font-bold'
   );
   const comparePriceClass = $derived(
-    priceSize === 'list' ? 'text-lg font-medium' : 'text-sm'
+    priceSize === 'list' ? 'text-lg font-medium font-display' : 'text-sm font-body'
   );
   // Listing & up-sells-style cards ('list'/'lg') show the price in navy; the
   // 'default' card (homepage, recently-viewed, wishlist, shortcodes) keeps ink.
@@ -150,7 +150,7 @@
             {formatHKD(variant.price)}
           </span>
           {#if hasDiscount}
-            <span class="font-body line-through text-ink-500 {comparePriceClass}">
+            <span class="line-through text-ink-500 {comparePriceClass}">
               {formatHKD(variant.compare_at_price!)}
             </span>
           {/if}

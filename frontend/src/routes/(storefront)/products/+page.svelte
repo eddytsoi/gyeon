@@ -71,7 +71,7 @@
 
   function onSortChange(sort: string) {
     navigate(p => {
-      if (sort && sort !== 'new') p.set('sort', sort);
+      if (sort && sort !== 'featured') p.set('sort', sort);
       else p.delete('sort');
     });
   }
@@ -103,7 +103,7 @@
     goto('/products', { noScroll: true });
   }
 
-  const hasFilters = $derived(!!(data.q || data.category || data.minPrice != null || data.maxPrice != null || (data.sort && data.sort !== 'new')));
+  const hasFilters = $derived(!!(data.q || data.category || data.minPrice != null || data.maxPrice != null || (data.sort && data.sort !== 'featured')));
 
   function currentFilters(): ProductListFilters {
     return {
@@ -349,11 +349,12 @@
                           focus:outline-none focus:ring-2 focus:ring-navy-300 focus:border-transparent" />
           </div>
           <span class="text-[11px] font-display uppercase tracking-[0.15em] text-ink-500">Sort</span>
-          <select value={data.sort ?? 'new'}
+          <select value={data.sort ?? 'featured'}
                   onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
                   aria-label={m.products_sort_aria()}
                   class="font-display font-medium text-sm border-0 bg-transparent
                          focus:outline-none focus:ring-0 cursor-pointer text-ink-900">
+            <option value="featured">{m.products_sort_featured()}</option>
             <option value="new">{m.products_sort_new()}</option>
             <option value="price_asc">{m.products_sort_price_asc()}</option>
             <option value="price_desc">{m.products_sort_price_desc()}</option>
