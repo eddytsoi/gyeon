@@ -285,7 +285,7 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 	if raw := q.Get("role"); raw != "" {
 		for _, s := range strings.Split(raw, ",") {
 			s = strings.TrimSpace(s)
-			if s == "customer" || s == "installer" {
+			if s == "customer" || s == "installer" || s == "installer_v2" {
 				f.Roles = append(f.Roles, s)
 			}
 		}
