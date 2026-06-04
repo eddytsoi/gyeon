@@ -5,6 +5,9 @@ export type ShortcodeRefScan = {
   productIDs: string[];
   productNumbers: number[];
   categorySlugs: string[];
+  // Per-slug fetch cap derived from the max of limit / limit-md / limit-lg
+  // across every [products categories="..."] shortcode on the page.
+  categoryLimits: Record<string, number>;
   formSlugs: string[];
   mediaNames: string[];
 };
@@ -26,10 +29,15 @@ function splitCsv(s: string | undefined): string[] {
 // can do a single bulk list lookup instead of N getProductByID calls.
 // Recurses into shortcode bodies so refs nested inside wrappers like
 // [section]…[product …][/section] still get pre-fetched.
+function parseAttrLimit(val: string | undefined, fallback: number): number {
+  return val && /^\d+$/.test(val) ? Math.max(1, Number(val)) : fallback;
+}
+
 export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefScan {
   const productIDs = new Set<string>();
   const productNumbers = new Set<number>();
   const categorySlugs = new Set<string>();
+  const categoryLimits: Record<string, number> = {};
   const formSlugs = new Set<string>();
   const mediaNames = new Set<string>();
 
@@ -50,7 +58,14 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
       }
 
       if (c.name === 'products' && c.attrs.categories) {
-        for (const slug of splitCsv(c.attrs.categories)) categorySlugs.add(slug);
+        const baseLim = parseAttrLimit(c.attrs.limit, 12);
+        const tabletLim = parseAttrLimit(c.attrs['limit-md'], baseLim);
+        const desktopLim = parseAttrLimit(c.attrs['limit-lg'], tabletLim);
+        const maxLim = Math.max(baseLim, tabletLim, desktopLim);
+        for (const slug of splitCsv(c.attrs.categories)) {
+          categorySlugs.add(slug);
+          categoryLimits[slug] = Math.max(categoryLimits[slug] ?? 0, maxLim);
+        }
       }
 
       if (c.name === 'contact-form' && c.attrs.id) {
@@ -73,6 +88,7 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
     categorySlugs: [...categorySlugs],
+    categoryLimits,
     formSlugs: [...formSlugs],
     mediaNames: [...mediaNames]
   };
@@ -85,11 +101,15 @@ export function scanShortcodeRefsMany(...mds: (string | undefined | null)[]): Sh
   const categorySlugs = new Set<string>();
   const formSlugs = new Set<string>();
   const mediaNames = new Set<string>();
+  const categoryLimits: Record<string, number> = {};
   for (const md of mds) {
     const s = scanShortcodeRefs(md);
     for (const id of s.productIDs) productIDs.add(id);
     for (const n of s.productNumbers) productNumbers.add(n);
     for (const slug of s.categorySlugs) categorySlugs.add(slug);
+    for (const [slug, lim] of Object.entries(s.categoryLimits)) {
+      categoryLimits[slug] = Math.max(categoryLimits[slug] ?? 0, lim);
+    }
     for (const slug of s.formSlugs) formSlugs.add(slug);
     for (const name of s.mediaNames) mediaNames.add(name);
   }
@@ -97,6 +117,7 @@ export function scanShortcodeRefsMany(...mds: (string | undefined | null)[]): Sh
     productIDs: [...productIDs],
     productNumbers: [...productNumbers],
     categorySlugs: [...categorySlugs],
+    categoryLimits,
     formSlugs: [...formSlugs],
     mediaNames: [...mediaNames]
   };

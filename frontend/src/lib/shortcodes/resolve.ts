@@ -61,7 +61,7 @@ export async function resolveShortcodeRefs(scan: ShortcodeRefScan): Promise<Shor
   if (scan.categorySlugs.length > 0) {
     const lists = await Promise.all(
       scan.categorySlugs.map((slug) =>
-        getProductsByCategorySlug(slug, DEFAULT_PER_CATEGORY, 0).catch(() => [])
+        getProductsByCategorySlug(slug, scan.categoryLimits[slug] ?? DEFAULT_PER_CATEGORY, 0).catch(() => [])
       )
     );
     scan.categorySlugs.forEach((slug, i) => {
