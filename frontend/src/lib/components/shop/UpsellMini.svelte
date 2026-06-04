@@ -17,10 +17,14 @@
 
   let {
     items,
-    heading
+    heading,
+    columns = 1,
+    class: className = 'mt-10 lg:mt-12'
   }: {
     items: Product[];
     heading?: string;
+    columns?: 1 | 2;
+    class?: string;
   } = $props();
 
   // Per-card transient state, keyed by a per-row id (product + pinned variant +
@@ -59,15 +63,12 @@
 </script>
 
 {#if items.length > 0}
-  <section class="mt-10 lg:mt-12">
+  <section class={className}>
     <h2 class="font-display text-xl font-bold tracking-tight text-ink-900 mb-4">
       {heading ?? m.product_detail_upsells_heading()}
     </h2>
 
-    <!-- Always single-column: the PDP hero is two-column from md (768px), so the
-         mini up-sells live in the narrow product-info column at every width. A
-         2-up grid would squeeze each horizontal card too tight there. -->
-    <ul class="grid grid-cols-1 gap-x-6 gap-y-5">
+    <ul class="grid gap-x-6 gap-y-5 {columns === 2 ? 'grid-cols-2' : 'grid-cols-1'}">
       {#each items as p, i (cardKey(p, i))}
         {@const enabled = canAdd(p)}
         {@const k = cardKey(p, i)}

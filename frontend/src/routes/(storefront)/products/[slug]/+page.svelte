@@ -897,11 +897,26 @@
 
       </div>
 
-      <!-- Up-sells "mini" — compact horizontal cards below the product info. -->
-      {#if upsellsLayout === 'mini' && showUpsells && data.upsells.length > 0}
-        <UpsellMini items={data.upsells} heading={upsellsHeading ?? m.product_detail_upsells_heading()} />
-      {/if}
+      <!-- Up-sells "mini" — right-column position; hidden at md (tablet breakout
+           below takes over), shown at mobile and lg+. -->
+      <div class="md:hidden lg:block">
+        {#if upsellsLayout === 'mini' && showUpsells && data.upsells.length > 0}
+          <UpsellMini items={data.upsells} heading={upsellsHeading ?? m.product_detail_upsells_heading()} />
+        {/if}
       </div>
+      </div>
+
+      <!-- Up-sells "mini" tablet breakout: 768px–1023px only, spans both columns. -->
+      {#if upsellsLayout === 'mini' && showUpsells && data.upsells.length > 0}
+        <div class="hidden md:block lg:hidden md:col-span-2">
+          <UpsellMini
+            items={data.upsells}
+            heading={upsellsHeading ?? m.product_detail_upsells_heading()}
+            columns={2}
+            class=""
+          />
+        </div>
+      {/if}
     </div>
   </div>
 </div>
