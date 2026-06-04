@@ -61,7 +61,8 @@ export interface Product {
   // modal, false = force classic inline PDP.
   use_taobao_layout?: boolean | null;
   // Manual storefront sort key (自訂次序). null/undefined = no manual order;
-  // products with a value sort first (descending) under the default listing.
+  // products with a value sort first, ascending (smaller first, matching
+  // WooCommerce 選單順序) under the default listing.
   custom_order?: number | null;
   created_at: string;
   updated_at: string;

@@ -679,6 +679,8 @@ func (s *Service) importProduct(
 		WCSku:       strPtrOrNil(prod.SKU),
 		Status:      mapStatus(prod.Status),
 		Kind:        "simple",
+		// 選單順序 → 自訂次序: copy WC's product-level menu_order verbatim.
+		CustomOrder: intPtr(prod.MenuOrder),
 	}
 	// Resolve the 7 hero/banner/media slots from product meta BEFORE the
 	// upsert: UpsertWCProductRequest is passed by value, so the request
@@ -903,6 +905,9 @@ func (s *Service) importBundleProduct(
 		WCSku:       strPtrOrNil(prod.SKU),
 		Status:      mapStatus(prod.Status),
 		Kind:        "bundle",
+		// 選單順序 → 自訂次序: copy the bundle parent's product-level menu_order
+		// verbatim (the per-item bi.MenuOrder wiring below is separate).
+		CustomOrder: intPtr(prod.MenuOrder),
 	}
 	// Resolve hero video + 6 banner/media slots before upsert. Bundle
 	// products share the same ACF layout as simple/variable, so the meta
