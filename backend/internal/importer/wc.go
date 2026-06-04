@@ -50,6 +50,11 @@ type wcProduct struct {
 	SKU              string              `json:"sku"`
 	Type             string              `json:"type"`
 	Status           string              `json:"status"`
+	// MenuOrder is WooCommerce's product-level 選單順序 (lower = shown first).
+	// Copied verbatim into products.custom_order (自訂次序) on import; Gyeon's
+	// storefront sort is ascending to preserve the same order. Distinct from
+	// wcBundledItem.MenuOrder, which orders items inside a bundle.
+	MenuOrder        int                 `json:"menu_order"`
 	Description      string              `json:"description"`
 	ShortDescription string              `json:"short_description"`
 	RegularPrice     string              `json:"regular_price"`

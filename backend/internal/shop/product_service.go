@@ -978,11 +978,12 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	where := strings.Join(wheres, " AND ")
 
 	// Default ("featured", also the empty / category-page / shortcode case):
-	// manually-ordered products (自訂次序) first, descending; everything else
-	// falls into the updated_at tail. "new" is the explicit created_at sort the
-	// /products dropdown still offers; price_*/name are explicit user overrides
-	// where custom_order intentionally does NOT jump ahead.
-	orderBy := "p.custom_order DESC NULLS LAST, p.updated_at DESC"
+	// manually-ordered products (自訂次序) first, ascending (smaller first) to
+	// match WooCommerce 選單順序, which is copied verbatim into custom_order on
+	// import; everything without a value falls into the updated_at tail. "new"
+	// is the explicit created_at sort the /products dropdown still offers;
+	// price_*/name are explicit user overrides where custom_order does NOT jump ahead.
+	orderBy := "p.custom_order ASC NULLS LAST, p.updated_at DESC"
 	switch f.Sort {
 	case "new":
 		orderBy = "p.created_at DESC"
@@ -1799,6 +1800,10 @@ type UpsertWCProductRequest struct {
 	Media4MediaID  *string
 	Status         string
 	Kind           string
+	// CustomOrder mirrors WooCommerce's product-level menu_order (選單順序)
+	// onto products.custom_order (自訂次序). Written on both create and update
+	// so re-imports keep WC authoritative.
+	CustomOrder *int
 }
 
 // CreateWCProduct does a plain INSERT for a brand-new WC import row. The
@@ -1830,13 +1835,13 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 		`INSERT INTO products (wc_product_id, category_id, slug, name, subtitle, excerpt, description, how_to_use, wc_sku,
 		                       video_id, banner_1_media_id, banner_2_media_id,
 		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		                       status, kind)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		                       status, kind, custom_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		 RETURNING id`,
 		req.WCProductID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, req.WCSku,
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind).Scan(&id); err != nil {
+		req.Status, kind, req.CustomOrder).Scan(&id); err != nil {
 		return "", err
 	}
 
@@ -1938,12 +1943,13 @@ func (s *ProductService) UpdateWCProduct(ctx context.Context, productID string, 
 		        status             = $16,
 		        kind               = $17,
 		        wc_sku             = $18,
+		        custom_order       = $19,
 		        updated_at         = NOW()
 		  WHERE id = $1`,
 		productID, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse,
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind, req.WCSku); err != nil {
+		req.Status, kind, req.WCSku, req.CustomOrder); err != nil {
 		return err
 	}
 

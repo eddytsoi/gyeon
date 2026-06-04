@@ -57,6 +57,13 @@ func strPtrOrNil(s string) *string {
 	return &v
 }
 
+// intPtr returns a pointer to n. Used to carry WooCommerce's product-level
+// menu_order verbatim (including 0) into products.custom_order — unlike the
+// string helpers, 0 is a meaningful sort value, not "absent".
+func intPtr(n int) *int {
+	return &n
+}
+
 // wcMediaSlugs collects the six product-level image slugs WC stores in
 // product meta (banner_1, banner_2, media_1..media_4). Each one points
 // at a WP attachment that the importer resolves and downloads.
