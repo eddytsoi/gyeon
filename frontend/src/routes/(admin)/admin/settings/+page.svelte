@@ -236,6 +236,9 @@
   // Managed by the Cart Page Layout card (Commerce tab). Excluded from
   // textSettings so the generic loop doesn't double-render the select input.
   const CART_LAYOUT_KEYS = new Set(['cart_page_layout']);
+  // Managed by the Product Custom-Order Direction card (Commerce tab). Excluded
+  // from textSettings so the generic loop doesn't double-render the select input.
+  const PRODUCT_ORDER_DIR_KEYS = new Set(['product_custom_order_direction']);
   // Managed by the FBT Excluded Categories card (Commerce tab). Excluded
   // from textSettings so the generic "Other" loop doesn't double-render
   // its <input>.
@@ -414,6 +417,7 @@
         !ACCOUNT_LAYOUT_KEYS.has(s.key) &&
         !CHECKOUT_LAYOUT_KEYS.has(s.key) &&
         !CART_LAYOUT_KEYS.has(s.key) &&
+        !PRODUCT_ORDER_DIR_KEYS.has(s.key) &&
         !CART_CROSS_SELLS_KEYS.has(s.key) &&
         !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
@@ -483,6 +487,10 @@
   // (stepped layout + single-step payment). Reactive so the hint updates live.
   let checkoutPageLayout = $state(settingValue('checkout_page_layout') || 'classic');
   let cartPageLayout = $state(settingValue('cart_page_layout') || 'classic');
+  // Custom-order (自訂次序) listing sort direction: "asc" (smaller number first,
+  // default) or "desc" (larger number first). Backend ListEnrichedFiltered reads
+  // this for the category list + [products] shortcode. Reactive so the hint updates live.
+  let productCustomOrderDir = $state(settingValue('product_custom_order_direction') || 'asc');
   const cartShowCrossSellsSetting = $derived(data.settings.find((s) => s.key === 'cart_show_cross_sells'));
   let cartShowCrossSellsOn = $state(cartShowCrossSellsSetting?.value !== 'false');
   const pdpNavlistShowNavSetting = $derived(data.settings.find((s) => s.key === 'pdp_navlist_show_nav'));
@@ -2199,6 +2207,29 @@
           {accountPageLayout === 'modern'
             ? m.admin_settings_account_page_layout_hint_modern()
             : m.admin_settings_account_page_layout_hint_classic()}
+        </p>
+      </div>
+    </div>
+
+    <!-- Product custom-order (自訂次序) direction — sets ASC/DESC for the
+         manually-ordered products in the category list + [products] shortcode. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_label_product_custom_order_dir()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_product_custom_order_dir_subtitle()}</p>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <select id="product_custom_order_direction" name="product_custom_order_direction" bind:value={productCustomOrderDir}
+                aria-label={m.admin_settings_label_product_custom_order_dir()}
+                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                       focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="asc">{m.admin_settings_product_custom_order_dir_option_asc()}</option>
+          <option value="desc">{m.admin_settings_product_custom_order_dir_option_desc()}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {productCustomOrderDir === 'desc'
+            ? m.admin_settings_product_custom_order_dir_hint_desc()
+            : m.admin_settings_product_custom_order_dir_hint_asc()}
         </p>
       </div>
     </div>

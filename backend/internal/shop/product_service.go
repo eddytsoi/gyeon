@@ -774,6 +774,22 @@ func (s *ProductService) roleListedScope(ctx context.Context) ([]string, string)
 	return blocked, "role:" + role + ":" + strings.Join(blocked, ",")
 }
 
+// customOrderDirection returns "ASC" or "DESC" for the 自訂次序 (custom_order)
+// listing sort, read from the product_custom_order_direction site setting.
+// Defaults to ASC (smaller number first) when unset, invalid, or settings are
+// unavailable; only an explicit "desc" flips it. The returned value is one of
+// two literal constants — never user input — so it is safe to concatenate into
+// the ORDER BY clause.
+func (s *ProductService) customOrderDirection(ctx context.Context) string {
+	if s.settingsSvc != nil {
+		if st, err := s.settingsSvc.Get(ctx, "product_custom_order_direction"); err == nil && st != nil &&
+			strings.EqualFold(strings.TrimSpace(st.Value), "desc") {
+			return "DESC"
+		}
+	}
+	return "ASC"
+}
+
 // fbtExcludedCategoryIDs reads the fbt_excluded_category_slugs site setting,
 // resolves the slugs to category UUIDs in a single SELECT, and returns
 // (ids, rawSettingValue). Used by FBT pool queries to drop products linked
@@ -977,13 +993,16 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	wheres, args, _ = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	// Default ("featured", also the empty / category-page / shortcode case):
-	// manually-ordered products (自訂次序) first, ascending (smaller first) to
-	// match WooCommerce 選單順序, which is copied verbatim into custom_order on
-	// import; everything without a value falls into the updated_at tail. "new"
-	// is the explicit created_at sort the /products dropdown still offers;
-	// price_*/name are explicit user overrides where custom_order does NOT jump ahead.
-	orderBy := "p.custom_order ASC NULLS LAST, p.updated_at DESC"
+	// "new" is the explicit created_at sort the /products dropdown still
+	// offers; price_*/name are explicit user overrides where custom_order
+	// intentionally does NOT jump ahead. The default branch is the
+	// "featured" / empty / category-page / shortcode case: manually-ordered
+	// products (自訂次序) first, ascending (smaller first) by default to match
+	// WooCommerce 選單順序 (copied verbatim into custom_order on import), with
+	// the direction (ASC/DESC) admin-configurable via the
+	// product_custom_order_direction site setting; everything without a
+	// custom_order falls into the updated_at tail.
+	var orderBy string
 	switch f.Sort {
 	case "new":
 		orderBy = "p.created_at DESC"
@@ -993,6 +1012,8 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 		orderBy = minPriceSQ + " DESC NULLS LAST, p.created_at DESC"
 	case "name":
 		orderBy = "COALESCE(t.name, p.name) ASC"
+	default:
+		orderBy = "p.custom_order " + s.customOrderDirection(ctx) + " NULLS LAST, p.updated_at DESC"
 	}
 
 	query := `
