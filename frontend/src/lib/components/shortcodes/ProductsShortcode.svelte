@@ -44,10 +44,11 @@
   });
 
   // Mobile-first effective limits; each breakpoint falls back to the one below.
-  const limitMobile = $derived(parseLimit(attrs.limit, DEFAULT_LIMIT));
-  const limitTablet = $derived(parseLimit(attrs['limit-md'], limitMobile));
-  const limitDesktop = $derived(parseLimit(attrs['limit-lg'], limitTablet));
-  const maxItems = $derived(Math.max(limitMobile, limitTablet, limitDesktop));
+  const limitMobile  = $derived(parseLimit(attrs.limit,        DEFAULT_LIMIT));
+  const limitSm      = $derived(parseLimit(attrs['limit-sm'],  limitMobile));
+  const limitTablet  = $derived(parseLimit(attrs['limit-md'],  limitSm));
+  const limitDesktop = $derived(parseLimit(attrs['limit-lg'],  limitTablet));
+  const maxItems = $derived(Math.max(limitMobile, limitSm, limitTablet, limitDesktop));
 
   const items = $derived(
     uuids
@@ -57,13 +58,15 @@
   );
 
   function visibilityClass(i: number): string {
-    const showMobile = i < limitMobile;
-    const showTablet = i < limitTablet;
+    const showMobile  = i < limitMobile;
+    const showSm      = i < limitSm;
+    const showTablet  = i < limitTablet;
     const showDesktop = i < limitDesktop;
     const classes: string[] = [];
     if (!showMobile) classes.push('hidden');
-    if (showTablet !== showMobile) classes.push(showTablet ? 'md:block' : 'md:hidden');
-    if (showDesktop !== showTablet) classes.push(showDesktop ? 'lg:block' : 'lg:hidden');
+    if (showSm      !== showMobile)  classes.push(showSm      ? 'sm:block' : 'sm:hidden');
+    if (showTablet  !== showSm)      classes.push(showTablet  ? 'md:block' : 'md:hidden');
+    if (showDesktop !== showTablet)  classes.push(showDesktop ? 'lg:block' : 'lg:hidden');
     return classes.join(' ');
   }
 </script>

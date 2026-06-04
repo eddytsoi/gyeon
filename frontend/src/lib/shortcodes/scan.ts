@@ -58,10 +58,11 @@ export function scanShortcodeRefs(md: string | undefined | null): ShortcodeRefSc
       }
 
       if (c.name === 'products' && c.attrs.categories) {
-        const baseLim = parseAttrLimit(c.attrs.limit, 12);
-        const tabletLim = parseAttrLimit(c.attrs['limit-md'], baseLim);
+        const baseLim    = parseAttrLimit(c.attrs.limit,       12);
+        const smLim      = parseAttrLimit(c.attrs['limit-sm'], baseLim);
+        const tabletLim  = parseAttrLimit(c.attrs['limit-md'], smLim);
         const desktopLim = parseAttrLimit(c.attrs['limit-lg'], tabletLim);
-        const maxLim = Math.max(baseLim, tabletLim, desktopLim);
+        const maxLim = Math.max(baseLim, smLim, tabletLim, desktopLim);
         for (const slug of splitCsv(c.attrs.categories)) {
           categorySlugs.add(slug);
           categoryLimits[slug] = Math.max(categoryLimits[slug] ?? 0, maxLim);
