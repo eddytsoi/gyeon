@@ -60,6 +60,9 @@ export interface Product {
   // flag. null/undefined = follow site default, true = force taobao
   // modal, false = force classic inline PDP.
   use_taobao_layout?: boolean | null;
+  // Manual storefront sort key (自訂次序). null/undefined = no manual order;
+  // products with a value sort first (descending) under the default listing.
+  custom_order?: number | null;
   created_at: string;
   updated_at: string;
   // List-endpoint enrichments (ProductWithMeta on the backend)

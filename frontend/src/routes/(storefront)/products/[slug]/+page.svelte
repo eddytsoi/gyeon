@@ -734,7 +734,7 @@
               {formatHKD(selectedVariant.price)}
             </span>
             {#if hasDiscount}
-              <span class="font-display text-base line-through text-ink-500">
+              <span class="font-display text-2xl line-through text-ink-500">
                 {formatHKD(selectedVariant.compare_at_price!)}
               </span>
             {/if}

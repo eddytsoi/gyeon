@@ -118,7 +118,7 @@ export interface ProductListFilters {
   category?: string;
   minPrice?: number;
   maxPrice?: number;
-  sort?: 'new' | 'price_asc' | 'price_desc' | 'name';
+  sort?: 'featured' | 'new' | 'price_asc' | 'price_desc' | 'name';
 }
 
 const buildProductQuery = (filters: ProductListFilters): URLSearchParams => {

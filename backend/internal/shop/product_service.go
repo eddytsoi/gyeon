@@ -108,9 +108,13 @@ type Product struct {
 	// UseTaobaoLayout overrides the site-wide `pdp_taobao_layout_enabled`
 	// flag for this single product: nil = follow site default,
 	// true = force taobao modal layout, false = force classic layout.
-	UseTaobaoLayout *bool  `json:"use_taobao_layout,omitempty"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	UseTaobaoLayout *bool `json:"use_taobao_layout,omitempty"`
+	// CustomOrder (自訂次序) is the per-product manual sort key for storefront
+	// listings: products with a value sort first (descending), then the rest by
+	// updated_at. nil = no manual order (falls into the updated_at tail).
+	CustomOrder *int   `json:"custom_order,omitempty"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // ProductWithMeta enriches Product with quick-glance fields useful for list
@@ -293,6 +297,7 @@ type CreateProductRequest struct {
 	Status             string   `json:"status"`
 	Kind               string   `json:"kind"` // "simple" | "bundle"; defaults to "simple"
 	UseTaobaoLayout    *bool    `json:"use_taobao_layout"`
+	CustomOrder        *int     `json:"custom_order"`
 }
 
 type UpdateProductRequest struct {
@@ -364,7 +369,7 @@ const productSelect = `
 	       p.banner_1_media_id, p.banner_2_media_id,
 	       p.media_1_media_id, p.media_2_media_id, p.media_3_media_id, p.media_4_media_id,
 	       p.wc_sku,
-	       p.status, p.kind, p.use_taobao_layout, p.created_at, p.updated_at
+	       p.status, p.kind, p.use_taobao_layout, p.custom_order, p.created_at, p.updated_at
 	FROM products p` + productTranslationJoin
 
 func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
@@ -375,7 +380,7 @@ func scanProduct(row interface{ Scan(...any) error }) (Product, error) {
 		&p.Banner1MediaID, &p.Banner2MediaID,
 		&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
 		&p.WCSku,
-		&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CreatedAt, &p.UpdatedAt)
+		&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.CustomOrder, &p.CreatedAt, &p.UpdatedAt)
 	return p, err
 }
 
@@ -972,8 +977,15 @@ func (s *ProductService) ListEnrichedFiltered(ctx context.Context, f ListFilters
 	wheres, args, _ = s.appendRoleListedFilter(ctx, wheres, args)
 	where := strings.Join(wheres, " AND ")
 
-	orderBy := "p.created_at DESC"
+	// Default ("featured", also the empty / category-page / shortcode case):
+	// manually-ordered products (自訂次序) first, descending; everything else
+	// falls into the updated_at tail. "new" is the explicit created_at sort the
+	// /products dropdown still offers; price_*/name are explicit user overrides
+	// where custom_order intentionally does NOT jump ahead.
+	orderBy := "p.custom_order DESC NULLS LAST, p.updated_at DESC"
 	switch f.Sort {
+	case "new":
+		orderBy = "p.created_at DESC"
 	case "price_asc":
 		orderBy = minPriceSQ + " ASC NULLS LAST, p.created_at DESC"
 	case "price_desc":
@@ -1566,20 +1578,20 @@ func (s *ProductService) Create(ctx context.Context, req CreateProductRequest) (
 		`INSERT INTO products (category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		                       video_id, banner_1_media_id, banner_2_media_id,
 		                       media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		                       status, kind, use_taobao_layout, wc_sku)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		                       status, kind, use_taobao_layout, wc_sku, custom_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, use_taobao_layout, wc_sku, created_at, updated_at`,
+		           status, kind, use_taobao_layout, wc_sku, custom_order, created_at, updated_at`,
 		req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description, req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind, req.UseTaobaoLayout, req.WCSku).
+		req.Status, kind, req.UseTaobaoLayout, req.WCSku, req.CustomOrder).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description, &p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CustomOrder, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 
@@ -1672,22 +1684,22 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 		                     how_to_use=$8, compatible_surfaces=$9,
 		                     video_id=$10, banner_1_media_id=$11, banner_2_media_id=$12,
 		                     media_1_media_id=$13, media_2_media_id=$14, media_3_media_id=$15, media_4_media_id=$16,
-		                     status=$17, kind=$18, use_taobao_layout=$19, wc_sku=$20
+		                     status=$17, kind=$18, use_taobao_layout=$19, wc_sku=$20, custom_order=$21
 		 WHERE id=$1
 		 RETURNING id, category_id, slug, name, subtitle, excerpt, description, how_to_use, compatible_surfaces,
 		           video_id, banner_1_media_id, banner_2_media_id,
 		           media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id,
-		           status, kind, use_taobao_layout, wc_sku, created_at, updated_at`,
+		           status, kind, use_taobao_layout, wc_sku, custom_order, created_at, updated_at`,
 		id, req.CategoryID, req.Slug, req.Name, req.Subtitle, req.Excerpt, req.Description,
 		req.HowToUse, pq.Array(surfaces),
 		req.VideoID, req.Banner1MediaID, req.Banner2MediaID,
 		req.Media1MediaID, req.Media2MediaID, req.Media3MediaID, req.Media4MediaID,
-		req.Status, kind, req.UseTaobaoLayout, req.WCSku).
+		req.Status, kind, req.UseTaobaoLayout, req.WCSku, req.CustomOrder).
 		Scan(&p.ID, &p.CategoryID, &p.Slug, &p.Name, &p.Subtitle, &p.Excerpt, &p.Description,
 			&p.HowToUse, pq.Array(&p.CompatibleSurfaces),
 			&p.VideoID, &p.Banner1MediaID, &p.Banner2MediaID,
 			&p.Media1MediaID, &p.Media2MediaID, &p.Media3MediaID, &p.Media4MediaID,
-			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Status, &p.Kind, &p.UseTaobaoLayout, &p.WCSku, &p.CustomOrder, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 

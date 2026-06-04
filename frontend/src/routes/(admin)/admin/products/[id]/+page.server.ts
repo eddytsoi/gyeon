@@ -72,6 +72,11 @@ export const actions: Actions = {
     const layoutSel = form.get('use_taobao_layout')?.toString() ?? 'default';
     const useTaobaoLayout: boolean | null =
       layoutSel === 'on' ? true : layoutSel === 'off' ? false : null;
+    // 自訂次序: empty → null (clears the manual order); otherwise an integer.
+    const customOrderRaw = form.get('custom_order')?.toString().trim() ?? '';
+    const parsedCustomOrder = customOrderRaw === '' ? null : Number.parseInt(customOrderRaw, 10);
+    const customOrder: number | null =
+      parsedCustomOrder != null && Number.isFinite(parsedCustomOrder) ? parsedCustomOrder : null;
     const body = {
       category_id: form.get('category_id')?.toString() || undefined,
       category_ids: form.getAll('category_ids').map((v) => v.toString()).filter(Boolean),
@@ -92,7 +97,8 @@ export const actions: Actions = {
       media_4_media_id: form.get('media_4_media_id')?.toString() || undefined,
       status: form.get('status')?.toString() ?? 'active',
       kind,
-      use_taobao_layout: useTaobaoLayout
+      use_taobao_layout: useTaobaoLayout,
+      custom_order: customOrder
     };
 
     let newProductId: string | undefined;
