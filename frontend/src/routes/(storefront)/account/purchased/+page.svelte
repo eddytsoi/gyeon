@@ -38,6 +38,47 @@
 
   let cards = $state<Card[]>([]);
   let loading = $state(true);
+
+  // ── Category + live search filters ────────────────────────────────
+  // Both filter the already-hydrated `cards` purely client-side, so the
+  // list updates instantly as you type / change category — no round-trip.
+  let categoryFilter = $state(''); // selected category id, '' = all
+  let searchQuery = $state('');
+
+  // Only surface categories the customer has actually bought from (sorted by
+  // the store's sort_order), so the dropdown never offers a zero-result option.
+  const categoryOptions = $derived.by(() => {
+    const present = new Set<string>();
+    for (const c of cards) {
+      if (!c.product) continue;
+      if (c.product.category_id) present.add(c.product.category_id);
+      for (const id of c.product.category_ids ?? []) present.add(id);
+    }
+    return (data.categories ?? [])
+      .filter((cat) => cat.is_active && present.has(cat.id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  });
+
+  const filteredCards = $derived.by(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return cards.filter((c) => {
+      if (categoryFilter) {
+        if (!c.product) return false; // deleted products have no category
+        const ids = [c.product.category_id, ...(c.product.category_ids ?? [])];
+        if (!ids.includes(categoryFilter)) return false;
+      }
+      if (q) {
+        const name = (c.product?.name ?? c.purchased.product_name).toLowerCase();
+        if (!name.includes(q)) return false;
+      }
+      return true;
+    });
+  });
+
+  function clearFilters() {
+    categoryFilter = '';
+    searchQuery = '';
+  }
   let adding = $state<Record<string, boolean>>({});
   let added = $state<Record<string, boolean>>({});
   let open = $state<Record<string, boolean>>({});
@@ -174,14 +215,49 @@
 <div class="flex flex-col gap-4">
   <div class="flex items-center justify-between gap-3">
     <h1 class="text-xl font-bold text-gray-900">{m.purchased_heading()}</h1>
-    {#if cards.length > 0}
+    {#if filteredCards.length > 0}
       <span class="text-sm text-gray-500 shrink-0">
-        {cards.length === 1
-          ? m.purchased_count_one({ count: cards.length })
-          : m.purchased_count_many({ count: cards.length })}
+        {filteredCards.length === 1
+          ? m.purchased_count_one({ count: filteredCards.length })
+          : m.purchased_count_many({ count: filteredCards.length })}
       </span>
     {/if}
   </div>
+
+  <!-- Category dropdown (left) + live search by product name (right).
+       Phones stack into two rows; ≥sm sits side-by-side. Both filter the
+       hydrated list client-side, so results update as you type. -->
+  {#if !loading && cards.length > 0}
+    <div class="flex flex-col sm:flex-row gap-3">
+      {#if categoryOptions.length >= 2}
+        <select
+          bind:value={categoryFilter}
+          aria-label={m.purchased_filter_category_label()}
+          class="max-sm:w-full sm:w-48 shrink-0 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                 focus:outline-none focus:ring-2 focus:ring-gray-900"
+        >
+          <option value="">{m.purchased_filter_category_all()}</option>
+          {#each categoryOptions as cat}
+            <option value={cat.id}>{cat.name}</option>
+          {/each}
+        </select>
+      {/if}
+
+      <div class="relative flex-1">
+        <svg class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.3-4.3m1.8-4.45a6.25 6.25 0 1 1-12.5 0 6.25 6.25 0 0 1 12.5 0Z" />
+        </svg>
+        <input
+          type="search"
+          bind:value={searchQuery}
+          placeholder={m.purchased_search_placeholder()}
+          aria-label={m.purchased_search_placeholder()}
+          class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+        />
+      </div>
+    </div>
+  {/if}
 
   {#if loading}
     <div class="flex flex-col gap-3">
@@ -196,9 +272,20 @@
         {m.purchased_empty_cta()}
       </a>
     </div>
+  {:else if filteredCards.length === 0}
+    <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+      <p class="text-gray-400 text-sm">{m.purchased_no_matches()}</p>
+      <button
+        type="button"
+        onclick={clearFilters}
+        class="mt-3 inline-block text-sm font-medium text-gray-900 hover:underline"
+      >
+        {m.purchased_clear_filters()}
+      </button>
+    </div>
   {:else}
     <div class="flex flex-col gap-3">
-      {#each cards as card (keyOf(card.purchased))}
+      {#each filteredCards as card (keyOf(card.purchased))}
         {@const p = card.purchased}
         {@const k = keyOf(p)}
         {@const src = thumb(card.image)}
