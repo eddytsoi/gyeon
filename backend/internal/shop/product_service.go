@@ -1892,6 +1892,22 @@ func (s *ProductService) CreateWCProduct(ctx context.Context, req UpsertWCProduc
 	return id, nil
 }
 
+// LoadExistingWCMediaSlots reads the product-level media-slot columns
+// (hero video + 2 banners + 4 media) for productID and writes them onto req.
+// Used by the importer's ImageModeSkip path: UpdateWCProduct overwrites these
+// columns unconditionally, so to leave images untouched the caller must carry
+// the current values forward. A missing/NULL column scans to a nil *string,
+// which is exactly what we want (no slot). Returns sql.ErrNoRows if the product
+// is gone (caller treats it as a non-fatal warning).
+func (s *ProductService) LoadExistingWCMediaSlots(ctx context.Context, productID string, req *UpsertWCProductRequest) error {
+	return s.db.QueryRowContext(ctx,
+		`SELECT video_id, banner_1_media_id, banner_2_media_id,
+		        media_1_media_id, media_2_media_id, media_3_media_id, media_4_media_id
+		   FROM products WHERE id = $1`, productID).
+		Scan(&req.VideoID, &req.Banner1MediaID, &req.Banner2MediaID,
+			&req.Media1MediaID, &req.Media2MediaID, &req.Media3MediaID, &req.Media4MediaID)
+}
+
 // UpdateWCProduct syncs WC-sourced fields onto an existing row. id /
 // number are intentionally untouched so admin URLs (PRD-N) remain stable
 // across re-imports. When the WC product type changes between runs (e.g.
