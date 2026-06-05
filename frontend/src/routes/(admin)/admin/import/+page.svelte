@@ -7,9 +7,22 @@
 
   let { data }: { data: PageData } = $props();
 
-  type Step = 'idle' | 'confirming' | 'testing' | 'importing' | 'done' | 'error';
+  type Step = 'idle' | 'confirming' | 'testing' | 'queued' | 'importing' | 'done' | 'error';
   type Mode = 'upsert' | 'replace';
   type ProductType = 'products' | 'bundle_products';
+  type ImageMode = 'process' | 'skip';
+
+  // One combined status entry per import type, returned by /status under `jobs`.
+  interface JobView {
+    type: string;
+    running: boolean;
+    queued: boolean;
+    position?: number;
+    failed: boolean;
+    done: boolean;
+    fail_msg?: string;
+    progress: unknown;
+  }
 
   interface Progress {
     total_products: number;
@@ -50,29 +63,13 @@
     const fromHash = window.location.hash.slice(1) as TabId;
     if (TABS.some((t) => t.id === fromHash)) activeTab = fromHash;
 
-    // Reconnect to a running / just-finished products import so reloading or
-    // returning to the page resumes the live view instead of showing idle.
+    // Reconnect to any running / queued / just-finished import so reloading or
+    // returning to the page resumes the live view for every tab instead of
+    // showing idle. One status read hydrates all three; keep polling only if
+    // work is still in flight.
     (async () => {
-      try {
-        const res = await fetch('/api/v1/admin/import/woocommerce/status', {
-          headers: { Authorization: `Bearer ${data.token}` }
-        });
-        if (!res.ok) return;
-        const j = await res.json();
-        if (!j.exists) return;
-        progress = j.progress as Progress;
-        if (j.running) {
-          step = 'importing';
-          startPolling();
-        } else if (j.failed) {
-          step = 'error';
-          errorMsg = j.fail_msg || m.admin_import_run_error();
-        } else {
-          step = 'done';
-        }
-      } catch {
-        /* status unreachable — leave UI idle */
-      }
+      const active = await pollAll();
+      if (active) startPolling();
     })();
 
     return () => stopPolling();
@@ -110,6 +107,7 @@
   let progress = $state<Progress | null>(null);
   let mode = $state<Mode>('upsert');
   let productType = $state<ProductType>('products');
+  let imageMode = $state<ImageMode>('process');
 
   let wcUrl = $state('');
   let wcKey = $state('');
@@ -120,11 +118,16 @@
   let savingCreds = $state(false);
   let testingConn = $state(false);
 
-  // Products import now runs as a detached server-side job; the page polls
-  // /status to render progress and reconnects on mount. pollTimer drives the
-  // poll loop; cancelling tracks the in-flight Cancel request.
+  // All three imports (products / orders / customers) run as detached
+  // server-side jobs on a single FIFO queue. One shared poll loop reads the
+  // combined /status and fans it out to every tab; pollTimer drives it.
+  // queue position per tab (0 = not queued); cancellingType tracks the
+  // in-flight Cancel request so the matching button shows a spinner.
   let pollTimer = $state<ReturnType<typeof setInterval> | null>(null);
-  let cancelling = $state(false);
+  let cancellingType = $state<'' | 'products' | 'orders' | 'customers'>('');
+  let productsQueuePos = $state(0);
+  let ordersQueuePos = $state(0);
+  let customersQueuePos = $state(0);
 
   const credsConfigured = $derived(
     wcUrl.trim() !== '' && wcKey.trim() !== '' && wcSecret.trim() !== ''
@@ -214,6 +217,7 @@
     step = 'testing';
     errorMsg = '';
     progress = null;
+    productsQueuePos = 0;
 
     try {
       const testRes = await fetch('/api/v1/admin/import/woocommerce/test', {
@@ -243,25 +247,21 @@
           wc_secret: wcSecret,
           mode,
           product_type: productType,
+          image_mode: imageMode,
           limit: limit && limit > 0 ? Math.floor(limit) : 0,
           product_id: wcProductId && wcProductId > 0 ? Math.floor(wcProductId) : 0
         })
       });
 
-      // 409 = an import is already running (e.g. started in another tab). Attach
-      // to the live job by polling rather than surfacing an error.
-      if (res.status === 409) {
-        startPolling();
-        return;
-      }
       if (!res.ok) {
         errorMsg = (await res.text()) || m.admin_import_stream_failed_default();
         step = 'error';
         return;
       }
 
-      // The import now runs on the server, decoupled from this request — poll
-      // for progress. Leaving the page is safe; onMount reconnects on return.
+      // Enqueued onto the server-side FIFO queue — the shared poller drives the
+      // importing / queued / done view. Leaving the page is safe; onMount
+      // reconnects on return.
       startPolling();
     } catch {
       errorMsg = m.admin_import_run_error();
@@ -269,11 +269,14 @@
     }
   }
 
-  // ── Background products-import polling ────────────────────────────
+  // ── Shared queue polling ─────────────────────────────────────────
+  // One loop reads the combined /status and fans it out to every tab, so a
+  // single poller covers products + orders + customers (and the queue between
+  // them). Function declarations are hoisted, so onMount can call these.
   function startPolling() {
     stopPolling();
-    pollStatus(); // immediate first read so the UI doesn't wait a full tick
-    pollTimer = setInterval(pollStatus, 1000);
+    pollAll(); // immediate first read so the UI doesn't wait a full tick
+    pollTimer = setInterval(pollAll, 1000);
   }
 
   function stopPolling() {
@@ -283,47 +286,106 @@
     }
   }
 
-  async function pollStatus() {
+  // pollAll reads the combined status and applies it to all three tabs. Returns
+  // true while any import is running or queued so callers can keep the loop
+  // alive; on a transient error it returns true to retry next tick.
+  async function pollAll(): Promise<boolean> {
     try {
       const res = await fetch('/api/v1/admin/import/woocommerce/status', {
         headers: { Authorization: `Bearer ${data.token}` }
       });
-      if (!res.ok) return; // transient; next tick retries
+      if (!res.ok) return true; // transient; next tick retries
       const j = await res.json();
-      if (!j.exists) {
-        stopPolling();
-        step = 'idle';
-        return;
-      }
-      progress = j.progress as Progress;
-      if (j.running) {
-        step = 'importing';
-      } else if (j.failed) {
-        stopPolling();
-        errorMsg = j.fail_msg || m.admin_import_run_error();
-        step = 'error';
-      } else {
-        stopPolling();
-        step = 'done';
-      }
+      const jobs = j?.jobs ?? {};
+      applyProducts(jobs.products as JobView | undefined);
+      applyOrders(jobs.orders as JobView | undefined);
+      applyCustomers(jobs.customers as JobView | undefined);
+      const active = !!j.running_type || (Array.isArray(j.queue) && j.queue.length > 0);
+      if (!active) stopPolling();
+      return active;
     } catch {
-      /* transient network error — keep polling */
+      return true; // transient network error — keep polling
     }
   }
 
-  async function cancelImport() {
-    cancelling = true;
+  // Map one type's combined-status entry onto the products tab. Never clobbers
+  // the local pre-enqueue states ('confirming' / 'testing') — those are owned by
+  // the run flow until the job is actually enqueued.
+  function applyProducts(v: JobView | undefined) {
+    if (!v || step === 'confirming' || step === 'testing') return;
+    if (v.running) {
+      progress = v.progress as Progress;
+      productsQueuePos = 0;
+      step = 'importing';
+    } else if (v.queued) {
+      productsQueuePos = v.position ?? 0;
+      step = 'queued';
+    } else if (v.failed) {
+      progress = v.progress as Progress;
+      errorMsg = v.fail_msg || m.admin_import_run_error();
+      step = 'error';
+    } else if (v.done) {
+      progress = v.progress as Progress;
+      productsQueuePos = 0;
+      step = 'done';
+    }
+  }
+
+  function applyOrders(v: JobView | undefined) {
+    if (!v || ordersStep === 'confirming' || ordersStep === 'testing') return;
+    if (v.running) {
+      ordersProgress = v.progress as OrdersProgress;
+      ordersQueuePos = 0;
+      ordersStep = 'importing';
+    } else if (v.queued) {
+      ordersQueuePos = v.position ?? 0;
+      ordersStep = 'queued';
+    } else if (v.failed) {
+      ordersProgress = v.progress as OrdersProgress;
+      ordersErrorMsg = v.fail_msg || m.admin_import_run_error();
+      ordersStep = 'error';
+    } else if (v.done) {
+      ordersProgress = v.progress as OrdersProgress;
+      ordersQueuePos = 0;
+      ordersStep = 'done';
+    }
+  }
+
+  function applyCustomers(v: JobView | undefined) {
+    if (!v || customersStep === 'confirming' || customersStep === 'testing') return;
+    if (v.running) {
+      customersProgress = v.progress as CustomersProgress;
+      customersQueuePos = 0;
+      customersStep = 'importing';
+    } else if (v.queued) {
+      customersQueuePos = v.position ?? 0;
+      customersStep = 'queued';
+    } else if (v.failed) {
+      customersProgress = v.progress as CustomersProgress;
+      customersErrorMsg = v.fail_msg || m.admin_import_run_error();
+      customersStep = 'error';
+    } else if (v.done) {
+      customersProgress = v.progress as CustomersProgress;
+      customersQueuePos = 0;
+      customersStep = 'done';
+    }
+  }
+
+  // Cancel the import of a given type: a running job is signalled to stop, a
+  // merely-queued job is dropped from the queue. The poll loop reflects the
+  // eventual state, so we don't flip the step here.
+  async function cancelJob(type: 'products' | 'orders' | 'customers') {
+    cancellingType = type;
     try {
       await fetch('/api/v1/admin/import/woocommerce/cancel', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${data.token}` }
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ type })
       });
-      // Don't flip step here — the poll loop observes running=false and settles
-      // into done/error once the server finishes the current product.
     } catch {
       /* ignore — poll will reflect the eventual state */
     } finally {
-      cancelling = false;
+      cancellingType = '';
     }
   }
 
@@ -376,6 +438,7 @@
     customersStep = 'testing';
     customersErrorMsg = '';
     customersProgress = null;
+    customersQueuePos = 0;
 
     try {
       const testRes = await fetch('/api/v1/admin/import/woocommerce/customers/test', {
@@ -396,7 +459,7 @@
 
     customersStep = 'importing';
     try {
-      const res = await fetch('/api/v1/admin/import/woocommerce/customers/stream', {
+      const res = await fetch('/api/v1/admin/import/woocommerce/customers/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
         body: JSON.stringify({
@@ -409,37 +472,15 @@
         })
       });
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         customersErrorMsg = (await res.text()) || m.admin_import_stream_failed_default();
         customersStep = 'error';
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const messages = buffer.split('\n\n');
-        buffer = messages.pop() ?? '';
-        for (const msg of messages) {
-          const dataLine = msg.split('\n').find(l => l.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            const update: CustomersProgress = JSON.parse(dataLine.slice(6));
-            customersProgress = update;
-            if (update.done) { customersStep = 'done'; }
-          } catch { /* ignore malformed */ }
-        }
-      }
-
-      if (customersStep === 'importing') {
-        customersErrorMsg = m.admin_import_stream_dropped();
-        customersStep = 'error';
-      }
+      // Enqueued onto the server-side FIFO queue — the shared poller drives the
+      // importing / queued / done view. Leaving the page is safe.
+      startPolling();
     } catch {
       customersErrorMsg = m.admin_import_run_error();
       customersStep = 'error';
@@ -450,6 +491,7 @@
     customersStep = 'idle';
     customersErrorMsg = '';
     customersProgress = null;
+    customersQueuePos = 0;
     wcCustomerId = null;
   }
 
@@ -499,6 +541,7 @@
     ordersStep = 'testing';
     ordersErrorMsg = '';
     ordersProgress = null;
+    ordersQueuePos = 0;
 
     try {
       const testRes = await fetch('/api/v1/admin/import/woocommerce/orders/test', {
@@ -519,7 +562,7 @@
 
     ordersStep = 'importing';
     try {
-      const res = await fetch('/api/v1/admin/import/woocommerce/orders/stream', {
+      const res = await fetch('/api/v1/admin/import/woocommerce/orders/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
         body: JSON.stringify({
@@ -532,37 +575,15 @@
         })
       });
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
         ordersErrorMsg = (await res.text()) || m.admin_import_stream_failed_default();
         ordersStep = 'error';
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const messages = buffer.split('\n\n');
-        buffer = messages.pop() ?? '';
-        for (const msg of messages) {
-          const dataLine = msg.split('\n').find(l => l.startsWith('data: '));
-          if (!dataLine) continue;
-          try {
-            const update: OrdersProgress = JSON.parse(dataLine.slice(6));
-            ordersProgress = update;
-            if (update.done) { ordersStep = 'done'; }
-          } catch { /* ignore malformed */ }
-        }
-      }
-
-      if (ordersStep === 'importing') {
-        ordersErrorMsg = m.admin_import_stream_dropped();
-        ordersStep = 'error';
-      }
+      // Enqueued onto the server-side FIFO queue — the shared poller drives the
+      // importing / queued / done view. Leaving the page is safe.
+      startPolling();
     } catch {
       ordersErrorMsg = m.admin_import_run_error();
       ordersStep = 'error';
@@ -573,13 +594,16 @@
     ordersStep = 'idle';
     ordersErrorMsg = '';
     ordersProgress = null;
+    ordersQueuePos = 0;
   }
 
   function reset() {
-    stopPolling();
+    // Don't stopPolling() here — the shared loop may still be serving another
+    // tab's running/queued job. It self-stops when nothing is active.
     step = 'idle';
     errorMsg = '';
     progress = null;
+    productsQueuePos = 0;
   }
 
   const pct = $derived(
@@ -689,6 +713,24 @@
   </div>
 {/if}
 
+<!-- Shared "queued" card — shown on any tab whose import is waiting in the
+     server-side FIFO queue behind another running import. -->
+{#snippet queuedCard(position: number, type: 'products' | 'orders' | 'customers')}
+  <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
+    <div class="flex items-center gap-3">
+      <span class="w-4 h-4 rounded-full border-2 border-gray-300 border-t-transparent animate-spin shrink-0"></span>
+      <span class="text-sm font-medium text-gray-900">
+        {position > 0 ? m.admin_import_queued_position({ position }) : m.admin_import_queued()}
+      </span>
+    </div>
+    <p class="text-xs text-gray-400 mt-2">{m.admin_import_queued_hint()}</p>
+    <button onclick={() => cancelJob(type)} disabled={cancellingType === type}
+            class="mt-3 text-xs text-red-500 underline hover:text-red-700 transition-colors disabled:opacity-50">
+      {cancellingType === type ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
+    </button>
+  </div>
+{/snippet}
+
 <div class="max-w-3xl">
   <div class="mb-8">
     <h1 class="text-2xl font-bold text-gray-900">{TABS.find((t) => t.id === activeTab)?.label ?? ''}</h1>
@@ -729,6 +771,10 @@
       <div class="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3 mb-6">
         {errorMsg}
       </div>
+    {/if}
+
+    {#if step === 'queued'}
+      {@render queuedCard(productsQueuePos, 'products')}
     {/if}
 
     {#if step === 'testing' || step === 'importing' || step === 'done'}
@@ -814,9 +860,9 @@
         {#if step === 'importing'}
           <div class="pt-4 border-t border-gray-100">
             <p class="text-xs text-gray-400">{m.admin_import_safe_to_leave()}</p>
-            <button onclick={cancelImport} disabled={cancelling}
+            <button onclick={() => cancelJob('products')} disabled={cancellingType === 'products'}
                     class="mt-2 text-xs text-red-500 underline hover:text-red-700 transition-colors disabled:opacity-50">
-              {cancelling ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
+              {cancellingType === 'products' ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
             </button>
           </div>
         {/if}
@@ -884,6 +930,22 @@
             </select>
             {#if productType === 'bundle_products'}
               <p class="text-xs text-amber-600 mt-1">{m.admin_import_product_type_bundle_warning()}</p>
+            {/if}
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="wc_image_mode" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_import_label_image_mode()}
+            </label>
+            <p class="text-xs text-gray-400 -mt-0.5">{m.admin_import_image_mode_hint()}</p>
+            <select id="wc_image_mode" bind:value={imageMode}
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                           focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="process">{m.admin_import_image_mode_process()}</option>
+              <option value="skip">{m.admin_import_image_mode_skip()}</option>
+            </select>
+            {#if imageMode === 'skip'}
+              <p class="text-xs text-amber-600 mt-1">{m.admin_import_image_mode_skip_note()}</p>
             {/if}
           </div>
 
@@ -967,6 +1029,10 @@
       </div>
     {/if}
 
+    {#if ordersStep === 'queued'}
+      {@render queuedCard(ordersQueuePos, 'orders')}
+    {/if}
+
     {#if ordersStep === 'testing' || ordersStep === 'importing' || ordersStep === 'done'}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
 
@@ -1047,6 +1113,16 @@
                 {m.admin_import_orders_progress_current({ name: ordersProgress.current_order })}
               </p>
             {/if}
+          </div>
+        {/if}
+
+        {#if ordersStep === 'importing'}
+          <div class="pt-4 border-t border-gray-100">
+            <p class="text-xs text-gray-400">{m.admin_import_safe_to_leave()}</p>
+            <button onclick={() => cancelJob('orders')} disabled={cancellingType === 'orders'}
+                    class="mt-2 text-xs text-red-500 underline hover:text-red-700 transition-colors disabled:opacity-50">
+              {cancellingType === 'orders' ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
+            </button>
           </div>
         {/if}
 
@@ -1167,6 +1243,10 @@
       </div>
     {/if}
 
+    {#if customersStep === 'queued'}
+      {@render queuedCard(customersQueuePos, 'customers')}
+    {/if}
+
     {#if customersStep === 'testing' || customersStep === 'importing' || customersStep === 'done'}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
 
@@ -1250,6 +1330,16 @@
                 {m.admin_import_customers_progress_current({ name: customersProgress.current_customer })}
               </p>
             {/if}
+          </div>
+        {/if}
+
+        {#if customersStep === 'importing'}
+          <div class="pt-4 border-t border-gray-100">
+            <p class="text-xs text-gray-400">{m.admin_import_safe_to_leave()}</p>
+            <button onclick={() => cancelJob('customers')} disabled={cancellingType === 'customers'}
+                    class="mt-2 text-xs text-red-500 underline hover:text-red-700 transition-colors disabled:opacity-50">
+              {cancellingType === 'customers' ? m.admin_import_cancelling() : m.admin_import_cancel_button()}
+            </button>
           </div>
         {/if}
 

@@ -2,7 +2,6 @@ package importer
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"gyeon/backend/internal/respond"
@@ -71,10 +70,12 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartImport handles POST /api/v1/admin/import/woocommerce/start.
-// Launches the products import as a detached background job (decoupled from
-// this request, so closing/leaving the admin page does not abort it) and
-// returns 202 immediately. Returns 409 if an import is already running.
-// Progress is read back via ImportStatus; stop via CancelImport.
+// Enqueues the products import onto the shared single-worker FIFO queue
+// (decoupled from this request, so closing/leaving the admin page does not
+// abort it) and returns 202 immediately. If a products import is already
+// running or queued, it's a no-op enqueue (queued:false) and the caller just
+// reconnects via ImportStatus. Progress is read back via ImportStatus; stop
+// via CancelImport.
 func (h *Handler) StartImport(w http.ResponseWriter, r *http.Request) {
 	var req ImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -85,38 +86,123 @@ func (h *Handler) StartImport(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
-	if !h.svc.StartProductsImport(req) {
-		respond.Error(w, http.StatusConflict, "an import is already running")
+	pos, queued := h.svc.EnqueueProducts(req)
+	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
+}
+
+// StartOrders handles POST /api/v1/admin/import/woocommerce/orders/start.
+// Enqueues the orders import onto the shared FIFO queue (see StartImport).
+func (h *Handler) StartOrders(w http.ResponseWriter, r *http.Request) {
+	var req OrdersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
 		return
 	}
-	respond.JSON(w, http.StatusAccepted, map[string]bool{"running": true})
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+	req.Status = normalizeWCOrderStatus(req.Status)
+	pos, queued := h.svc.EnqueueOrders(req)
+	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
+}
+
+// StartCustomers handles POST /api/v1/admin/import/woocommerce/customers/start.
+// Enqueues the customers import onto the shared FIFO queue (see StartImport).
+func (h *Handler) StartCustomers(w http.ResponseWriter, r *http.Request) {
+	var req CustomersImportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
+		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
+		return
+	}
+	pos, queued := h.svc.EnqueueCustomers(req)
+	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
 }
 
 // ImportStatus handles GET /api/v1/admin/import/woocommerce/status.
-// Returns the latest progress snapshot of the products import plus a running
-// flag, so a returning page can reconnect. When no import has run this process
-// lifetime, returns {exists:false, running:false}.
+// Returns one combined view of the whole import queue so all three tabs can
+// reconnect from a single poll:
+//
+//	{
+//	  "running_type": "products" | "orders" | "customers" | null,
+//	  "queue":        ["orders", ...],           // types waiting, FIFO
+//	  "jobs": {                                  // per-type view (omitted if never run/queued)
+//	    "products": { running, queued, position, done, failed, fail_msg, progress },
+//	    ...
+//	  }
+//	}
+//
+// For each type the view reflects priority running > queued > last-finished:
+// a running job carries its live progress; a queued job carries its 1-based
+// position and a nil progress (no stale snapshot); a finished job carries its
+// final snapshot with done/failed set.
 func (h *Handler) ImportStatus(w http.ResponseWriter, r *http.Request) {
-	job, ok := h.svc.ProductsJobStatus()
-	if !ok {
-		respond.JSON(w, http.StatusOK, map[string]any{"exists": false, "running": false})
-		return
+	running, queue, last := h.svc.QueueStatus()
+
+	posOf := func(typ string) int {
+		for i, t := range queue {
+			if t == typ {
+				return i + 1
+			}
+		}
+		return 0
+	}
+	view := func(typ string) map[string]any {
+		if running != nil && running.Type == typ {
+			return map[string]any{
+				"type": typ, "running": true, "queued": false,
+				"failed": false, "done": false, "progress": running.Progress,
+			}
+		}
+		if pos := posOf(typ); pos > 0 {
+			return map[string]any{
+				"type": typ, "running": false, "queued": true, "position": pos,
+				"failed": false, "done": false, "progress": nil,
+			}
+		}
+		if lj, ok := last[typ]; ok {
+			return map[string]any{
+				"type": typ, "running": false, "queued": false,
+				"failed": lj.Failed, "fail_msg": lj.FailMsg,
+				"done": !lj.Failed, "progress": lj.Progress,
+			}
+		}
+		return nil
+	}
+
+	jobs := map[string]any{}
+	for _, t := range []string{jobTypeProducts, jobTypeOrders, jobTypeCustomers} {
+		if v := view(t); v != nil {
+			jobs[t] = v
+		}
+	}
+	var runningType any
+	if running != nil {
+		runningType = running.Type
 	}
 	respond.JSON(w, http.StatusOK, map[string]any{
-		"exists":   true,
-		"running":  job.Running,
-		"failed":   job.Failed,
-		"fail_msg": job.FailMsg,
-		"progress": job.Progress,
+		"running_type": runningType,
+		"queue":        queue,
+		"jobs":         jobs,
 	})
 }
 
 // CancelImport handles POST /api/v1/admin/import/woocommerce/cancel.
-// Signals the running products import to stop (takes effect within one
-// product). Returns 200 if a job was signalled, 409 if nothing is running.
+// Body: {"type": "products"|"orders"|"customers"} (optional — empty targets the
+// running job). A running job is signalled to stop (takes effect within one
+// item); a merely-queued job is removed from the queue. Returns 200 if
+// something matched, 409 otherwise.
 func (h *Handler) CancelImport(w http.ResponseWriter, r *http.Request) {
-	if !h.svc.CancelProductsImport() {
-		respond.Error(w, http.StatusConflict, "no import is running")
+	var body struct {
+		Type string `json:"type"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) // body is optional; empty ⇒ running job
+	if !h.svc.Cancel(body.Type) {
+		respond.Error(w, http.StatusConflict, "no import is running or queued for that type")
 		return
 	}
 	respond.JSON(w, http.StatusOK, map[string]bool{"cancelling": true})
@@ -170,71 +256,6 @@ func (h *Handler) OrdersTest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// OrdersImportStream handles POST /api/v1/admin/import/woocommerce/orders/stream.
-// Streams Server-Sent Events with OrdersProgressUpdate JSON.
-func (h *Handler) OrdersImportStream(w http.ResponseWriter, r *http.Request) {
-	var req OrdersImportRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.BadRequest(w, "invalid request body")
-		return
-	}
-	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
-		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
-		return
-	}
-	req.Status = normalizeWCOrderStatus(req.Status)
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
-
-	send := func(p OrdersProgressUpdate) {
-		b, _ := json.Marshal(p)
-		fmt.Fprintf(w, "data: %s\n\n", b)
-		flusher.Flush()
-	}
-
-	h.svc.RunOrdersStreaming(r.Context(), req, send)
-}
-
-// CustomersImportStream handles POST /api/v1/admin/import/woocommerce/customers/stream.
-// Streams Server-Sent Events with CustomersProgressUpdate JSON.
-func (h *Handler) CustomersImportStream(w http.ResponseWriter, r *http.Request) {
-	var req CustomersImportRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.BadRequest(w, "invalid request body")
-		return
-	}
-	if req.WCURL == "" || req.WCKey == "" || req.WCSecret == "" {
-		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
-		return
-	}
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
-
-	send := func(p CustomersProgressUpdate) {
-		b, _ := json.Marshal(p)
-		fmt.Fprintf(w, "data: %s\n\n", b)
-		flusher.Flush()
-	}
-
-	h.svc.RunCustomersStreaming(r.Context(), req, send)
-}
+// Orders and customers imports run through the shared FIFO queue (StartOrders /
+// StartCustomers + ImportStatus polling), so they no longer have dedicated SSE
+// stream handlers — the live view is driven by ImportStatus like products.

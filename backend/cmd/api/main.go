@@ -791,19 +791,21 @@ func main() {
 				abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
 				r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
 
-				// WooCommerce import
+				// WooCommerce import. Products / orders / customers all run as
+				// detached background jobs on one shared single-worker FIFO queue
+				// (survives the admin leaving the page). Each /start enqueues; the
+				// combined /status drives every tab's live view; /cancel takes a
+				// {type} to stop a running or queued import.
 				r.Get("/admin/import/woocommerce/credentials", importHandler.GetCredentials)
 				r.Put("/admin/import/woocommerce/credentials", importHandler.SaveCredentials)
 				r.Post("/admin/import/woocommerce/test", importHandler.Test)
-				// Products import runs as a detached background job (survives the
-				// admin leaving the page); poll status, cancel to stop.
 				r.Post("/admin/import/woocommerce/start", importHandler.StartImport)
 				r.Get("/admin/import/woocommerce/status", importHandler.ImportStatus)
 				r.Post("/admin/import/woocommerce/cancel", importHandler.CancelImport)
 				r.Post("/admin/import/woocommerce/customers/test", importHandler.CustomersTest)
-				r.Post("/admin/import/woocommerce/customers/stream", importHandler.CustomersImportStream)
+				r.Post("/admin/import/woocommerce/customers/start", importHandler.StartCustomers)
 				r.Post("/admin/import/woocommerce/orders/test", importHandler.OrdersTest)
-				r.Post("/admin/import/woocommerce/orders/stream", importHandler.OrdersImportStream)
+				r.Post("/admin/import/woocommerce/orders/start", importHandler.StartOrders)
 			})
 
 			// ── Tier 3: super_admin only ──────────────────────────────────

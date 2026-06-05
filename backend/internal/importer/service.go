@@ -53,6 +53,28 @@ const (
 	ProductTypeBundleProducts = "bundle_products"
 )
 
+// ImageMode controls how a product import handles images (gallery, variant,
+// and the product-level hero/banner/media ACF slots). Empty falls back to
+// ImageModeProcess.
+const (
+	// ImageModeProcess (default): download new images, reuse already-downloaded
+	// ones (matched by source_url), and sync gallery/variant/banner/media to WC.
+	ImageModeProcess = "process"
+	// ImageModeSkip: leave all images untouched — no download, no delete. On a
+	// re-import the existing product_images rows and the product-level media
+	// columns are preserved verbatim; only price/stock/text/variant records
+	// update. Fast path for refreshing non-image fields.
+	ImageModeSkip = "skip"
+)
+
+// Job type identifiers for the in-memory import queue. One run of each type
+// can be queued/running at a time (see enqueue).
+const (
+	jobTypeProducts  = "products"
+	jobTypeOrders    = "orders"
+	jobTypeCustomers = "customers"
+)
+
 // ImportRequest holds WooCommerce credentials and import options.
 type ImportRequest struct {
 	WCURL    string `json:"wc_url"`
@@ -72,6 +94,9 @@ type ImportRequest struct {
 	// fetched by ID. Takes precedence over Limit. Stale cleanup is skipped
 	// when set — one product is never an authoritative "seen" set.
 	ProductID int `json:"product_id"`
+	// ImageMode is "process" (default) or "skip". "skip" leaves all images
+	// untouched (no download, no delete) — see ImageModeSkip. Empty ⇒ process.
+	ImageMode string `json:"image_mode"`
 }
 
 // ProgressUpdate is sent via SSE for every meaningful step of the import.
@@ -95,18 +120,24 @@ type EmailSender interface {
 	SendAccountSetupEmail(ctx context.Context, p email.PasswordResetParams) error
 }
 
-// importJob is the in-memory snapshot of the single running (or last-finished)
-// products import. Guarded by Service.jobMu. Deliberately NOT persisted: the
-// import runs in a detached goroutine, so a process restart kills it and the
-// snapshot is lost — acceptable because the import is idempotent (upsert), so
-// the admin just re-runs. The whole point of holding it here (vs tying the run
-// to the HTTP request) is that closing/leaving the admin page no longer aborts
-// the import; the page reconnects by polling ProductsJobStatus.
+// importJob is the in-memory snapshot of one running (or last-finished) import.
+// Guarded by Service.mu. Deliberately NOT persisted: the import runs in a
+// detached goroutine, so a process restart kills it and the snapshot is lost —
+// acceptable because every import is idempotent (upsert), so the admin just
+// re-runs. The whole point of holding it here (vs tying the run to the HTTP
+// request) is that closing/leaving the admin page no longer aborts the import;
+// the page reconnects by polling QueueStatus.
 type importJob struct {
-	Running   bool           `json:"running"`
-	Progress  ProgressUpdate `json:"progress"`
-	StartedAt time.Time      `json:"started_at"`
-	EndedAt   *time.Time     `json:"ended_at,omitempty"`
+	// Type is one of jobType{Products,Orders,Customers}.
+	Type string `json:"type"`
+	// Progress holds the type-specific progress struct: ProgressUpdate,
+	// OrdersProgressUpdate, or CustomersProgressUpdate. Typed as any so a single
+	// job slot can carry any of the three; the frontend knows which shape to
+	// expect from the job's Type.
+	Progress  any        `json:"progress"`
+	Running   bool       `json:"running"`
+	StartedAt time.Time  `json:"started_at"`
+	EndedAt   *time.Time `json:"ended_at,omitempty"`
 	// Failed is set only when the goroutine aborted abnormally (a recovered
 	// panic). A normal finish has Failed=false and Progress.Done=true; per-row
 	// errors live in Progress.Errors.
@@ -114,6 +145,15 @@ type importJob struct {
 	FailMsg string `json:"fail_msg,omitempty"`
 	// cancel signals the run to stop. Unexported so json.Marshal skips it.
 	cancel context.CancelFunc
+}
+
+// queuedImport is a pending request waiting in the FIFO queue. Exactly one of
+// products/orders/customers is non-nil, matching typ.
+type queuedImport struct {
+	typ       string
+	products  *ImportRequest
+	orders    *OrdersImportRequest
+	customers *CustomersImportRequest
 }
 
 // Service orchestrates the WooCommerce → Gyeon product / customers / orders
@@ -128,11 +168,19 @@ type Service struct {
 	customerSvc *customers.Service
 	emailSvc    EmailSender
 
-	// jobMu guards job — the single in-memory products-import snapshot. job is
-	// nil until the first import starts and is retained (not cleared) after a
-	// run finishes so a returning page can read the final result.
-	jobMu sync.Mutex
-	job   *importJob
+	// mu guards the import queue: running, queue, and last. The model is a
+	// single FIFO worker — at most one import runs at a time; the rest wait in
+	// queue and drain one after another. All in-memory (not persisted): a
+	// restart drops in-flight/queued work, fine because imports are idempotent.
+	mu sync.Mutex
+	// running is the import executing right now (nil when idle).
+	running *importJob
+	// queue holds pending imports, FIFO. enqueue dedupes by type so each type
+	// appears at most once across running+queue (max 3 entries).
+	queue []*queuedImport
+	// last retains the final snapshot of the most recent finished run per type,
+	// so a returning page can read each tab's last result.
+	last map[string]importJob
 }
 
 // NewService creates an import Service. The *sql.DB is used by the
@@ -147,6 +195,7 @@ func NewService(db *sql.DB, categorySvc *shop.CategoryService, productSvc *shop.
 		settingsSvc: settingsSvc,
 		customerSvc: customerSvc,
 		emailSvc:    emailSvc,
+		last:        make(map[string]importJob),
 	}
 }
 
@@ -243,83 +292,158 @@ func matchesProductType(productType, wcProductType string) bool {
 	}
 }
 
-// StartProductsImport launches the products import in a detached goroutine
-// whose context is derived from context.Background() — NOT from any HTTP
-// request — so the run survives the admin closing/leaving the page. Returns
-// false if an import is already running (caller responds 409). Progress is
-// published into the in-memory job snapshot and read back via
-// ProductsJobStatus; cancel via CancelProductsImport.
-func (s *Service) StartProductsImport(req ImportRequest) bool {
-	s.jobMu.Lock()
-	if s.job != nil && s.job.Running {
-		s.jobMu.Unlock()
-		return false
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.job = &importJob{
-		Running:   true,
-		StartedAt: time.Now(),
-		Progress:  ProgressUpdate{Errors: []string{}},
-		cancel:    cancel,
-	}
-	s.jobMu.Unlock()
+// EnqueueProducts / EnqueueOrders / EnqueueCustomers add an import to the FIFO
+// queue and start the worker if idle. Each returns the 1-based queue position
+// and false when a job of that type is already running or queued (the caller
+// just attaches to the live job by polling QueueStatus).
+func (s *Service) EnqueueProducts(req ImportRequest) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeProducts, products: &req})
+}
 
-	// send copies each ProgressUpdate into the job snapshot under the lock. The
-	// Errors slice is detached so a reader can't observe it mid-append (the
-	// run mutates p.Errors in place across send() calls).
-	send := func(p ProgressUpdate) {
-		cp := p
-		cp.Errors = append([]string(nil), p.Errors...)
-		s.jobMu.Lock()
-		if s.job != nil {
-			s.job.Progress = cp
+func (s *Service) EnqueueOrders(req OrdersImportRequest) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeOrders, orders: &req})
+}
+
+func (s *Service) EnqueueCustomers(req CustomersImportRequest) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeCustomers, customers: &req})
+}
+
+// enqueue appends q to the queue and kicks the worker when idle. Dedupes by
+// type so the same import can't be double-queued — if a job of q.typ is already
+// running or waiting, returns (0, false) and the caller reuses the live job.
+func (s *Service) enqueue(q *queuedImport) (int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running != nil && s.running.Type == q.typ {
+		return 0, false
+	}
+	for _, existing := range s.queue {
+		if existing.typ == q.typ {
+			return 0, false
 		}
-		s.jobMu.Unlock()
 	}
+	s.queue = append(s.queue, q)
+	pos := len(s.queue)
+	if s.running == nil {
+		s.startNextLocked()
+	}
+	return pos, true
+}
 
-	go func() {
-		defer cancel()
-		defer func() {
-			s.jobMu.Lock()
-			now := time.Now()
-			if s.job != nil {
-				s.job.Running = false
-				s.job.EndedAt = &now
-				if r := recover(); r != nil {
-					s.job.Failed = true
-					s.job.FailMsg = fmt.Sprintf("import panicked: %v", r)
-				}
-			}
-			s.jobMu.Unlock()
-		}()
-		s.RunStreaming(ctx, req, send)
+// startNextLocked pops the head of the queue and launches it in a detached
+// goroutine. Caller must hold s.mu. Sets s.running to nil when the queue is
+// empty (worker idle).
+func (s *Service) startNextLocked() {
+	if len(s.queue) == 0 {
+		s.running = nil
+		return
+	}
+	q := s.queue[0]
+	s.queue = s.queue[1:]
+
+	ctx, cancel := context.WithCancel(context.Background())
+	job := &importJob{Type: q.typ, Running: true, StartedAt: time.Now(), cancel: cancel}
+	// Seed an empty, well-shaped progress so a status read between "running set"
+	// and the first send() never returns a nil/mistyped Progress.
+	switch q.typ {
+	case jobTypeOrders:
+		job.Progress = OrdersProgressUpdate{Errors: []string{}}
+	case jobTypeCustomers:
+		job.Progress = CustomersProgressUpdate{Errors: []string{}}
+	default:
+		job.Progress = ProgressUpdate{Errors: []string{}}
+	}
+	s.running = job
+	go s.runJob(ctx, cancel, job, q)
+}
+
+// runJob executes one queued import, snapshotting progress into job.Progress as
+// it goes, then advances the queue. Detached from any HTTP request (ctx derives
+// from context.Background()) so closing/leaving the admin page never aborts it.
+func (s *Service) runJob(ctx context.Context, cancel context.CancelFunc, job *importJob, q *queuedImport) {
+	defer cancel()
+	defer func() {
+		s.mu.Lock()
+		now := time.Now()
+		job.Running = false
+		job.EndedAt = &now
+		if r := recover(); r != nil {
+			job.Failed = true
+			job.FailMsg = fmt.Sprintf("import panicked: %v", r)
+		}
+		s.last[job.Type] = *job
+		s.startNextLocked() // drain the next queued import, if any
+		s.mu.Unlock()
 	}()
-	return true
+
+	switch q.typ {
+	case jobTypeOrders:
+		s.RunOrdersStreaming(ctx, *q.orders, func(p OrdersProgressUpdate) {
+			cp := p
+			cp.Errors = append([]string(nil), p.Errors...)
+			s.mu.Lock()
+			job.Progress = cp
+			s.mu.Unlock()
+		})
+	case jobTypeCustomers:
+		s.RunCustomersStreaming(ctx, *q.customers, func(p CustomersProgressUpdate) {
+			cp := p
+			cp.Errors = append([]string(nil), p.Errors...)
+			s.mu.Lock()
+			job.Progress = cp
+			s.mu.Unlock()
+		})
+	default:
+		s.RunStreaming(ctx, *q.products, func(p ProgressUpdate) {
+			cp := p
+			cp.Errors = append([]string(nil), p.Errors...)
+			s.mu.Lock()
+			job.Progress = cp
+			s.mu.Unlock()
+		})
+	}
 }
 
-// ProductsJobStatus returns a copy of the current/last import snapshot, and
-// false if no import has started this process lifetime.
-func (s *Service) ProductsJobStatus() (importJob, bool) {
-	s.jobMu.Lock()
-	defer s.jobMu.Unlock()
-	if s.job == nil {
-		return importJob{}, false
+// QueueStatus returns copies of the running job (nil when idle), the queued
+// types in FIFO order, and the last-finished snapshot per type. Snapshots are
+// copied under the lock so callers never observe mid-mutation state.
+func (s *Service) QueueStatus() (running *importJob, queue []string, last map[string]importJob) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running != nil {
+		cp := *s.running
+		running = &cp
 	}
-	return *s.job, true
+	queue = make([]string, len(s.queue))
+	for i, q := range s.queue {
+		queue[i] = q.typ
+	}
+	last = make(map[string]importJob, len(s.last))
+	for k, v := range s.last {
+		last[k] = v
+	}
+	return running, queue, last
 }
 
-// CancelProductsImport signals the running import to stop and returns false if
-// nothing is running. Cancellation takes effect at the next ctx-aware step
-// (between products) — in-flight WooCommerce HTTP fetches ignore ctx, so it is
-// "stop soon", not "stop instantly".
-func (s *Service) CancelProductsImport() bool {
-	s.jobMu.Lock()
-	defer s.jobMu.Unlock()
-	if s.job == nil || !s.job.Running || s.job.cancel == nil {
-		return false
+// Cancel stops the import of the given type: if it's running, signals its
+// context to stop (takes effect at the next ctx-aware step — in-flight WC
+// fetches ignore ctx, so "stop soon" not "stop instantly"); if it's only
+// queued, removes it from the queue. An empty typ targets the running job.
+// Returns false if nothing matched.
+func (s *Service) Cancel(typ string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running != nil && (typ == "" || s.running.Type == typ) && s.running.cancel != nil {
+		s.running.cancel()
+		return true
 	}
-	s.job.cancel()
-	return true
+	for i, q := range s.queue {
+		if q.typ == typ {
+			s.queue = append(s.queue[:i], s.queue[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // RunStreaming performs the full import, calling send() with a ProgressUpdate
@@ -328,6 +452,10 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 	mode := req.Mode
 	if mode == "" {
 		mode = ModeUpsert
+	}
+	imageMode := req.ImageMode
+	if imageMode == "" {
+		imageMode = ImageModeProcess
 	}
 	wcType, countTypes, gyeonKind := resolveProductTypeFilter(req.ProductType)
 
@@ -389,9 +517,9 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 			send(p)
 			seenWCProductIDs = append(seenWCProductIDs, prod.ID)
 			if gyeonKind == "bundle" {
-				s.importBundleProduct(ctx, wc, prod, categoryMap, &p)
+				s.importBundleProduct(ctx, wc, prod, categoryMap, imageMode, &p)
 			} else {
-				s.importProduct(ctx, wc, prod, categoryMap, &p)
+				s.importProduct(ctx, wc, prod, categoryMap, imageMode, &p)
 			}
 			recordWCRelations(wcUpsells, wcCrossSells, prod)
 			p.ProcessedProducts++
@@ -433,9 +561,9 @@ func (s *Service) RunStreaming(ctx context.Context, req ImportRequest, send func
 				send(p)
 				seenWCProductIDs = append(seenWCProductIDs, prod.ID)
 				if gyeonKind == "bundle" {
-					s.importBundleProduct(ctx, wc, prod, categoryMap, &p)
+					s.importBundleProduct(ctx, wc, prod, categoryMap, imageMode, &p)
 				} else {
-					s.importProduct(ctx, wc, prod, categoryMap, &p)
+					s.importProduct(ctx, wc, prod, categoryMap, imageMode, &p)
 				}
 				recordWCRelations(wcUpsells, wcCrossSells, prod)
 				p.ProcessedProducts++
@@ -653,6 +781,7 @@ func (s *Service) importProduct(
 	wc *wcClient,
 	prod wcProduct,
 	categoryMap map[string]string,
+	imageMode string,
 	p *ProgressUpdate,
 ) {
 	categoryID, categoryIDs := resolveWCCategoryIDs(prod, categoryMap)
@@ -684,8 +813,20 @@ func (s *Service) importProduct(
 	}
 	// Resolve the 7 hero/banner/media slots from product meta BEFORE the
 	// upsert: UpsertWCProductRequest is passed by value, so the request
-	// must be fully populated when Create/Update fires.
-	s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+	// must be fully populated when Create/Update fires. Under ImageModeSkip we
+	// don't download anything; instead, for an existing product we copy its
+	// current media-slot columns onto the request so UpdateWCProduct (which
+	// overwrites these columns unconditionally) preserves them verbatim. A
+	// brand-new product simply keeps them nil — nothing to preserve.
+	if imageMode == ImageModeSkip {
+		if existedBefore {
+			if err := s.productSvc.LoadExistingWCMediaSlots(ctx, existingID, &upsertReq); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("preserve media slots for %q: %v", prod.Slug, err))
+			}
+		}
+	} else {
+		s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+	}
 
 	var productID string
 	var err error
@@ -784,85 +925,90 @@ func (s *Service) importProduct(
 		}
 	}
 
-	// Variants whose WC counterpart has no own image: drop their
-	// product_images rows so Gyeon mirrors WC. Keyed on variant_id (not on
-	// media linkage) because DeleteWCSourcedImages below can miss rows
-	// with media_file_id IS NULL (NULL IN (...) is NULL, not TRUE).
-	if len(variantsWithoutImage) > 0 {
-		if err := s.productSvc.DeleteImagesForVariants(ctx, variantsWithoutImage); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("clear variant images for %q: %v", prod.Slug, err))
+	// Image work — gallery + variant images. Skipped wholesale under
+	// ImageModeSkip: no DeleteWCSourcedImages, no downloads, so existing
+	// product_images rows (WC-sourced and admin uploads) are left untouched.
+	if imageMode != ImageModeSkip {
+		// Variants whose WC counterpart has no own image: drop their
+		// product_images rows so Gyeon mirrors WC. Keyed on variant_id (not on
+		// media linkage) because DeleteWCSourcedImages below can miss rows
+		// with media_file_id IS NULL (NULL IN (...) is NULL, not TRUE).
+		if len(variantsWithoutImage) > 0 {
+			if err := s.productSvc.DeleteImagesForVariants(ctx, variantsWithoutImage); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("clear variant images for %q: %v", prod.Slug, err))
+			}
 		}
-	}
 
-	// Images — only refresh the WC-sourced ones; admin uploads (source_url
-	// IS NULL) survive. We delete then re-add so removed-in-WC images
-	// disappear from Gyeon as well, and re-use existing media_files when
-	// the URL is unchanged so we don't re-download.
-	if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
-		p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
-	}
-	for _, img := range prod.Images {
-		var alt *string
-		if img.Alt != "" {
-			alt = &img.Alt
+		// Images — only refresh the WC-sourced ones; admin uploads (source_url
+		// IS NULL) survive. We delete then re-add so removed-in-WC images
+		// disappear from Gyeon as well, and re-use existing media_files when
+		// the URL is unchanged so we don't re-download.
+		if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
 		}
-		req := shop.AddImageRequest{
-			URL:       &img.Src,
-			AltText:   alt,
-			SortOrder: img.Position,
-			IsPrimary: img.Position == 0,
-		}
-		// Reuse existing media_files row if we've downloaded this URL before.
-		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
-			req.MediaFileID = &id
-		} else {
-			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
-			if err != nil {
-				p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+		for _, img := range prod.Images {
+			var alt *string
+			if img.Alt != "" {
+				alt = &img.Alt
+			}
+			req := shop.AddImageRequest{
+				URL:       &img.Src,
+				AltText:   alt,
+				SortOrder: img.Position,
+				IsPrimary: img.Position == 0,
+			}
+			// Reuse existing media_files row if we've downloaded this URL before.
+			if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
+				req.MediaFileID = &id
 			} else {
+				mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
+				if err != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+				} else {
+					req.MediaFileID = &mediaID
+				}
+			}
+			if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
+			}
+		}
+
+		// Variant-specific images. DeleteWCSourcedImages above already wiped
+		// any prior WC-sourced rows for this product (including variant ones),
+		// so we just re-add. Each WC variation carries at most one image; we
+		// insert it with IsPrimary=false because the product-level primary
+		// (variant_id IS NULL, Position==0) is the only row allowed to carry
+		// is_primary=true. AddImage's unset_others CTE clears every other
+		// primary on the product when IsPrimary=true, regardless of variant_id,
+		// so marking variant rows primary would clobber the product hero.
+		for _, vi := range variantImages {
+			var alt *string
+			if vi.img.Alt != "" {
+				alt = &vi.img.Alt
+			}
+			vid := vi.variantID
+			req := shop.AddImageRequest{
+				VariantID: &vid,
+				URL:       &vi.img.Src,
+				AltText:   alt,
+				SortOrder: 0,
+				IsPrimary: false,
+			}
+			if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, vi.img.Src); ok {
+				req.MediaFileID = &id
+			} else {
+				mediaID, err := s.mediaSvc.DownloadAndStore(ctx, vi.img.Src, vi.img.Alt)
+				if err != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("variant media download for %q (variant=%s): %v", prod.Slug, vid, err))
+					continue
+				}
 				req.MediaFileID = &mediaID
 			}
-		}
-		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
-		}
-	}
-
-	// Variant-specific images. DeleteWCSourcedImages above already wiped
-	// any prior WC-sourced rows for this product (including variant ones),
-	// so we just re-add. Each WC variation carries at most one image; we
-	// insert it with IsPrimary=false because the product-level primary
-	// (variant_id IS NULL, Position==0) is the only row allowed to carry
-	// is_primary=true. AddImage's unset_others CTE clears every other
-	// primary on the product when IsPrimary=true, regardless of variant_id,
-	// so marking variant rows primary would clobber the product hero.
-	for _, vi := range variantImages {
-		var alt *string
-		if vi.img.Alt != "" {
-			alt = &vi.img.Alt
-		}
-		vid := vi.variantID
-		req := shop.AddImageRequest{
-			VariantID: &vid,
-			URL:       &vi.img.Src,
-			AltText:   alt,
-			SortOrder: 0,
-			IsPrimary: false,
-		}
-		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, vi.img.Src); ok {
-			req.MediaFileID = &id
-		} else {
-			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, vi.img.Src, vi.img.Alt)
-			if err != nil {
-				p.Errors = append(p.Errors, fmt.Sprintf("variant media download for %q (variant=%s): %v", prod.Slug, vid, err))
-				continue
+			if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("variant image for %q (variant=%s): %v", prod.Slug, vid, err))
 			}
-			req.MediaFileID = &mediaID
 		}
-		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("variant image for %q (variant=%s): %v", prod.Slug, vid, err))
-		}
-	}
+	} // end if imageMode != ImageModeSkip
 
 	if existedBefore {
 		p.UpdatedProducts++
@@ -883,6 +1029,7 @@ func (s *Service) importBundleProduct(
 	wc *wcClient,
 	prod wcProduct,
 	categoryMap map[string]string,
+	imageMode string,
 	p *ProgressUpdate,
 ) {
 	categoryID, categoryIDs := resolveWCCategoryIDs(prod, categoryMap)
@@ -911,8 +1058,18 @@ func (s *Service) importBundleProduct(
 	}
 	// Resolve hero video + 6 banner/media slots before upsert. Bundle
 	// products share the same ACF layout as simple/variable, so the meta
-	// keys (video, banner_1/2, media_1..4) appear here too.
-	s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+	// keys (video, banner_1/2, media_1..4) appear here too. Under ImageModeSkip
+	// we preserve the existing media-slot columns instead of downloading (see
+	// importProduct for the rationale).
+	if imageMode == ImageModeSkip {
+		if existedBefore {
+			if err := s.productSvc.LoadExistingWCMediaSlots(ctx, existingID, &upsertReq); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("preserve media slots for %q: %v", prod.Slug, err))
+			}
+		}
+	} else {
+		s.resolveProductMediaSlots(ctx, wc, prod, &upsertReq, p)
+	}
 
 	var productID string
 	var err error
@@ -976,34 +1133,37 @@ func (s *Service) importBundleProduct(
 
 	// Images — same refresh policy as simple/variable: drop WC-sourced,
 	// re-add from current WC payload, reuse media_files when URL unchanged.
-	if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
-		p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
-	}
-	for _, img := range prod.Images {
-		var alt *string
-		if img.Alt != "" {
-			alt = &img.Alt
+	// Skipped wholesale under ImageModeSkip so existing images survive.
+	if imageMode != ImageModeSkip {
+		if err := s.productSvc.DeleteWCSourcedImages(ctx, productID); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("clear WC images for %q: %v", prod.Slug, err))
 		}
-		req := shop.AddImageRequest{
-			URL:       &img.Src,
-			AltText:   alt,
-			SortOrder: img.Position,
-			IsPrimary: img.Position == 0,
-		}
-		if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
-			req.MediaFileID = &id
-		} else {
-			mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
-			if err != nil {
-				p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+		for _, img := range prod.Images {
+			var alt *string
+			if img.Alt != "" {
+				alt = &img.Alt
+			}
+			req := shop.AddImageRequest{
+				URL:       &img.Src,
+				AltText:   alt,
+				SortOrder: img.Position,
+				IsPrimary: img.Position == 0,
+			}
+			if id, ok := s.mediaSvc.FindIDBySourceURL(ctx, img.Src); ok {
+				req.MediaFileID = &id
 			} else {
-				req.MediaFileID = &mediaID
+				mediaID, err := s.mediaSvc.DownloadAndStore(ctx, img.Src, img.Alt)
+				if err != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("media download for %q: %v", prod.Slug, err))
+				} else {
+					req.MediaFileID = &mediaID
+				}
+			}
+			if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
+				p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
 			}
 		}
-		if _, err := s.productSvc.AddImage(ctx, productID, req); err != nil {
-			p.Errors = append(p.Errors, fmt.Sprintf("image for %q: %v", prod.Slug, err))
-		}
-	}
+	} // end if imageMode != ImageModeSkip
 
 	if existedBefore {
 		p.UpdatedProducts++
