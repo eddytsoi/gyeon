@@ -2631,6 +2631,8 @@
   "dashboard_filter_preset_this_month": "This month",
   "dashboard_filter_preset_last_month": "Last month",
   "dashboard_filter_preset_ytd": "Year to date",
+  "dashboard_filter_preset_last_year": "Last year",
+  "dashboard_filter_preset_all": "All time",
   "dashboard_filter_role_label": "Role",
   "dashboard_filter_category_label": "Category",
   "dashboard_filter_category_all": "All categories",

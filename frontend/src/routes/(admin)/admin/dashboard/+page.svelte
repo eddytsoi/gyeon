@@ -60,6 +60,15 @@
     const t = new Date();
     setRangeDates(localISO(new Date(t.getFullYear(), 0, 1)), localISO(t));
   }
+  function presetLastYear() {
+    const y = new Date().getFullYear() - 1;
+    setRangeDates(localISO(new Date(y, 0, 1)), localISO(new Date(y, 11, 31)));
+  }
+  function presetAll() {
+    // Lower bound well before any data (earliest orders are 2023) so the range
+    // captures all migrated WooCommerce history — where 訪客 orders live.
+    setRangeDates('2000-01-01', localISO(new Date()));
+  }
   function toggleRole(role: string) {
     pushParams((p) => {
       const cur = new Set((p.get('role') ?? '').split(',').filter(Boolean));
@@ -160,6 +169,8 @@
         <button onclick={presetThisMonth} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_this_month()}</button>
         <button onclick={presetLastMonth} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_last_month()}</button>
         <button onclick={presetYTD} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_ytd()}</button>
+        <button onclick={presetLastYear} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_last_year()}</button>
+        <button onclick={presetAll} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_all()}</button>
       </div>
     </div>
 
