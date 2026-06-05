@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/queue"
@@ -75,25 +74,7 @@ func (h *QueueHandler) Handle(ctx context.Context, payload []byte) error {
 		return err
 	}
 
-	var b strings.Builder
-	b.WriteString("Shipany 已自動建單\n")
-	if sh.TrackingNumber != nil && *sh.TrackingNumber != "" {
-		fmt.Fprintf(&b, "運單號碼：%s\n", *sh.TrackingNumber)
-	}
-	if sh.Carrier != "" {
-		if sh.Service != "" {
-			fmt.Fprintf(&b, "貨運公司：%s（%s）\n", sh.Carrier, sh.Service)
-		} else {
-			fmt.Fprintf(&b, "貨運公司：%s\n", sh.Carrier)
-		}
-	}
-	if sh.FeeHKD > 0 {
-		fmt.Fprintf(&b, "運費：HKD %.2f\n", sh.FeeHKD)
-	}
-	if sh.LabelURL != nil && *sh.LabelURL != "" {
-		fmt.Fprintf(&b, "標籤：%s\n", *sh.LabelURL)
-	}
-	h.note(ctx, job.OrderID, strings.TrimRight(b.String(), "\n"))
+	h.note(ctx, job.OrderID, shipmentNoticeBody("Shipany 已自動建單", sh))
 
 	// Advance paid → processing once the shipment exists. Only fire when the
 	// order is still in `paid`: ShipAny status webhooks may already have
