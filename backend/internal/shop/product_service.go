@@ -2060,8 +2060,26 @@ type UpsertWCVariantRequest struct {
 // UpsertWCVariant inserts or updates a variant keyed by wc_variation_id
 // (for variations) or by (product_id, wc_variation_id IS NULL) for the
 // simple-product fallback. Returns the variant ID.
+//
+// Every stock-changing upsert writes an inventory_history row (reason
+// "wc.import") so imports leave the same audit trail as checkout/adjust paths.
+// before_qty is read just before the write; a no-op change (stock unchanged)
+// records nothing — recordStockChange skips delta == 0. The actor is read from
+// ctx (seeded by the import worker with the admin who triggered it).
 func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, req UpsertWCVariantRequest) (string, error) {
+	importNote := "WooCommerce import"
 	if req.WCVariationID != nil {
+		// Read the prior stock before the upsert so the history row carries a
+		// real before→after delta. ErrNoRows = brand-new variant → before 0.
+		var beforeQty int
+		switch err := s.db.QueryRowContext(ctx,
+			`SELECT stock_qty FROM product_variants WHERE wc_variation_id = $1`,
+			*req.WCVariationID).Scan(&beforeQty); {
+		case err == sql.ErrNoRows:
+			beforeQty = 0
+		case err != nil:
+			return "", err
+		}
 		var id string
 		err := s.db.QueryRowContext(ctx,
 			`INSERT INTO product_variants
@@ -2084,16 +2102,22 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			 RETURNING id`,
 			productID, *req.WCVariationID, req.SKU, req.Name, req.Price,
 			req.CompareAtPrice, req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku).Scan(&id)
-		return id, err
+		if err != nil {
+			return "", err
+		}
+		recordStockChange(ctx, s.db, id, beforeQty, req.StockQty, "wc.import", nil, &importNote)
+		return id, nil
 	}
 
 	// Simple-product fallback: look up existing (product_id, wc_variation_id IS NULL),
 	// then UPDATE or INSERT. ON CONFLICT can't help here because there's no
-	// matching unique index for the IS NULL predicate.
+	// matching unique index for the IS NULL predicate. stock_qty comes back too
+	// so we can record the before→after delta on the update path.
 	var existing string
+	var beforeQty int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id FROM product_variants
-		 WHERE product_id = $1 AND wc_variation_id IS NULL`, productID).Scan(&existing)
+		`SELECT id, stock_qty FROM product_variants
+		 WHERE product_id = $1 AND wc_variation_id IS NULL`, productID).Scan(&existing, &beforeQty)
 	switch {
 	case err == sql.ErrNoRows:
 		var id string
@@ -2104,7 +2128,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			 RETURNING id`,
 			productID, req.SKU, req.Name, req.Price, req.CompareAtPrice,
 			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku).Scan(&id)
-		return id, err
+		if err != nil {
+			return "", err
+		}
+		recordStockChange(ctx, s.db, id, 0, req.StockQty, "wc.import", nil, &importNote)
+		return id, nil
 	case err != nil:
 		return "", err
 	default:
@@ -2115,7 +2143,11 @@ func (s *ProductService) UpsertWCVariant(ctx context.Context, productID string, 
 			  WHERE id=$1`,
 			existing, req.SKU, req.Name, req.Price, req.CompareAtPrice,
 			req.StockQty, req.WeightGrams, req.LengthMM, req.WidthMM, req.HeightMM, req.IsActive, req.WCSku)
-		return existing, uerr
+		if uerr != nil {
+			return existing, uerr
+		}
+		recordStockChange(ctx, s.db, existing, beforeQty, req.StockQty, "wc.import", nil, &importNote)
+		return existing, nil
 	}
 }
 

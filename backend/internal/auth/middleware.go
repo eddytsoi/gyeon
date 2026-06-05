@@ -264,6 +264,19 @@ func AdminIDFromContext(ctx context.Context) (string, bool) {
 	return id, true
 }
 
+// WithAdminID returns a context carrying the admin user ID, readable via
+// AdminIDFromContext. AdminMiddleware sets this on the request context; this
+// helper exists for code paths detached from a request (e.g. a background
+// import worker running off context.Background()) that still want stock changes
+// and audit rows attributed to the admin who triggered them. A blank id is a
+// no-op so callers needn't branch on legacy/anonymous tokens.
+func WithAdminID(ctx context.Context, id string) context.Context {
+	if id == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, adminUserIDKey, id)
+}
+
 // RequireRole returns middleware that allows the request through only if the
 // admin JWT's role claim matches one of `roles`. Mount strictly inside an
 // AdminMiddleware group — RequireRole re-parses the bearer token but doesn't
