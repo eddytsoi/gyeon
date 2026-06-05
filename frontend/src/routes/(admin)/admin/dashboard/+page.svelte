@@ -5,6 +5,7 @@
   import BarChart from '$lib/components/admin/charts/BarChart.svelte';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { customerRoleLabel } from '$lib/types';
+  import { productDisplayName } from '$lib/variant';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   let { data }: { data: PageData } = $props();
@@ -457,7 +458,7 @@
             <tbody class="divide-y divide-gray-50">
               {#each data.lowStock as v}
                 <tr>
-                  <td class="py-2.5 text-gray-900 truncate max-w-[14rem]">{v.product_name || v.name || '—'}</td>
+                  <td class="py-2.5 text-gray-900 truncate max-w-[14rem]">{v.product_name ? productDisplayName(v.product_name, v.name) : (v.name || '—')}</td>
                   <td class="py-2.5 text-gray-400 font-mono text-xs">{v.sku}</td>
                   <td class="py-2.5 text-right font-mono {v.stock_qty <= 0 ? 'text-red-600' : 'text-amber-600'}">{v.stock_qty}</td>
                 </tr>

@@ -2610,7 +2610,7 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 		// Exclude bundle products: a bundle holds no inventory of its own (its
 		// availability is derived from components via overrideBundleStock, not the
 		// stored stock_qty), so its raw stock is a meaningless placeholder here.
-		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price, pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at
+		`SELECT pv.id, pv.product_id, pv.sku, pv.name, pv.price, pv.compare_at_price, pv.stock_qty, pv.low_stock_threshold, pv.weight_grams, pv.is_active, pv.created_at, pv.updated_at, p.name AS product_name
 		 FROM product_variants pv
 		 JOIN products p ON p.id = pv.product_id
 		 WHERE pv.is_active = TRUE
@@ -2627,7 +2627,8 @@ func (s *ProductService) LowStock(ctx context.Context, threshold int) ([]Variant
 	for rows.Next() {
 		var v Variant
 		if err := rows.Scan(&v.ID, &v.ProductID, &v.SKU, &v.Name, &v.Price, &v.CompareAtPrice,
-			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt); err != nil {
+			&v.StockQty, &v.LowStockThreshold, &v.WeightGrams, &v.IsActive, &v.CreatedAt, &v.UpdatedAt,
+			&v.ProductName); err != nil {
 			return nil, err
 		}
 		variants = append(variants, v)
