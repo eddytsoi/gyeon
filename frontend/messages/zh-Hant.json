@@ -716,6 +716,7 @@
   "admin_orders_aria_delete": "刪除訂單",
   "admin_orders_action_details": "詳情",
   "admin_orders_action_delete": "刪除",
+  "admin_orders_delete_disabled_hint": "只可刪除已取消或已退款的訂單；請先取消或退款",
   "admin_orders_empty": "暫無訂單。",
   "admin_orders_aria_close": "關閉",
   "admin_orders_delete_title": "刪除訂單？",

@@ -250,6 +250,12 @@ var ErrShippingRequired = errors.New("shipping_address or shipping_address_id is
 var ErrOrderNotFound = errors.New("order not found")
 var ErrDefaultCarrierNotConfigured = errors.New("default carrier or service is not configured")
 
+// ErrOrderNotDeletable guards the admin delete action: an order may only be
+// deleted once it is in a terminal "stock returned" state (cancelled or
+// refunded). For any live status the admin must cancel/refund first — that
+// path restocks the items; delete itself never touches inventory.
+var ErrOrderNotDeletable = errors.New("order not deletable")
+
 // valid forward transitions
 var allowedTransitions = map[OrderStatus][]OrderStatus{
 	StatusPending:    {StatusPaid, StatusCancelled},
@@ -2543,6 +2549,22 @@ func (s *OrderService) GetIDByNumber(ctx context.Context, n int64) (string, erro
 // Delete removes an order and its dependent rows (cascade on order_items
 // and order_status_history). Used by the admin order list "Delete" action.
 func (s *OrderService) Delete(ctx context.Context, id string) error {
+	// Only terminal "stock returned" orders are deletable. Anything still live
+	// (pending/paid/processing/shipped/delivered) has stock deducted that delete
+	// would silently orphan — force the admin to cancel/refund first so the
+	// existing restock path runs. See ErrOrderNotDeletable.
+	var status OrderStatus
+	switch err := s.db.QueryRowContext(ctx,
+		`SELECT status FROM orders WHERE id = $1`, id).Scan(&status); {
+	case errors.Is(err, sql.ErrNoRows):
+		return ErrOrderNotFound
+	case err != nil:
+		return err
+	}
+	if status != StatusCancelled && status != StatusRefunded {
+		return ErrOrderNotDeletable
+	}
+
 	var before *Order
 	if s.audit != nil {
 		if prev, err := s.GetByID(ctx, id); err == nil {

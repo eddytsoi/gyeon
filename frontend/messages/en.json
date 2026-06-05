@@ -716,6 +716,7 @@
   "admin_orders_aria_delete": "Delete order",
   "admin_orders_action_details": "Details",
   "admin_orders_action_delete": "Delete",
+  "admin_orders_delete_disabled_hint": "Only cancelled or refunded orders can be deleted — cancel or refund it first",
   "admin_orders_empty": "No orders yet.",
   "admin_orders_aria_close": "Close",
   "admin_orders_delete_title": "Delete order?",

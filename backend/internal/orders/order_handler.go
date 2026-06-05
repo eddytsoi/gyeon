@@ -169,6 +169,11 @@ func (h *OrderHandler) delete(w http.ResponseWriter, r *http.Request) {
 			respond.NotFound(w)
 			return
 		}
+		if errors.Is(err, ErrOrderNotDeletable) {
+			respond.Error(w, http.StatusConflict,
+				"Only cancelled or refunded orders can be deleted")
+			return
+		}
 		respond.InternalError(w)
 		return
 	}
