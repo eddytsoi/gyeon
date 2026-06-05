@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminUpdateOrderShippingAddress, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -87,6 +87,34 @@ export const actions: Actions = {
       await adminRequestShipanyPickup(token, id);
     } catch (e: unknown) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed to request pickup' });
+    }
+    return { success: true };
+  },
+
+  updateShippingAddress: async ({ request, cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    const form = await request.formData();
+    const str = (k: string) => form.get(k)?.toString().trim() ?? '';
+    const address = {
+      first_name: str('first_name'),
+      last_name: str('last_name'),
+      phone: str('phone') || undefined,
+      line1: str('line1'),
+      line2: str('line2') || undefined,
+      city: str('city'),
+      state: str('state') || undefined,
+      postal_code: str('postal_code'),
+      country: str('country') || 'HK'
+    };
+    if (!address.line1) return fail(400, { error: '請填寫地址' });
+
+    try {
+      await adminUpdateOrderShippingAddress(token, id, address);
+    } catch (e: unknown) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed to update shipping address' });
     }
     return { success: true };
   },

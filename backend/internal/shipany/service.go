@@ -232,16 +232,7 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		HeightCM:    float64(hgtMM) / 10,
 	}
 
-	dest := Address{
-		Name:       strings.TrimSpace(order.ShippingAddress.FirstName + " " + order.ShippingAddress.LastName),
-		Phone:      ptrToString(order.ShippingAddress.Phone),
-		Line1:      order.ShippingAddress.Line1,
-		Line2:      ptrToString(order.ShippingAddress.Line2),
-		District:   order.ShippingAddress.City, // HK uses district in the city field
-		City:       order.ShippingAddress.City,
-		PostalCode: order.ShippingAddress.PostalCode,
-		Country:    order.ShippingAddress.Country,
-	}
+	dest := destAddressFromOrder(order)
 
 	customerNote := ""
 	if order.Notes != nil {
@@ -379,6 +370,92 @@ func (s *Service) PostTrackingNotice(ctx context.Context, orderID string) {
 // sfExpressTrackingURL builds the customer-facing SF Express waybill page URL.
 func sfExpressTrackingURL(trackingNumber string) string {
 	return "https://hk.sf-express.com/hk/tc/waybill/waybill-detail/" + trackingNumber
+}
+
+// destAddressFromOrder maps an order's frozen shipping snapshot to the ShipAny
+// receiver Address. Shared by CreateForOrder and UpdateAddressForOrder so the
+// rcvr_ctc sent on an address edit is byte-for-byte consistent with what the
+// original create emitted (notably the HK convention of mirroring city into
+// district). Caller must ensure order.ShippingAddress is non-nil.
+func destAddressFromOrder(order *orders.Order) Address {
+	return Address{
+		Name:       strings.TrimSpace(order.ShippingAddress.FirstName + " " + order.ShippingAddress.LastName),
+		Phone:      ptrToString(order.ShippingAddress.Phone),
+		Line1:      order.ShippingAddress.Line1,
+		Line2:      ptrToString(order.ShippingAddress.Line2),
+		District:   order.ShippingAddress.City, // HK uses district in the city field
+		City:       order.ShippingAddress.City,
+		PostalCode: order.ShippingAddress.PostalCode,
+		Country:    order.ShippingAddress.Country,
+	}
+}
+
+// UpdateAddressForOrder syncs an order's (already-persisted) shipping address to
+// its existing ShipAny shipment. No-op when the order has no shipment yet.
+// Mirrors the WC plugin's post-save hook: before pickup the waybill is
+// regenerated with the corrected address; after pickup only ShipAny's record is
+// updated. Fired from the orders module's onShippingAddressChanged callback.
+func (s *Service) UpdateAddressForOrder(ctx context.Context, orderID string) (*DBShipment, error) {
+	if !s.Configured(ctx) {
+		return nil, ErrNotConfigured
+	}
+	sh, err := s.GetByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if sh == nil {
+		// No waybill — nothing to sync. The snapshot edit stands on its own.
+		return nil, nil
+	}
+	// A delivered parcel can't change destination; skip the remote call.
+	if sh.Status == "delivered" {
+		return sh, nil
+	}
+
+	order, err := s.orderSvc.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.ShippingAddress == nil {
+		return nil, fmt.Errorf("order %s has no shipping address", orderID)
+	}
+
+	updated, err := s.client.UpdateShipmentAddress(ctx, sh.ShipanyShipmentID, destAddressFromOrder(order))
+	if err != nil {
+		return nil, err
+	}
+
+	// Persist any label/tracking that regeneration may have changed.
+	var trackingNumber, trackingURL, labelURL any
+	if updated.TrackingNumber != "" {
+		trackingNumber = updated.TrackingNumber
+	}
+	if updated.TrackingURL != "" {
+		trackingURL = updated.TrackingURL
+	}
+	if updated.LabelURL != "" {
+		labelURL = updated.LabelURL
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE shipments
+		    SET tracking_number = COALESCE($2, tracking_number),
+		        tracking_url    = COALESCE($3, tracking_url),
+		        label_url       = COALESCE($4, label_url),
+		        updated_at      = now()
+		  WHERE id = $1`,
+		sh.ID, trackingNumber, trackingURL, labelURL); err != nil {
+		return nil, fmt.Errorf("persist updated shipment %s: %w", sh.ID, err)
+	}
+
+	// Best-effort internal audit note so staff see the address was pushed to the
+	// courier. System role — not shown to the customer.
+	if s.notices != nil {
+		if _, err := s.notices.CreateSystemNotice(ctx, orderID, "送貨地址已更新並已同步至物流運單。"); err != nil {
+			log.Printf("shipany: post address-update notice for order %s: %v", orderID, err)
+		}
+	}
+
+	return s.GetByOrderID(ctx, orderID)
 }
 
 // RequestPickup tells ShipAny to schedule courier collection for the

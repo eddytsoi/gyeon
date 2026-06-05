@@ -7,10 +7,11 @@
 // public API spec.
 //
 // Base URL convention: https://api[-region][-env].shipany.io/
-//   Region suffixes: -sg / -tw / -th  (HK = no suffix, v1 default)
-//   Env suffixes:    -sbx1 / -sbx2 / -dev / -demo  (prod = no suffix)
-//   The env is encoded as a prefix on the API key itself (SHIPANYDEV,
-//   SHIPANYSBX1, etc.) which is stripped before the key is sent.
+//
+//	Region suffixes: -sg / -tw / -th  (HK = no suffix, v1 default)
+//	Env suffixes:    -sbx1 / -sbx2 / -dev / -demo  (prod = no suffix)
+//	The env is encoded as a prefix on the API key itself (SHIPANYDEV,
+//	SHIPANYSBX1, etc.) which is stripped before the key is sent.
 //
 // Auth: single header  api-tk: <stripped-api-key>
 // All responses follow  { result: {descr, details}, data: { objects: [...] } }
@@ -25,6 +26,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -106,7 +108,7 @@ type Address struct {
 	District   string `json:"district,omitempty"`
 	City       string `json:"city,omitempty"`
 	PostalCode string `json:"postal_code,omitempty"`
-	Country    string `json:"country"`  // ISO 3166-1 alpha-2, "HK" for v1
+	Country    string `json:"country"`             // ISO 3166-1 alpha-2, "HK" for v1
 	AddrType   string `json:"addr_type,omitempty"` // "Residential" / "Commercial" — sent as addr.typ
 }
 
@@ -129,9 +131,9 @@ type RateOption struct {
 	// QuotUID is the opaque ShipAny quote identifier; pass it back when
 	// creating the shipment to lock in the quoted price.
 	QuotUID             string  `json:"quot_uid,omitempty"`
-	Carrier             string  `json:"carrier"`             // courier UID
-	CarrierName         string  `json:"carrier_name"`        // human label
-	Service             string  `json:"service"`             // cour_svc_pl
+	Carrier             string  `json:"carrier"`      // courier UID
+	CarrierName         string  `json:"carrier_name"` // human label
+	Service             string  `json:"service"`      // cour_svc_pl
 	ServiceName         string  `json:"service_name"`
 	FeeHKD              float64 `json:"fee_hkd"`
 	ETADays             string  `json:"eta_days,omitempty"`
@@ -390,6 +392,48 @@ func (c *HTTPClient) FetchOrder(ctx context.Context, shipmentID string) (*Shipme
 	}, nil
 }
 
+// UpdateShipmentAddress patches the receiver contact + address on an existing
+// shipment and asks ShipAny to regenerate the label when the order is still in
+// the "Order Created" state. Mirrors the WC plugin's Client::update_order():
+// editing the address before pickup re-issues a corrected waybill (regen=true);
+// once the parcel is picked up the address is updated on record only
+// (regen=false, label left intact). Returns the (possibly regenerated) shipment.
+func (c *HTTPClient) UpdateShipmentAddress(ctx context.Context, shipmentID string, dest Address) (*Shipment, error) {
+	// Read current remote state to decide whether the label can be regenerated.
+	var cur envelope[orderObject]
+	if _, err := c.do(ctx, http.MethodGet,
+		"orders/"+url.PathEscape(shipmentID)+"/", nil, nil, &cur); err != nil {
+		return nil, err
+	}
+	if len(cur.Data.Objects) == 0 {
+		return nil, errors.New("orders/{id}/ returned no objects")
+	}
+	o := cur.Data.Objects[0]
+
+	var resp envelope[orderObject]
+	if _, err := c.do(ctx, http.MethodPatch,
+		"orders/"+url.PathEscape(shipmentID)+"/",
+		map[string]any{"ops": buildAddressPatchOps(dest)},
+		url.Values{"regen": {strconv.FormatBool(o.canRegenLabel())}},
+		&resp); err != nil {
+		return nil, err
+	}
+	// Some PATCH responses echo nothing useful; fall back to a fresh fetch so the
+	// caller still gets the (possibly regenerated) label/tracking.
+	if len(resp.Data.Objects) == 0 {
+		return c.FetchOrder(ctx, shipmentID)
+	}
+	r := resp.Data.Objects[0]
+	return &Shipment{
+		ID:             r.UID,
+		TrackingNumber: r.TrkNo,
+		TrackingURL:    "https://portal.shipany.io/tracking?id=" + url.QueryEscape(r.UID),
+		LabelURL:       r.LabURL,
+		FeeHKD:         r.CourTtlCost.Val,
+		Status:         r.CurStat,
+	}, nil
+}
+
 // ── Wire envelope + structs (private) ──────────────────────────────────
 
 type envelope[T any] struct {
@@ -436,15 +480,16 @@ type merchantSelf struct {
 }
 
 type orderObject struct {
-	UID         string  `json:"uid"`
-	CurStat     string  `json:"cur_stat,omitempty"`
-	TrkNo       string  `json:"trk_no,omitempty"`
-	LabURL      string  `json:"lab_url,omitempty"`
-	CourUID     string  `json:"cour_uid,omitempty"`
-	CourSvcPl   string  `json:"cour_svc_pl,omitempty"`
-	PayStat     string  `json:"pay_stat,omitempty"`
-	CourTtlCost cost    `json:"cour_ttl_cost"`
-	Quots       []quot  `json:"quots,omitempty"`
+	UID                string `json:"uid"`
+	CurStat            string `json:"cur_stat,omitempty"`
+	TrkNo              string `json:"trk_no,omitempty"`
+	LabURL             string `json:"lab_url,omitempty"`
+	CourUID            string `json:"cour_uid,omitempty"`
+	CourSvcPl          string `json:"cour_svc_pl,omitempty"`
+	PayStat            string `json:"pay_stat,omitempty"`
+	ExtOrderNotCreated string `json:"ext_order_not_created,omitempty"`
+	CourTtlCost        cost   `json:"cour_ttl_cost"`
+	Quots              []quot `json:"quots,omitempty"`
 }
 
 type quot struct {
@@ -554,6 +599,36 @@ func buildItems(items []ShipanyItem, parcel Parcel) []any {
 		})
 	}
 	return out
+}
+
+// buildAddressPatchOps turns a destination Address into JSON-Patch "add" ops
+// that upsert every rcvr_ctc field, reusing the exact contact layout emitted at
+// create time (buildContact) so the patched address is byte-for-byte consistent
+// with a fresh order. "add" upserts an object member (RFC 6902 §4.1), so it sets
+// each field whether or not it already exists — safe for optional fields like
+// email that may be absent on the remote order.
+func buildAddressPatchOps(dest Address) []map[string]any {
+	contact := buildContact(dest)
+	ops := make([]map[string]any, 0, 12)
+	if addr, ok := contact["addr"].(map[string]any); ok {
+		for k, v := range addr {
+			ops = append(ops, map[string]any{"op": "add", "path": "/rcvr_ctc/addr/" + k, "value": v})
+		}
+	}
+	if ctc, ok := contact["ctc"].(map[string]any); ok {
+		for k, v := range ctc {
+			ops = append(ops, map[string]any{"op": "add", "path": "/rcvr_ctc/ctc/" + k, "value": v})
+		}
+	}
+	return ops
+}
+
+// canRegenLabel reports whether ShipAny can re-issue the label for this order
+// after an address edit: only before pickup (cur_stat still "Order Created"),
+// when a label already exists, and the external order didn't fail to create.
+// Mirrors the WC plugin's Client::update_order() regen condition.
+func (o orderObject) canRegenLabel() bool {
+	return o.CurStat == "Order Created" && o.LabURL != "" && o.ExtOrderNotCreated != "x"
 }
 
 func buildContact(a Address) map[string]any {
@@ -683,6 +758,9 @@ func (c *HTTPClient) do(ctx context.Context, method, route string, body, query a
 		baseURL = fmt.Sprintf("https://api%s%s.shipany.io", region, env)
 	}
 	full := baseURL + "/" + strings.TrimLeft(route, "/")
+	if q, ok := query.(url.Values); ok && len(q) > 0 {
+		full += "?" + q.Encode()
+	}
 
 	var reader io.Reader
 	if body != nil {
@@ -774,4 +852,3 @@ func stripEnvPrefix(key string) (clean, envSuffix string) {
 	}
 	return key, ""
 }
-

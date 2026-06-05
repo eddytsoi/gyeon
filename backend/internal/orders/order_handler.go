@@ -82,6 +82,7 @@ func (h *OrderHandler) AdminRoutes() chi.Router {
 	r.Post("/items/csv-resolve", h.adminResolveCSVItems)
 	r.Get("/{id}", h.get)
 	r.Post("/{id}/status", h.updateStatus)
+	r.Patch("/{id}/shipping-address", h.updateShippingAddress)
 	r.Delete("/{id}", h.delete)
 	r.Post("/{id}/refund", h.refund)
 	return r
@@ -468,6 +469,27 @@ func (h *OrderHandler) updateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	order, err := h.svc.UpdateStatus(r.Context(), id, req)
+	if errors.Is(err, ErrOrderNotFound) {
+		respond.NotFound(w)
+		return
+	}
+	if err != nil {
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, order)
+}
+
+// updateShippingAddress overwrites an order's frozen shipping snapshot and
+// re-syncs the ShipAny waybill (if any) via the orders→shipany callback.
+func (h *OrderHandler) updateShippingAddress(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req AdminShippingAddressInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	order, err := h.svc.UpdateShippingAddress(r.Context(), id, &req)
 	if errors.Is(err, ErrOrderNotFound) {
 		respond.NotFound(w)
 		return

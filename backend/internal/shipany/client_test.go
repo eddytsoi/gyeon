@@ -230,3 +230,74 @@ func TestBuildOrderPayloadCreateMode(t *testing.T) {
 		t.Fatalf("rcvr_ctc missing")
 	}
 }
+
+// TestBuildAddressPatchOps pins the JSON-Patch ops emitted when an admin edits
+// an existing shipment's address. Every op must be an "add" (upsert) targeting
+// the right /rcvr_ctc/* path with the same values create-mode would have sent.
+func TestBuildAddressPatchOps(t *testing.T) {
+	dest := Address{
+		Name:    "Jane Doe",
+		Country: "HK",
+		Phone:   "98765432",
+		Line1:   "2 Dest St",
+		Line2:   "Flat A",
+		City:    "Central",
+	}
+	ops := buildAddressPatchOps(dest)
+
+	byPath := map[string]any{}
+	for _, op := range ops {
+		if op["op"] != "add" {
+			t.Fatalf("op should be add, got %v for %v", op["op"], op["path"])
+		}
+		byPath[op["path"].(string)] = op["value"]
+	}
+
+	want := map[string]string{
+		"/rcvr_ctc/addr/ln":    "2 Dest St",
+		"/rcvr_ctc/addr/ln2":   "Flat A",
+		"/rcvr_ctc/addr/distr": "Central",            // district falls back to city
+		"/rcvr_ctc/addr/cnty":  "HKG",                // alpha-2 → alpha-3
+		"/rcvr_ctc/addr/city":  "Hong Kong S.A.R.",   // HK city override
+		"/rcvr_ctc/ctc/f_name": "Jane",
+		"/rcvr_ctc/ctc/l_name": "Doe",
+	}
+	for path, exp := range want {
+		got, ok := byPath[path]
+		if !ok {
+			t.Fatalf("missing op for %s", path)
+		}
+		if got != exp {
+			t.Fatalf("%s = %v, want %q", path, got, exp)
+		}
+	}
+
+	// Phone is patched as the phs array; email is omitted when blank.
+	if _, ok := byPath["/rcvr_ctc/ctc/phs"]; !ok {
+		t.Fatalf("missing /rcvr_ctc/ctc/phs")
+	}
+	if _, ok := byPath["/rcvr_ctc/ctc/email"]; ok {
+		t.Fatalf("email op should be absent when dest.Email is blank")
+	}
+}
+
+// TestCanRegenLabel pins the regen gate mirrored from the WC plugin: a label is
+// only regenerated before pickup, when one already exists, and the external
+// order didn't fail to create.
+func TestCanRegenLabel(t *testing.T) {
+	cases := []struct {
+		name string
+		o    orderObject
+		want bool
+	}{
+		{"pre-pickup with label", orderObject{CurStat: "Order Created", LabURL: "http://x/label.pdf"}, true},
+		{"no label yet", orderObject{CurStat: "Order Created", LabURL: ""}, false},
+		{"already picked up", orderObject{CurStat: "Collected_By_Courier", LabURL: "http://x/label.pdf"}, false},
+		{"ext order failed", orderObject{CurStat: "Order Created", LabURL: "http://x/label.pdf", ExtOrderNotCreated: "x"}, false},
+	}
+	for _, c := range cases {
+		if got := c.o.canRegenLabel(); got != c.want {
+			t.Fatalf("%s: canRegenLabel = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

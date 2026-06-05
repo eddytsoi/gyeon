@@ -310,6 +310,11 @@ func main() {
 	orderSvc.SetOnOrderShipped(func(ctx context.Context, o *orders.Order) {
 		shipanySvc.PostTrackingNotice(ctx, o.ID)
 	})
+	orderSvc.SetOnShippingAddressChanged(func(ctx context.Context, o *orders.Order) {
+		if _, err := shipanySvc.UpdateAddressForOrder(ctx, o.ID); err != nil {
+			log.Printf("shipany: sync address for order %s: %v", o.ID, err)
+		}
+	})
 	pageSvc := cms.NewPageService(conn, cacheStore, cmsTTL)
 	postSvc := cms.NewPostService(conn, cacheStore, cmsTTL)
 	postCatSvc := cms.NewPostCategoryService(conn)

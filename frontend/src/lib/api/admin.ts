@@ -1,4 +1,4 @@
-import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, RelatedProductRef, RelatedRefInput, Variant, ProductImage } from '$lib/types';
+import type { BundleItem, Category, CustomerRole, Order, OrderNotice, Product, PromoBundle, RelatedProductRef, RelatedRefInput, ShippingAddress, Variant, ProductImage } from '$lib/types';
 
 const base = () =>
   typeof window === 'undefined'
@@ -848,6 +848,14 @@ export const adminCreateShipment = (token: string, orderID: string, override?: {
 
 export const adminRequestShipanyPickup = (token: string, orderID: string) =>
   request<ShipanyShipment>(`/admin/shipany/orders/${orderID}/pickup`, token, { method: 'POST' });
+
+// Overwrite an order's frozen shipping snapshot. The backend re-syncs the
+// ShipAny waybill (if any) and regenerates the label when still pre-pickup.
+export const adminUpdateOrderShippingAddress = (token: string, orderID: string, address: ShippingAddress) =>
+  request<Order>(`/admin/orders/${orderID}/shipping-address`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(address)
+  });
 
 // ── Admin Users ───────────────────────────────────────────────────────────────
 

@@ -202,6 +202,22 @@ type ShippingAddressInput struct {
 	Country    string `json:"country"`
 }
 
+// AdminShippingAddressInput is the payload for an admin editing an order's
+// frozen shipping snapshot. Unlike ShippingAddressInput (checkout, where
+// name/phone come from CustomerInfo) it carries the recipient name + phone too,
+// since those map onto the ship_* columns and must reach the courier waybill.
+type AdminShippingAddressInput struct {
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	Phone      string `json:"phone,omitempty"`
+	Line1      string `json:"line1"`
+	Line2      string `json:"line2,omitempty"`
+	City       string `json:"city"`
+	State      string `json:"state,omitempty"`
+	PostalCode string `json:"postal_code"`
+	Country    string `json:"country"`
+}
+
 type CheckoutRequest struct {
 	CartID            string                `json:"cart_id"`
 	CustomerID        *string               `json:"customer_id"`
@@ -314,6 +330,7 @@ type OrderService struct {
 	onCreated    func(ctx context.Context, order *Order)
 	onPaid       func(ctx context.Context, order *Order)
 	onShipped    func(ctx context.Context, order *Order)
+	onShipAddr   func(ctx context.Context, order *Order)
 	receiptCache ReceiptCacheInvalidator
 }
 
@@ -348,6 +365,14 @@ func (s *OrderService) SetOnOrderCreated(fn func(context.Context, *Order)) {
 // notice without an import-cycle dependency on the shipany package.
 func (s *OrderService) SetOnOrderShipped(fn func(context.Context, *Order)) {
 	s.onShipped = fn
+}
+
+// SetOnShippingAddressChanged registers a callback fired (synchronously) after
+// an admin edits an order's shipping address. Used to push the corrected
+// address to the order's ShipAny waybill without an import-cycle dependency on
+// the shipany package.
+func (s *OrderService) SetOnShippingAddressChanged(fn func(context.Context, *Order)) {
+	s.onShipAddr = fn
 }
 
 // SetReceiptCache wires the receipt cache invalidator. When set, the
@@ -2208,6 +2233,16 @@ func nullStrPtr(n sql.NullString) *string {
 	return nil
 }
 
+// emptyToNil maps a blank/whitespace string to nil so optional snapshot columns
+// store NULL rather than an empty string.
+func emptyToNil(s string) *string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // shipSnapshot is the frozen shipping-address copy written onto an order's
 // ship_* columns at write time, so order history stays independent of the
 // (editable, deduped) customer address book. Field order matches the ship_*
@@ -2282,6 +2317,42 @@ func (s *OrderService) refreshOrderShipSnapshot(ctx context.Context, orderID str
 		 WHERE id=$1`,
 		append([]any{orderID}, snap.args()...)...)
 	return err
+}
+
+// UpdateShippingAddress overwrites an order's frozen ship_* snapshot with an
+// admin-supplied address, then (synchronously) fires onShippingAddressChanged
+// so the ShipAny waybill, if any, is re-synced. The snapshot write always
+// stands even if the downstream sync fails — the callback is best-effort and
+// only logs. Returns the refreshed order.
+func (s *OrderService) UpdateShippingAddress(ctx context.Context, orderID string, in *AdminShippingAddressInput) (*Order, error) {
+	if in == nil || strings.TrimSpace(in.Line1) == "" || strings.TrimSpace(in.Country) == "" {
+		return nil, ErrShippingRequired
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE orders SET
+		    ship_first_name=$2, ship_last_name=$3, ship_phone=$4, ship_line1=$5, ship_line2=$6,
+		    ship_city=$7, ship_state=$8, ship_postal_code=$9, ship_country=$10, updated_at=now()
+		 WHERE id=$1`,
+		orderID,
+		strings.TrimSpace(in.FirstName), strings.TrimSpace(in.LastName), emptyToNil(in.Phone),
+		strings.TrimSpace(in.Line1), emptyToNil(in.Line2),
+		strings.TrimSpace(in.City), emptyToNil(in.State), strings.TrimSpace(in.PostalCode),
+		strings.ToUpper(strings.TrimSpace(in.Country)))
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, ErrOrderNotFound
+	}
+
+	order, err := s.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if s.onShipAddr != nil {
+		s.onShipAddr(ctx, order)
+	}
+	return order, nil
 }
 
 // GetByIDForCustomer returns the order only if it belongs to the given
