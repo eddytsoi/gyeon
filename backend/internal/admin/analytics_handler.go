@@ -492,13 +492,27 @@ func (h *AnalyticsHandler) revenueBreakdown(w http.ResponseWriter, r *http.Reque
 	switch r.URL.Query().Get("by") {
 	case "role":
 		// Group by customer role; whole-order revenue (or matching line items
-		// when a category filter is active).
+		// when a category filter is active). A role='customer' buyer counts as
+		// a registered 顧客 only when they have a real account — a migrated WC
+		// account (wc_customer_id), a password, or a linked Google/Apple login.
+		// Everything else with role='customer', plus any order with no linked
+		// customer at all, is a guest checkout (訪客). Installers keep their
+		// role label regardless of account state.
+		roleLabel := `CASE
+		          WHEN c.id IS NULL THEN 'guest'
+		          WHEN c.role::text = 'customer'
+		               AND c.wc_customer_id IS NULL
+		               AND (c.password_hash IS NULL OR c.password_hash = '')
+		               AND NOT EXISTS (SELECT 1 FROM customer_oauth_identities oi WHERE oi.customer_id = c.id)
+		            THEN 'guest'
+		          ELSE c.role::text
+		        END`
 		_, catJoin, rev, cnt, where, a := f.scopeRevenue("o.status NOT IN ('cancelled')")
 		args = a
-		q = `SELECT COALESCE(c.role::text, 'guest') AS label, ` + rev + ` AS value, ` + cnt + ` AS n
+		q = `SELECT ` + roleLabel + ` AS label, ` + rev + ` AS value, ` + cnt + ` AS n
 		       FROM orders o
 		       LEFT JOIN customers c ON c.id = o.customer_id` + catJoin + where + `
-		      GROUP BY COALESCE(c.role::text, 'guest')
+		      GROUP BY 1
 		      ORDER BY value DESC`
 	case "carrier":
 		custJoin, catJoin, rev, cnt, where, a := f.scopeRevenue("o.status NOT IN ('cancelled')")
