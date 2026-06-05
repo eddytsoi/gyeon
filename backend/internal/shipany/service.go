@@ -447,15 +447,49 @@ func (s *Service) UpdateAddressForOrder(ctx context.Context, orderID string) (*D
 		return nil, fmt.Errorf("persist updated shipment %s: %w", sh.ID, err)
 	}
 
-	// Best-effort internal audit note so staff see the address was pushed to the
-	// courier. System role — not shown to the customer.
-	if s.notices != nil {
-		if _, err := s.notices.CreateSystemNotice(ctx, orderID, "送貨地址已更新並已同步至物流運單。"); err != nil {
+	final, err := s.GetByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Best-effort internal audit note carrying the refreshed waybill details
+	// (incl. the regenerated label download link) — same shape as auto-create
+	// so staff get the new label without leaving the order page. System role —
+	// not shown to the customer.
+	if s.notices != nil && final != nil {
+		body := shipmentNoticeBody("送貨地址已更新並已同步至物流運單", final)
+		if _, err := s.notices.CreateSystemNotice(ctx, orderID, body); err != nil {
 			log.Printf("shipany: post address-update notice for order %s: %v", orderID, err)
 		}
 	}
 
-	return s.GetByOrderID(ctx, orderID)
+	return final, nil
+}
+
+// shipmentNoticeBody renders an order-timeline note carrying a shipment's
+// waybill details: tracking number, courier, fee, and the downloadable label
+// PDF link. Shared by the auto-create job and the address-update sync so both
+// surface the same fields (and the frontend auto-links the label URL).
+func shipmentNoticeBody(header string, sh *DBShipment) string {
+	var b strings.Builder
+	b.WriteString(header + "\n")
+	if sh.TrackingNumber != nil && *sh.TrackingNumber != "" {
+		fmt.Fprintf(&b, "運單號碼：%s\n", *sh.TrackingNumber)
+	}
+	if sh.Carrier != "" {
+		if sh.Service != "" {
+			fmt.Fprintf(&b, "貨運公司：%s（%s）\n", sh.Carrier, sh.Service)
+		} else {
+			fmt.Fprintf(&b, "貨運公司：%s\n", sh.Carrier)
+		}
+	}
+	if sh.FeeHKD > 0 {
+		fmt.Fprintf(&b, "運費：HKD %.2f\n", sh.FeeHKD)
+	}
+	if sh.LabelURL != nil && *sh.LabelURL != "" {
+		fmt.Fprintf(&b, "標籤：%s\n", *sh.LabelURL)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // RequestPickup tells ShipAny to schedule courier collection for the
