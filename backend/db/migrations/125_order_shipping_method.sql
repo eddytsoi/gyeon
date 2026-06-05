@@ -1,0 +1,16 @@
+-- 125_order_shipping_method.sql
+-- Capture the WooCommerce shipping method name on each order.
+--
+-- The order importer reads shipping COST (shipping_total) and address, but
+-- discards WC's `shipping_lines` array, which carries the method name (e.g.
+-- 「順豐速運」 / "SF Express"). As a result every imported order has a NULL
+-- selected_carrier and buckets as "—" in the admin 按物流 revenue breakdown.
+--
+-- selected_carrier holds a ShipAny courier UID chosen at Gyeon checkout — a
+-- different namespace from a free-text WC method title — so we store the WC
+-- method in its own column. The by-carrier breakdown COALESCEs the two
+-- (selected_carrier first, then shipping_method). Populated for existing
+-- orders by re-running the WooCommerce orders import (upsert updates in place).
+--
+-- Additive + nullable → harmless to old code reading orders.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_method TEXT;

@@ -151,6 +151,18 @@ pages:
 	send(p)
 }
 
+// firstShippingMethod returns the first non-empty shipping method title from a
+// WC order's shipping_lines (most orders have exactly one). Empty when the
+// order has no shipping line — e.g. local pickup or free shipping.
+func firstShippingMethod(o wcOrder) string {
+	for _, sl := range o.ShippingLines {
+		if t := strings.TrimSpace(sl.MethodTitle); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
 // upsertOrder runs the full upsert for one WC order in a single tx:
 // resolve / create customer → snapshot shipping address → INSERT or UPDATE
 // the order row → wipe & re-insert line items. Re-imports of the same WC
@@ -198,6 +210,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	custPhone := nullableString(o.Billing.Phone)
 	custName := nullableString(strings.TrimSpace(o.Billing.FirstName) + " " + strings.TrimSpace(o.Billing.LastName))
 
+	// WC shipping method title (e.g. 「順豐速運」) — NULL when the order has no
+	// shipping line (pickup / free). Surfaces in the admin 按物流 breakdown.
+	shippingMethod := nullableString(firstShippingMethod(o))
+
 	// Look up existing.
 	var orderID string
 	existed := false
@@ -210,12 +226,12 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	}
 
 	if existed {
-		updateArgs := append([]any{
+		updateArgs := append(append([]any{
 			orderID, customerID, status, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
-		}, shipArgs...)
+		}, shipArgs...), shippingMethod)
 		// Re-imports refresh the ship_* snapshot when the WC address changed,
 		// mirroring how customer_* are refreshed above.
 		if _, err := tx.ExecContext(ctx, `
@@ -241,7 +257,8 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				ship_city           = $20,
 				ship_state          = $21,
 				ship_postal_code    = $22,
-				ship_country        = $23
+				ship_country        = $23,
+				shipping_method     = $24
 			 WHERE id = $1`,
 			updateArgs...,
 		); err != nil {
@@ -253,12 +270,12 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 		p.UpdatedOrders++
 	} else {
 		var number int64
-		insertArgs := append([]any{
+		insertArgs := append(append([]any{
 			o.ID, customerID, status, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
-		}, shipArgs...)
+		}, shipArgs...), shippingMethod)
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO orders (
 				wc_order_id, customer_id, status, shipping_address_id,
@@ -266,9 +283,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				notes, created_at,
 				customer_email, customer_phone, customer_name,
 				ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2,
-				ship_city, ship_state, ship_postal_code, ship_country
+				ship_city, ship_state, ship_postal_code, ship_country,
+				shipping_method
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-			          $15, $16, $17, $18, $19, $20, $21, $22, $23)
+			          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 			RETURNING id, number`,
 			insertArgs...,
 		).Scan(&orderID, &number); err != nil {
