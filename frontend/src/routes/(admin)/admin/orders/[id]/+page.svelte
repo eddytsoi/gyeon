@@ -85,6 +85,8 @@
   let updating = $state(false);
   let creatingShipment = $state(false);
   let requestingPickup = $state(false);
+  let editingAddress = $state(false);
+  let savingAddress = $state(false);
   let addingNote = $state(false);
   let sendingMessage = $state(false);
   let refunding = $state(false);
@@ -276,8 +278,85 @@
 
     <!-- Shipping Info -->
     <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{m.admin_order_card_shipping()}</h3>
-      {#if data.order.shipping_address}
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">{m.admin_order_card_shipping()}</h3>
+        {#if !editingAddress}
+          <button
+            type="button"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+            onclick={() => (editingAddress = true)}
+          >{m.admin_order_ship_edit()}</button>
+        {/if}
+      </div>
+
+      {#if editingAddress}
+        {@const a = data.order.shipping_address}
+        <form
+          method="POST"
+          action="?/updateShippingAddress"
+          use:enhance={() => {
+            if (savingAddress) return;
+            savingAddress = true;
+            return async ({ result, update }) => {
+              await update({ reset: false });
+              savingAddress = false;
+              if (result.type === 'success') editingAddress = false;
+            };
+          }}
+          class="space-y-2.5 text-sm"
+        >
+          {#if data.shipment}
+            <p class="rounded-lg bg-amber-50 text-amber-700 text-xs px-3 py-2 leading-relaxed">
+              {m.admin_order_ship_waybill_warning()}
+            </p>
+          {/if}
+          <div class="grid grid-cols-2 gap-2">
+            <label class="block">
+              <span class="text-xs text-gray-400">{m.admin_order_ship_first_name()}</span>
+              <input name="first_name" value={a?.first_name ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-gray-400">{m.admin_order_ship_last_name()}</span>
+              <input name="last_name" value={a?.last_name ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+            </label>
+          </div>
+          <label class="block">
+            <span class="text-xs text-gray-400">{m.admin_order_ship_phone()}</span>
+            <input name="phone" value={a?.phone ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">{m.admin_order_ship_line1()}</span>
+            <input name="line1" required value={a?.line1 ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+          </label>
+          <label class="block">
+            <span class="text-xs text-gray-400">{m.admin_order_ship_line2()}</span>
+            <input name="line2" value={a?.line2 ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="block">
+              <span class="text-xs text-gray-400">{m.admin_order_ship_city()}</span>
+              <input name="city" value={a?.city ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-gray-400">{m.admin_order_ship_postal()}</span>
+              <input name="postal_code" value={a?.postal_code ?? ''} class="mt-0.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+            </label>
+          </div>
+          <input type="hidden" name="state" value={a?.state ?? ''} />
+          <input type="hidden" name="country" value={a?.country ?? 'HK'} />
+          {#if form?.error}
+            <p class="text-xs text-red-600">{form.error}</p>
+          {/if}
+          <div class="flex items-center gap-2 pt-1">
+            <SaveButton loading={savingAddress}>{m.admin_order_ship_save()}</SaveButton>
+            <button
+              type="button"
+              class="text-sm text-gray-500 hover:text-gray-800 transition-colors"
+              onclick={() => (editingAddress = false)}
+            >{m.admin_order_ship_cancel()}</button>
+          </div>
+        </form>
+      {:else if data.order.shipping_address}
         {@const a = data.order.shipping_address}
         <div class="space-y-1.5 text-sm">
           <p class="font-medium text-gray-900">
