@@ -2631,6 +2631,8 @@
   "dashboard_filter_preset_this_month": "本月",
   "dashboard_filter_preset_last_month": "上月",
   "dashboard_filter_preset_ytd": "今年至今",
+  "dashboard_filter_preset_last_year": "去年",
+  "dashboard_filter_preset_all": "全部",
   "dashboard_filter_role_label": "客戶類型",
   "dashboard_filter_category_label": "分類",
   "dashboard_filter_category_all": "全部分類",
