@@ -115,9 +115,17 @@
     { label: m.dashboard_funnel_delivered(), value: g('delivered') }
   ]);
 
+  // Resolve ShipAny courier UIDs (selected_carrier stores an opaque uid) to
+  // their human-readable names, mirroring the order detail page. Unknown uids
+  // and the '—' no-carrier placeholder pass through unchanged.
+  const courierNameByUid = $derived(new Map((data.couriers ?? []).map((c) => [c.uid, c.name])));
+  function carrierLabel(l: string): string {
+    return courierNameByUid.get(l) ?? l;
+  }
+
   const categoryBars = $derived((data.byCategory ?? []).map((r) => ({ label: r.label, value: r.value })));
   const roleBars = $derived((data.byRole ?? []).map((r) => ({ label: roleLabel(r.label), value: r.value })));
-  const carrierBars = $derived((data.byCarrier ?? []).map((r) => ({ label: r.label, value: r.value })));
+  const carrierBars = $derived((data.byCarrier ?? []).map((r) => ({ label: carrierLabel(r.label), value: r.value })));
 </script>
 
 <svelte:head><title>{m.dashboard_title()}</title></svelte:head>

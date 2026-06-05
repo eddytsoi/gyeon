@@ -10,6 +10,7 @@ import {
   adminGetLowStock,
   adminGetCategories,
   adminGetOrders,
+  adminListShipanyCouriers,
   type DashFilters,
   type RevenuePoint,
   type TopProduct,
@@ -65,7 +66,8 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     byCarrier,
     recentOrders,
     lowStock,
-    categories
+    categories,
+    couriers
   ] = await Promise.all([
     getStats(token, f).catch(() => null),
     adminGetDashboardSummary(token, f).catch(() => null),
@@ -79,7 +81,8 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     adminGetRevenueBreakdown(token, 'carrier', f).catch(() => [] as RevenueBreakdownRow[]),
     adminGetOrders(token, { from: fromISO, to: toISO, roles, limit: 8 }).catch(() => ({ items: [], total: 0 })),
     adminGetLowStock(token).catch(() => []),
-    adminGetCategories(token).catch(() => [])
+    adminGetCategories(token).catch(() => []),
+    adminListShipanyCouriers(token).catch(() => [])
   ]);
 
   return {
@@ -94,6 +97,7 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     byCategory,
     byRole,
     byCarrier,
+    couriers,
     recentOrders: recentOrders.items ?? [],
     lowStock,
     categories,
