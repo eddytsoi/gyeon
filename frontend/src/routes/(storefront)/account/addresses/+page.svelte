@@ -2,12 +2,13 @@
   import { enhance } from '$app/forms';
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-  <title>{m.account_addresses_title()}</title>
+  <title>{m.account_addresses_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">

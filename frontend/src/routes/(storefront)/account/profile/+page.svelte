@@ -4,6 +4,7 @@
   import type { LayoutData } from '../$types';
   import { page } from '$app/stores';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -14,7 +15,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_profile_title()}</title>
+  <title>{m.account_profile_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 {#if (data.loyalty?.points ?? 0) > 0}

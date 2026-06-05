@@ -63,7 +63,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.pay_title()}</title>
+  <title>{m.pay_title({ brand: data.brand })}</title>
 </svelte:head>
 
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

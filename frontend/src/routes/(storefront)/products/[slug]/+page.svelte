@@ -9,7 +9,7 @@
   import { cubicOut } from 'svelte/easing';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
-  import { siteOrigin, snippet } from '$lib/seo';
+  import { siteName, siteOrigin, snippet } from '$lib/seo';
   import WishlistButton from '$lib/components/shop/WishlistButton.svelte';
   import RecentlyViewed from '$lib/components/shop/RecentlyViewed.svelte';
   import BundleComposer from '$lib/components/shop/BundleComposer.svelte';
@@ -484,7 +484,7 @@
 </script>
 
 <Seo
-  title={m.product_detail_title({ name: data.product.name })}
+  title={m.product_detail_title({ name: data.product.name, brand: siteName(page.data.publicSettings) })}
   description={seoDescription}
   canonical={seoCanonical}
   image={seoOgImage}

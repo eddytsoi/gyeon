@@ -7,7 +7,7 @@
   import Eyebrow from '$lib/components/shop/Eyebrow.svelte';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
-  import { siteOrigin } from '$lib/seo';
+  import { siteName, siteOrigin } from '$lib/seo';
   import { getProductsFiltered, type ProductListFilters } from '$lib/api';
   import type { Product, ProductImage, Variant } from '$lib/types';
 
@@ -198,7 +198,7 @@
 </script>
 
 <Seo
-  title={m.products_title()}
+  title={m.products_title({ brand: siteName(page.data.publicSettings) })}
   description={m.products_meta_description()}
   canonical={`${siteOrigin(page.data.publicSettings)}/products`}
 />

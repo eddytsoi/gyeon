@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
   let { data }: { data: PageData } = $props();
@@ -13,7 +14,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.blog_title()}</title>
+  <title>{m.blog_title({ brand: siteName(data.publicSettings) })}</title>
   <meta name="description" content={m.blog_meta_description()} />
 </svelte:head>
 

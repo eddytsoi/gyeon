@@ -15,6 +15,8 @@
   import { variantSuffix } from '$lib/variant';
   import { isVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
+  import { page } from '$app/state';
 
   // `variant` is the cheapest live variant (display default & single-variant
   // fast path); `variants` is ALL live variants, cheapest-first, for the inline
@@ -158,7 +160,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.wishlist_title()}</title>
+  <title>{m.wishlist_title({ brand: siteName(page.data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">

@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import { goto } from '$app/navigation';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { formatHKD } from '$lib/money';
   import { formatOrderDateTime } from '$lib/datetime';
@@ -73,7 +74,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_orders_title()}</title>
+  <title>{m.account_orders_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">

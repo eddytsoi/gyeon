@@ -2,13 +2,14 @@
   import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let loading = $state(false);
 </script>
 
 <svelte:head>
-  <title>{m.password_setup_title()}</title>
+  <title>{m.password_setup_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="min-h-[60vh] flex items-center justify-center px-4 py-12">

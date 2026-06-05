@@ -2,7 +2,7 @@
   import type { PageData } from './$types';
   import { page as appPage } from '$app/state';
   import Seo from '$lib/components/Seo.svelte';
-  import { siteOrigin, snippet } from '$lib/seo';
+  import { siteName, siteOrigin, snippet } from '$lib/seo';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 
   let { data }: { data: PageData } = $props();
@@ -13,7 +13,7 @@
 </script>
 
 <Seo
-  title={`${page.meta_title ?? page.title} — GYEON`}
+  title={`${page.meta_title ?? page.title} — ${siteName(data.publicSettings)}`}
   description={cmsDescription}
   canonical={cmsCanonical}
 />

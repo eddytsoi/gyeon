@@ -3,7 +3,7 @@
   import { page } from '$app/state';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
-  import { siteOrigin, snippet } from '$lib/seo';
+  import { siteName, siteOrigin, snippet } from '$lib/seo';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
 
@@ -32,7 +32,7 @@
 </script>
 
 <Seo
-  title={m.blog_post_title({ title: post.title })}
+  title={m.blog_post_title({ title: post.title, brand: siteName(data.publicSettings) })}
   description={blogDescription}
   canonical={blogCanonical}
   image={post.cover_image_url}

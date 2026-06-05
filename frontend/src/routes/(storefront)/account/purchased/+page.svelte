@@ -19,6 +19,7 @@
   import { formatOrderDate } from '$lib/datetime';
   import { isVideo } from '$lib/media';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -167,7 +168,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.purchased_title()}</title>
+  <title>{m.purchased_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-4">

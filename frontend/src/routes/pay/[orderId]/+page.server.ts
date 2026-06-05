@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
-import { getOrderPaymentInfo } from '$lib/api';
+import { getOrderPaymentInfo, getPublicSettings } from '$lib/api';
+import { siteName } from '$lib/seo';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, url }) => {
@@ -8,8 +9,13 @@ export const load: PageServerLoad = async ({ params, url }) => {
     throw error(400, '缺少付款驗證碼');
   }
   try {
-    const info = await getOrderPaymentInfo(params.orderId, cs);
-    return { info };
+    // This route lives outside the (storefront) group, so it doesn't inherit
+    // publicSettings from that layout — fetch it here for the page-title brand.
+    const [info, settings] = await Promise.all([
+      getOrderPaymentInfo(params.orderId, cs),
+      getPublicSettings().catch(() => [])
+    ]);
+    return { info, brand: siteName(settings) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : '';
     if (msg.includes('410')) {

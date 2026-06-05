@@ -55,7 +55,7 @@
   "footer_link_my_cart": "我的購物車",
   "footer_copyright": "© {year} GYEON HK 版權所有",
 
-  "home_title": "GYEON — 首頁",
+  "home_title": "{brand} — 首頁",
   "home_hero_heading": "優質，直送到家。",
   "home_hero_subheading": "為日常生活精選的優質產品。",
   "home_hero_cta": "立即選購",
@@ -68,12 +68,12 @@
   "product_card_no_variants": "沒有規格",
   "product_card_discount_pct": "-{pct}%",
 
-  "products_title": "產品 — GYEON",
+  "products_title": "產品 — {brand}",
   "products_heading_all": "所有產品",
   "products_listing_eyebrow": "目錄",
   "products_empty": "暫無產品。",
   "products_meta_description": "瀏覽 GYEON 完整目錄。依名稱搜尋、分類與價格篩選，安心選購。",
-  "wishlist_title": "願望清單 — GYEON",
+  "wishlist_title": "願望清單 — {brand}",
   "wishlist_heading": "願望清單",
   "wishlist_add": "加入願望清單",
   "wishlist_added": "已加入",
@@ -120,10 +120,10 @@
   "products_sort_price_desc": "價格：由高到低",
   "products_sort_name": "名稱",
 
-  "products_category_title": "{name} — GYEON",
+  "products_category_title": "{name} — {brand}",
   "products_category_empty": "此分類暫無產品。",
 
-  "product_detail_title": "{name} — GYEON",
+  "product_detail_title": "{name} — {brand}",
   "product_detail_options_label_multi": "選項",
   "product_detail_options_label_single": "現貨供應",
   "product_detail_add_to_cart": "加入購物車",
@@ -175,7 +175,7 @@
 
   "cart_cross_sells_kicker": "埋單之前",
   "cart_cross_sells_heading": "一齊買埋更啱用",
-  "cart_title": "購物車 — GYEON",
+  "cart_title": "購物車 — {brand}",
   "cart_heading": "您的購物車",
   "cart_empty": "您的購物車是空的。",
   "cart_continue_shopping": "繼續購物",
@@ -197,7 +197,7 @@
   "shipping_sf_free": "順豐速運（免運費）",
   "shipping_sf_cod": "順豐速運（到付）",
 
-  "checkout_title": "結帳 — GYEON",
+  "checkout_title": "結帳 — {brand}",
   "checkout_heading": "結帳",
   "checkout_modern_step_contact": "聯絡及送貨",
   "checkout_cart_empty": "您的購物車是空的。",
@@ -291,7 +291,7 @@
   "checkout_complete_payment_later": "稍後完成付款 →",
   "checkout_quote_failed": "無法取得運費報價。",
 
-  "checkout_success_title": "訂單已確認 — GYEON",
+  "checkout_success_title": "訂單已確認 — {brand}",
   "checkout_success_heading": "訂單已確認！",
   "checkout_success_body": "您的訂單 {orderNumber} 已成功送出。",
   "checkout_success_summary": "訂單摘要",
@@ -323,7 +323,7 @@
   "account_nav_wishlist": "願望清單",
   "account_nav_sign_out": "登出",
 
-  "account_login_title": "登入 — GYEON",
+  "account_login_title": "登入 — {brand}",
   "account_login_heading": "登入",
   "account_login_no_account": "還未有帳戶？",
   "account_login_register_link": "註冊",
@@ -345,7 +345,7 @@
   "account_forgot_submitting": "傳送中…",
   "account_forgot_cancel": "取消",
 
-  "account_register_title": "建立帳戶 — GYEON",
+  "account_register_title": "建立帳戶 — {brand}",
   "account_register_heading": "建立帳戶",
   "account_register_have_account": "已經有帳戶？",
   "account_register_login_link": "登入",
@@ -358,7 +358,7 @@
   "account_register_submit": "建立帳戶",
   "account_register_submitting": "建立中…",
 
-  "account_profile_title": "編輯個人資料 — GYEON",
+  "account_profile_title": "編輯個人資料 — {brand}",
   "account_profile_heading": "編輯個人資料",
   "account_profile_updated": "個人資料已更新。",
   "account_password_heading": "更改密碼",
@@ -376,7 +376,7 @@
   "account_profile_email": "電郵",
   "account_profile_phone": "電話",
 
-  "account_orders_title": "訂單記錄 — GYEON",
+  "account_orders_title": "訂單記錄 — {brand}",
   "account_orders_heading": "訂單記錄",
   "account_orders_empty": "暫無訂單。",
   "account_orders_start_shopping": "開始購物 →",
@@ -390,7 +390,7 @@
   "account_orders_no_results": "搵唔到符合嘅訂單。",
   "account_orders_clear": "清除篩選",
 
-  "purchased_title": "曾經購買 — GYEON",
+  "purchased_title": "曾經購買 — {brand}",
   "purchased_heading": "曾經購買",
   "purchased_intro": "您買過嘅一切，一鍵再入。",
   "purchased_empty": "您仲未買過任何產品。",
@@ -408,7 +408,7 @@
   "purchased_from_bundle": "來自套裝：{name}",
   "purchased_unavailable": "已不再供應",
 
-  "account_order_title": "訂單 {orderNumber} — GYEON",
+  "account_order_title": "訂單 {orderNumber} — {brand}",
   "account_order_back": "← 訂單",
   "account_order_placed_on": "下單時間：{date}",
   "account_order_items": "商品",
@@ -429,7 +429,7 @@
   "account_order_msg_send": "傳送",
   "account_order_msg_sending": "傳送中…",
 
-  "account_addresses_title": "我的地址 — GYEON",
+  "account_addresses_title": "我的地址 — {brand}",
   "account_addresses_heading": "地址",
   "account_addresses_add": "+ 新增地址",
   "account_addresses_empty": "暫無已儲存的地址。",
@@ -438,9 +438,9 @@
   "account_addresses_aria_delete": "刪除地址",
   "account_addresses_delete_confirm": "刪除此地址？",
 
-  "account_address_new_title": "新增地址 — GYEON",
+  "account_address_new_title": "新增地址 — {brand}",
   "account_address_new_heading": "新增地址",
-  "account_address_edit_title": "編輯地址 — GYEON",
+  "account_address_edit_title": "編輯地址 — {brand}",
   "account_address_edit_heading": "編輯地址",
   "account_address_form_first_name": "名字",
   "account_address_form_last_name": "姓氏",
@@ -457,7 +457,7 @@
   "account_address_form_deleting": "刪除中…",
 
 
-  "password_reset_title": "重設密碼 — GYEON",
+  "password_reset_title": "重設密碼 — {brand}",
   "password_reset_heading": "重設密碼",
   "password_reset_subheading": "請輸入新密碼以繼續使用您的 GYEON 帳戶。",
   "password_reset_invalid_link": "此連結已失效或無效。請聯絡客戶支援或重新申請連結。",
@@ -466,7 +466,7 @@
   "password_reset_confirm_label": "確認密碼",
   "password_reset_submit": "重設密碼",
 
-  "password_setup_title": "設定密碼 — GYEON",
+  "password_setup_title": "設定密碼 — {brand}",
   "password_setup_heading": "完成建立您的帳戶",
   "password_setup_subheading": "設定密碼以啟用帳戶，方便日後查看訂單。",
   "password_setup_invalid_link": "此連結已失效或缺少識別碼，請重新點擊訂單確認電郵內的連結。",
@@ -475,26 +475,26 @@
   "password_setup_confirm_label": "確認密碼",
   "password_setup_submit": "設定密碼",
 
-  "blog_title": "網誌 — GYEON",
+  "blog_title": "網誌 — {brand}",
   "blog_meta_description": "GYEON 最新文章",
   "blog_heading": "網誌",
   "blog_subheading": "GYEON 團隊的故事、最新消息及想法。",
   "blog_empty": "暫無文章 — 請稍後再來。",
   "blog_read_more": "閱讀更多",
 
-  "blog_category_title": "{name} — GYEON 網誌",
+  "blog_category_title": "{name} — {brand} 網誌",
   "blog_category_meta_description": "GYEON 網誌中關於「{name}」的文章",
   "blog_category_subheading": "歸類於「{name}」的文章。",
   "blog_category_empty": "此分類暫無文章 — 請稍後再來。",
 
-  "blog_post_title": "{title} — GYEON 網誌",
+  "blog_post_title": "{title} — {brand} 網誌",
 
   "maintenance_title": "維護中",
   "maintenance_heading": "維護中",
   "maintenance_body": "我們正在進行一些改進，將會盡快回來。",
   "maintenance_thanks": "感謝您的耐心等候。",
 
-  "pay_title": "完成付款 — GYEON",
+  "pay_title": "完成付款 — {brand}",
   "pay_heading": "完成付款",
   "pay_order_number_label": "訂單編號 ",
   "pay_summary_heading": "訂單摘要",

@@ -64,6 +64,7 @@ var publicSettingKeys = []string{
 	"pdp_taobao_layout_enabled",                 // site default for the taobao-style PDP modal; product-level use_taobao_layout overrides
 	"social_media",                              // JSON-encoded array of {icon, url, label?, customSvgPath?} rendered in the storefront footer
 	"website_slogan",                            // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
+	"site_name",                                 // storefront page-title brand suffix (admin General → 網站名稱); empty falls back to "GYEON"
 	"pdp_show_specs_strip",                      // storefront PDP toggle: dark-blue 4-points specs strip
 	"pdp_show_complete_set",                     // storefront PDP toggle: "相關產品" related-products BundleComposer
 	"pdp_complete_set_kicker",                   // storefront PDP override for the related-products kicker; empty falls back to i18n

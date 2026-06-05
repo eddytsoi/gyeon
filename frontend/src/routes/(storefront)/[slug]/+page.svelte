@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
+  import { siteName } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
   const { page } = data;
 </script>
 
 <svelte:head>
-  <title>{page.meta_title ?? page.title} — GYEON</title>
+  <title>{page.meta_title ?? page.title} — {siteName(data.publicSettings)}</title>
   {#if page.meta_desc}<meta name="description" content={page.meta_desc} />{/if}
 </svelte:head>
 

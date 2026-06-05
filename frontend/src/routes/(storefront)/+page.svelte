@@ -8,7 +8,7 @@
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
   import * as m from '$lib/paraglide/messages';
   import Seo from '$lib/components/Seo.svelte';
-  import { siteOrigin, snippet } from '$lib/seo';
+  import { siteName, siteOrigin, snippet } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
 
@@ -28,7 +28,7 @@
 
 {#if data.mode === 'page'}
   <Seo
-    title={`${data.page.meta_title ?? data.page.title} — GYEON`}
+    title={`${data.page.meta_title ?? data.page.title} — ${siteName(page.data.publicSettings)}`}
     description={data.page.meta_desc ?? snippet(data.page.content)}
     canonical={homeOrigin}
   />
@@ -45,7 +45,7 @@
   </div>
 {:else}
   <Seo
-    title={m.home_title()}
+    title={m.home_title({ brand: siteName(page.data.publicSettings) })}
     description={m.home_meta_description()}
     canonical={homeOrigin}
     jsonLd={homeJsonLd}
