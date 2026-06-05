@@ -537,6 +537,19 @@ func ShippingLabel(o *Order, locale string) string {
 	return "SF Express (pay on delivery)"
 }
 
+// nativeShippingMethod returns the orders.shipping_method value for a
+// Gyeon-native SF order, derived from the frozen shipping_free flag. The
+// strings intentionally match the WooCommerce importer's captured method
+// titles byte-for-byte (half-width parens + space) so native + imported orders
+// share the same shipping_method values. Distinct from ShippingLabel(), which
+// is the full-width, locale-aware customer-facing display label.
+func nativeShippingMethod(shippingFree bool) string {
+	if shippingFree {
+		return "順豐速運 (免運費)"
+	}
+	return "順豐速運 (到付)"
+}
+
 func (s *OrderService) SetTaxService(t *tax.Service) {
 	s.taxSvc = t
 }
@@ -1006,18 +1019,19 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status, payment_method,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id,
-		                     ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2, ship_city, ship_state, ship_postal_code, ship_country)
+		                     ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2, ship_city, ship_state, ship_postal_code, ship_country,
+		                     shipping_method)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-		         $21, $22, $23, $24, $25, $26, $27, $28, $29)
+		         $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		append([]any{
+		append(append([]any{
 			customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
 			emailPtr, phonePtr, namePtr, paymentStatusInit, paymentMethodPtr,
 			carrierPtr, servicePtr, nil, nil, req.CartID,
-		}, shipSnap.args()...)...).
+		}, shipSnap.args()...), nativeShippingMethod(shippingFree))...).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
