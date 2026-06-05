@@ -558,17 +558,37 @@ func (s *Service) CreateAddress(ctx context.Context, customerID string, req Crea
 		tx.ExecContext(ctx, `UPDATE addresses SET is_default=FALSE WHERE customer_id=$1`, customerID)
 	}
 
+	// Dedup-on-write: if the customer already has this exact address, reuse it
+	// instead of inserting a near-identical row. When the request asks for it to
+	// be the default, promote whichever row we end up with (covers both the
+	// reused-existing and freshly-inserted cases).
+	id, err := FindOrCreateAddress(ctx, tx, &customerID, AddressFields{
+		FirstName:  req.FirstName,
+		LastName:   req.LastName,
+		Phone:      req.Phone,
+		Line1:      req.Line1,
+		Line2:      req.Line2,
+		City:       req.City,
+		State:      req.State,
+		PostalCode: req.PostalCode,
+		Country:    req.Country,
+	}, req.IsDefault)
+	if err != nil {
+		return nil, err
+	}
+	if req.IsDefault {
+		if _, err := tx.ExecContext(ctx, `UPDATE addresses SET is_default=TRUE WHERE id=$1`, id); err != nil {
+			return nil, err
+		}
+	}
+
 	var a Address
-	err = tx.QueryRowContext(ctx,
-		`INSERT INTO addresses (customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-		 RETURNING id, customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default, created_at`,
-		customerID, req.FirstName, req.LastName, req.Phone, req.Line1, req.Line2,
-		req.City, req.State, req.PostalCode, req.Country, req.IsDefault).
+	if err := tx.QueryRowContext(ctx,
+		`SELECT id, customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default, created_at
+		 FROM addresses WHERE id=$1`, id).
 		Scan(&a.ID, &a.CustomerID, &a.FirstName, &a.LastName, &a.Phone,
 			&a.Line1, &a.Line2, &a.City, &a.State, &a.PostalCode, &a.Country,
-			&a.IsDefault, &a.CreatedAt)
-	if err != nil {
+			&a.IsDefault, &a.CreatedAt); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
