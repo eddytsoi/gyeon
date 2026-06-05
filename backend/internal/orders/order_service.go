@@ -709,16 +709,22 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		// Split name back into first/last for the address row
 		first, last := splitName(customerName)
 
-		var addrID string
-		err := s.db.QueryRowContext(ctx,
-			`INSERT INTO addresses (customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-			customerID, first, last, phonePtr,
-			req.ShippingAddress.Line1, line2,
-			req.ShippingAddress.City, state,
-			req.ShippingAddress.PostalCode, country).Scan(&addrID)
+		// Dedup-on-write: reuse an existing matching saved address instead of
+		// adding a near-identical row to the customer's address book on every
+		// checkout.
+		addrID, err := customers.FindOrCreateAddress(ctx, s.db, customerID, customers.AddressFields{
+			FirstName:  first,
+			LastName:   last,
+			Phone:      phonePtr,
+			Line1:      req.ShippingAddress.Line1,
+			Line2:      line2,
+			City:       req.ShippingAddress.City,
+			State:      state,
+			PostalCode: req.ShippingAddress.PostalCode,
+			Country:    country,
+		}, false)
 		if err != nil {
-			return nil, fmt.Errorf("insert address: %w", err)
+			return nil, fmt.Errorf("find or create address: %w", err)
 		}
 		shippingAddressID = &addrID
 	}

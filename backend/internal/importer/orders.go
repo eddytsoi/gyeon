@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gyeon/backend/internal/customers"
 )
 
 // OrdersImportRequest mirrors ImportRequest but is scoped to /wc/v3/orders.
@@ -467,20 +469,22 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 		country = "HK"
 	}
 
-	var id string
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO addresses (customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
-		RETURNING id`,
-		customerID, first, last,
-		nullableString(src.Phone),
-		strings.TrimSpace(src.Address1),
-		nullableString(src.Address2),
-		strings.TrimSpace(src.City),
-		nullableString(src.State),
-		strings.TrimSpace(src.Postcode),
-		country,
-	).Scan(&id); err != nil {
+	// Dedup-on-write: reuse the customer's existing matching address instead of
+	// snapshotting a fresh row per order. This is the core fix for duplicate
+	// addresses in 我的帳戶 > 地址, and makes re-imports idempotent. Guest orders
+	// (customerID == nil) still insert an unshared snapshot.
+	id, err := customers.FindOrCreateAddress(ctx, tx, customerID, customers.AddressFields{
+		FirstName:  first,
+		LastName:   last,
+		Phone:      nullableString(src.Phone),
+		Line1:      strings.TrimSpace(src.Address1),
+		Line2:      nullableString(src.Address2),
+		City:       strings.TrimSpace(src.City),
+		State:      nullableString(src.State),
+		PostalCode: strings.TrimSpace(src.Postcode),
+		Country:    country,
+	}, false)
+	if err != nil {
 		return nil, err
 	}
 	return &id, nil

@@ -505,20 +505,17 @@ func insertAddress(ctx context.Context, tx *sql.Tx, customerID string, a wcCusto
 		country = "HK"
 	}
 
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO addresses (customer_id, first_name, last_name, phone, line1, line2, city, state, postal_code, country, is_default)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		customerID,
-		first, last,
-		nullableString(a.Phone),
-		strings.TrimSpace(a.Address1),
-		nullableString(a.Address2),
-		strings.TrimSpace(a.City),
-		nullableString(a.State),
-		strings.TrimSpace(a.Postcode),
-		country,
-		isDefault,
-	)
+	_, err := customers.FindOrCreateAddress(ctx, tx, &customerID, customers.AddressFields{
+		FirstName:  first,
+		LastName:   last,
+		Phone:      nullableString(a.Phone),
+		Line1:      strings.TrimSpace(a.Address1),
+		Line2:      nullableString(a.Address2),
+		City:       strings.TrimSpace(a.City),
+		State:      nullableString(a.State),
+		PostalCode: strings.TrimSpace(a.Postcode),
+		Country:    country,
+	}, isDefault)
 	return err
 }
 
