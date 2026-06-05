@@ -415,19 +415,30 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 	appliedPromos := buildAppliedPromotions(discountResult)
 	appliedJSON := marshalAppliedPromotions(appliedPromos)
 
+	// Freeze the shipping address onto the order (ship_* snapshot) so later
+	// edits/deletes to the customer's address book never alter this order.
+	shipSnap, err := s.loadShipSnapshot(ctx, shippingAddressID)
+	if err != nil {
+		return nil, fmt.Errorf("load shipping snapshot: %w", err)
+	}
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, status, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status,
-		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label,
+		                     ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2, ship_city, ship_state, ship_postal_code, ship_country)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+		         $20, $21, $22, $23, $24, $25, $26, $27, $28)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, status, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
-		emailPtr, phonePtr, namePtr, paymentStatus,
-		carrierPtr, servicePtr, nil, nil).
+		append([]any{
+			customerID, shippingAddressID, status, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
+			emailPtr, phonePtr, namePtr, paymentStatus,
+			carrierPtr, servicePtr, nil, nil,
+		}, shipSnap.args()...)...).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,

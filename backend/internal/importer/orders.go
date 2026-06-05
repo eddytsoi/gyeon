@@ -186,10 +186,11 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	// as UTC would drift created_at by 8 hours.
 	createdAt := parseWCTime(firstNonEmpty(o.DateCreatedGMT, o.DateCreated))
 
-	shipAddrID, err := snapshotOrderAddress(ctx, tx, customerID, o)
+	shipAddrID, shipFields, err := snapshotOrderAddress(ctx, tx, customerID, o)
 	if err != nil {
 		return fmt.Errorf("snapshot address: %w", err)
 	}
+	shipArgs := shipSnapshotArgs(shipFields)
 
 	notes := nullableString(o.CustomerNote)
 
@@ -209,6 +210,14 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	}
 
 	if existed {
+		updateArgs := append([]any{
+			orderID, customerID, status, shipAddrID,
+			subtotal, shippingFee, discount, tax, total,
+			notes, createdAt,
+			custEmail, custPhone, custName,
+		}, shipArgs...)
+		// Re-imports refresh the ship_* snapshot when the WC address changed,
+		// mirroring how customer_* are refreshed above.
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE orders SET
 				customer_id         = $2,
@@ -223,12 +232,18 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				created_at          = $11,
 				customer_email      = $12,
 				customer_phone      = $13,
-				customer_name       = $14
+				customer_name       = $14,
+				ship_first_name     = $15,
+				ship_last_name      = $16,
+				ship_phone          = $17,
+				ship_line1          = $18,
+				ship_line2          = $19,
+				ship_city           = $20,
+				ship_state          = $21,
+				ship_postal_code    = $22,
+				ship_country        = $23
 			 WHERE id = $1`,
-			orderID, customerID, status, shipAddrID,
-			subtotal, shippingFee, discount, tax, total,
-			notes, createdAt,
-			custEmail, custPhone, custName,
+			updateArgs...,
 		); err != nil {
 			return fmt.Errorf("update order: %w", err)
 		}
@@ -238,18 +253,24 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 		p.UpdatedOrders++
 	} else {
 		var number int64
+		insertArgs := append([]any{
+			o.ID, customerID, status, shipAddrID,
+			subtotal, shippingFee, discount, tax, total,
+			notes, createdAt,
+			custEmail, custPhone, custName,
+		}, shipArgs...)
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO orders (
 				wc_order_id, customer_id, status, shipping_address_id,
 				subtotal, shipping_fee, discount_amount, tax_amount, total,
 				notes, created_at,
-				customer_email, customer_phone, customer_name
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				customer_email, customer_phone, customer_name,
+				ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2,
+				ship_city, ship_state, ship_postal_code, ship_country
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+			          $15, $16, $17, $18, $19, $20, $21, $22, $23)
 			RETURNING id, number`,
-			o.ID, customerID, status, shipAddrID,
-			subtotal, shippingFee, discount, tax, total,
-			notes, createdAt,
-			custEmail, custPhone, custName,
+			insertArgs...,
 		).Scan(&orderID, &number); err != nil {
 			return fmt.Errorf("insert order: %w", err)
 		}
@@ -443,7 +464,10 @@ func (s *Service) resolveVariant(ctx context.Context, tx *sql.Tx, li wcLineItem)
 // upserted. Prefers shipping over billing; falls back to billing when
 // shipping is empty (some WC stores omit shipping for digital goods).
 // Returns NULL when neither has a usable line1/city/postcode.
-func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o wcOrder) (*string, error) {
+// Also returns the resolved AddressFields so the caller can freeze them onto
+// the order's ship_* snapshot columns. Returns (nil, nil, nil) when neither
+// shipping nor billing has a usable address.
+func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o wcOrder) (*string, *customers.AddressFields, error) {
 	var src wcCustomerAddress
 	switch {
 	case hasAddress(o.Shipping):
@@ -451,7 +475,7 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 	case hasAddress(o.Billing.wcCustomerAddress):
 		src = o.Billing.wcCustomerAddress
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	first := strings.TrimSpace(src.FirstName)
@@ -469,11 +493,7 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 		country = "HK"
 	}
 
-	// Dedup-on-write: reuse the customer's existing matching address instead of
-	// snapshotting a fresh row per order. This is the core fix for duplicate
-	// addresses in 我的帳戶 > 地址, and makes re-imports idempotent. Guest orders
-	// (customerID == nil) still insert an unshared snapshot.
-	id, err := customers.FindOrCreateAddress(ctx, tx, customerID, customers.AddressFields{
+	fields := customers.AddressFields{
 		FirstName:  first,
 		LastName:   last,
 		Phone:      nullableString(src.Phone),
@@ -483,11 +503,27 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 		State:      nullableString(src.State),
 		PostalCode: strings.TrimSpace(src.Postcode),
 		Country:    country,
-	}, false)
-	if err != nil {
-		return nil, err
 	}
-	return &id, nil
+
+	// Dedup-on-write: reuse the customer's existing matching address instead of
+	// snapshotting a fresh row per order. This is the core fix for duplicate
+	// addresses in 我的帳戶 > 地址, and makes re-imports idempotent. Guest orders
+	// (customerID == nil) still insert an unshared snapshot.
+	id, err := customers.FindOrCreateAddress(ctx, tx, customerID, fields, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &id, &fields, nil
+}
+
+// shipSnapshotArgs returns the 9 ship_* column values (in column order) for an
+// order INSERT/UPDATE from the resolved address fields, or 9 NULLs when the
+// order has no usable address (guest / digital-only).
+func shipSnapshotArgs(f *customers.AddressFields) []any {
+	if f == nil {
+		return []any{nil, nil, nil, nil, nil, nil, nil, nil, nil}
+	}
+	return []any{f.FirstName, f.LastName, f.Phone, f.Line1, f.Line2, f.City, f.State, f.PostalCode, f.Country}
 }
 
 func parseDecimal(s string) float64 {
