@@ -261,9 +261,19 @@ type wcOrder struct {
 	TotalTax       string            `json:"total_tax"`
 	DiscountTotal  string            `json:"discount_total"`
 	ShippingTotal  string            `json:"shipping_total"`
+	ShippingLines  []wcShippingLine  `json:"shipping_lines"`
 	LineItems      []wcLineItem      `json:"line_items"`
 	Billing        wcOrderBilling    `json:"billing"`
 	Shipping       wcCustomerAddress `json:"shipping"`
+}
+
+// wcShippingLine is one entry of a WC order's `shipping_lines` array. We keep
+// the human-readable method title (e.g. 「順豐速運」 / "SF Express") for the admin
+// 按物流 breakdown; method_id / total are parsed for completeness.
+type wcShippingLine struct {
+	MethodID    string `json:"method_id"`
+	MethodTitle string `json:"method_title"`
+	Total       string `json:"total"`
 }
 
 type wcClient struct {

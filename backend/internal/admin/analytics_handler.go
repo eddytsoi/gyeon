@@ -515,11 +515,15 @@ func (h *AnalyticsHandler) revenueBreakdown(w http.ResponseWriter, r *http.Reque
 		      GROUP BY 1
 		      ORDER BY value DESC`
 	case "carrier":
+		// Prefer the ShipAny courier UID chosen at Gyeon checkout; fall back to
+		// the WC shipping method title captured on import (imported orders have
+		// no selected_carrier). Frontend resolves UIDs to names and passes WC
+		// method titles through as-is.
 		custJoin, catJoin, rev, cnt, where, a := f.scopeRevenue("o.status NOT IN ('cancelled')")
 		args = a
-		q = `SELECT COALESCE(NULLIF(o.selected_carrier, ''), '—') AS label, ` + rev + ` AS value, ` + cnt + ` AS n
+		q = `SELECT COALESCE(NULLIF(o.selected_carrier, ''), NULLIF(o.shipping_method, ''), '—') AS label, ` + rev + ` AS value, ` + cnt + ` AS n
 		       FROM orders o` + custJoin + catJoin + where + `
-		      GROUP BY COALESCE(NULLIF(o.selected_carrier, ''), '—')
+		      GROUP BY 1
 		      ORDER BY value DESC`
 	default: // "category"
 		// Line-item revenue attributed to each product's primary category.
