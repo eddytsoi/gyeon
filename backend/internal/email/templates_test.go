@@ -1,6 +1,7 @@
 package email
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -190,6 +191,84 @@ func TestEscFuncMap(t *testing.T) {
 	want := "Hi &lt;script&gt;!"
 	if out != want {
 		t.Errorf("esc output mismatch: got %q want %q", out, want)
+	}
+}
+
+// TestMergeTemplateGlobals verifies the params struct is flattened into a map
+// (preserving concrete field types like []OrderEmailItem) and the site-wide
+// globals are overlaid.
+func TestMergeTemplateGlobals(t *testing.T) {
+	p := OrderEmailParams{
+		OrderNumber: "ORD-1",
+		Currency:    "HKD",
+		Items:       []OrderEmailItem{{Name: "X", Quantity: 1}},
+	}
+	merged := mergeTemplateGlobals(p, map[string]string{
+		"BaseURL": "https://shop.test", "SiteName": "GYEON", "ContactEmail": "hi@shop.test",
+	})
+	m, ok := merged.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", merged)
+	}
+	if m["OrderNumber"] != "ORD-1" {
+		t.Errorf("OrderNumber not carried: %v", m["OrderNumber"])
+	}
+	if m["BaseURL"] != "https://shop.test" || m["SiteName"] != "GYEON" || m["ContactEmail"] != "hi@shop.test" {
+		t.Errorf("globals not overlaid: %v / %v / %v", m["BaseURL"], m["SiteName"], m["ContactEmail"])
+	}
+	items, ok := m["Items"].([]OrderEmailItem)
+	if !ok || len(items) != 1 || items[0].Name != "X" {
+		t.Errorf("Items slice lost its concrete type: %T", m["Items"])
+	}
+}
+
+// TestTemplateGlobalsRender verifies an admin override can reference the three
+// site-wide globals AND that existing params fields, looped {{range .Items}},
+// and {{$.Currency}} root-access still resolve through the merged map.
+func TestTemplateGlobalsRender(t *testing.T) {
+	p := OrderEmailParams{
+		OrderNumber: "ORD-1",
+		Currency:    "HKD",
+		Items:       []OrderEmailItem{{Name: "Widget", Quantity: 2}},
+	}
+	data := mergeTemplateGlobals(p, map[string]string{
+		"BaseURL": "https://shop.test", "SiteName": "GYEON", "ContactEmail": "hi@shop.test",
+	})
+	body := `{{.OrderNumber}} | {{.BaseURL}} | {{.SiteName}} | {{.ContactEmail}} | {{range .Items}}{{$.Currency}} {{.Name}}{{end}}`
+	out, ok := executeTemplate("globals", body, data)
+	if !ok {
+		t.Fatalf("render failed")
+	}
+	want := "ORD-1 | https://shop.test | GYEON | hi@shop.test | HKD Widget"
+	if out != want {
+		t.Errorf("got %q want %q", out, want)
+	}
+}
+
+// TestExecuteTemplateMissingKeyFails verifies that a typo'd reference against
+// the merged map still fails the render (ok=false) so applyTemplate falls back
+// to the compiled-in default instead of emitting "<no value>".
+func TestExecuteTemplateMissingKeyFails(t *testing.T) {
+	data := mergeTemplateGlobals(OrderEmailParams{OrderNumber: "ORD-1"},
+		map[string]string{"BaseURL": "x", "SiteName": "y", "ContactEmail": "z"})
+	if _, ok := executeTemplate("typo", `{{.Ordernumbr}}`, data); ok {
+		t.Errorf("expected missing map key to fail render so caller falls back to default")
+	}
+}
+
+// TestVariablesForIncludesGlobals verifies every template key surfaces the
+// three site-wide globals as variable chips, and unknown keys stay nil.
+func TestVariablesForIncludesGlobals(t *testing.T) {
+	for _, key := range AllKeys() {
+		vars := VariablesFor(key)
+		for _, g := range []string{".BaseURL", ".SiteName", ".ContactEmail"} {
+			if !slices.Contains(vars, g) {
+				t.Errorf("VariablesFor(%q) missing global %q", key, g)
+			}
+		}
+	}
+	if VariablesFor("does_not_exist") != nil {
+		t.Errorf("unknown key should return nil, not globals")
 	}
 }
 

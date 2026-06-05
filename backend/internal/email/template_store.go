@@ -8,6 +8,7 @@ import (
 	"html"
 	"log"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	texttmpl "text/template"
@@ -147,13 +148,63 @@ func (s *Service) applyTemplate(ctx context.Context, key string, params any,
 		return fallback()
 	}
 
-	subject, ok1 := executeTemplate("subject:"+key, t.Subject, params)
-	html, ok2 := executeTemplate("html:"+key, t.HTML, params)
-	text, ok3 := executeTemplate("text:"+key, t.Text, params)
+	// Expose site-wide settings to every admin-edited template as flat
+	// variables ({{.BaseURL}}, {{.SiteName}}, {{.ContactEmail}}) alongside the
+	// template's own params. Merged here — the single render choke point for
+	// both the synchronous SendXxx path and the queue worker's RenderTemplate.
+	data := mergeTemplateGlobals(params, map[string]string{
+		"BaseURL":      s.PublicBaseURL(ctx),
+		"SiteName":     firstNonEmptyStr(s.read(ctx, "site_name"), s.read(ctx, "smtp_from_name"), "GYEON"),
+		"ContactEmail": s.read(ctx, "contact_email"),
+	})
+
+	subject, ok1 := executeTemplate("subject:"+key, t.Subject, data)
+	html, ok2 := executeTemplate("html:"+key, t.HTML, data)
+	text, ok3 := executeTemplate("text:"+key, t.Text, data)
 	if !ok1 || !ok2 || !ok3 {
 		return fallback()
 	}
 	return subject, html, text
+}
+
+// mergeTemplateGlobals reflects the exported top-level fields of a params struct
+// into a map and overlays the site-wide globals, so templates can reference both
+// the params' own fields and {{.BaseURL}} / {{.SiteName}} / {{.ContactEmail}}.
+// Only the TOP level is flattened — nested values (e.g. []OrderEmailItem) keep
+// their concrete types so {{range .Items}}{{.Name}}{{end}} and {{$.Currency}}
+// still resolve. None of the params structs declare a field named after a
+// global, so there is no collision. A non-struct params value (the empty
+// map[string]string sample) degrades to just the globals.
+func mergeTemplateGlobals(params any, globals map[string]string) any {
+	out := make(map[string]any)
+	rv := reflect.ValueOf(params)
+	for rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	if rv.Kind() == reflect.Struct {
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			f := rt.Field(i)
+			if f.PkgPath != "" || f.Anonymous { // skip unexported / embedded
+				continue
+			}
+			out[f.Name] = rv.Field(i).Interface()
+		}
+	}
+	for k, v := range globals {
+		out[k] = v
+	}
+	return out
+}
+
+// firstNonEmptyStr returns the first non-blank string, or "" if all are blank.
+func firstNonEmptyStr(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func executeTemplate(name, body string, params any) (string, bool) {
@@ -162,6 +213,11 @@ func executeTemplate(name, body string, params any) (string, bool) {
 		log.Printf("email: parse %s: %v", name, err)
 		return "", false
 	}
+	// Templates now render against a map (mergeTemplateGlobals). missingkey=error
+	// preserves the struct-era behaviour where an unknown reference (a typo'd
+	// {{.Foo}}) errors and the caller falls back to the compiled-in default,
+	// instead of silently emitting "<no value>".
+	tmpl = tmpl.Option("missingkey=error")
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, params); err != nil {
 		log.Printf("email: exec %s: %v", name, err)
@@ -304,6 +360,16 @@ func SampleParamsFor(key string) any {
 // ── Variable hints surfaced in the admin UI for each template key ──────────
 
 func VariablesFor(key string) []string {
+	base := variablesForKey(key)
+	if base == nil {
+		return nil
+	}
+	// Site-wide globals merged into every template by mergeTemplateGlobals —
+	// surface them as chips on every template key.
+	return append(base, ".BaseURL", ".SiteName", ".ContactEmail")
+}
+
+func variablesForKey(key string) []string {
 	switch key {
 	case "order_confirmation":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".Currency",
