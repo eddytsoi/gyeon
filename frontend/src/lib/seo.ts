@@ -6,6 +6,12 @@ export function siteOrigin(settings: PublicSetting[] | null | undefined, fallbac
   return (v || fallback).replace(/\/+$/, '');
 }
 
+/** Returns the configured site name (admin 網站名稱) for title/brand use. */
+export function siteName(settings: PublicSetting[] | null | undefined, fallback = 'GYEON'): string {
+  const v = settings?.find((s) => s.key === 'site_name')?.value?.trim();
+  return v || fallback;
+}
+
 /** Strip basic markdown / HTML and trim to a meta-description-length string. */
 export function snippet(input: string | null | undefined, maxLen = 160): string {
   if (!input) return '';

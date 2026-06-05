@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import CartClassic from './CartClassic.svelte';
   import CartModern from './CartModern.svelte';
   import type { PageData } from './$types';
@@ -13,7 +14,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.cart_title()}</title>
+  <title>{m.cart_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 {#if cartLayout === 'modern'}

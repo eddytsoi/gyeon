@@ -55,7 +55,7 @@
   "footer_link_my_cart": "My Cart",
   "footer_copyright": "© {year} GYEON HK. All rights reserved.",
 
-  "home_title": "GYEON — Home",
+  "home_title": "{brand} — Home",
   "home_hero_heading": "Quality, delivered.",
   "home_hero_subheading": "Curated products for everyday life.",
   "home_hero_cta": "Shop Now",
@@ -68,12 +68,12 @@
   "product_card_no_variants": "No variants",
   "product_card_discount_pct": "-{pct}%",
 
-  "products_title": "Products — GYEON",
+  "products_title": "Products — {brand}",
   "products_heading_all": "All Products",
   "products_listing_eyebrow": "Listing",
   "products_empty": "No products available yet.",
   "products_meta_description": "Browse the full GYEON catalog. Search by name, filter by category and price, and shop with confidence.",
-  "wishlist_title": "Wishlist — GYEON",
+  "wishlist_title": "Wishlist — {brand}",
   "wishlist_heading": "Wishlist",
   "wishlist_add": "Save to wishlist",
   "wishlist_added": "Saved",
@@ -120,10 +120,10 @@
   "products_sort_price_desc": "Price: high to low",
   "products_sort_name": "Name",
 
-  "products_category_title": "{name} — GYEON",
+  "products_category_title": "{name} — {brand}",
   "products_category_empty": "No products in this category yet.",
 
-  "product_detail_title": "{name} — GYEON",
+  "product_detail_title": "{name} — {brand}",
   "product_detail_options_label_multi": "OPTIONS",
   "product_detail_options_label_single": "Available",
   "product_detail_add_to_cart": "Add to Cart",
@@ -175,7 +175,7 @@
 
   "cart_cross_sells_kicker": "Before You Go",
   "cart_cross_sells_heading": "Goes Well With Your Cart",
-  "cart_title": "Cart — GYEON",
+  "cart_title": "Cart — {brand}",
   "cart_heading": "Your Cart",
   "cart_empty": "Your cart is empty.",
   "cart_continue_shopping": "Continue Shopping",
@@ -197,7 +197,7 @@
   "shipping_sf_free": "SF Express (free)",
   "shipping_sf_cod": "SF Express (pay on delivery)",
 
-  "checkout_title": "Checkout — GYEON",
+  "checkout_title": "Checkout — {brand}",
   "checkout_heading": "Checkout",
   "checkout_modern_step_contact": "Contact & Delivery",
   "checkout_cart_empty": "Your cart is empty.",
@@ -291,7 +291,7 @@
   "checkout_complete_payment_later": "Complete payment later →",
   "checkout_quote_failed": "Failed to get a shipping quote.",
 
-  "checkout_success_title": "Order Confirmed — GYEON",
+  "checkout_success_title": "Order Confirmed — {brand}",
   "checkout_success_heading": "Order Confirmed!",
   "checkout_success_body": "Your order {orderNumber} has been placed successfully.",
   "checkout_success_summary": "Order Summary",
@@ -323,7 +323,7 @@
   "account_nav_wishlist": "Wishlist",
   "account_nav_sign_out": "Sign out",
 
-  "account_login_title": "Sign In — GYEON",
+  "account_login_title": "Sign In — {brand}",
   "account_login_heading": "Sign in",
   "account_login_no_account": "Don't have an account?",
   "account_login_register_link": "Register",
@@ -345,7 +345,7 @@
   "account_forgot_submitting": "Sending…",
   "account_forgot_cancel": "Cancel",
 
-  "account_register_title": "Create Account — GYEON",
+  "account_register_title": "Create Account — {brand}",
   "account_register_heading": "Create account",
   "account_register_have_account": "Already have an account?",
   "account_register_login_link": "Sign in",
@@ -358,7 +358,7 @@
   "account_register_submit": "Create account",
   "account_register_submitting": "Creating account…",
 
-  "account_profile_title": "Edit Profile — GYEON",
+  "account_profile_title": "Edit Profile — {brand}",
   "account_profile_heading": "Edit Profile",
   "account_profile_updated": "Profile updated.",
   "account_password_heading": "Change password",
@@ -376,7 +376,7 @@
   "account_profile_email": "Email",
   "account_profile_phone": "Phone",
 
-  "account_orders_title": "Order History — GYEON",
+  "account_orders_title": "Order History — {brand}",
   "account_orders_heading": "Order History",
   "account_orders_empty": "No orders yet.",
   "account_orders_start_shopping": "Start shopping →",
@@ -390,7 +390,7 @@
   "account_orders_no_results": "No orders match your search.",
   "account_orders_clear": "Clear filters",
 
-  "purchased_title": "Previously Purchased — GYEON",
+  "purchased_title": "Previously Purchased — {brand}",
   "purchased_heading": "Previously Purchased",
   "purchased_intro": "Everything you've bought, ready to re-order.",
   "purchased_empty": "You haven't bought anything yet.",
@@ -408,7 +408,7 @@
   "purchased_from_bundle": "In bundle: {name}",
   "purchased_unavailable": "No longer available",
 
-  "account_order_title": "Order {orderNumber} — GYEON",
+  "account_order_title": "Order {orderNumber} — {brand}",
   "account_order_back": "← Orders",
   "account_order_placed_on": "Placed {date}",
   "account_order_items": "Items",
@@ -429,7 +429,7 @@
   "account_order_msg_send": "Send",
   "account_order_msg_sending": "Sending…",
 
-  "account_addresses_title": "My Addresses — GYEON",
+  "account_addresses_title": "My Addresses — {brand}",
   "account_addresses_heading": "Addresses",
   "account_addresses_add": "+ Add address",
   "account_addresses_empty": "No saved addresses yet.",
@@ -438,9 +438,9 @@
   "account_addresses_aria_delete": "Delete address",
   "account_addresses_delete_confirm": "Delete this address?",
 
-  "account_address_new_title": "Add Address — GYEON",
+  "account_address_new_title": "Add Address — {brand}",
   "account_address_new_heading": "Add Address",
-  "account_address_edit_title": "Edit Address — GYEON",
+  "account_address_edit_title": "Edit Address — {brand}",
   "account_address_edit_heading": "Edit Address",
   "account_address_form_first_name": "First name",
   "account_address_form_last_name": "Last name",
@@ -457,7 +457,7 @@
   "account_address_form_deleting": "Deleting…",
 
 
-  "password_reset_title": "Reset Password — GYEON",
+  "password_reset_title": "Reset Password — {brand}",
   "password_reset_heading": "Reset password",
   "password_reset_subheading": "Enter a new password to continue using your GYEON account.",
   "password_reset_invalid_link": "This link is invalid or has expired. Please contact support or request a new link.",
@@ -466,7 +466,7 @@
   "password_reset_confirm_label": "Confirm password",
   "password_reset_submit": "Reset password",
 
-  "password_setup_title": "Set Password — GYEON",
+  "password_setup_title": "Set Password — {brand}",
   "password_setup_heading": "Finish creating your account",
   "password_setup_subheading": "Set a password to activate your account so you can review orders later.",
   "password_setup_invalid_link": "This link is invalid or is missing an identifier. Please click the link in your order confirmation email again.",
@@ -475,26 +475,26 @@
   "password_setup_confirm_label": "Confirm password",
   "password_setup_submit": "Set password",
 
-  "blog_title": "Blog — GYEON",
+  "blog_title": "Blog — {brand}",
   "blog_meta_description": "Latest articles from GYEON",
   "blog_heading": "Blog",
   "blog_subheading": "Stories, updates and ideas from the GYEON team.",
   "blog_empty": "No posts yet — check back soon.",
   "blog_read_more": "Read more",
 
-  "blog_category_title": "{name} — GYEON Blog",
+  "blog_category_title": "{name} — {brand} Blog",
   "blog_category_meta_description": "{name} posts from the GYEON blog",
   "blog_category_subheading": "Stories filed under {name}.",
   "blog_category_empty": "No posts in this category yet — check back soon.",
 
-  "blog_post_title": "{title} — GYEON Blog",
+  "blog_post_title": "{title} — {brand} Blog",
 
   "maintenance_title": "Under Maintenance",
   "maintenance_heading": "Under Maintenance",
   "maintenance_body": "We're making some improvements and will be back shortly.",
   "maintenance_thanks": "Thank you for your patience.",
 
-  "pay_title": "Complete Payment — GYEON",
+  "pay_title": "Complete Payment — {brand}",
   "pay_heading": "Complete payment",
   "pay_order_number_label": "Order ID ",
   "pay_summary_heading": "Order summary",

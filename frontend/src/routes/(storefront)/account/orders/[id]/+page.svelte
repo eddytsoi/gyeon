@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { buildShareUrl, shareOrCopyUrl } from '$lib/cartShare';
@@ -171,7 +172,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_order_title({ orderNumber: order.order_number || `ORD-${order.number}` })}</title>
+  <title>{m.account_order_title({ orderNumber: order.order_number || `ORD-${order.number}`, brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="flex flex-col gap-6">

@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import { focusTrap } from '$lib/actions/focusTrap';
   import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 
@@ -36,7 +37,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_login_title()}</title>
+  <title>{m.account_login_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="min-h-[60vh] flex items-center justify-center px-4 py-12">

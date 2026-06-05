@@ -5,6 +5,7 @@
   import { formatHKD } from '$lib/money';
   import { trackPurchase } from '$lib/tracker';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import { orderStatusLabel } from '$lib/orderStatus';
   import AppliedPromotions from '$lib/components/AppliedPromotions.svelte';
   import BankTransferNotice from '$lib/components/shop/BankTransferNotice.svelte';
@@ -54,7 +55,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.checkout_success_title()}</title>
+  <title>{m.checkout_success_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">

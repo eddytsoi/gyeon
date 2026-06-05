@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
   import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 
   let { form, data }: { form: ActionData; data: PageData } = $props();
@@ -9,7 +10,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_register_title()}</title>
+  <title>{m.account_register_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="min-h-[60vh] flex items-center justify-center px-4 py-12">

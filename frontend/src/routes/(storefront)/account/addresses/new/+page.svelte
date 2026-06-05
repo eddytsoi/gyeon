@@ -4,6 +4,7 @@
   import { COUNTRY_BY_CODE } from '$lib/data/countries';
   import { HK_DISTRICTS } from '$lib/data/hk-districts';
   import * as m from '$lib/paraglide/messages';
+  import { siteName } from '$lib/seo';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
   let loading = $state(false);
@@ -14,7 +15,7 @@
 </script>
 
 <svelte:head>
-  <title>{m.account_address_new_title()}</title>
+  <title>{m.account_address_new_title({ brand: siteName(data.publicSettings) })}</title>
 </svelte:head>
 
 <div class="bg-white rounded-2xl border border-gray-100 p-6">
