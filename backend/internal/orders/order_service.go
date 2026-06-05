@@ -988,19 +988,30 @@ func (s *OrderService) Checkout(ctx context.Context, req CheckoutRequest) (*Chec
 		paymentMethodPtr = &m
 	}
 
+	// Freeze the shipping address onto the order (ship_* snapshot) so later
+	// edits/deletes to the customer's address book never alter this order.
+	shipSnap, err := s.loadShipSnapshot(ctx, shippingAddressID)
+	if err != nil {
+		return nil, fmt.Errorf("load shipping snapshot: %w", err)
+	}
+
 	var order Order
 	err = tx.QueryRowContext(ctx,
 		`INSERT INTO orders (customer_id, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		                     customer_email, customer_phone, customer_name, payment_status, payment_method,
-		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label, cart_id,
+		                     ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2, ship_city, ship_state, ship_postal_code, ship_country)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+		         $21, $22, $23, $24, $25, $26, $27, $28, $29)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
-		emailPtr, phonePtr, namePtr, paymentStatusInit, paymentMethodPtr,
-		carrierPtr, servicePtr, nil, nil, req.CartID).
+		append([]any{
+			customerID, shippingAddressID, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
+			emailPtr, phonePtr, namePtr, paymentStatusInit, paymentMethodPtr,
+			carrierPtr, servicePtr, nil, nil, req.CartID,
+		}, shipSnap.args()...)...).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
@@ -1252,6 +1263,9 @@ func (s *OrderService) resumePendingOrder(ctx context.Context, order *Order, shi
 			order.ID, shippingAddressID, emailPtr, phonePtr, namePtr, notes); err != nil {
 			return nil, fmt.Errorf("refresh pending bank-transfer order %s: %w", order.ID, err)
 		}
+		if err := s.refreshOrderShipSnapshot(ctx, order.ID, shippingAddressID); err != nil {
+			return nil, fmt.Errorf("refresh bank-transfer order ship snapshot %s: %w", order.ID, err)
+		}
 		return &CheckoutResult{Order: order}, nil
 	}
 
@@ -1268,6 +1282,9 @@ func (s *OrderService) resumePendingOrder(ctx context.Context, order *Order, shi
 		 WHERE id = $1`,
 		order.ID, shippingAddressID, emailPtr, phonePtr, namePtr, notes); err != nil {
 		return nil, fmt.Errorf("refresh pending order %s: %w", order.ID, err)
+	}
+	if err := s.refreshOrderShipSnapshot(ctx, order.ID, shippingAddressID); err != nil {
+		return nil, fmt.Errorf("refresh order ship snapshot %s: %w", order.ID, err)
 	}
 	rps := "requires_payment_method"
 	order.PaymentStatus = &rps
@@ -1701,14 +1718,14 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 		return
 	}
 
-	// Look up shipping address (best-effort)
+	// Shipping address from the order's frozen snapshot (ship_* columns), not a
+	// live join — the confirmation reflects what was shipped, immutably.
 	var line1, line2, city, state, postal, country string
-	if order.ShippingAddressID != nil {
-		s.db.QueryRowContext(ctx,
-			`SELECT line1, COALESCE(line2,''), city, COALESCE(state,''), postal_code, country
-			 FROM addresses WHERE id=$1`, *order.ShippingAddressID).
-			Scan(&line1, &line2, &city, &state, &postal, &country)
-	}
+	s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(ship_line1,''), COALESCE(ship_line2,''), COALESCE(ship_city,''),
+		        COALESCE(ship_state,''), COALESCE(ship_postal_code,''), COALESCE(ship_country,'')
+		 FROM orders WHERE id=$1`, order.ID).
+		Scan(&line1, &line2, &city, &state, &postal, &country)
 
 	items := buildOrderEmailItems(order.Items)
 
@@ -2161,6 +2178,92 @@ func splitName(full string) (string, string) {
 	return parts[0], parts[1]
 }
 
+// nullStrPtr converts a sql.NullString into a *string, returning nil for NULL
+// or empty values (the JSON shape omits these via omitempty).
+func nullStrPtr(n sql.NullString) *string {
+	if n.Valid && n.String != "" {
+		s := n.String
+		return &s
+	}
+	return nil
+}
+
+// shipSnapshot is the frozen shipping-address copy written onto an order's
+// ship_* columns at write time, so order history stays independent of the
+// (editable, deduped) customer address book. Field order matches the ship_*
+// column order used by every order INSERT/UPDATE.
+type shipSnapshot struct {
+	FirstName  string
+	LastName   string
+	Phone      *string
+	Line1      string
+	Line2      *string
+	City       string
+	State      *string
+	PostalCode string
+	Country    string
+}
+
+// args returns the 9 ship_* values in column order for an INSERT/UPDATE.
+func (snap shipSnapshot) args() []any {
+	return []any{snap.FirstName, snap.LastName, snap.Phone, snap.Line1, snap.Line2,
+		snap.City, snap.State, snap.PostalCode, snap.Country}
+}
+
+// loadShipSnapshot reads the resolved address-book row to freeze onto an order.
+// Returns a zero snapshot (empty Line1 → NULL ship_* / no captured address)
+// when addressID is nil/empty or the row is gone, preserving the prior
+// "no shipping address" behavior for guest / legacy orders.
+func (s *OrderService) loadShipSnapshot(ctx context.Context, addressID *string) (shipSnapshot, error) {
+	var snap shipSnapshot
+	if addressID == nil || *addressID == "" {
+		return snap, nil
+	}
+	var first, last, phone, line1, line2, city, state, postal, country sql.NullString
+	err := s.db.QueryRowContext(ctx,
+		`SELECT first_name, last_name, phone, line1, line2, city, state, postal_code, country
+		 FROM addresses WHERE id = $1`, *addressID).
+		Scan(&first, &last, &phone, &line1, &line2, &city, &state, &postal, &country)
+	if errors.Is(err, sql.ErrNoRows) {
+		return snap, nil
+	}
+	if err != nil {
+		return snap, err
+	}
+	return shipSnapshot{
+		FirstName:  first.String,
+		LastName:   last.String,
+		Phone:      nullStrPtr(phone),
+		Line1:      line1.String,
+		Line2:      nullStrPtr(line2),
+		City:       city.String,
+		State:      nullStrPtr(state),
+		PostalCode: postal.String,
+		Country:    country.String,
+	}, nil
+}
+
+// refreshOrderShipSnapshot re-freezes an order's ship_* columns from the given
+// address when the shopper changed address mid-resume. A nil/empty addressID
+// means the address was unchanged, so the existing frozen snapshot is left
+// intact (symmetric with the shipping_address_id = COALESCE($2, …) pattern).
+func (s *OrderService) refreshOrderShipSnapshot(ctx context.Context, orderID string, addressID *string) error {
+	if addressID == nil || *addressID == "" {
+		return nil
+	}
+	snap, err := s.loadShipSnapshot(ctx, addressID)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE orders SET
+		    ship_first_name=$2, ship_last_name=$3, ship_phone=$4, ship_line1=$5, ship_line2=$6,
+		    ship_city=$7, ship_state=$8, ship_postal_code=$9, ship_country=$10, updated_at=now()
+		 WHERE id=$1`,
+		append([]any{orderID}, snap.args()...)...)
+	return err
+}
+
 // GetByIDForCustomer returns the order only if it belongs to the given
 // customer. Returns ErrOrderNotFound on a miss so the caller cannot
 // distinguish "wrong owner" from "non-existent" via the response.
@@ -2207,6 +2310,7 @@ func (s *OrderService) GetByIDForPaymentIntent(ctx context.Context, orderID, pay
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	var appliedPromosRaw []byte
+	var shipFirst, shipLast, shipPhone, shipLine1, shipLine2, shipCity, shipState, shipPostal, shipCountry sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
 		        subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
@@ -2214,6 +2318,8 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		        card_brand, card_last4,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		        refund_amount, refund_reason, refunded_at, stripe_refund_id,
+		        ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2,
+		        ship_city, ship_state, ship_postal_code, ship_country,
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
@@ -2223,6 +2329,8 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 			&order.CardBrand, &order.CardLast4,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.RefundAmount, &order.RefundReason, &order.RefundedAt, &order.StripeRefundID,
+			&shipFirst, &shipLast, &shipPhone, &shipLine1, &shipLine2,
+			&shipCity, &shipState, &shipPostal, &shipCountry,
 			&order.CreatedAt, &order.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrOrderNotFound
@@ -2247,16 +2355,20 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		order.Items = append(order.Items, item)
 	}
 
-	// Best-effort: fetch shipping address details and paid_at timestamp.
-	if order.ShippingAddressID != nil && *order.ShippingAddressID != "" {
-		var addr ShippingAddress
-		err := s.db.QueryRowContext(ctx,
-			`SELECT first_name, last_name, phone, line1, line2, city, state, postal_code, country
-			 FROM addresses WHERE id = $1`, *order.ShippingAddressID).
-			Scan(&addr.FirstName, &addr.LastName, &addr.Phone,
-				&addr.Line1, &addr.Line2, &addr.City, &addr.State, &addr.PostalCode, &addr.Country)
-		if err == nil {
-			order.ShippingAddress = &addr
+	// Shipping address is a frozen snapshot on the order (ship_* columns), not a
+	// live join — editing or deleting the customer's address-book row never
+	// alters a placed order. nil when no address was captured (guest / legacy).
+	if shipLine1.Valid && shipLine1.String != "" {
+		order.ShippingAddress = &ShippingAddress{
+			FirstName:  shipFirst.String,
+			LastName:   shipLast.String,
+			Phone:      nullStrPtr(shipPhone),
+			Line1:      shipLine1.String,
+			Line2:      nullStrPtr(shipLine2),
+			City:       shipCity.String,
+			State:      nullStrPtr(shipState),
+			PostalCode: shipPostal.String,
+			Country:    shipCountry.String,
 		}
 	}
 
