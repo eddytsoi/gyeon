@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/email"
 	"gyeon/backend/internal/media"
@@ -154,6 +155,11 @@ type queuedImport struct {
 	products  *ImportRequest
 	orders    *OrdersImportRequest
 	customers *CustomersImportRequest
+	// actorID is the admin user who triggered this import (captured from the
+	// request context in the handler). Injected into the detached worker ctx so
+	// downstream stock writes attribute inventory_history rows to them. Empty
+	// for legacy admin tokens with no subject claim.
+	actorID string
 }
 
 // Service orchestrates the WooCommerce → Gyeon product / customers / orders
@@ -295,17 +301,19 @@ func matchesProductType(productType, wcProductType string) bool {
 // EnqueueProducts / EnqueueOrders / EnqueueCustomers add an import to the FIFO
 // queue and start the worker if idle. Each returns the 1-based queue position
 // and false when a job of that type is already running or queued (the caller
-// just attaches to the live job by polling QueueStatus).
-func (s *Service) EnqueueProducts(req ImportRequest) (int, bool) {
-	return s.enqueue(&queuedImport{typ: jobTypeProducts, products: &req})
+// just attaches to the live job by polling QueueStatus). actorID is the admin
+// who triggered the import (empty for legacy tokens) — used to attribute the
+// resulting inventory_history rows.
+func (s *Service) EnqueueProducts(req ImportRequest, actorID string) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeProducts, products: &req, actorID: actorID})
 }
 
-func (s *Service) EnqueueOrders(req OrdersImportRequest) (int, bool) {
-	return s.enqueue(&queuedImport{typ: jobTypeOrders, orders: &req})
+func (s *Service) EnqueueOrders(req OrdersImportRequest, actorID string) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeOrders, orders: &req, actorID: actorID})
 }
 
-func (s *Service) EnqueueCustomers(req CustomersImportRequest) (int, bool) {
-	return s.enqueue(&queuedImport{typ: jobTypeCustomers, customers: &req})
+func (s *Service) EnqueueCustomers(req CustomersImportRequest, actorID string) (int, bool) {
+	return s.enqueue(&queuedImport{typ: jobTypeCustomers, customers: &req, actorID: actorID})
 }
 
 // enqueue appends q to the queue and kicks the worker when idle. Dedupes by
@@ -342,6 +350,10 @@ func (s *Service) startNextLocked() {
 	s.queue = s.queue[1:]
 
 	ctx, cancel := context.WithCancel(context.Background())
+	// Attribute downstream stock writes (inventory_history) to the admin who
+	// triggered this import. The worker is detached from the request, so the
+	// actor must be carried explicitly rather than read off the request context.
+	ctx = auth.WithAdminID(ctx, q.actorID)
 	job := &importJob{Type: q.typ, Running: true, StartedAt: time.Now(), cancel: cancel}
 	// Seed an empty, well-shaped progress so a status read between "running set"
 	// and the first send() never returns a nil/mistyped Progress.

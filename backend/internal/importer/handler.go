@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"gyeon/backend/internal/auth"
 	"gyeon/backend/internal/respond"
 )
 
@@ -86,7 +87,8 @@ func (h *Handler) StartImport(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
-	pos, queued := h.svc.EnqueueProducts(req)
+	actorID, _ := auth.AdminIDFromContext(r.Context())
+	pos, queued := h.svc.EnqueueProducts(req, actorID)
 	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
 }
 
@@ -103,7 +105,8 @@ func (h *Handler) StartOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Status = normalizeWCOrderStatus(req.Status)
-	pos, queued := h.svc.EnqueueOrders(req)
+	actorID, _ := auth.AdminIDFromContext(r.Context())
+	pos, queued := h.svc.EnqueueOrders(req, actorID)
 	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
 }
 
@@ -119,7 +122,8 @@ func (h *Handler) StartCustomers(w http.ResponseWriter, r *http.Request) {
 		respond.BadRequest(w, "wc_url, wc_key, and wc_secret are required")
 		return
 	}
-	pos, queued := h.svc.EnqueueCustomers(req)
+	actorID, _ := auth.AdminIDFromContext(r.Context())
+	pos, queued := h.svc.EnqueueCustomers(req, actorID)
 	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
 }
 
