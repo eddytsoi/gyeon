@@ -7,19 +7,21 @@ import (
 
 // tokenBucket is a small, dependency-free rate limiter used by the email queue
 // worker to smooth bursts of outbound SMTP. It refills continuously at
-// limit-per-minute and caps the standing balance at `limit` so an idle period
-// can't bank an unbounded burst. The configured limit is passed on every call
-// (it comes from a site setting), so an admin change applies on the next send
-// without restarting the worker.
+// limit-per-window (windowSeconds is fixed at construction: 60 for a
+// per-minute cap, 1 for a per-second cap) and caps the standing balance at
+// `limit` so an idle period can't bank an unbounded burst. The configured
+// limit is passed on every call (it comes from a site setting), so an admin
+// change applies on the next send without restarting the worker.
 type tokenBucket struct {
-	mu         sync.Mutex
-	tokens     float64
-	lastRefill time.Time
-	now        func() time.Time // injectable for tests; defaults to time.Now
+	mu            sync.Mutex
+	windowSeconds float64 // refill window: 60 = per-minute, 1 = per-second
+	tokens        float64
+	lastRefill    time.Time
+	now           func() time.Time // injectable for tests; defaults to time.Now
 }
 
-func newTokenBucket() *tokenBucket {
-	return &tokenBucket{now: time.Now}
+func newTokenBucket(windowSeconds float64) *tokenBucket {
+	return &tokenBucket{windowSeconds: windowSeconds, now: time.Now}
 }
 
 // reserve consumes one token for an immediate send. It returns how long the
@@ -35,7 +37,7 @@ func (b *tokenBucket) reserve(limit int) time.Duration {
 	defer b.mu.Unlock()
 
 	now := b.now()
-	perSecond := float64(limit) / 60.0
+	perSecond := float64(limit) / b.windowSeconds
 	if b.lastRefill.IsZero() {
 		// First use: start full so a cold worker isn't throttled.
 		b.tokens = float64(limit)

@@ -332,7 +332,7 @@
     'smtp_from_email', 'smtp_from_name', 'public_base_url',
     'admin_alert_email',
     'smtp_log_retention_days',
-    'email_daily_limit', 'email_rate_per_minute'
+    'email_daily_limit', 'email_rate_per_minute', 'email_rate_per_second'
   ]);
   const WC_KEYS = new Set(['wc_consumer_key', 'wc_consumer_secret', 'wc_url']);
 
@@ -2839,6 +2839,20 @@
           <input id="email_rate_per_minute" name="email_rate_per_minute"
                  type="number" min="0"
                  value={settingValue('email_rate_per_minute') || '30'}
+                 class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="email_rate_per_second"
+                 class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_email_rate_per_second()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">
+            {m.admin_settings_email_rate_per_second_hint()}
+          </p>
+          <input id="email_rate_per_second" name="email_rate_per_second"
+                 type="number" min="0"
+                 value={settingValue('email_rate_per_second') || '0'}
                  class="w-32 border border-gray-200 rounded-xl px-3 py-2.5 text-sm
                         focus:outline-none focus:ring-2 focus:ring-gray-900" />
         </div>
