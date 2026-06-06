@@ -115,10 +115,14 @@ type ProgressUpdate struct {
 }
 
 // EmailSender is the slice of email.Service the importer uses for the
-// setup-password email path.
+// setup-password email path. SendAccountSetupEmail enqueues one mail at a time
+// (SMTP / single-send default); EnqueueAccountSetupBatch coalesces up to 100
+// into one Resend /emails/batch request and is used when the Resend provider is
+// configured (see RunCustomersStreaming).
 type EmailSender interface {
 	PublicBaseURL(ctx context.Context) string
 	SendAccountSetupEmail(ctx context.Context, p email.PasswordResetParams) error
+	EnqueueAccountSetupBatch(ctx context.Context, params []email.PasswordResetParams) error
 }
 
 // importJob is the in-memory snapshot of one running (or last-finished) import.

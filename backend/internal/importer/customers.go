@@ -98,6 +98,48 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 	// to push the latest value out via the SSE frame.
 	var emailsQueued int64
 
+	// Resolve the setup-email transport once. sendSetupEmails captures whether
+	// this run intends to email at all (modes other than "skip"); the dispatch
+	// gate below also checks it so a blocked run neither stamps setup_email_sent_at
+	// nor enqueues.
+	provider := s.emailProvider(ctx)
+	sendSetupEmails := req.SetupEmailMode == SetupEmailModePasswordless || req.SetupEmailMode == SetupEmailModeForce
+	// Empty-key guard: with Resend selected but no API key, every send would die
+	// in the worker (dead-lettered) while the import silently reports "queued".
+	// Surface it once and skip dispatch — a re-run after the admin fills the key
+	// still emails everyone (passwordless eligibility is preserved, since we
+	// never stamped setup_email_sent_at).
+	if sendSetupEmails && provider == string(email.ProviderResend) && strings.TrimSpace(s.setting(ctx, "resend_api_key")) == "" {
+		p.Errors = append(p.Errors, "Resend 已選用但未設定 API key（resend_api_key）— 略過 setup-password 發信，請於設定填入 key 後重新匯入")
+		sendSetupEmails = false
+	}
+
+	// When the Resend provider is configured, coalesce setup-password mails into
+	// /emails/batch requests (≤100 each) instead of one queue job per customer —
+	// ~100× fewer API calls for a multi-thousand-customer run. Under any other
+	// provider (SMTP) we keep the per-customer goroutine path unchanged.
+	// batchBuf is mutated only from the sequential import loop (processOne and
+	// the post-loop flush), so no locking is needed. The nil-service checks
+	// mirror sendSetupPasswordEmail's guards (the batch path would otherwise
+	// panic in buildSetupParams / flushBatch).
+	useBatch := sendSetupEmails && s.customerSvc != nil && s.emailSvc != nil &&
+		provider == string(email.ProviderResend)
+	const setupEmailBatchSize = 100
+	var batchBuf []email.PasswordResetParams
+	flushBatch := func() {
+		if len(batchBuf) == 0 {
+			return
+		}
+		// Fresh context: a cancelled import (admin left the page) must not
+		// truncate mails we've already committed to sending.
+		if err := s.emailSvc.EnqueueAccountSetupBatch(context.Background(), batchBuf); err != nil {
+			p.Errors = append(p.Errors, fmt.Sprintf("queue setup-email batch (%d recipients): %v", len(batchBuf), err))
+		} else {
+			atomic.AddInt64(&emailsQueued, int64(len(batchBuf)))
+		}
+		batchBuf = batchBuf[:0]
+	}
+
 	// processOne owns the per-customer work — email gate, upsert, setup-email
 	// dispatch, progress counters. Shared between the single-id branch and
 	// the paginated loop so the two paths stay byte-for-byte identical from
@@ -140,10 +182,21 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("customer %s: %v", c.Email, err))
 			p.Failed++
-		} else if customerID != "" && s.shouldSendSetupEmail(ctx, customerID, req.SetupEmailMode) {
+		} else if customerID != "" && sendSetupEmails && s.shouldSendSetupEmail(ctx, customerID, req.SetupEmailMode) {
 			if _, uerr := s.db.ExecContext(ctx,
 				`UPDATE customers SET setup_email_sent_at = NOW() WHERE id=$1`, customerID); uerr != nil {
 				p.Errors = append(p.Errors, fmt.Sprintf("mark setup email %s: %v", c.Email, uerr))
+			} else if useBatch {
+				// Batch path (Resend): mint the token + build params inline and
+				// buffer; flush one /emails/batch job per 100 recipients.
+				if params, perr := s.buildSetupParams(context.Background(), c, customerID); perr != nil {
+					p.Errors = append(p.Errors, fmt.Sprintf("setup token %s: %v", c.Email, perr))
+				} else {
+					batchBuf = append(batchBuf, params)
+					if len(batchBuf) >= setupEmailBatchSize {
+						flushBatch()
+					}
+				}
 			} else {
 				go s.sendSetupPasswordEmail(c, customerID, &emailsQueued)
 			}
@@ -181,6 +234,10 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 		}
 	}
 
+	// Flush the trailing partial batch (< setupEmailBatchSize recipients).
+	// No-op when not in batch mode.
+	flushBatch()
+
 	// Final flush of the emails counter — late dispatches that happened
 	// after the loop exited are still reflected.
 	p.SetupEmailsQueued = int(atomic.LoadInt64(&emailsQueued))
@@ -202,10 +259,27 @@ func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, count
 	// cancelled (e.g. admin closes the page) doesn't truncate emails that
 	// have already been queued.
 	ctx := context.Background()
-	token, err := s.customerSvc.CreateSetupToken(ctx, customerID)
+	params, err := s.buildSetupParams(ctx, wc, customerID)
 	if err != nil {
 		log.Printf("import: setup token for %s: %v", wc.Email, err)
 		return
+	}
+	if err := s.emailSvc.SendAccountSetupEmail(ctx, params); err != nil {
+		log.Printf("import: setup email for %s: %v", wc.Email, err)
+		return
+	}
+	atomic.AddInt64(counter, 1)
+}
+
+// buildSetupParams mints a 7-day setup token for the customer and assembles the
+// account-setup email params (display name + tokenised reset URL). Shared by the
+// single-send goroutine path and the Resend batch buffer so both produce
+// identical mails. The token is a DB write, so callers pass context.Background()
+// to avoid a cancelled import truncating already-decided sends.
+func (s *Service) buildSetupParams(ctx context.Context, wc wcCustomer, customerID string) (email.PasswordResetParams, error) {
+	token, err := s.customerSvc.CreateSetupToken(ctx, customerID)
+	if err != nil {
+		return email.PasswordResetParams{}, err
 	}
 	resetURL := strings.TrimRight(s.emailSvc.PublicBaseURL(ctx), "/") + "/account/reset-password?token=" + token
 	first, last := resolveName(wc)
@@ -213,16 +287,28 @@ func (s *Service) sendSetupPasswordEmail(wc wcCustomer, customerID string, count
 	if name == "" {
 		name = wc.Email
 	}
-	if err := s.emailSvc.SendAccountSetupEmail(ctx, email.PasswordResetParams{
+	return email.PasswordResetParams{
 		CustomerName:  name,
 		CustomerEmail: wc.Email,
 		ResetURL:      resetURL,
 		ExpiryHours:   7 * 24, // matches CreateSetupToken's 7-day expiry
-	}); err != nil {
-		log.Printf("import: setup email for %s: %v", wc.Email, err)
-		return
+	}, nil
+}
+
+// setting reads a site_settings value, returning "" when missing/unreadable.
+func (s *Service) setting(ctx context.Context, key string) string {
+	st, err := s.settingsSvc.Get(ctx, key)
+	if err != nil || st == nil {
+		return ""
 	}
-	atomic.AddInt64(counter, 1)
+	return st.Value
+}
+
+// emailProvider reads the configured outgoing-email transport ("resend" /
+// "smtp"). Missing/unreadable resolves to "" (treated as non-Resend), so the
+// import falls back to the per-customer single-send path.
+func (s *Service) emailProvider(ctx context.Context) string {
+	return strings.ToLower(strings.TrimSpace(s.setting(ctx, "email_provider")))
 }
 
 // shouldSendSetupEmail decides whether the loop should fire a setup-password
