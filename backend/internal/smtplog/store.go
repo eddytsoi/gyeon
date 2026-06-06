@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Row struct {
@@ -84,6 +85,18 @@ func (s *Store) Insert(ctx context.Context, in InsertInput) (string, error) {
 		in.Status, failureReason, in.AttemptNumber, in.ResentFromID,
 	).Scan(&id)
 	return id, err
+}
+
+// CountSentSince returns how many emails were successfully sent (status='sent')
+// at or after `since`. The email queue worker calls this with since=now-24h to
+// enforce a rolling daily cap against the SMTP provider's limit. Deferred sends
+// never write smtp_log, so this count reflects actual provider usage.
+func (s *Store) CountSentSince(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM smtp_log WHERE status='sent' AND created_at >= $1`,
+		since).Scan(&n)
+	return n, err
 }
 
 type ListFilter struct {

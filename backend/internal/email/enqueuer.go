@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
+	"strconv"
+	"strings"
+	"time"
 
 	"gyeon/backend/internal/queue"
 	"gyeon/backend/internal/smtplog"
@@ -23,6 +27,7 @@ type QueueEnqueuer struct {
 	svc      *Service
 	queueSvc QueueAPI
 	logStore LogStore
+	bucket   *tokenBucket // per-minute burst smoothing shared by both handlers
 }
 
 // QueueAPI is the slice of queue.Service used by the enqueuer.
@@ -30,13 +35,15 @@ type QueueAPI interface {
 	Enqueue(ctx context.Context, jobType string, payload []byte, opts ...queue.EnqueueOptions) (string, error)
 }
 
-// LogStore is the slice of smtplog.Store the worker writes to.
+// LogStore is the slice of smtplog.Store the worker writes to. CountSentSince
+// backs the rolling daily-limit gate.
 type LogStore interface {
 	Insert(ctx context.Context, in smtplog.InsertInput) (string, error)
+	CountSentSince(ctx context.Context, since time.Time) (int, error)
 }
 
 func NewQueueEnqueuer(svc *Service, q QueueAPI, ls LogStore) *QueueEnqueuer {
-	return &QueueEnqueuer{svc: svc, queueSvc: q, logStore: ls}
+	return &QueueEnqueuer{svc: svc, queueSvc: q, logStore: ls, bucket: newTokenBucket()}
 }
 
 // PublicBaseURL is delegated so existing call sites don't change.
@@ -201,12 +208,118 @@ func (e *QueueEnqueuer) enqueueContactForm(ctx context.Context, kind string, p C
 	return err
 }
 
+// ── Rate limiting ────────────────────────────────────────────────────────
+
+// emailDeferInterval is how far out a daily-capped send is pushed before the
+// worker re-checks the rolling window. The 24h window keeps draining as old
+// sends age out, so a fixed ~1h re-check (plus per-payload jitter) converges
+// without hammering the count query.
+const emailDeferInterval = time.Hour
+
+// gateOrDefer enforces the Gmail-safe send budget before a worker handler does
+// any SMTP work. It returns proceed=false when the send was deferred (the
+// handler should `return err` — nil on a clean defer so the current job is
+// completed without burning an attempt). It returns proceed=true to send now.
+//
+// Two gates, checked in order:
+//  1. Daily cap (email_daily_limit): if the rolling-24h smtp_log 'sent' count
+//     is at/over the limit, re-enqueue the same payload with a future RunAfter
+//     and complete the current job. Sends are deferred, never dropped.
+//  2. Per-minute cap (email_rate_per_minute): a token bucket smooths bursts.
+//     A short wait is slept off inline; a wait that would exceed the job's
+//     deadline defers via the queue instead of blocking the worker goroutine.
+func (e *QueueEnqueuer) gateOrDefer(ctx context.Context, jobType string, payload []byte) (bool, error) {
+	if limit := e.intSetting(ctx, "email_daily_limit", 0); limit > 0 {
+		sent, err := e.logStore.CountSentSince(ctx, time.Now().Add(-24*time.Hour))
+		if err != nil {
+			// Don't block delivery on a transient count failure — log and send.
+			log.Printf("email rate-limit: count sent failed: %v", err)
+		} else if sent >= limit {
+			log.Printf("email rate-limit: daily cap reached (%d/%d sent in 24h), deferring %s to %s",
+				sent, limit, jobType, recipientOf(payload))
+			return false, e.deferSend(ctx, jobType, payload, emailDeferInterval)
+		}
+	}
+
+	if perMin := e.intSetting(ctx, "email_rate_per_minute", 0); perMin > 0 {
+		if wait := e.bucket.reserve(perMin); wait > 0 {
+			if dl, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(dl) {
+				// Bucket is starved harder than this job can wait — defer.
+				return false, e.deferSend(ctx, jobType, payload, wait)
+			}
+			select {
+			case <-time.After(wait):
+			case <-ctx.Done():
+				return false, ctx.Err() // retryable: worker backoff re-queues
+			}
+		}
+	}
+	return true, nil
+}
+
+// deferSend re-enqueues payload to run after `base` plus a deterministic
+// per-payload jitter (spread over 5 min) so a wave of deferred jobs doesn't
+// all wake at once.
+func (e *QueueEnqueuer) deferSend(ctx context.Context, jobType string, payload []byte, base time.Duration) error {
+	runAfter := time.Now().Add(base + payloadJitter(payload, 5*time.Minute))
+	_, err := e.queueSvc.Enqueue(ctx, jobType, payload, queue.EnqueueOptions{RunAfter: runAfter})
+	return err
+}
+
+// intSetting reads a site setting as an int, falling back to def when unset or
+// unparseable. Settings are read fresh each call so admin changes apply on the
+// next send without a restart.
+func (e *QueueEnqueuer) intSetting(ctx context.Context, key string, def int) int {
+	raw := strings.TrimSpace(e.svc.read(ctx, key))
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+func payloadJitter(payload []byte, spread time.Duration) time.Duration {
+	if spread <= 0 {
+		return 0
+	}
+	h := fnv.New64a()
+	_, _ = h.Write(payload)
+	return time.Duration(h.Sum64() % uint64(spread))
+}
+
+// recipientOf best-effort extracts a recipient for the deferral log line. It
+// handles both the templated/contact-form (send_email) and raw shapes.
+func recipientOf(payload []byte) string {
+	var p struct {
+		Recipient string `json:"recipient"`
+		Params    struct {
+			To string `json:"to"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return "?"
+	}
+	if p.Recipient != "" {
+		return p.Recipient
+	}
+	if p.Params.To != "" {
+		return p.Params.To
+	}
+	return "?"
+}
+
 // ── Worker handlers ──────────────────────────────────────────────────────
 
 // HandleSendEmail is the queue handler for send_email. It dispatches on
 // the payload shape: templated transactional emails take the render+log
 // path; contact-form jobs take the contact-form path.
 func (e *QueueEnqueuer) HandleSendEmail(ctx context.Context, payload []byte) error {
+	if proceed, err := e.gateOrDefer(ctx, queue.JobTypeSendEmail, payload); !proceed {
+		return err
+	}
 	// Peek at the payload to decide which job shape applies.
 	var probe struct {
 		TemplateKey string `json:"template_key"`
@@ -283,6 +396,9 @@ func (e *QueueEnqueuer) dispatchContactForm(ctx context.Context, job SendContact
 // HandleSendEmailRaw is the queue handler for send_email_raw — used by the
 // SMTP-log Resend action to replay a captured payload.
 func (e *QueueEnqueuer) HandleSendEmailRaw(ctx context.Context, payload []byte) error {
+	if proceed, err := e.gateOrDefer(ctx, queue.JobTypeSendEmailRaw, payload); !proceed {
+		return err
+	}
 	var job SendEmailRawJob
 	if err := json.Unmarshal(payload, &job); err != nil {
 		return queue.Permanent(fmt.Errorf("decode send_email_raw job: %w", err))
