@@ -72,10 +72,6 @@
 </script>
 
 <svelte:head>
-  {#if faviconUrl}
-    <link rel="icon" href={faviconUrl} />
-    <link rel="apple-touch-icon" href={faviconUrl} />
-  {/if}
   {#if data.pwaEnabled}
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#111827" />
