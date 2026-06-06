@@ -840,6 +840,7 @@ func main() {
 	worker := queue.NewWorker(queueSvc, 2, 2*time.Second)
 	worker.Register(queue.JobTypeSendEmail, emailEnqueuer.HandleSendEmail)
 	worker.Register(queue.JobTypeSendEmailRaw, emailEnqueuer.HandleSendEmailRaw)
+	worker.Register(queue.JobTypeSendEmailBatch, emailEnqueuer.HandleSendEmailBatch)
 	worker.Register(queue.JobTypeCreateShipanyShipment, shipanyJobs.Handle)
 	worker.SetTimeout(queue.JobTypeCreateShipanyShipment, 5*time.Minute)
 	// Receipt cache pre-warm — uses the same Chromium renderer the on-demand

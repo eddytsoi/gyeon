@@ -94,6 +94,24 @@ type SendEmailRawJob struct {
 	RelatedEntityID   string `json:"related_entity_id,omitempty"`
 }
 
+// SendEmailBatchJob carries up to 100 templated emails delivered in one Resend
+// /emails/batch request (see HandleSendEmailBatch). Used by the customer import
+// to coalesce thousands of per-customer setup-password mails into ~N/100 calls.
+// Every recipient shares TemplateKey but carries its own Params (e.g. a unique
+// setup link), so the batch is 100 distinct mails, not one fanned to many.
+type SendEmailBatchJob struct {
+	TemplateKey      string           `json:"template_key"`
+	TriggerCondition string           `json:"trigger_condition"`
+	Recipients       []BatchRecipient `json:"recipients"`
+}
+
+// BatchRecipient is one mail in a SendEmailBatchJob: the address plus the typed
+// template params (same JSON shape decodeParams expects for TemplateKey).
+type BatchRecipient struct {
+	Recipient string          `json:"recipient"`
+	Params    json.RawMessage `json:"params"`
+}
+
 // ── Send methods (mirror Service signatures) ─────────────────────────────
 
 func (e *QueueEnqueuer) SendOrderConfirmation(ctx context.Context, p OrderEmailParams) error {
@@ -128,6 +146,42 @@ func (e *QueueEnqueuer) SendAccountSetupEmail(ctx context.Context, p PasswordRes
 		p.ExpiryHours = 24
 	}
 	return e.enqueueTemplated(ctx, "account_setup", p.CustomerEmail, p, "auth.account_setup", "", "")
+}
+
+// EnqueueAccountSetupBatch enqueues one send_email_batch job carrying up to 100
+// account-setup mails delivered via Resend's batch endpoint. The customer
+// import buffers eligible customers and calls this per ≤100-recipient chunk so a
+// few-thousand-customer run becomes ~N/100 HTTP requests instead of N. Empty
+// recipients (no email) are dropped; an all-empty slice is a no-op.
+func (e *QueueEnqueuer) EnqueueAccountSetupBatch(ctx context.Context, params []PasswordResetParams) error {
+	recips := make([]BatchRecipient, 0, len(params))
+	for _, p := range params {
+		if p.CustomerEmail == "" {
+			continue
+		}
+		if p.ExpiryHours == 0 {
+			p.ExpiryHours = 24
+		}
+		raw, err := json.Marshal(p)
+		if err != nil {
+			return fmt.Errorf("marshal account_setup params: %w", err)
+		}
+		recips = append(recips, BatchRecipient{Recipient: p.CustomerEmail, Params: raw})
+	}
+	if len(recips) == 0 {
+		return nil
+	}
+	job := SendEmailBatchJob{
+		TemplateKey:      "account_setup",
+		TriggerCondition: "auth.account_setup",
+		Recipients:       recips,
+	}
+	b, err := json.Marshal(job)
+	if err != nil {
+		return err
+	}
+	_, err = e.queueSvc.Enqueue(ctx, queue.JobTypeSendEmailBatch, b)
+	return err
 }
 
 func (e *QueueEnqueuer) SendAdminMessageNotification(ctx context.Context, p AdminMessageParams) error {
@@ -437,6 +491,121 @@ func (e *QueueEnqueuer) HandleSendEmailRaw(ctx context.Context, payload []byte) 
 	})
 }
 
+// HandleSendEmailBatch is the queue handler for send_email_batch. It renders
+// every recipient's templated mail and delivers them in a single Resend
+// /emails/batch request (SMTP falls back to per-message sends inside
+// SendRenderedBatch), then writes one smtp_log row per recipient.
+//
+// Rate limiting differs from the single-send handler: a batch is ONE Resend
+// request, so it reserves a single token from each enabled bucket rather than
+// one per recipient. The daily cap, however, is per-email — a batch is
+// all-or-nothing against it: if the rolling-24h 'sent' count leaves less
+// headroom than the batch needs, the WHOLE batch is deferred (never partially
+// dropped), which keeps Resend's Free-tier 100/day cap from rejecting sends.
+func (e *QueueEnqueuer) HandleSendEmailBatch(ctx context.Context, payload []byte) error {
+	var job SendEmailBatchJob
+	if err := json.Unmarshal(payload, &job); err != nil {
+		return queue.Permanent(fmt.Errorf("decode send_email_batch job: %w", err))
+	}
+	if len(job.Recipients) == 0 {
+		return nil
+	}
+
+	// Daily-cap gate (per-email, all-or-nothing for the batch).
+	if limit := e.intSetting(ctx, "email_daily_limit", 0); limit > 0 {
+		sent, err := e.logStore.CountSentSince(ctx, time.Now().Add(-24*time.Hour))
+		if err != nil {
+			// Don't block delivery on a transient count failure — log and send.
+			log.Printf("email rate-limit: count sent failed: %v", err)
+		} else if limit-sent < len(job.Recipients) {
+			log.Printf("email rate-limit: batch of %d exceeds daily headroom (%d/%d sent in 24h), deferring",
+				len(job.Recipients), sent, limit)
+			return e.deferSend(ctx, queue.JobTypeSendEmailBatch, payload, emailDeferInterval)
+		}
+	}
+
+	// Rate buckets: one reservation for the single batch request.
+	var wait time.Duration
+	if perMin := e.intSetting(ctx, "email_rate_per_minute", 0); perMin > 0 {
+		if w := e.minuteBucket.reserve(perMin); w > wait {
+			wait = w
+		}
+	}
+	if perSec := e.intSetting(ctx, "email_rate_per_second", 0); perSec > 0 {
+		if w := e.secondBucket.reserve(perSec); w > wait {
+			wait = w
+		}
+	}
+	if wait > 0 {
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return ctx.Err() // retryable: worker backoff re-queues
+		}
+	}
+
+	// Render each recipient. A recipient whose params can't decode/render is
+	// dropped with a log line rather than failing the whole batch.
+	msgs := make([]RenderedEmail, 0, len(job.Recipients))
+	for _, r := range job.Recipients {
+		typed, derr := decodeParams(job.TemplateKey, r.Params)
+		if derr != nil {
+			log.Printf("send_email_batch: decode params for %s: %v", r.Recipient, derr)
+			continue
+		}
+		subject, text, html, rerr := e.svc.RenderTemplate(ctx, job.TemplateKey, typed)
+		if rerr != nil {
+			log.Printf("send_email_batch: render for %s: %v", r.Recipient, rerr)
+			continue
+		}
+		msgs = append(msgs, RenderedEmail{To: r.Recipient, Subject: subject, Text: text, HTML: html})
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	perMsg, callErr := e.svc.SendRenderedBatch(ctx, msgs)
+
+	// One smtp_log row per recipient — mirrors the single-send audit trail.
+	fromEmail, fromName, _ := e.svc.FromConfig(ctx)
+	tmplKey := job.TemplateKey
+	for i, m := range msgs {
+		status, reason := "sent", ""
+		switch {
+		case callErr != nil:
+			status, reason = "failed", callErr.Error()
+		case i < len(perMsg) && perMsg[i] != nil:
+			status, reason = "failed", perMsg[i].Error()
+		}
+		if _, lerr := e.logStore.Insert(ctx, smtplog.InsertInput{
+			TemplateKey:      &tmplKey,
+			TriggerCondition: job.TriggerCondition,
+			Recipient:        m.To,
+			FromEmail:        fromEmail,
+			FromName:         fromName,
+			Subject:          m.Subject,
+			BodyHTML:         m.HTML,
+			BodyText:         m.Text,
+			Status:           status,
+			FailureReason:    reason,
+		}); lerr != nil {
+			log.Printf("smtp_log insert (batch): %v", lerr)
+		}
+	}
+
+	if callErr != nil {
+		// Non-retryable (email disabled / not configured / bad API key) → mark
+		// dead; anything else (network / 5xx / 429) → retry the whole batch.
+		// Resend batch is atomic, so a failed request sent nothing — re-sending
+		// is safe.
+		if errors.Is(callErr, ErrDisabled) || errors.Is(callErr, ErrNotConfigured) || errors.Is(callErr, ErrAuth) {
+			return queue.Permanent(callErr)
+		}
+		return callErr
+	}
+	return nil
+}
+
 type sendArgs struct {
 	TemplateKey       *string
 	TriggerCondition  string
@@ -482,9 +651,9 @@ func (e *QueueEnqueuer) sendAndLog(ctx context.Context, a sendArgs) error {
 		log.Printf("smtp_log insert: %v", lerr)
 	}
 	if sendErr != nil {
-		// Non-retryable errors (email disabled / SMTP misconfigured) are
-		// classified so the queue marks the job dead instead of looping.
-		if errors.Is(sendErr, ErrDisabled) || errors.Is(sendErr, ErrNotConfigured) {
+		// Non-retryable errors (email disabled / misconfigured / bad API key)
+		// are classified so the queue marks the job dead instead of looping.
+		if errors.Is(sendErr, ErrDisabled) || errors.Is(sendErr, ErrNotConfigured) || errors.Is(sendErr, ErrAuth) {
 			return queue.Permanent(sendErr)
 		}
 		return sendErr

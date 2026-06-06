@@ -15,6 +15,7 @@ import (
 const (
 	JobTypeSendEmail             = "send_email"
 	JobTypeSendEmailRaw          = "send_email_raw"
+	JobTypeSendEmailBatch        = "send_email_batch"
 	JobTypeCreateShipanyShipment = "create_shipany_shipment"
 	JobTypeGenerateReceiptCache  = "generate_receipt_cache"
 	JobTypeGenerateReceiptBatch  = "generate_receipt_batch"

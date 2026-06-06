@@ -20,6 +20,11 @@ import (
 var ErrNotConfigured = errors.New("smtp is not configured")
 var ErrDisabled = errors.New("email sending is disabled")
 
+// ErrAuth marks a Resend 401/403 (invalid or revoked API key). The transport
+// wraps it into the returned error so the queue treats the job as permanent —
+// an auth failure won't fix itself by retrying.
+var ErrAuth = errors.New("authentication failed")
+
 // defaultResendBaseURL is the Resend REST API base. Overridable per-Service so
 // tests can point sendViaResend at an httptest server.
 const defaultResendBaseURL = "https://api.resend.com"
@@ -776,16 +781,138 @@ func (s *Service) sendViaResend(cfg Config, to, replyTo, subject, text, html str
 
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var e struct {
-			Message string `json:"message"`
-			Name    string `json:"name"`
-		}
-		if json.Unmarshal(respBody, &e) == nil && e.Message != "" {
-			return fmt.Errorf("resend: %s (status %d)", e.Message, resp.StatusCode)
-		}
-		return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return resendHTTPError(resp.StatusCode, respBody)
 	}
 	return nil
+}
+
+// resendHTTPError builds the error for a non-2xx Resend response, carrying the
+// API's `message` into smtp_log.failure_reason (falling back to the raw body).
+// A 401/403 (invalid / revoked key) is wrapped with ErrAuth so the queue marks
+// the job dead instead of retrying — every other status stays retryable.
+func resendHTTPError(statusCode int, respBody []byte) error {
+	var e struct {
+		Message string `json:"message"`
+		Name    string `json:"name"`
+	}
+	var base error
+	if json.Unmarshal(respBody, &e) == nil && e.Message != "" {
+		base = fmt.Errorf("resend: %s (status %d)", e.Message, statusCode)
+	} else {
+		base = fmt.Errorf("resend: unexpected status %d: %s", statusCode, strings.TrimSpace(string(respBody)))
+	}
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: %s", ErrAuth, base.Error())
+	}
+	return base
+}
+
+// RenderedEmail is one fully-rendered message handed to SendRenderedBatch. Each
+// carries its own recipient/subject/bodies so a batch can be 100 distinct mails
+// (e.g. per-customer setup links), not one mail fanned to many addresses.
+type RenderedEmail struct {
+	To      string
+	Subject string
+	Text    string
+	HTML    string
+}
+
+// SendRenderedBatch delivers up to 100 pre-rendered messages in a single
+// Resend POST /emails/batch request. Under any non-Resend provider it falls
+// back to sending each message individually (so a provider flip between enqueue
+// and delivery still works). It returns a per-message error slice aligned with
+// msgs (nil == sent; only ever populated on the SMTP fallback path) plus a
+// callErr that is non-nil only when the whole batch request failed — Resend
+// batch is atomic, so a non-2xx means nothing was sent and the caller may
+// safely retry the entire batch.
+func (s *Service) SendRenderedBatch(ctx context.Context, msgs []RenderedEmail) (perMsg []error, callErr error) {
+	perMsg = make([]error, len(msgs))
+	if len(msgs) == 0 {
+		return perMsg, nil
+	}
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return perMsg, err // ErrDisabled / ErrNotConfigured — whole batch un-sent
+	}
+	if cfg.Provider != ProviderResend {
+		// Fallback: no batch endpoint for SMTP, send each individually.
+		for i, m := range msgs {
+			perMsg[i] = s.sendWithReplyTo(cfg, m.To, "", m.Subject, m.Text, m.HTML)
+		}
+		return perMsg, nil
+	}
+	batch := make([]resendBatchMsg, len(msgs))
+	for i, m := range msgs {
+		batch[i] = resendBatchMsg{
+			From:    cfg.FromName + " <" + cfg.FromEmail + ">",
+			To:      []string{m.To},
+			Subject: m.Subject,
+			HTML:    m.HTML,
+			Text:    m.Text,
+		}
+	}
+	if _, err := s.sendBatchViaResend(cfg, batch); err != nil {
+		return perMsg, err
+	}
+	return perMsg, nil
+}
+
+// resendBatchMsg is one element of the /emails/batch request array.
+type resendBatchMsg struct {
+	From    string   `json:"from"`
+	To      []string `json:"to"`
+	Subject string   `json:"subject"`
+	HTML    string   `json:"html"`
+	Text    string   `json:"text"`
+}
+
+// sendBatchViaResend POSTs a TOP-LEVEL JSON ARRAY of messages to
+// <base>/emails/batch (mirrors sendViaResend's auth + error handling). On 2xx
+// it parses the { "data": [ {"id"}, ... ] } response, whose order matches the
+// request. Note: the batch endpoint does not support attachments or
+// scheduled_at — neither is used by the templated mails routed through it.
+func (s *Service) sendBatchViaResend(cfg Config, msgs []resendBatchMsg) (ids []string, err error) {
+	payload, err := json.Marshal(msgs)
+	if err != nil {
+		return nil, fmt.Errorf("resend: marshal batch request: %w", err)
+	}
+
+	baseURL := s.resendBaseURL
+	if baseURL == "" {
+		baseURL = defaultResendBaseURL
+	}
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(baseURL, "/")+"/emails/batch", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("resend: build batch request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	hc := s.httpClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("resend: send batch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, resendHTTPError(resp.StatusCode, respBody)
+	}
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(respBody, &parsed) == nil {
+		for _, d := range parsed.Data {
+			ids = append(ids, d.ID)
+		}
+	}
+	return ids, nil
 }
 
 // orderRef prefers the customer-facing number; falls back to the
