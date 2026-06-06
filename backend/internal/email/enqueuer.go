@@ -27,7 +27,10 @@ type QueueEnqueuer struct {
 	svc      *Service
 	queueSvc QueueAPI
 	logStore LogStore
-	bucket   *tokenBucket // per-minute burst smoothing shared by both handlers
+	// Two independent burst-smoothing gates shared by both handlers. A send
+	// must clear every enabled gate, so it waits the longer of the two.
+	minuteBucket *tokenBucket // per-minute cap (suits Gmail SMTP)
+	secondBucket *tokenBucket // per-second cap (suits Resend)
 }
 
 // QueueAPI is the slice of queue.Service used by the enqueuer.
@@ -43,7 +46,11 @@ type LogStore interface {
 }
 
 func NewQueueEnqueuer(svc *Service, q QueueAPI, ls LogStore) *QueueEnqueuer {
-	return &QueueEnqueuer{svc: svc, queueSvc: q, logStore: ls, bucket: newTokenBucket()}
+	return &QueueEnqueuer{
+		svc: svc, queueSvc: q, logStore: ls,
+		minuteBucket: newTokenBucket(60),
+		secondBucket: newTokenBucket(1),
+	}
 }
 
 // PublicBaseURL is delegated so existing call sites don't change.
@@ -221,13 +228,16 @@ const emailDeferInterval = time.Hour
 // handler should `return err` — nil on a clean defer so the current job is
 // completed without burning an attempt). It returns proceed=true to send now.
 //
-// Two gates, checked in order:
+// Three gates, checked in order:
 //  1. Daily cap (email_daily_limit): if the rolling-24h smtp_log 'sent' count
 //     is at/over the limit, re-enqueue the same payload with a future RunAfter
 //     and complete the current job. Sends are deferred, never dropped.
-//  2. Per-minute cap (email_rate_per_minute): a token bucket smooths bursts.
-//     A short wait is slept off inline; a wait that would exceed the job's
-//     deadline defers via the queue instead of blocking the worker goroutine.
+//  2/3. Per-minute cap (email_rate_per_minute, suits Gmail) and per-second cap
+//     (email_rate_per_second, suits Resend): independent token buckets, each
+//     0-to-disable. A send must clear both, so we reserve from every enabled
+//     bucket and wait the longer of the two. A short wait is slept off inline;
+//     a wait that would exceed the job's deadline defers via the queue instead
+//     of blocking the worker goroutine.
 func (e *QueueEnqueuer) gateOrDefer(ctx context.Context, jobType string, payload []byte) (bool, error) {
 	if limit := e.intSetting(ctx, "email_daily_limit", 0); limit > 0 {
 		sent, err := e.logStore.CountSentSince(ctx, time.Now().Add(-24*time.Hour))
@@ -241,17 +251,26 @@ func (e *QueueEnqueuer) gateOrDefer(ctx context.Context, jobType string, payload
 		}
 	}
 
+	var wait time.Duration
 	if perMin := e.intSetting(ctx, "email_rate_per_minute", 0); perMin > 0 {
-		if wait := e.bucket.reserve(perMin); wait > 0 {
-			if dl, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(dl) {
-				// Bucket is starved harder than this job can wait — defer.
-				return false, e.deferSend(ctx, jobType, payload, wait)
-			}
-			select {
-			case <-time.After(wait):
-			case <-ctx.Done():
-				return false, ctx.Err() // retryable: worker backoff re-queues
-			}
+		if w := e.minuteBucket.reserve(perMin); w > wait {
+			wait = w
+		}
+	}
+	if perSec := e.intSetting(ctx, "email_rate_per_second", 0); perSec > 0 {
+		if w := e.secondBucket.reserve(perSec); w > wait {
+			wait = w
+		}
+	}
+	if wait > 0 {
+		if dl, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(dl) {
+			// A bucket is starved harder than this job can wait — defer.
+			return false, e.deferSend(ctx, jobType, payload, wait)
+		}
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return false, ctx.Err() // retryable: worker backoff re-queues
 		}
 	}
 	return true, nil
