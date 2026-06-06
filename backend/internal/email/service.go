@@ -3,9 +3,12 @@ package email
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
+	"net/http"
 	"net/smtp"
 	"strconv"
 	"strings"
@@ -17,20 +20,46 @@ import (
 var ErrNotConfigured = errors.New("smtp is not configured")
 var ErrDisabled = errors.New("email sending is disabled")
 
+// defaultResendBaseURL is the Resend REST API base. Overridable per-Service so
+// tests can point sendViaResend at an httptest server.
+const defaultResendBaseURL = "https://api.resend.com"
+
+// Provider selects the outgoing email transport. SMTP is the legacy default; a
+// missing/unknown email_provider setting resolves to ProviderSMTP.
+type Provider string
+
+const (
+	ProviderSMTP   Provider = "smtp"
+	ProviderResend Provider = "resend"
+)
+
 type Service struct {
 	settings  *settings.Service
 	tmplStore *Store // optional DB-backed override layer (P2 #20). nil = compiled defaults only.
+	// httpClient + resendBaseURL back the Resend transport. Defaulted in
+	// NewService; tests override resendBaseURL to hit an httptest server.
+	httpClient    *http.Client
+	resendBaseURL string
 }
 
 func NewService(s *settings.Service) *Service {
-	return &Service{settings: s}
+	return &Service{
+		settings:      s,
+		httpClient:    &http.Client{Timeout: 20 * time.Second},
+		resendBaseURL: defaultResendBaseURL,
+	}
 }
 
 type Config struct {
-	Host      string
-	Port      int
-	Username  string
-	Password  string
+	Provider Provider
+	// SMTP credentials (used when Provider == ProviderSMTP).
+	Host     string
+	Port     int
+	Username string
+	Password string
+	// Resend credential (used when Provider == ProviderResend).
+	APIKey string
+	// Shared across providers.
 	FromEmail string
 	FromName  string
 	BaseURL   string
@@ -40,31 +69,54 @@ func (s *Service) loadConfig(ctx context.Context) (Config, error) {
 	if !s.isEnabled(ctx) {
 		return Config{}, ErrDisabled
 	}
-	return s.loadSMTPConfig(ctx)
+	return s.loadProviderConfig(ctx)
 }
 
-// loadSMTPConfig reads the SMTP credentials without consulting the
-// email_enabled master switch. SendTest uses this so the admin can validate
-// SMTP settings even when outgoing email is globally disabled.
-func (s *Service) loadSMTPConfig(ctx context.Context) (Config, error) {
+// provider resolves the configured transport. Anything other than an explicit
+// "resend" (case-insensitive) falls back to SMTP, so a missing row (legacy
+// installs before migration 129) keeps the original behaviour.
+func (s *Service) provider(ctx context.Context) Provider {
+	if strings.EqualFold(strings.TrimSpace(s.read(ctx, "email_provider")), string(ProviderResend)) {
+		return ProviderResend
+	}
+	return ProviderSMTP
+}
+
+// loadProviderConfig reads the credentials for the selected provider without
+// consulting the email_enabled master switch. SendTest uses this so the admin
+// can validate settings even when outgoing email is globally disabled. The
+// shared from-address / base-URL fields are loaded for both providers.
+func (s *Service) loadProviderConfig(ctx context.Context) (Config, error) {
 	c := Config{
-		Host:      s.read(ctx, "smtp_host"),
-		Username:  s.read(ctx, "smtp_username"),
-		Password:  s.read(ctx, "smtp_password"),
+		Provider:  s.provider(ctx),
 		FromEmail: s.read(ctx, "smtp_from_email"),
 		FromName:  s.read(ctx, "smtp_from_name"),
 		BaseURL:   s.read(ctx, "public_base_url"),
 	}
-	port, err := strconv.Atoi(s.read(ctx, "smtp_port"))
-	if err != nil || port == 0 {
-		port = 587
-	}
-	c.Port = port
 	if c.FromName == "" {
 		c.FromName = "Gyeon"
 	}
-	if c.Host == "" || c.Username == "" || c.Password == "" || c.FromEmail == "" {
+	if c.FromEmail == "" {
 		return c, ErrNotConfigured
+	}
+	switch c.Provider {
+	case ProviderResend:
+		c.APIKey = s.read(ctx, "resend_api_key")
+		if c.APIKey == "" {
+			return c, ErrNotConfigured
+		}
+	default:
+		c.Host = s.read(ctx, "smtp_host")
+		c.Username = s.read(ctx, "smtp_username")
+		c.Password = s.read(ctx, "smtp_password")
+		port, err := strconv.Atoi(s.read(ctx, "smtp_port"))
+		if err != nil || port == 0 {
+			port = 587
+		}
+		c.Port = port
+		if c.Host == "" || c.Username == "" || c.Password == "" {
+			return c, ErrNotConfigured
+		}
 	}
 	return c, nil
 }
@@ -244,7 +296,7 @@ type LowStockParams struct {
 // the email_enabled master switch so the admin can validate credentials even
 // when outgoing email is globally disabled.
 func (s *Service) SendTest(ctx context.Context, to string) error {
-	cfg, err := s.loadSMTPConfig(ctx)
+	cfg, err := s.loadProviderConfig(ctx)
 	if err != nil {
 		return err
 	}
@@ -474,7 +526,7 @@ func (s *Service) SendRendered(ctx context.Context, to, replyTo, subject, text, 
 // fallback the SMTP path uses). Used by the queue worker to populate the
 // smtp_log audit row.
 func (s *Service) FromConfig(ctx context.Context) (fromEmail, fromName string, err error) {
-	cfg, err := s.loadSMTPConfig(ctx)
+	cfg, err := s.loadProviderConfig(ctx)
 	if err != nil {
 		return "", "", err
 	}
@@ -626,6 +678,9 @@ func (s *Service) RenderTemplate(ctx context.Context, key string, params any) (s
 // configures a Reply-To header (typically `[your-email]` resolved to the
 // submitter's address) so replying in the inbox goes back to the customer.
 func (s *Service) sendWithReplyTo(cfg Config, to, replyTo, subject, text, html string) error {
+	if cfg.Provider == ProviderResend {
+		return s.sendViaResend(cfg, to, replyTo, subject, text, html)
+	}
 	from := mime.QEncoding.Encode("utf-8", cfg.FromName) + " <" + cfg.FromEmail + ">"
 	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
 
@@ -658,6 +713,67 @@ func (s *Service) sendWithReplyTo(cfg Config, to, replyTo, subject, text, html s
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
 	return smtp.SendMail(addr, auth, cfg.FromEmail, []string{to}, msg.Bytes())
+}
+
+// sendViaResend delivers a pre-rendered message through the Resend REST API.
+// It mirrors sendWithReplyTo's SMTP behaviour: same multipart text+html payload
+// (sent as Resend's text/html fields), same From header, optional Reply-To. A
+// non-2xx response is turned into an error carrying Resend's message so it lands
+// in smtp_log.failure_reason exactly like an SMTP failure.
+func (s *Service) sendViaResend(cfg Config, to, replyTo, subject, text, html string) error {
+	body := struct {
+		From    string   `json:"from"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		HTML    string   `json:"html"`
+		Text    string   `json:"text"`
+		ReplyTo string   `json:"reply_to,omitempty"`
+	}{
+		From:    cfg.FromName + " <" + cfg.FromEmail + ">",
+		To:      []string{to},
+		Subject: subject,
+		HTML:    html,
+		Text:    text,
+		ReplyTo: replyTo,
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("resend: marshal request: %w", err)
+	}
+
+	baseURL := s.resendBaseURL
+	if baseURL == "" {
+		baseURL = defaultResendBaseURL
+	}
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(baseURL, "/")+"/emails", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("resend: build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	hc := s.httpClient
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return fmt.Errorf("resend: send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var e struct {
+			Message string `json:"message"`
+			Name    string `json:"name"`
+		}
+		if json.Unmarshal(respBody, &e) == nil && e.Message != "" {
+			return fmt.Errorf("resend: %s (status %d)", e.Message, resp.StatusCode)
+		}
+		return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	return nil
 }
 
 // orderRef prefers the customer-facing number; falls back to the

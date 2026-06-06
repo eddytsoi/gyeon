@@ -327,8 +327,9 @@
     'apple_oauth_key_id', 'apple_oauth_private_key'
   ]);
   const SMTP_KEYS = new Set([
-    'email_enabled',
+    'email_enabled', 'email_provider',
     'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password',
+    'resend_api_key',
     'smtp_from_email', 'smtp_from_name', 'public_base_url',
     'admin_alert_email',
     'smtp_log_retention_days',
@@ -683,6 +684,7 @@
   let abandonedEnabled = $state(settingValue('abandoned_cart_enabled') === 'true');
   let loyaltyEnabled = $state(settingValue('loyalty_enabled') === 'true');
   let emailEnabled = $state(settingValue('email_enabled') !== 'false');
+  let emailProvider = $state(settingValue('email_provider') || 'smtp');
   let abandonedRunPending = $state(false);
   let abandonedRunResult = $state<string | null>(null);
 
@@ -828,13 +830,22 @@
     }
   }
 
-  // ── SMTP ────────────────────────────────────────────────────────
+  // ── Email provider fields ───────────────────────────────────────
+  // SMTP-only connection credentials (shown when 發送電郵方式 = SMTP).
   const SMTP_FIELDS = $derived<Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }>>([
     { key: 'smtp_host',       label: m.admin_settings_email_smtp_host(),       placeholder: 'smtp.gmail.com' },
     { key: 'smtp_port',       label: m.admin_settings_email_smtp_port(),       placeholder: '587' },
     { key: 'smtp_username',   label: m.admin_settings_email_smtp_username(),   placeholder: 'you@gmail.com' },
     { key: 'smtp_password',   label: m.admin_settings_email_smtp_password(),   placeholder: m.admin_settings_email_smtp_password_placeholder(), password: true,
-      hint: m.admin_settings_email_smtp_password_hint() },
+      hint: m.admin_settings_email_smtp_password_hint() }
+  ]);
+  // Resend-only credential (shown when 發送電郵方式 = Resend).
+  const RESEND_FIELDS = $derived<Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }>>([
+    { key: 'resend_api_key', label: m.admin_settings_email_resend_api_key(), placeholder: 're_xxxxxxxx', password: true,
+      hint: m.admin_settings_email_resend_api_key_hint() }
+  ]);
+  // Shared across both providers (from address, links, alerts).
+  const EMAIL_SHARED_FIELDS = $derived<Array<{ key: string; label: string; placeholder: string; hint?: string; password?: boolean }>>([
     { key: 'smtp_from_email', label: m.admin_settings_email_from_email(),      placeholder: 'noreply@yourdomain.com' },
     { key: 'smtp_from_name',  label: m.admin_settings_email_from_name(),       placeholder: 'GYEON' },
     { key: 'public_base_url', label: m.admin_settings_email_public_base_url(), placeholder: 'https://your-storefront.com',
@@ -2745,28 +2756,59 @@
         <input type="hidden" name="email_enabled" value={emailEnabled ? 'true' : 'false'} />
       </div>
 
+      {#snippet emailField(field: { key: string; label: string; placeholder: string; hint?: string; password?: boolean })}
+        <div class="flex flex-col gap-1.5">
+          <label for={field.key} class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {field.label}
+          </label>
+          {#if field.hint}
+            <p class="text-xs text-gray-400 -mt-0.5">{field.hint}</p>
+          {/if}
+          {#if field.password}
+            <PasswordInput id={field.key} name={field.key}
+                           value={settingValue(field.key)}
+                           placeholder={field.placeholder} />
+          {:else}
+            <input id={field.key} name={field.key}
+                   type="text"
+                   value={settingValue(field.key)}
+                   placeholder={field.placeholder}
+                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-gray-900" />
+          {/if}
+        </div>
+      {/snippet}
+
       <div class="flex flex-col gap-5">
-        {#each SMTP_FIELDS as field}
-          <div class="flex flex-col gap-1.5">
-            <label for={field.key} class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              {field.label}
-            </label>
-            {#if field.hint}
-              <p class="text-xs text-gray-400 -mt-0.5">{field.hint}</p>
-            {/if}
-            {#if field.password}
-              <PasswordInput id={field.key} name={field.key}
-                             value={settingValue(field.key)}
-                             placeholder={field.placeholder} />
-            {:else}
-              <input id={field.key} name={field.key}
-                     type="text"
-                     value={settingValue(field.key)}
-                     placeholder={field.placeholder}
-                     class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm
-                            focus:outline-none focus:ring-2 focus:ring-gray-900" />
-            {/if}
-          </div>
+        <!-- 發送電郵方式 — choose SMTP or Resend; only the matching section shows below -->
+        <div class="flex flex-col gap-1.5">
+          <label for="email_provider" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_email_provider_label()}
+          </label>
+          <select id="email_provider" name="email_provider" bind:value={emailProvider}
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                         focus:outline-none focus:ring-2 focus:ring-gray-900">
+            <option value="smtp">{m.admin_settings_email_provider_smtp()}</option>
+            <option value="resend">{m.admin_settings_email_provider_resend()}</option>
+          </select>
+        </div>
+
+        <!-- Provider-specific credentials -->
+        {#if emailProvider === 'resend'}
+          <p class="text-xs font-semibold text-gray-900 pt-1">{m.admin_settings_email_resend_section()}</p>
+          {#each RESEND_FIELDS as field}
+            {@render emailField(field)}
+          {/each}
+        {:else}
+          <p class="text-xs font-semibold text-gray-900 pt-1">{m.admin_settings_email_smtp_section()}</p>
+          {#each SMTP_FIELDS as field}
+            {@render emailField(field)}
+          {/each}
+        {/if}
+
+        <!-- Shared across both providers -->
+        {#each EMAIL_SHARED_FIELDS as field}
+          {@render emailField(field)}
         {/each}
       </div>
       <div class="pt-5 mt-5 border-t border-gray-100 flex flex-wrap items-center gap-2">
