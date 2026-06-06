@@ -334,7 +334,7 @@ func main() {
 	pricingHandler := pricing.NewHandler(pricingSvc)
 	paymentHandler := payment.NewHandler(
 		paymentSvc,
-		func(r *http.Request, paymentIntentID, paymentMethodID string) {
+		func(r *http.Request, paymentIntentID, paymentMethodID, chargeID string) {
 			ctx := r.Context()
 			var pmType, cardBrand, cardLast4 string
 			if paymentMethodID != "" {
@@ -346,7 +346,7 @@ func main() {
 					pmType, cardBrand, cardLast4 = t, b, l4
 				}
 			}
-			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4); err != nil {
+			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4, chargeID); err != nil {
 				log.Printf("mark paid for payment_intent %s: %v", paymentIntentID, err)
 			}
 		},
@@ -625,7 +625,13 @@ func main() {
 					pmType, cardBrand, cardLast4 = t, b, l4
 				}
 			}
-			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4); err != nil {
+			// Charge id (ch_…) → transaction_id. Expandable field: when the PI
+			// is fetched unexpanded the SDK still populates LatestCharge.ID.
+			chargeID := ""
+			if pi.LatestCharge != nil {
+				chargeID = pi.LatestCharge.ID
+			}
+			if err := orderSvc.MarkPaidByPaymentIntent(ctx, paymentIntentID, pmType, cardBrand, cardLast4, chargeID); err != nil {
 				log.Printf("reconcile: mark paid for payment_intent %s: %v", paymentIntentID, err)
 			}
 		})

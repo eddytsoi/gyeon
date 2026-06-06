@@ -283,6 +283,7 @@ export interface Order {
   payment_method?: string;
   card_brand?: string;
   card_last4?: string;
+  transaction_id?: string;
   paid_at?: string;
   refund_amount?: number;
   refund_reason?: string;

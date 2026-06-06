@@ -929,6 +929,7 @@
   "admin_order_reply_send": "傳送",
   "admin_order_payment_heading": "付款",
   "admin_order_payment_method": "方式",
+  "admin_order_payment_transaction_id": "交易編號",
   "admin_order_payment_status": "狀態",
   "admin_order_payment_paid_at": "付款時間",
   "admin_order_management_heading": "訂單管理",

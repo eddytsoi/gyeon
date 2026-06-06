@@ -261,10 +261,20 @@ type wcOrder struct {
 	TotalTax       string            `json:"total_tax"`
 	DiscountTotal  string            `json:"discount_total"`
 	ShippingTotal  string            `json:"shipping_total"`
-	ShippingLines  []wcShippingLine  `json:"shipping_lines"`
-	LineItems      []wcLineItem      `json:"line_items"`
-	Billing        wcOrderBilling    `json:"billing"`
-	Shipping       wcCustomerAddress `json:"shipping"`
+	// Payment fields. PaymentMethodTitle is the human-readable gateway name
+	// (e.g. 「銀行轉帳」/「PayMe」) preferred for orders.payment_method;
+	// PaymentMethod is the gateway slug fallback. TransactionID is stored for
+	// records only (no UI). DatePaid* are empty when the order was never paid —
+	// DatePaidGMT (UTC) is preferred over the naive site-time DatePaid.
+	PaymentMethod      string            `json:"payment_method"`
+	PaymentMethodTitle string            `json:"payment_method_title"`
+	TransactionID      string            `json:"transaction_id"`
+	DatePaid           string            `json:"date_paid"`
+	DatePaidGMT        string            `json:"date_paid_gmt"`
+	ShippingLines      []wcShippingLine  `json:"shipping_lines"`
+	LineItems          []wcLineItem      `json:"line_items"`
+	Billing            wcOrderBilling    `json:"billing"`
+	Shipping           wcCustomerAddress `json:"shipping"`
 }
 
 // wcShippingLine is one entry of a WC order's `shipping_lines` array. We keep

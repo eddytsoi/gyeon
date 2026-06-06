@@ -732,6 +732,12 @@
           </span>
         </div>
         <div class="flex justify-between gap-2">
+          <span class="text-gray-400">{m.admin_order_payment_transaction_id()}</span>
+          <span class="font-medium text-gray-900 text-right break-all">
+            {data.order.transaction_id ?? m.admin_products_dash()}
+          </span>
+        </div>
+        <div class="flex justify-between gap-2">
           <span class="text-gray-400">{m.admin_order_payment_status()}</span>
           <span class="font-medium text-gray-900 capitalize">
             {data.order.payment_status?.replace(/_/g, ' ') ?? m.admin_products_dash()}

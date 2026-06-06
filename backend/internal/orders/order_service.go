@@ -142,6 +142,7 @@ type Order struct {
 	PaymentMethod     *string                 `json:"payment_method,omitempty"`
 	CardBrand         *string                 `json:"card_brand,omitempty"`
 	CardLast4         *string                 `json:"card_last4,omitempty"`
+	TransactionID     *string                 `json:"transaction_id,omitempty"`
 	PaidAt            *string                 `json:"paid_at,omitempty"`
 	RefundAmount      float64                 `json:"refund_amount"`
 	RefundReason      *string                 `json:"refund_reason,omitempty"`
@@ -1641,7 +1642,7 @@ func (s *OrderService) CreateSetupTokenForOrder(ctx context.Context, orderID, pa
 
 // MarkPaidByPaymentIntent flips a pending order to `paid` and triggers the
 // confirmation email. Called from the Stripe webhook on payment_intent.succeeded.
-func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentIntentID, pmType, cardBrand, cardLast4 string) error {
+func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentIntentID, pmType, cardBrand, cardLast4, transactionID string) error {
 	var orderID string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id FROM orders WHERE payment_intent_id=$1`, paymentIntentID).Scan(&orderID)
@@ -1654,14 +1655,16 @@ func (s *OrderService) MarkPaidByPaymentIntent(ctx context.Context, paymentInten
 	}
 
 	// Idempotent: COALESCE/NULLIF preserves previously-stored values if Stripe
-	// re-sends the event with a sparser payload.
+	// re-sends the event with a sparser payload. transaction_id holds the Stripe
+	// Charge id (ch_…), complementing payment_intent_id (pi_…).
 	_, _ = s.db.ExecContext(ctx,
 		`UPDATE orders
 		   SET payment_status='succeeded',
 		       payment_method = COALESCE(NULLIF($2, ''), payment_method),
 		       card_brand     = COALESCE(NULLIF($3, ''), card_brand),
-		       card_last4     = COALESCE(NULLIF($4, ''), card_last4)
-		 WHERE id=$1`, orderID, pmType, cardBrand, cardLast4)
+		       card_last4     = COALESCE(NULLIF($4, ''), card_last4),
+		       transaction_id = COALESCE(NULLIF($5, ''), transaction_id)
+		 WHERE id=$1`, orderID, pmType, cardBrand, cardLast4, transactionID)
 
 	order, err := s.GetByID(ctx, orderID)
 	if err != nil {
@@ -2402,11 +2405,12 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var order Order
 	var appliedPromosRaw []byte
 	var shipFirst, shipLast, shipPhone, shipLine1, shipLine2, shipCity, shipState, shipPostal, shipCountry sql.NullString
+	var paidAtCol sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
 		        subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
-		        card_brand, card_last4,
+		        card_brand, card_last4, transaction_id, paid_at,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		        refund_amount, refund_reason, refunded_at, stripe_refund_id,
 		        ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2,
@@ -2417,7 +2421,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &appliedPromosRaw, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
-			&order.CardBrand, &order.CardLast4,
+			&order.CardBrand, &order.CardLast4, &order.TransactionID, &paidAtCol,
 			&order.SelectedCarrier, &order.SelectedService, &order.PickupPointID, &order.PickupPointLabel,
 			&order.RefundAmount, &order.RefundReason, &order.RefundedAt, &order.StripeRefundID,
 			&shipFirst, &shipLast, &shipPhone, &shipLine1, &shipLine2,
@@ -2463,14 +2467,22 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		}
 	}
 
-	var paidAt sql.NullString
-	err = s.db.QueryRowContext(ctx,
-		`SELECT created_at FROM order_status_history
-		 WHERE order_id = $1 AND status = 'paid'
-		 ORDER BY created_at ASC LIMIT 1`, id).Scan(&paidAt)
-	if err == nil && paidAt.Valid {
-		s := paidAt.String
+	// Prefer the orders.paid_at column (set by the WC importer, which has no
+	// status-history rows). Fall back to the earliest 'paid' status-history
+	// row for native Stripe/bank-transfer orders, which don't set the column.
+	if paidAtCol.Valid {
+		s := paidAtCol.String
 		order.PaidAt = &s
+	} else {
+		var paidAt sql.NullString
+		err = s.db.QueryRowContext(ctx,
+			`SELECT created_at FROM order_status_history
+			 WHERE order_id = $1 AND status = 'paid'
+			 ORDER BY created_at ASC LIMIT 1`, id).Scan(&paidAt)
+		if err == nil && paidAt.Valid {
+			s := paidAt.String
+			order.PaidAt = &s
+		}
 	}
 
 	return &order, nil
