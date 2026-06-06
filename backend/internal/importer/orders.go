@@ -54,6 +54,7 @@ type OrdersProgressUpdate struct {
 	UpdatedOrders      int      `json:"updated_orders"`      // matched by wc_order_id, updated in place
 	ImportedLineItems  int      `json:"imported_line_items"` // line items inserted in this run (linked + unlinked)
 	UnlinkedLineItems  int      `json:"unlinked_line_items"` // line items whose product/variant could not be resolved locally — kept as snapshot, variant_id NULL
+	ImportedShipments  int      `json:"imported_shipments"`  // orders that carried an already-created ShipAny waybill, written to the shipments table
 	SkippedOrders      int      `json:"skipped_orders"`      // status not in the import map (trash/draft/etc.)
 	Failed             int      `json:"failed"`
 	CurrentOrder       string   `json:"current_order,omitempty"`
@@ -176,6 +177,18 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	}
 	defer tx.Rollback()
 
+	// Already-created ShipAny waybill carried in the WC order meta (if any).
+	// When present we write a shipments row below and — only when the order
+	// would otherwise land as 已付款 (paid) — bump it to 處理中 (processing),
+	// mirroring the native paid → processing advance that creating a shipment
+	// performs. Orders already further along (已發貨/已送達/已取消) keep their
+	// status and just get the waybill attached.
+	wb := parseShipanyWaybill(o.MetaData)
+	effStatus := status
+	if wb != nil && status == "paid" {
+		effStatus = "processing"
+	}
+
 	customerID, err := s.resolveCustomer(ctx, tx, o)
 	if err != nil {
 		return fmt.Errorf("resolve customer: %w", err)
@@ -249,7 +262,7 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 
 	if existed {
 		updateArgs := append(append([]any{
-			orderID, customerID, status, shipAddrID,
+			orderID, customerID, effStatus, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
@@ -298,7 +311,7 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	} else {
 		var number int64
 		insertArgs := append(append([]any{
-			o.ID, customerID, status, shipAddrID,
+			o.ID, customerID, effStatus, shipAddrID,
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
@@ -327,6 +340,16 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 			return fmt.Errorf("set order_number: %w", err)
 		}
 		p.ImportedOrders++
+	}
+
+	// Attach an already-created ShipAny waybill (tracking number, label, courier)
+	// when the WC order carried one. Runs in the same tx so the shipment row and
+	// the order's 處理中 status commit atomically.
+	if wb != nil {
+		if err := upsertImportedShipment(ctx, tx, orderID, wb); err != nil {
+			return fmt.Errorf("import shipment: %w", err)
+		}
+		p.ImportedShipments++
 	}
 
 	// Two-pass insert so WC Product Bundles parent ↔ child links survive

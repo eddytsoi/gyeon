@@ -275,6 +275,11 @@ type wcOrder struct {
 	LineItems          []wcLineItem      `json:"line_items"`
 	Billing            wcOrderBilling    `json:"billing"`
 	Shipping           wcCustomerAddress `json:"shipping"`
+	// MetaData carries WC's order-level meta_data array. We read it for the
+	// ShipAny shipment plugin keys (_pr_shipment_shipany_label_tracking /
+	// _pr_shipment_shipany_order_detail) so an already-created waybill is
+	// imported alongside the order — see parseShipanyWaybill.
+	MetaData []wcMeta `json:"meta_data"`
 }
 
 // wcShippingLine is one entry of a WC order's `shipping_lines` array. We keep
