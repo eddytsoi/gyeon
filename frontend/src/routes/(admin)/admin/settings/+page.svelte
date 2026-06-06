@@ -2823,11 +2823,6 @@
                   hover:bg-gray-50 transition-colors">
           {m.admin_nav_smtp_log()}
         </a>
-        <a href="/admin/queue-jobs"
-           class="text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
-                  hover:bg-gray-50 transition-colors">
-          {m.admin_nav_queue_jobs()}
-        </a>
       </div>
     </div>
 
@@ -3488,6 +3483,21 @@
         </div>
       </div>
     {/if}
+
+    <!-- Background jobs — system-wide queue (email, ShipAny shipments, receipts) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-semibold text-gray-900">{m.admin_nav_queue_jobs()}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{m.admin_queue_jobs_subtitle()}</p>
+        </div>
+        <a href="/admin/queue-jobs"
+           class="shrink-0 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl px-4 py-2
+                  hover:bg-gray-50 transition-colors whitespace-nowrap">
+          {m.admin_settings_queue_jobs_view()}
+        </a>
+      </div>
+    </div>
 
     </div>
 
