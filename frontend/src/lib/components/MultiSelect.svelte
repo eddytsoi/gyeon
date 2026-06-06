@@ -68,10 +68,22 @@
 </script>
 
 <div class="relative" bind:this={containerEl}>
-  <button
-    type="button"
+  <!-- Trigger is a div, not a button: when chips are present each carries its
+       own remove <button>, and a <button> may not contain another <button>
+       (invalid HTML → SSR placement error + hydration mismatch). role/tabindex/
+       keydown keep it keyboard-operable; the keydown is guarded to the container
+       itself so it doesn't double-fire when a chip's × button has focus. -->
+  <div
+    role="button"
+    tabindex="0"
+    aria-haspopup="listbox"
+    aria-expanded={open}
     onclick={() => (open = !open)}
-    class="w-full min-h-[44px] border border-gray-200 rounded-xl px-3 py-2 text-sm text-left
+    onkeydown={(e) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open = !open; }
+    }}
+    class="w-full min-h-[44px] border border-gray-200 rounded-xl px-3 py-2 text-sm text-left cursor-pointer
            focus:outline-none focus:ring-2 focus:ring-gray-900 flex flex-wrap gap-1.5 items-center
            hover:border-gray-300 transition-colors"
   >
@@ -90,7 +102,7 @@
         </span>
       {/each}
     {/if}
-  </button>
+  </div>
 
   {#if open}
     <div class="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-80 overflow-hidden flex flex-col">
