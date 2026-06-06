@@ -929,6 +929,7 @@
   "admin_order_reply_send": "Send",
   "admin_order_payment_heading": "Payment",
   "admin_order_payment_method": "Method",
+  "admin_order_payment_transaction_id": "Transaction ID",
   "admin_order_payment_status": "Status",
   "admin_order_payment_paid_at": "Paid at",
   "admin_order_management_heading": "Order Management",

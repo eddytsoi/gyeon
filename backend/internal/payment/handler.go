@@ -12,16 +12,17 @@ import (
 
 type Handler struct {
 	svc       *Service
-	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID string)
+	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID, chargeID string)
 	onFailed  func(r *http.Request, paymentIntentID, reason string)
 }
 
 // NewHandler wires the public payment routes. onSuccess is invoked from the
-// webhook on `payment_intent.succeeded` events; onFailed on
+// webhook on `payment_intent.succeeded` events (chargeID is the Stripe Charge
+// id ch_…, recorded as the order's transaction_id); onFailed on
 // `payment_intent.payment_failed`.
 func NewHandler(
 	svc *Service,
-	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID string),
+	onSuccess func(r *http.Request, paymentIntentID, paymentMethodID, chargeID string),
 	onFailed func(r *http.Request, paymentIntentID, reason string),
 ) *Handler {
 	return &Handler{
@@ -62,6 +63,9 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 		var pi struct {
 			ID            string          `json:"id"`
 			PaymentMethod json.RawMessage `json:"payment_method"`
+			// latest_charge is the Charge id string (ch_…) on the raw PI payload
+			// (unexpanded). Recorded as the order's transaction_id.
+			LatestCharge string `json:"latest_charge"`
 		}
 		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
 			log.Printf("stripe webhook decode pi: %v", err)
@@ -70,7 +74,7 @@ func (h *Handler) webhook(w http.ResponseWriter, r *http.Request) {
 		}
 		pmID := decodePMRef(pi.PaymentMethod)
 		if pi.ID != "" && h.onSuccess != nil {
-			h.onSuccess(r, pi.ID, pmID)
+			h.onSuccess(r, pi.ID, pmID, pi.LatestCharge)
 		}
 
 	case "payment_intent.payment_failed":

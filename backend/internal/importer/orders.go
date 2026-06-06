@@ -214,6 +214,28 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 	// shipping line (pickup / free). Surfaces in the admin 按物流 breakdown.
 	shippingMethod := nullableString(firstShippingMethod(o))
 
+	// Payment snapshot. Prefer the human-readable gateway title over the slug
+	// for orders.payment_method (the admin renders it raw). payment_method is
+	// VARCHAR(50) — rune-cap (not byte-cap) so a multibyte title isn't split.
+	pm := firstNonEmpty(o.PaymentMethodTitle, o.PaymentMethod)
+	if r := []rune(pm); len(r) > 50 {
+		pm = string(r[:50])
+	}
+	paymentMethod := nullableString(pm)
+	txnID := nullableString(strings.TrimSpace(o.TransactionID))
+
+	// payment_status / paid_at only when WC actually recorded a payment. The
+	// non-empty guard matters: parseWCTime returns NOW() on empty input, which
+	// would stamp unpaid orders as paid-now and drift on every re-import.
+	var paymentStatus *string
+	var paidAt *time.Time
+	if raw := firstNonEmpty(o.DatePaidGMT, o.DatePaid); strings.TrimSpace(raw) != "" {
+		s := "succeeded" // matches the vocabulary native Stripe orders use
+		paymentStatus = &s
+		t := parseWCTime(raw)
+		paidAt = &t
+	}
+
 	// Look up existing.
 	var orderID string
 	existed := false
@@ -231,9 +253,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
-		}, shipArgs...), shippingMethod)
+		}, shipArgs...), shippingMethod, paymentMethod, paymentStatus, paidAt, txnID)
 		// Re-imports refresh the ship_* snapshot when the WC address changed,
-		// mirroring how customer_* are refreshed above.
+		// mirroring how customer_* are refreshed above. Payment columns are
+		// refreshed too so re-import backfills already-imported orders in place.
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE orders SET
 				customer_id         = $2,
@@ -258,7 +281,11 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				ship_state          = $21,
 				ship_postal_code    = $22,
 				ship_country        = $23,
-				shipping_method     = $24
+				shipping_method     = $24,
+				payment_method      = $25,
+				payment_status      = $26,
+				paid_at             = $27,
+				transaction_id      = $28
 			 WHERE id = $1`,
 			updateArgs...,
 		); err != nil {
@@ -275,7 +302,7 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 			subtotal, shippingFee, discount, tax, total,
 			notes, createdAt,
 			custEmail, custPhone, custName,
-		}, shipArgs...), shippingMethod)
+		}, shipArgs...), shippingMethod, paymentMethod, paymentStatus, paidAt, txnID)
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO orders (
 				wc_order_id, customer_id, status, shipping_address_id,
@@ -284,9 +311,10 @@ func (s *Service) upsertOrder(ctx context.Context, o wcOrder, status, prefix str
 				customer_email, customer_phone, customer_name,
 				ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2,
 				ship_city, ship_state, ship_postal_code, ship_country,
-				shipping_method
+				shipping_method, payment_method, payment_status, paid_at, transaction_id
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-			          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+			          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+			          $25, $26, $27, $28)
 			RETURNING id, number`,
 			insertArgs...,
 		).Scan(&orderID, &number); err != nil {
