@@ -33,6 +33,15 @@ const (
 	ProviderResend Provider = "resend"
 )
 
+// displayName returns the human-facing label for a transport, used in the
+// test email so the wording matches the selected 發送電郵方式.
+func (p Provider) displayName() string {
+	if p == ProviderResend {
+		return "Resend"
+	}
+	return "SMTP"
+}
+
 type Service struct {
 	settings  *settings.Service
 	tmplStore *Store // optional DB-backed override layer (P2 #20). nil = compiled defaults only.
@@ -292,29 +301,32 @@ type LowStockParams struct {
 	AdminProductURL string
 }
 
-// SendTest sends a plain test email to verify SMTP configuration. Bypasses
-// the email_enabled master switch so the admin can validate credentials even
-// when outgoing email is globally disabled.
+// SendTest sends a plain test email to verify the configured email transport
+// (SMTP or Resend). The wording names whichever provider is selected via the
+// email_provider setting (發送電郵方式). Bypasses the email_enabled master
+// switch so the admin can validate credentials even when outgoing email is
+// globally disabled.
 func (s *Service) SendTest(ctx context.Context, to string) error {
 	cfg, err := s.loadProviderConfig(ctx)
 	if err != nil {
 		return err
 	}
-	subject := "SMTP Configuration Test — Gyeon"
-	text := "Hello,\n\nThis is a test email sent from Gyeon to verify your SMTP configuration is working correctly.\n\nIf you received this message, your email settings are configured properly and outgoing mail is functioning as expected.\n\nNo action is required.\n\n— Gyeon Admin"
-	html := `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>SMTP Test</title></head>
+	label := cfg.Provider.displayName()
+	subject := fmt.Sprintf("%s Configuration Test — Gyeon", label)
+	text := fmt.Sprintf("Hello,\n\nThis is a test email sent from Gyeon to verify your %s configuration is working correctly.\n\nIf you received this message, your email settings are configured properly and outgoing mail is functioning as expected.\n\nNo action is required.\n\n— Gyeon Admin", label)
+	html := fmt.Sprintf(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>%[1]s Test</title></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111827">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
-      <h1 style="margin:0 0 8px;font-size:20px">SMTP Configuration Test</h1>
-      <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6">This is a test email sent from Gyeon to verify your SMTP configuration is working correctly.</p>
+      <h1 style="margin:0 0 8px;font-size:20px">%[1]s Configuration Test</h1>
+      <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6">This is a test email sent from Gyeon to verify your %[1]s configuration is working correctly.</p>
       <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">If you received this message, your email settings are configured properly and outgoing mail is functioning as expected.</p>
       <p style="margin:0;color:#6b7280;font-size:14px">No action is required.</p>
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon Admin</p>
   </div>
-</body></html>`
+</body></html>`, label)
 	return s.send(cfg, to, subject, text, html)
 }
 

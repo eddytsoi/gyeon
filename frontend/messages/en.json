@@ -544,6 +544,7 @@
   "admin_nav_audit_log": "Audit Log",
   "admin_nav_smtp_log": "SMTP Log",
   "admin_nav_queue_jobs": "Queue Jobs",
+  "admin_settings_queue_jobs_view": "View",
   "admin_nav_email_templates": "Email Templates",
   "admin_nav_import": "Import",
   "admin_footer_view_store": "View Store",

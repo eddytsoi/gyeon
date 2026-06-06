@@ -544,6 +544,7 @@
   "admin_nav_audit_log": "操作記錄",
   "admin_nav_smtp_log": "SMTP 記錄",
   "admin_nav_queue_jobs": "Queue Jobs",
+  "admin_settings_queue_jobs_view": "查看",
   "admin_nav_email_templates": "Email 模板",
   "admin_nav_import": "匯入",
   "admin_footer_view_store": "查看商店",
