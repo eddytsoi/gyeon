@@ -295,6 +295,7 @@
   "checkout_success_title": "Order Confirmed — {brand}",
   "checkout_success_heading": "Order Confirmed!",
   "checkout_success_body": "Your order {orderNumber} has been placed successfully.",
+  "checkout_success_email_sent": "A confirmation email has been sent to your inbox.",
   "checkout_success_summary": "Order Summary",
   "checkout_success_subtotal": "Subtotal",
   "checkout_success_discount": "Discount",
@@ -304,6 +305,7 @@
   "checkout_success_status_label": "Status:",
   "checkout_success_status_text": " — we'll process your order shortly.",
   "checkout_success_create_account": "Create account to track orders",
+  "checkout_success_view_order": "View Order",
   "checkout_success_continue": "Continue Shopping",
 
   "pickup_aria_close": "Close",

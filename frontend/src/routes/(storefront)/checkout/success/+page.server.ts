@@ -6,6 +6,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
   const orderID = url.searchParams.get('order');
   const paymentIntent = url.searchParams.get('payment_intent');
   const method = url.searchParams.get('method');
+  const loggedIn = !!cookies.get('customer_token');
 
   // Bank-transfer (installer) orders have no Stripe PaymentIntent. They are
   // authorized by the customer's own token (installers are always logged in)
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
     } catch {
       throw error(404, 'Order not found');
     }
-    return { order, setupURL: null, bankTransfer: true };
+    return { order, setupURL: null, bankTransfer: true, loggedIn };
   }
 
   if (!orderID || !paymentIntent) throw error(404, 'Order not found');
@@ -42,5 +43,5 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
     // 401 (pi mismatch) or other failure — silently hide the CTA.
   }
 
-  return { order, setupURL, bankTransfer: false };
+  return { order, setupURL, bankTransfer: false, loggedIn };
 };
