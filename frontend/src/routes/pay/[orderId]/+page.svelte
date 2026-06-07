@@ -104,7 +104,7 @@
         {/if}
         <div class="flex justify-between text-gray-600">
           <span>{m.pay_summary_shipping()}</span>
-          <span>{order.shipping_fee > 0 ? `HK$${order.shipping_fee.toFixed(2)}` : m.common_free()}</span>
+          <span>{order.shipping_free ? m.shipping_sf_free() : m.shipping_sf_cod()}</span>
         </div>
         <div class="border-t border-gray-100 pt-2 flex justify-between font-semibold text-gray-900 text-base">
           <span>{m.pay_summary_total()}</span>
