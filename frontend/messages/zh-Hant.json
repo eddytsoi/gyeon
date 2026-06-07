@@ -246,6 +246,7 @@
   "checkout_tc_link_label": "條款及細則",
 
   "checkout_section_payment": "付款方式",
+  "checkout_select_payment_hint": "請先選擇付款方式",
   "bank_transfer_radio_label": "銀行轉賬",
   "bank_transfer_intro": "感謝你的訂購。 訂單將處於保留狀態，直到確認收到付款才會繼續處理。",
   "bank_transfer_details_heading": "銀行匯款資訊",
@@ -510,6 +511,7 @@
   "pay_summary_total": "總計",
   "pay_payment_heading": "付款方式",
   "pay_payment_loading": "載入付款表單中…",
+  "pay_select_payment_hint": "請先選擇付款方式",
   "pay_tc_text_pre": "我已閱讀並同意網站的",
   "pay_tc_link_label": "條款及細則",
   "pay_button": "付款 HK${amount}",

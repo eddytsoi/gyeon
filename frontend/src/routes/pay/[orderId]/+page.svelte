@@ -13,6 +13,9 @@
   let placing = $state(false);
   let error = $state('');
   let tcAccepted = $state(false);
+  // True once a complete payment method is selected/entered in the Payment
+  // Element. Gates the Pay button so it isn't clickable before a card is chosen.
+  let paymentComplete = $state(false);
 
   const order = $derived(data.info.order);
   const clientSecret = $derived(data.info.client_secret);
@@ -33,6 +36,9 @@
       });
       const paymentElement = elements.create('payment', { layout: 'tabs' });
       paymentElement.mount('#payment-element');
+      paymentElement.on('change', (e) => {
+        paymentComplete = e.complete;
+      });
     } catch (e) {
       error = e instanceof Error ? e.message : m.pay_load_failed();
     } finally {
@@ -139,9 +145,13 @@
         <p class="mt-4 text-sm text-red-500 leading-relaxed">{error}</p>
       {/if}
 
+      {#if !mounting && !paymentComplete && !placing}
+        <p class="mt-4 text-xs text-gray-400">{m.pay_select_payment_hint()}</p>
+      {/if}
+
       <button type="button"
               onclick={confirmPay}
-              disabled={mounting || placing || !tcAccepted || !stripe}
+              disabled={mounting || placing || !tcAccepted || !stripe || !paymentComplete}
               class="mt-5 w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                      hover:bg-gray-700 transition-colors disabled:opacity-50">
         {placing ? m.pay_button_processing() : m.pay_button({ amount: order.total.toFixed(2) })}
