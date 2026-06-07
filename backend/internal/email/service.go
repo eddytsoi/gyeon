@@ -277,6 +277,17 @@ type RefundEmailParams struct {
 	OrderURL      string
 }
 
+// OrderCancelledUnpaidParams drives the email sent when the auto-expiry sweep
+// cancels a pending order that was never paid. ResumeURL points back to the
+// storefront so the customer can re-order if they still want the items.
+type OrderCancelledUnpaidParams struct {
+	OrderID       string
+	OrderNumber   string // customer-facing, e.g. ORD-0001
+	CustomerName  string
+	CustomerEmail string
+	ResumeURL     string
+}
+
 type AbandonedCartItem struct {
 	Name      string
 	Subtitle  string
@@ -476,6 +487,22 @@ func (s *Service) SendOrderRefunded(ctx context.Context, p RefundEmailParams) er
 		return renderDefault("subject:order_refunded", orderRefundedSubject, p),
 			renderDefault("html:order_refunded", orderRefundedHTML, p),
 			renderDefault("text:order_refunded", orderRefundedText, p)
+	})
+	return s.send(cfg, p.CustomerEmail, subject, text, html)
+}
+
+// SendOrderCancelledUnpaid notifies the customer that their unpaid order was
+// auto-cancelled (and the reserved stock released) because payment wasn't
+// completed in time.
+func (s *Service) SendOrderCancelledUnpaid(ctx context.Context, p OrderCancelledUnpaidParams) error {
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	subject, html, text := s.applyTemplate(ctx, "order_cancelled_unpaid", p, func() (string, string, string) {
+		return renderDefault("subject:order_cancelled_unpaid", orderCancelledUnpaidSubject, p),
+			renderDefault("html:order_cancelled_unpaid", orderCancelledUnpaidHTML, p),
+			renderDefault("text:order_cancelled_unpaid", orderCancelledUnpaidText, p)
 	})
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
@@ -1190,6 +1217,38 @@ const orderRefundedHTML = `<!doctype html>
       </div>{{end}}
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`
+
+// order_cancelled_unpaid ────────────────────────────────────────────────────
+const orderCancelledUnpaidSubject = `訂單已取消（逾時未付款） — {{orderref .OrderNumber .OrderID}}`
+
+const orderCancelledUnpaidText = `{{if .CustomerName}}您好 {{.CustomerName}}，{{else}}您好，{{end}}
+
+您的訂單 {{orderref .OrderNumber .OrderID}} 因逾時未完成付款，已自動取消，原本為您保留的商品已釋出。
+
+如仍想購買，歡迎重新選購：
+{{.ResumeURL}}
+
+如您已另行完成付款或有任何疑問，歡迎回覆此電郵與我們聯絡。
+
+— Gyeon`
+
+const orderCancelledUnpaidHTML = `<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>訂單已取消</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">訂單已取消</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">{{if .CustomerName}}您好 {{.CustomerName | esc}}，{{else}}您好，{{end}} 您的訂單 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong> 因逾時未完成付款，已自動取消，原本為您保留的商品已釋出。</p>
+
+      {{if .ResumeURL}}<div style="text-align:center;margin:24px 0 8px">
+        <a href="{{.ResumeURL}}" style="display:inline-block;padding:14px 32px;background:#111827;color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:600">重新選購</a>
+      </div>{{end}}
+
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.6">如您已另行完成付款或有任何疑問，歡迎回覆此電郵與我們聯絡。</p>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">— Gyeon</p>
   </div>
 </body></html>`
 

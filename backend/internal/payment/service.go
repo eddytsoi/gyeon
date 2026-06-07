@@ -133,6 +133,24 @@ func (s *Service) CreateRefund(ctx context.Context, paymentIntentID string, amou
 	return rf.ID, nil
 }
 
+// CancelPaymentIntent cancels an unconfirmed PaymentIntent so an expired order
+// can't later charge the customer. Stripe returns an error for an
+// already-succeeded / non-cancelable intent; callers treat that as a signal to
+// leave the order alone (don't restock something that may have been paid).
+func (s *Service) CancelPaymentIntent(ctx context.Context, paymentIntentID string) error {
+	sk := s.SecretKey(ctx)
+	if sk == "" {
+		return ErrNotConfigured
+	}
+	if paymentIntentID == "" {
+		return fmt.Errorf("payment_intent_id is required")
+	}
+	if _, err := stripe.NewClient(sk).V1PaymentIntents.Cancel(ctx, paymentIntentID, nil); err != nil {
+		return fmt.Errorf("stripe cancel intent: %w", err)
+	}
+	return nil
+}
+
 // FetchPaymentMethodDetails retrieves PM type + card brand/last4/exp from Stripe.
 // pmType is the Stripe PaymentMethod type ("card", "alipay", etc.); brand/last4/exp
 // are populated only when pmType == "card".

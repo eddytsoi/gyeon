@@ -30,6 +30,7 @@ import (
 	mcpsrv "gyeon/backend/internal/mcp"
 	"gyeon/backend/internal/media"
 	"gyeon/backend/internal/oauth"
+	"gyeon/backend/internal/orderexpiry"
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
@@ -302,6 +303,10 @@ func main() {
 	taxSvc := tax.NewService(settingsSvc)
 	orderSvc := orders.NewOrderService(conn, cartSvc, pricingSvc, customerSvc, paymentSvc, emailEnqueuer)
 	orderSvc.SetTaxService(taxSvc)
+	// Auto-expiry sweep for unpaid pending orders — declared here so it's in
+	// scope for both the admin route (below) and the periodic ticker (near the
+	// queue worker start).
+	orderExpirySvc := orderexpiry.NewService(conn, orderSvc, paymentSvc, settingsSvc, emailEnqueuer)
 	noticeSvc := orders.NewNoticeService(conn)
 	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailEnqueuer, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
@@ -802,6 +807,9 @@ func main() {
 				abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
 				r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
 
+				// Pending-order auto-expiry: "run now" companion to the periodic ticker.
+				r.Mount("/admin/pending-order-expiry", orderexpiry.NewHandler(orderExpirySvc).AdminRoutes())
+
 				// WooCommerce import. Products / orders / customers all run as
 				// detached background jobs on one shared single-worker FIFO queue
 				// (survives the admin leaving the page). Each /start enqueues; the
@@ -855,6 +863,26 @@ func main() {
 	worker.Register(queue.JobTypeGenerateReceiptBatch, receiptBatchQueueHandler.Handle)
 	worker.SetTimeout(queue.JobTypeGenerateReceiptBatch, 5*time.Minute)
 	worker.Start(rootCtx)
+
+	// Pending-order auto-expiry sweep. Fixed cadence; the age threshold (and the
+	// 0 = disabled switch) lives in site_settings and is read fresh each run, so
+	// admins can tune it without a restart. Stops with rootCtx on SIGINT/SIGTERM.
+	go func() {
+		t := time.NewTicker(5 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-rootCtx.Done():
+				return
+			case <-t.C:
+				if n, err := orderExpirySvc.Run(rootCtx); err != nil {
+					log.Printf("pending-order expiry sweep: %v", err)
+				} else if n > 0 {
+					log.Printf("pending-order expiry: cancelled %d unpaid order(s)", n)
+				}
+			}
+		}
+	}()
 
 	addr := ":" + getenv("PORT", "8080")
 	log.Println("API server listening on", addr)

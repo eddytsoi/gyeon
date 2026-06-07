@@ -281,6 +281,12 @@ func SampleParamsFor(key string) any {
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD", RefundAmount: 50, OrderTotal: 135, Reason: "Customer requested partial refund",
 		}
+	case "order_cancelled_unpaid":
+		return OrderCancelledUnpaidParams{
+			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
+			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
+			ResumeURL: "https://example.com/",
+		}
 	case "payment_link":
 		return PaymentLinkParams{
 			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
@@ -380,6 +386,8 @@ func variablesForKey(key string) []string {
 	case "order_refunded":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".Currency", ".RefundAmount", ".OrderTotal", ".Reason"}
+	case "order_cancelled_unpaid":
+		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".ResumeURL"}
 	case "payment_link":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".PaymentURL", ".Total", ".Currency"}
@@ -404,7 +412,7 @@ func variablesForKey(key string) []string {
 // AllKeys returns every supported template key in display order.
 func AllKeys() []string {
 	return []string{
-		"order_confirmation", "order_shipped", "order_refunded",
+		"order_confirmation", "order_shipped", "order_refunded", "order_cancelled_unpaid",
 		"payment_link", "bank_transfer_on_hold", "password_reset", "account_setup", "admin_message",
 		"abandoned_cart", "low_stock_alert",
 	}
@@ -419,6 +427,8 @@ func DisplayName(key string) string {
 		return "Order shipped"
 	case "order_refunded":
 		return "Order refunded"
+	case "order_cancelled_unpaid":
+		return "Order cancelled (unpaid)"
 	case "payment_link":
 		return "Payment link"
 	case "bank_transfer_on_hold":

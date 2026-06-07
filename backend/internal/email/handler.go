@@ -224,6 +224,8 @@ func defaultsFor(key string) defaults {
 		return defaults{subject: orderShippedSubject, html: orderShippedHTML, text: orderShippedText}
 	case "order_refunded":
 		return defaults{subject: orderRefundedSubject, html: orderRefundedHTML, text: orderRefundedText}
+	case "order_cancelled_unpaid":
+		return defaults{subject: orderCancelledUnpaidSubject, html: orderCancelledUnpaidHTML, text: orderCancelledUnpaidText}
 	case "payment_link":
 		return defaults{subject: paymentLinkSubject, html: paymentLinkHTML, text: paymentLinkText}
 	case "bank_transfer_on_hold":
