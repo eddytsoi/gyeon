@@ -253,6 +253,7 @@
   const TAX_KEYS = new Set(['tax_enabled', 'tax_rate', 'tax_label', 'tax_inclusive']);
   const LOYALTY_KEYS = new Set(['loyalty_enabled', 'loyalty_points_per_hkd', 'loyalty_redeem_rate_hkd']);
   const ABANDONED_KEYS = new Set(['abandoned_cart_enabled', 'abandoned_cart_threshold_hours']);
+  const PENDING_EXPIRY_KEYS = new Set(['pending_order_expiry_hours', 'pending_order_expiry_bank_transfer_hours']);
   const ORPHAN_KEYS = new Set(['timezone', 'site_description', 'contact_email']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
@@ -436,6 +437,7 @@
         !TAX_KEYS.has(s.key) &&
         !LOYALTY_KEYS.has(s.key) &&
         !ABANDONED_KEYS.has(s.key) &&
+        !PENDING_EXPIRY_KEYS.has(s.key) &&
         !LOW_STOCK_KEYS.has(s.key) &&
         !ORPHAN_KEYS.has(s.key) &&
         !CURRENCY_KEYS.has(s.key) &&
@@ -704,6 +706,28 @@
       abandonedRunResult = e instanceof Error ? e.message : 'failed';
     } finally {
       abandonedRunPending = false;
+    }
+  }
+
+  let pendingExpiryRunPending = $state(false);
+  let pendingExpiryRunResult = $state<string | null>(null);
+
+  async function runPendingExpiryNow() {
+    pendingExpiryRunPending = true;
+    pendingExpiryRunResult = null;
+    try {
+      const res = await fetch('/api/v1/admin/pending-order-expiry/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: '{}'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      pendingExpiryRunResult = m.admin_settings_pending_expiry_run_result({ count: body.expired ?? 0 });
+    } catch (e) {
+      pendingExpiryRunResult = e instanceof Error ? e.message : 'failed';
+    } finally {
+      pendingExpiryRunPending = false;
     }
   }
 
@@ -1742,6 +1766,52 @@
         </button>
         {#if abandonedRunResult}
           <span class="text-xs text-gray-500">{abandonedRunResult}</span>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Pending-order auto-expiry: cancel + restock unpaid orders past their
+         age threshold. 0 = disabled per category; bank transfer gets a longer
+         window since wires take days. A 5-min ticker runs this automatically. -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="mb-5">
+        <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_pending_expiry_heading()}</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_pending_expiry_subtitle()}</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label for="pending_order_expiry_hours" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_pending_expiry_card_heading()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_pending_expiry_card_hint()}</p>
+          <input id="pending_order_expiry_hours" name="pending_order_expiry_hours"
+                 type="number" min="0" step="1"
+                 value={settingValue('pending_order_expiry_hours') || '24'}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="pending_order_expiry_bank_transfer_hours" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {m.admin_settings_pending_expiry_bank_heading()}
+          </label>
+          <p class="text-xs text-gray-400 -mt-0.5">{m.admin_settings_pending_expiry_bank_hint()}</p>
+          <input id="pending_order_expiry_bank_transfer_hours" name="pending_order_expiry_bank_transfer_hours"
+                 type="number" min="0" step="1"
+                 value={settingValue('pending_order_expiry_bank_transfer_hours') || '168'}
+                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900" />
+        </div>
+      </div>
+
+      <div class="pt-4 mt-4 border-t border-gray-100 flex items-center gap-3">
+        <button type="button" onclick={runPendingExpiryNow} disabled={pendingExpiryRunPending}
+                class="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium
+                       text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60">
+          {pendingExpiryRunPending ? m.admin_settings_pending_expiry_run_pending() : m.admin_settings_pending_expiry_run_button()}
+        </button>
+        {#if pendingExpiryRunResult}
+          <span class="text-xs text-gray-500">{pendingExpiryRunResult}</span>
         {/if}
       </div>
     </div>

@@ -126,6 +126,10 @@ func (e *QueueEnqueuer) SendOrderRefunded(ctx context.Context, p RefundEmailPara
 	return e.enqueueTemplated(ctx, "order_refunded", p.CustomerEmail, p, "order.refund", "order", p.OrderID)
 }
 
+func (e *QueueEnqueuer) SendOrderCancelledUnpaid(ctx context.Context, p OrderCancelledUnpaidParams) error {
+	return e.enqueueTemplated(ctx, "order_cancelled_unpaid", p.CustomerEmail, p, "order.expired", "order", p.OrderID)
+}
+
 func (e *QueueEnqueuer) SendPaymentLink(ctx context.Context, p PaymentLinkParams) error {
 	return e.enqueueTemplated(ctx, "payment_link", p.CustomerEmail, p, "checkout.payment_link", "order", p.OrderID)
 }
