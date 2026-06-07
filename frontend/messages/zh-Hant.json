@@ -295,6 +295,7 @@
   "checkout_success_title": "訂單已確認 — {brand}",
   "checkout_success_heading": "訂單已確認！",
   "checkout_success_body": "您的訂單 {orderNumber} 已成功送出。",
+  "checkout_success_email_sent": "確認電郵已發送到您的電郵收件箱,請查收。",
   "checkout_success_summary": "訂單摘要",
   "checkout_success_subtotal": "小計",
   "checkout_success_discount": "折扣",
@@ -304,6 +305,7 @@
   "checkout_success_status_label": "狀態：",
   "checkout_success_status_text": " — 我們將盡快處理您的訂單。",
   "checkout_success_create_account": "建立帳戶以追蹤訂單",
+  "checkout_success_view_order": "查看訂單",
   "checkout_success_continue": "繼續購物",
 
   "pickup_aria_close": "關閉",

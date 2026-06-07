@@ -77,6 +77,13 @@
     </p>
     {#if data.bankTransfer}
       <p class="text-gray-500 mt-1">{m.bank_transfer_on_hold_body()}</p>
+    {:else}
+      <p class="text-sm text-gray-500 mt-2 flex items-center justify-center gap-1.5">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+        {m.checkout_success_email_sent()}
+      </p>
     {/if}
   </div>
 
@@ -155,7 +162,12 @@
 
   <!-- CTAs -->
   <div class="flex flex-col sm:flex-row gap-3 justify-center">
-    {#if data.setupURL}
+    {#if data.loggedIn}
+      <a href="/account/orders/{data.order.id}"
+         class="px-6 py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors text-center">
+        {m.checkout_success_view_order()}
+      </a>
+    {:else if data.setupURL}
       <a href={data.setupURL}
          class="px-6 py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors text-center">
         {m.checkout_success_create_account()}
