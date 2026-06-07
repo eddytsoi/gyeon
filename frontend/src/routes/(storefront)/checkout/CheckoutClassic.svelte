@@ -84,6 +84,10 @@
   let pendingOrderID = $state<string | null>(null);
   let pendingOrderNumber = $state('');
   let paymentElementMounted = $state(false);
+  // True once the shopper has selected/entered a complete payment method in the
+  // Payment Element (e.g. confirmed the Link card via 使用這張卡). Gates the Pay
+  // button so it can't look clickable before a card is actually chosen.
+  let paymentComplete = $state(false);
 
   // ── T&C (section 5) ───────────────────────────────────────────
   let tcAccepted = $state(false);
@@ -343,6 +347,9 @@
         }
       });
       paymentElement.mount('#payment-element');
+      paymentElement.on('change', (e) => {
+        paymentComplete = e.complete;
+      });
       paymentElementMounted = true;
       paymentReady = true;
 
@@ -674,10 +681,13 @@
                 {placing ? m.checkout_pay_processing() : m.checkout_place_order_bank_transfer()}
               </button>
             {:else if paymentReady}
+              {#if !paymentComplete && !placing}
+                <p class="{error ? 'mt-5' : ''} text-xs text-gray-400 mb-2">{m.checkout_select_payment_hint()}</p>
+              {/if}
               <button type="button"
                       onclick={confirmPay}
-                      disabled={placing || !tcAccepted}
-                      class="{error ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
+                      disabled={placing || !tcAccepted || !paymentComplete}
+                      class="{error && (paymentComplete || placing) ? 'mt-5' : ''} w-full py-3 bg-gray-900 text-white font-semibold rounded-xl
                              hover:bg-gray-700 transition-colors disabled:opacity-50">
                 {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: roundAmount(total) })}
               </button>

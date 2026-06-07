@@ -84,6 +84,10 @@
   let stripe: Stripe | null = $state(null);
   let elements: StripeElements | null = $state(null);
   let paymentElementMounted = $state(false);
+  // True once the shopper has selected/entered a complete payment method in the
+  // Payment Element (e.g. confirmed the Link card via 使用這張卡). Gates the Pay
+  // button so it can't look clickable before a card is actually chosen.
+  let paymentComplete = $state(false);
 
   // ── Submit / pending state ────────────────────────────────────
   let tcAccepted = $state(false);
@@ -306,6 +310,9 @@
       defaultValues: { billingDetails: { email: email.trim(), address: { country: stripeCountry } } }
     });
     paymentElement.mount('#payment-element-modern');
+    paymentElement.on('change', (e) => {
+      paymentComplete = e.complete;
+    });
     paymentElementMounted = true;
   }
 
@@ -769,7 +776,10 @@
                   {placing ? m.checkout_pay_processing() : m.checkout_place_order_bank_transfer()}
                 </button>
               {:else}
-                <button type="button" onclick={pay} disabled={!formValid || placing || !stripe}
+                {#if paymentElementMounted && !paymentComplete && !placing}
+                  <p class="text-xs text-ink-300">{m.checkout_select_payment_hint()}</p>
+                {/if}
+                <button type="button" onclick={pay} disabled={!formValid || placing || !stripe || !paymentComplete}
                         class="w-full py-3.5 bg-navy-500 text-white font-display font-bold uppercase tracking-[0.12em] text-sm rounded-xl hover:bg-navy-700 transition-colors disabled:opacity-40">
                   {placing ? m.checkout_pay_processing() : m.checkout_pay_button({ amount: roundAmount(total) })}
                 </button>

@@ -246,6 +246,7 @@
   "checkout_tc_link_label": "Terms & Conditions",
 
   "checkout_section_payment": "Payment method",
+  "checkout_select_payment_hint": "Please select a payment method to continue",
   "bank_transfer_radio_label": "Bank transfer",
   "bank_transfer_intro": "Thank you for your order. It will be held until we confirm receipt of payment before processing continues.",
   "bank_transfer_details_heading": "Bank transfer details",
@@ -510,6 +511,7 @@
   "pay_summary_total": "Total",
   "pay_payment_heading": "Payment method",
   "pay_payment_loading": "Loading payment form…",
+  "pay_select_payment_hint": "Please select a payment method to continue",
   "pay_tc_text_pre": "I have read and agree to the website's ",
   "pay_tc_link_label": "Terms & Conditions",
   "pay_button": "Pay HK${amount}",
