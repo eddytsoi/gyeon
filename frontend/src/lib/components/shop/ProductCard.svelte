@@ -51,6 +51,9 @@
   );
 
   const soldOut = $derived(variant != null && variant.stock_qty === 0);
+  // Sold-out cards fade the photo so the whole card reads as unavailable; on a
+  // white-background product shot this washes the product toward the container.
+  const mediaDim = $derived(soldOut ? 'opacity-50' : '');
 
   // Price block sizing. 'lg'/'list' use a 24px medium-weight price; 'list' also
   // bumps the strikethrough compare-at price to 18px medium.
@@ -82,7 +85,7 @@
       {#if image}
         {#if isVideo(image) && !isStreamingVideo(image) && !image.thumbnail_url}
           <video src={image.url} muted playsinline preload="metadata"
-                 class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]">
+                 class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04] {mediaDim}">
           </video>
         {:else if isStreamingVideo(image) && !image.thumbnail_url}
           <div class="w-full h-full flex items-center justify-center bg-white">
@@ -94,7 +97,7 @@
           <ResponsiveImage src={image.url} alt={image.alt_text ?? product.name}
                            widths={CARD_WIDTHS} sizes={CARD_SIZES}
                            {loading} {fetchpriority}
-                           class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04]" />
+                           class="w-full h-full object-cover transition-transform duration-500 ease-gy group-hover:scale-[1.04] {mediaDim}" />
         {/if}
       {:else}
         <div class="w-full h-full flex items-center justify-center text-ink-300">
@@ -119,12 +122,15 @@
         </span>
       {/if}
 
-      <!-- Sold-out pill — bottom-left -->
+      <!-- Sold-out — centred, always legible over any photo -->
       {#if soldOut}
-        <span class="absolute bottom-3 left-3 px-2.5 py-1 bg-white/95 text-ink-900
-                     text-[11px] uppercase tracking-[0.15em] font-semibold rounded-sm">
-          {m.product_card_out_of_stock()}
-        </span>
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span class="bg-ink-900/90 text-white font-display font-semibold
+                       text-[11px] md:text-xs uppercase tracking-[0.2em]
+                       px-4 py-2 rounded-sm">
+            {m.product_card_out_of_stock()}
+          </span>
+        </div>
       {/if}
     </div>
 
