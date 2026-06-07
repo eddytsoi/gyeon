@@ -2684,6 +2684,7 @@
   "dashboard_revenue_breakdown_by_category": "By category",
   "dashboard_revenue_breakdown_by_role": "By customer type",
   "dashboard_revenue_breakdown_by_carrier": "By carrier",
+  "dashboard_carrier_no_record": "No record",
   "dashboard_role_guest": "Guest",
   "dashboard_funnel_heading": "Conversion funnel",
   "dashboard_funnel_pending": "Pending",

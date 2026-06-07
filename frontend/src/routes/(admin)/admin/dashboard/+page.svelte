@@ -125,11 +125,13 @@
     { label: m.dashboard_funnel_delivered(), value: g('delivered') }
   ]);
 
-  // Resolve ShipAny courier UIDs (selected_carrier stores an opaque uid) to
-  // their human-readable names, mirroring the order detail page. Unknown uids
-  // and the '—' no-carrier placeholder pass through unchanged.
+  // Orders with no recorded shipping method come back with an empty label and
+  // render as the localized 沒有記錄 / No record bucket. Any non-empty label is
+  // a method title (passed through) or a ShipAny courier uid resolved to its
+  // human-readable name as a defensive fallback.
   const courierNameByUid = $derived(new Map((data.couriers ?? []).map((c) => [c.uid, c.name])));
   function carrierLabel(l: string): string {
+    if (!l) return m.dashboard_carrier_no_record();
     return courierNameByUid.get(l) ?? l;
   }
 

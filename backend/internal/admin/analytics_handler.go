@@ -515,14 +515,13 @@ func (h *AnalyticsHandler) revenueBreakdown(w http.ResponseWriter, r *http.Reque
 		      GROUP BY 1
 		      ORDER BY value DESC`
 	case "carrier":
-		// Prefer the WC shipping method title (set on import, and on native
-		// orders from shipping_free) so native + imported SF orders share the
-		// 順豐速運 (免運費)/(到付) buckets. Fall back to the ShipAny courier UID
-		// only for native orders missing a method (none today). Frontend
-		// resolves any leftover UID to a name and passes method titles through.
+		// Group by the WC shipping method title (順豐速運 (免運費)/(到付), Free
+		// Shipping, …), set on import and on native orders from shipping_free.
+		// Orders with no recorded method collapse into one bucket ('') that the
+		// frontend renders as the localized 沒有記錄 / No record label.
 		custJoin, catJoin, rev, cnt, where, a := f.scopeRevenue("o.status NOT IN ('cancelled')")
 		args = a
-		q = `SELECT COALESCE(NULLIF(o.shipping_method, ''), NULLIF(o.selected_carrier, ''), '—') AS label, ` + rev + ` AS value, ` + cnt + ` AS n
+		q = `SELECT COALESCE(NULLIF(o.shipping_method, ''), '') AS label, ` + rev + ` AS value, ` + cnt + ` AS n
 		       FROM orders o` + custJoin + catJoin + where + `
 		      GROUP BY 1
 		      ORDER BY value DESC`

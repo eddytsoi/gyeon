@@ -2684,6 +2684,7 @@
   "dashboard_revenue_breakdown_by_category": "按分類",
   "dashboard_revenue_breakdown_by_role": "按客戶類型",
   "dashboard_revenue_breakdown_by_carrier": "按物流",
+  "dashboard_carrier_no_record": "沒有記錄",
   "dashboard_role_guest": "訪客",
   "dashboard_funnel_heading": "轉化漏斗",
   "dashboard_funnel_pending": "待付款",
