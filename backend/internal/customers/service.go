@@ -741,6 +741,18 @@ func (s *Service) IssuePasswordResetToken(ctx context.Context, customerID string
 	return token, expiresAt, nil
 }
 
+// PasswordIsSet reports whether the customer already has a usable password.
+// WooCommerce imports and guest-checkout rows have password_hash IS NULL — the
+// forgot-password flow uses this to decide between the "account setup" email
+// (passwordless) and the normal "password reset" email.
+func (s *Service) PasswordIsSet(ctx context.Context, customerID string) (bool, error) {
+	var set bool
+	err := s.db.QueryRowContext(ctx,
+		`SELECT password_hash IS NOT NULL AND password_hash <> '' FROM customers WHERE id=$1`,
+		customerID).Scan(&set)
+	return set, err
+}
+
 func (s *Service) issueAccountToken(ctx context.Context, customerID string, ttl time.Duration) (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
