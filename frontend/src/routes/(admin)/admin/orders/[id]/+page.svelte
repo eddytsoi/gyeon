@@ -145,14 +145,14 @@
     return courierByUid.get(uid)?.name ?? uid;
   };
 
-  const BRAND_LABELS: Record<string, string> = {
-    visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', discover: 'Discover',
-    jcb: 'JCB', diners: 'Diners', unionpay: 'UnionPay', unknown: 'Card'
-  };
   function formatPaymentMethod(o: { card_brand?: string; card_last4?: string; payment_method?: string }): string {
-    if (o.card_brand && o.card_last4) {
-      const label = BRAND_LABELS[o.card_brand.toLowerCase()] ?? o.card_brand;
-      return `${label} •••• ${o.card_last4}`;
+    // All card-backed payments — direct card (brand + last4), Stripe Link, and
+    // the bare stripe/card gateway values from imports — read as a plain
+    // "信用卡". HK shoppers don't recognise "link"/"stripe", so a uniform card
+    // label is clearer than the raw value or brand/last4.
+    const pm = o.payment_method?.toLowerCase();
+    if ((o.card_brand && o.card_last4) || pm === 'card' || pm === 'link' || pm === 'stripe') {
+      return m.payment_method_credit_card();
     }
     if (o.payment_method === 'bank_transfer') return m.bank_transfer_radio_label();
     if (o.payment_method) return o.payment_method;
