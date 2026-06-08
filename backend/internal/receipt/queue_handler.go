@@ -24,13 +24,22 @@ type Broadcaster interface {
 }
 
 type QueueHandler struct {
-	svc   *Service
-	cache *Cache
-	hub   Broadcaster
+	svc      *Service
+	cache    *Cache
+	hub      Broadcaster
+	onCached func(ctx context.Context, orderID, locale string)
 }
 
 func NewQueueHandler(svc *Service, cache *Cache, hub Broadcaster) *QueueHandler {
 	return &QueueHandler{svc: svc, cache: cache, hub: hub}
+}
+
+// SetOnCached registers a callback fired right after a receipt PDF is
+// successfully written to the cache. Wired in main.go to enqueue a PrintNode
+// print job — kept as a generic hook so this package stays unaware of
+// printing (one-way dependency).
+func (h *QueueHandler) SetOnCached(fn func(ctx context.Context, orderID, locale string)) {
+	h.onCached = fn
 }
 
 // Handle runs one generate_receipt_cache job: loads the order, renders the
@@ -76,6 +85,13 @@ func (h *QueueHandler) Handle(ctx context.Context, payload []byte) error {
 			"order_id": job.OrderID,
 			"locale":   locale,
 		})
+	}
+
+	// PDF is now on disk — fire the post-cache hook (e.g. enqueue a PrintNode
+	// remote-print job). Runs after Put so the print path is guaranteed a
+	// ready file.
+	if h.onCached != nil {
+		h.onCached(ctx, job.OrderID, locale)
 	}
 	return nil
 }

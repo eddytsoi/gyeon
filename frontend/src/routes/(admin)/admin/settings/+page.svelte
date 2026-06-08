@@ -318,6 +318,11 @@
   const RECAPTCHA_KEYS = new Set([
     'recaptcha_enabled', 'recaptcha_site_key', 'recaptcha_secret_key', 'recaptcha_min_score'
   ]);
+  // PrintNode remote receipt printing. Excluded from textSettings so the
+  // generic loop doesn't double-render (and blank-overwrite) these inputs.
+  const PRINTNODE_KEYS = new Set([
+    'printnode_enabled', 'printnode_api_key', 'printnode_printer_id', 'printnode_copies'
+  ]);
   // Rendered by the dedicated Social Login section. Must be excluded from the
   // catch-all textSettings list below, otherwise each key renders a second
   // (generic) input with the same name — and on save the empty duplicate
@@ -424,6 +429,7 @@
         !CART_CROSS_SELLS_KEYS.has(s.key) &&
         !FBT_EXCLUDED_KEYS.has(s.key) &&
         !SHIPANY_KEYS.has(s.key) &&
+        !PRINTNODE_KEYS.has(s.key) &&
         !RECAPTCHA_KEYS.has(s.key) &&
         !OAUTH_KEYS.has(s.key) &&
         !ORDER_NUMBER_KEYS.has(s.key) &&
@@ -851,6 +857,76 @@
       notify.error(m.admin_settings_shipany_test_failure_title(), msg);
     } finally {
       shipanyTestingConnection = false;
+    }
+  }
+
+  // ── PrintNode remote receipt printing ───────────────────────────
+  let printNodeOn = $state(settingValue('printnode_enabled') === 'true');
+  type PrintNodePrinter = {
+    id: number;
+    name: string;
+    state: string;
+    computer?: { name?: string; state?: string };
+  };
+  let printNodePrinters = $state<PrintNodePrinter[]>([]);
+  let printNodePrintersLoading = $state(false);
+  let printNodePrintersError = $state('');
+  let printNodePrinterID = $state(settingValue('printnode_printer_id'));
+  let printNodeTesting = $state(false);
+
+  async function loadPrintNodePrinters() {
+    printNodePrintersLoading = true;
+    printNodePrintersError = '';
+    try {
+      const res = await fetch('/api/v1/admin/printnode/printers', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const body = await res.json();
+        printNodePrinters = Array.isArray(body?.printers) ? body.printers : [];
+        if (printNodePrinters.length === 0) {
+          printNodePrintersError = m.admin_settings_printnode_no_printers();
+        }
+      } else {
+        const body = await res.json().catch(() => null);
+        printNodePrinters = [];
+        printNodePrintersError =
+          body?.error ?? m.admin_settings_shipany_server_returned({ status: res.status });
+      }
+    } catch (e) {
+      printNodePrinters = [];
+      printNodePrintersError =
+        e instanceof Error ? e.message : m.admin_settings_shipany_network_error();
+    } finally {
+      printNodePrintersLoading = false;
+    }
+  }
+
+  async function testPrintNode() {
+    printNodeTesting = true;
+    try {
+      const printerId = parseInt(printNodePrinterID, 10) || 0;
+      const res = await fetch('/api/v1/admin/printnode/test-print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ printer_id: printerId })
+      });
+      if (res.ok) {
+        notify.success(m.admin_settings_printnode_test_success_title());
+      } else {
+        const body = await res.json().catch(() => null);
+        notify.error(
+          m.admin_settings_printnode_test_failure_title(),
+          body?.error ?? m.admin_settings_shipany_server_returned({ status: res.status })
+        );
+      }
+    } catch (e) {
+      notify.error(
+        m.admin_settings_printnode_test_failure_title(),
+        e instanceof Error ? e.message : m.admin_settings_shipany_network_error()
+      );
+    } finally {
+      printNodeTesting = false;
     }
   }
 
@@ -2796,6 +2872,93 @@
         <input type="hidden" name="auto_shipany_on_paid_enabled" value={autoShipanyOnPaid ? 'true' : 'false'} />
       </div>
       <p class="text-xs text-gray-500 mt-3">{m.admin_settings_automation_auto_shipany_hint()}</p>
+    </div>
+
+    <!-- PrintNode remote receipt printing -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex items-start justify-between gap-4 mb-2">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">{m.admin_settings_printnode_heading()}</h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            {m.admin_settings_printnode_subtitle_pre()}<a href="https://www.printnode.com" target="_blank" rel="noopener" class="underline hover:text-gray-700">printnode.com</a>{m.admin_settings_printnode_subtitle_post()}
+          </p>
+        </div>
+        <button type="button"
+                onclick={() => (printNodeOn = !printNodeOn)}
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                       transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2
+                       {printNodeOn ? 'bg-green-500' : 'bg-gray-200'}"
+                role="switch"
+                aria-checked={printNodeOn}>
+          <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform
+                       transition duration-200 {printNodeOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+        </button>
+        <input type="hidden" name="printnode_enabled" value={printNodeOn ? 'true' : 'false'} />
+      </div>
+      <p class="text-xs text-gray-500 mb-4">{m.admin_settings_printnode_enabled_hint()}</p>
+
+      <div class="space-y-4">
+        <div class="grid gap-1">
+          <label for="printnode_api_key" class="text-xs font-medium text-gray-600">
+            {m.admin_settings_printnode_api_key()}
+          </label>
+          <p class="text-xs text-gray-400">{m.admin_settings_printnode_api_key_hint()}</p>
+          <PasswordInput id="printnode_api_key" name="printnode_api_key"
+                         value={settingValue('printnode_api_key')}
+                         placeholder="••••••••••••••••" />
+        </div>
+
+        <div class="grid gap-1">
+          <div class="flex items-center justify-between gap-2">
+            <label for="printnode_printer_id" class="text-xs font-medium text-gray-600">
+              {m.admin_settings_printnode_printer_id()}
+            </label>
+            <button type="button" onclick={loadPrintNodePrinters}
+                    disabled={printNodePrintersLoading}
+                    class="text-xs font-medium text-gray-500 underline hover:text-gray-700 disabled:opacity-50">
+              {printNodePrintersLoading ? m.admin_settings_printnode_loading() : m.admin_settings_printnode_list_printers()}
+            </button>
+          </div>
+          {#if printNodePrinters.length > 0}
+            <select id="printnode_printer_id" name="printnode_printer_id"
+                    bind:value={printNodePrinterID}
+                    class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:ring-0">
+              <option value="">{m.admin_settings_printnode_select_printer()}</option>
+              {#each printNodePrinters as p}
+                <option value={String(p.id)}>
+                  {p.name} (#{p.id}) — {p.state}{p.computer?.name ? ` · ${p.computer.name}` : ''}
+                </option>
+              {/each}
+            </select>
+          {:else}
+            <input id="printnode_printer_id" name="printnode_printer_id" type="text" inputmode="numeric"
+                   bind:value={printNodePrinterID}
+                   placeholder={m.admin_settings_printnode_printer_id_placeholder()}
+                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:ring-0" />
+          {/if}
+          {#if printNodePrintersError}
+            <p class="text-xs text-red-500">{printNodePrintersError}</p>
+          {/if}
+        </div>
+
+        <div class="grid gap-1 max-w-[8rem]">
+          <label for="printnode_copies" class="text-xs font-medium text-gray-600">
+            {m.admin_settings_printnode_copies()}
+          </label>
+          <input id="printnode_copies" name="printnode_copies" type="number" min="1" step="1"
+                 value={settingValue('printnode_copies') || '1'}
+                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:ring-0" />
+        </div>
+
+        <div class="flex items-center gap-3 pt-1">
+          <button type="button"
+                  onclick={testPrintNode}
+                  disabled={printNodeTesting}
+                  class="inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            {printNodeTesting ? m.admin_settings_printnode_testing() : m.admin_settings_printnode_test_button()}
+          </button>
+        </div>
+      </div>
     </div>
 
     </div>

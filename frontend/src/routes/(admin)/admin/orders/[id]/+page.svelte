@@ -14,6 +14,7 @@
   const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
   const receiptReady = $derived(receiptCache.isReady(data.order.id));
   let regenerating = $state(false);
+  let printing = $state(false);
 
   // Fetch the initial cache state on mount so the icon reflects backend
   // reality on first paint. SSE will keep it fresh from there.
@@ -44,6 +45,22 @@
       notify.error(m.admin_order_receipt_regenerate_failed());
     } finally {
       regenerating = false;
+    }
+  }
+
+  async function printReceipt() {
+    if (printing) return;
+    printing = true;
+    try {
+      const res = await fetch(`/admin/orders/${data.order.id}/receipt-print`, {
+        method: 'POST'
+      });
+      if (!res.ok) throw new Error(await res.text());
+      notify.success(m.admin_order_receipt_print_queued());
+    } catch {
+      notify.error(m.admin_order_receipt_print_failed());
+    } finally {
+      printing = false;
     }
   }
 
@@ -219,6 +236,20 @@
                            disabled:opacity-50 whitespace-nowrap"
                     title={m.admin_order_receipt_regenerate()}>
               {regenerating ? m.admin_order_receipt_regenerating() : m.admin_order_receipt_regenerate()}
+            </button>
+            <button type="button" onclick={printReceipt} disabled={printing}
+                    class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium
+                           text-gray-500 border border-gray-200 rounded-lg
+                           hover:bg-gray-50 hover:text-gray-700 transition-colors
+                           disabled:opacity-50 whitespace-nowrap"
+                    title={m.admin_order_receipt_print()}>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+              {printing ? m.admin_order_receipt_printing() : m.admin_order_receipt_print()}
             </button>
           </div>
         {/if}
