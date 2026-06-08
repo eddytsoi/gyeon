@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -495,6 +496,14 @@ func (e *QueueEnqueuer) HandleSendEmailRaw(ctx context.Context, payload []byte) 
 	})
 }
 
+// emailDryRunEnabled reports whether the temporary EMAIL_DRY_RUN switch is on.
+// Truthy values: 1 / true / yes / on (case-insensitive). Used to suppress
+// actual delivery of import setup-mail batches during diagnosis.
+func emailDryRunEnabled() bool {
+	v := strings.TrimSpace(os.Getenv("EMAIL_DRY_RUN"))
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes") || strings.EqualFold(v, "on")
+}
+
 // HandleSendEmailBatch is the queue handler for send_email_batch. It renders
 // every recipient's templated mail and delivers them in a single Resend
 // /emails/batch request (SMTP falls back to per-message sends inside
@@ -512,6 +521,22 @@ func (e *QueueEnqueuer) HandleSendEmailBatch(ctx context.Context, payload []byte
 		return queue.Permanent(fmt.Errorf("decode send_email_batch job: %w", err))
 	}
 	if len(job.Recipients) == 0 {
+		return nil
+	}
+
+	// TEMP DIAGNOSTIC (EMAIL_DRY_RUN): when the env var is set, do NOT deliver
+	// the batch — just log the intended recipients so customer-import setup
+	// mails can be tested without sending real email. The job is marked done
+	// (returns nil) and writes no smtp_log row. Unset the env (and restart the
+	// backend) to restore normal delivery. Remove this block once diagnosis is
+	// finished.
+	if emailDryRunEnabled() {
+		for _, r := range job.Recipients {
+			log.Printf("EMAIL_DRY_RUN: send_email_batch SUPPRESSED template=%s trigger=%s -> recipient=%s",
+				job.TemplateKey, job.TriggerCondition, r.Recipient)
+		}
+		log.Printf("EMAIL_DRY_RUN: send_email_batch suppressed %d recipient(s); no delivery, no smtp_log",
+			len(job.Recipients))
 		return nil
 	}
 
