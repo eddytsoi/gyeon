@@ -1810,6 +1810,8 @@
   "admin_settings_payment_webhook_hint_pre": "Register endpoint ",
   "admin_settings_payment_webhook_hint_mid": " in Stripe Dashboard, then paste the ",
   "admin_settings_payment_webhook_hint_post": " here.",
+  "admin_settings_payment_save_cards_heading": "Save customer cards",
+  "admin_settings_payment_save_cards_subtitle": "Let customers save their card during checkout for faster future payments.",
   "admin_settings_bank_transfer_heading": "Bank transfer",
   "admin_settings_bank_transfer_subtitle": "Offline payment shown to installer (施工店) customers, who can only pay by bank transfer. Regular customers and guests always pay by Stripe.",
   "admin_settings_bank_transfer_account_name": "Account name (名稱)",

@@ -262,7 +262,8 @@
     'stripe_test_secret_key',
     'stripe_live_publishable_key',
     'stripe_live_secret_key',
-    'stripe_webhook_secret'
+    'stripe_webhook_secret',
+    'stripe_save_cards'
   ]);
   // Rendered by the dedicated Bank Transfer subsection. Must be excluded from the
   // catch-all textSettings list, otherwise each key renders a second generic
@@ -660,6 +661,7 @@
 
   let stripeLiveMode = $state(settingValue('stripe_mode') === 'live');
   let bankTransferEnabled = $state(settingValue('bank_transfer_enabled') !== 'false');
+  let stripeSaveCardsOn = $state(settingValue('stripe_save_cards') === 'true'); // default OFF, matches DB default 'false'
   let lowStockAlertEnabled = $state(settingValue('low_stock_alert_enabled') !== 'false');
   // ── Tax ─────────────────────────────────────────────────────────
   let taxEnabled = $state(settingValue('tax_enabled') === 'true');
@@ -3391,6 +3393,25 @@
                          value={settingValue('stripe_webhook_secret')}
                          placeholder="whsec_..." />
         </div>
+      </div>
+
+      <!-- Save customer cards (Stripe) -->
+      <div class="pt-5 mt-5 border-t border-gray-100">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{m.admin_settings_payment_save_cards_heading()}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{m.admin_settings_payment_save_cards_subtitle()}</p>
+          </div>
+          <button type="button" role="switch"
+                  onclick={() => (stripeSaveCardsOn = !stripeSaveCardsOn)}
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors
+                         {stripeSaveCardsOn ? 'bg-green-500' : 'bg-gray-200'}"
+                  aria-checked={stripeSaveCardsOn}>
+            <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow
+                         transition duration-200 {stripeSaveCardsOn ? 'translate-x-5' : 'translate-x-0'}"></span>
+          </button>
+        </div>
+        <input type="hidden" name="stripe_save_cards" value={stripeSaveCardsOn ? 'true' : 'false'} />
       </div>
 
       <!-- Bank transfer (installer / installer_v2 only) -->
