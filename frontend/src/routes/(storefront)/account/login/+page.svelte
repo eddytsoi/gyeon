@@ -22,19 +22,19 @@
   let forgotOpen = $state(false);
   let forgotSending = $state(false);
   let forgotEmail = $state('');
-  // When the dialog is opened from the "old customer" guidance it acts as a
-  // password *reset* (title 重設密碼); from the password field's link it stays
-  // the usual *forgot password* (title 忘記密碼).
-  let forgotIsReset = $state(false);
+  // 'activate' = the auto-opened modal for a passwordless (WooCommerce import)
+  // account ("啟用您的 GYEON 帳戶"); 'forgot' = the usual 忘記密碼 dialog opened
+  // from the password field's link. Drives the title/body/submit/sent copy.
+  let forgotMode = $state<'forgot' | 'activate'>('forgot');
 
   const forgotResult = $derived(form && 'forgot' in form ? form.forgot : null);
   const loginEmail = $derived(form && 'email' in form ? (form.email ?? '') : '');
   // Set only for an active account with no password yet (WooCommerce import).
   const isLegacy = $derived(form && 'legacy' in form ? form.legacy === true : false);
 
-  function openForgot(email = '', isReset = false) {
+  function openForgot(email = '', mode: 'forgot' | 'activate' = 'forgot') {
     forgotEmail = email;
-    forgotIsReset = isReset;
+    forgotMode = mode;
     forgotOpen = true;
   }
 
@@ -42,6 +42,16 @@
     if (forgotSending) return;
     forgotOpen = false;
   }
+
+  // A true legacy customer (login returned code=password_not_set) skips the red
+  // error box and goes straight to the activation modal. `form` is a fresh
+  // object per submit, so a repeat legacy failure re-opens; closing it (no form
+  // change) keeps it closed; non-legacy results never trigger this.
+  $effect(() => {
+    if (form && 'legacy' in form && form.legacy === true) {
+      openForgot(loginEmail, 'activate');
+    }
+  });
 </script>
 
 <svelte:head>
@@ -64,25 +74,15 @@
 
     {#if forgotResult?.sent}
       <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700">
-        {m.account_login_forgot_sent({ email: forgotResult.email })}
+        {forgotMode === 'activate'
+          ? m.account_activate_sent({ email: forgotResult.email })
+          : m.account_login_forgot_sent({ email: forgotResult.email })}
       </div>
     {/if}
 
-    {#if form?.error}
+    {#if form?.error && !isLegacy}
       <div class="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
-        <p>{form.error}</p>
-        {#if isLegacy}
-          <p class="mt-2 text-xs text-gray-600">
-            {m.account_login_reset_hint()}
-            <button
-              type="button"
-              onclick={() => openForgot(loginEmail, true)}
-              class="text-gray-900 font-medium hover:underline"
-            >
-              {m.account_login_reset_cta()}
-            </button>
-          </p>
-        {/if}
+        {form.error}
       </div>
     {/if}
 
@@ -153,9 +153,9 @@
       tabindex="-1"
       use:focusTrap
     >
-      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{forgotIsReset ? m.password_reset_heading() : m.account_forgot_heading()}</h3>
+      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{forgotMode === 'activate' ? m.account_activate_heading() : m.account_forgot_heading()}</h3>
       <p class="text-sm text-gray-600 mb-4">
-        {m.account_forgot_body()}
+        {forgotMode === 'activate' ? m.account_activate_body() : m.account_forgot_body()}
       </p>
 
       {#if forgotResult?.error}
@@ -200,7 +200,11 @@
             disabled={forgotSending}
             class="px-4 py-2 text-sm font-semibold text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-50"
           >
-            {forgotSending ? m.account_forgot_submitting() : m.account_forgot_submit()}
+            {forgotSending
+              ? m.account_forgot_submitting()
+              : forgotMode === 'activate'
+                ? m.account_activate_submit()
+                : m.account_forgot_submit()}
           </button>
         </div>
       </form>
