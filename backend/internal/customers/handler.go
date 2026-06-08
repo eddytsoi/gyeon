@@ -35,6 +35,7 @@ type OrderPaymentFetcherFunc func(ctx context.Context, orderID, customerID strin
 type EmailSender interface {
 	PublicBaseURL(ctx context.Context) string
 	SendPasswordResetEmail(ctx context.Context, p email.PasswordResetParams) error
+	SendAccountSetupEmail(ctx context.Context, p email.PasswordResetParams) error
 }
 
 type Handler struct {
@@ -672,15 +673,40 @@ func (h *Handler) forgotPassword(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deliverPasswordReset(customer *Customer) {
 	ctx := context.Background()
+	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
+	if name == "" {
+		name = customer.Email
+	}
+
+	// A passwordless account (WooCommerce import / unfinished guest checkout)
+	// isn't "resetting" a password — it's activating a migrated account. Send
+	// the "Account setup (import)" email with a 7-day setup token instead of the
+	// generic reset email. Accounts that already have a password get the normal
+	// 24-hour reset email below, unchanged.
+	hasPassword, err := h.svc.PasswordIsSet(ctx, customer.ID)
+	if err != nil {
+		return
+	}
+	if !hasPassword {
+		token, err := h.svc.CreateSetupToken(ctx, customer.ID)
+		if err != nil {
+			return
+		}
+		resetURL := strings.TrimRight(h.emailSvc.PublicBaseURL(ctx), "/") + "/account/reset-password?token=" + token
+		_ = h.emailSvc.SendAccountSetupEmail(ctx, email.PasswordResetParams{
+			CustomerName:  name,
+			CustomerEmail: customer.Email,
+			ResetURL:      resetURL,
+			ExpiryHours:   7 * 24,
+		})
+		return
+	}
+
 	token, _, err := h.svc.IssuePasswordResetToken(ctx, customer.ID)
 	if err != nil {
 		return
 	}
 	resetURL := strings.TrimRight(h.emailSvc.PublicBaseURL(ctx), "/") + "/account/reset-password?token=" + token
-	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
-	if name == "" {
-		name = customer.Email
-	}
 	_ = h.emailSvc.SendPasswordResetEmail(ctx, email.PasswordResetParams{
 		CustomerName:  name,
 		CustomerEmail: customer.Email,
