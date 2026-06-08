@@ -308,6 +308,10 @@ func main() {
 	// scope for both the admin route (below) and the periodic ticker (near the
 	// queue worker start).
 	orderExpirySvc := orderexpiry.NewService(conn, orderSvc, paymentSvc, settingsSvc, emailEnqueuer)
+	// Abandoned-cart recovery sweep — declared here so it's in scope for both the
+	// admin route (list + manual run) and the periodic ticker (near the queue
+	// worker start). enabled/threshold live in site_settings, read fresh each run.
+	abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
 	noticeSvc := orders.NewNoticeService(conn)
 	noticeHandler := orders.NewNoticeHandler(noticeSvc, emailEnqueuer, jwtSecret)
 	shipanyClient := shipany.NewHTTPClient(settingsSvc, getenv("SHIPANY_BASE_URL", ""))
@@ -814,8 +818,9 @@ func main() {
 				// hardcoded transactional emails
 				r.Mount("/admin/email-templates", emailTemplateHandler.AdminRoutes())
 
-				// Abandoned cart recovery (list + manual run; external cron may also POST run)
-				abandonedSvc := abandoned.NewService(conn, emailEnqueuer, settingsSvc)
+				// Abandoned cart recovery (list + manual run; auto-swept by the
+				// periodic ticker near the queue worker start). abandonedSvc is
+				// constructed above so the ticker can share it.
 				r.Mount("/admin/abandoned-cart", abandoned.NewHandler(abandonedSvc).AdminRoutes())
 
 				// Pending-order auto-expiry: "run now" companion to the periodic ticker.
@@ -924,6 +929,27 @@ func main() {
 					log.Printf("pending-order expiry sweep: %v", err)
 				} else if n > 0 {
 					log.Printf("pending-order expiry: cancelled %d unpaid order(s)", n)
+				}
+			}
+		}
+	}()
+
+	// Abandoned-cart reminder sweep. Fixed 15-min cadence; the inactivity
+	// threshold and the enabled toggle live in site_settings and are read fresh
+	// each run (Run honours abandoned_cart_enabled when force=false), so admins
+	// can tune or pause it without a restart. Stops with rootCtx.
+	go func() {
+		t := time.NewTicker(15 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-rootCtx.Done():
+				return
+			case <-t.C:
+				if n, err := abandonedSvc.Run(rootCtx, false); err != nil {
+					log.Printf("abandoned-cart sweep: %v", err)
+				} else if n > 0 {
+					log.Printf("abandoned-cart: sent %d reminder(s)", n)
 				}
 			}
 		}
