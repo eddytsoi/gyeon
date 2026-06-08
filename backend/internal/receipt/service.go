@@ -267,7 +267,7 @@ func (s *Service) buildView(ctx context.Context, order *orders.Order, images map
 		TaxFmt:        fmtMoney(order.TaxAmount, currency),
 		ShippingLabel: orders.ShippingLabel(order, locale),
 		TotalFmt:      fmtMoney(order.Total, currency),
-		PaymentLine:   formatPayment(order),
+		PaymentLine:   formatPayment(order, locale),
 	}
 }
 
@@ -373,31 +373,37 @@ func formatVariantAttrs(attrs map[string]interface{}) string {
 	return strings.Join(parts, " · ")
 }
 
-func formatPayment(order *orders.Order) string {
-	if order.CardBrand != nil && order.CardLast4 != nil && *order.CardBrand != "" && *order.CardLast4 != "" {
-		brand := *order.CardBrand
-		switch strings.ToLower(brand) {
-		case "visa":
-			brand = "Visa"
-		case "mastercard":
-			brand = "Mastercard"
-		case "amex":
-			brand = "Amex"
-		case "jcb":
-			brand = "JCB"
-		case "discover":
-			brand = "Discover"
-		case "diners":
-			brand = "Diners"
-		case "unionpay":
-			brand = "UnionPay"
-		}
-		return fmt.Sprintf("%s •••• %s", brand, *order.CardLast4)
+// formatPayment turns the stored payment method into a customer-facing label.
+// All card-backed Stripe payments — direct card (brand + last4), Stripe Link,
+// and the bare "stripe"/"card" gateway values from imported orders — read as a
+// plain localised "信用卡" / "Credit card": HK shoppers don't recognise "link"
+// or "stripe", so a uniform card label is clearer than the raw value or the
+// brand/last4. Non-card methods (bank_transfer, alipay, …) fall through to their
+// stored value unchanged.
+func formatPayment(order *orders.Order, locale string) string {
+	if isCardPayment(order) {
+		return t(locale, "credit_card")
 	}
 	if order.PaymentMethod != nil && *order.PaymentMethod != "" {
 		return *order.PaymentMethod
 	}
 	return ""
+}
+
+// isCardPayment reports whether an order was paid by credit card — either we
+// captured the card brand + last4, or the stored method is one of the
+// card-equivalent Stripe values.
+func isCardPayment(order *orders.Order) bool {
+	if order.CardBrand != nil && order.CardLast4 != nil && *order.CardBrand != "" && *order.CardLast4 != "" {
+		return true
+	}
+	if order.PaymentMethod != nil {
+		switch strings.ToLower(*order.PaymentMethod) {
+		case "card", "link", "stripe":
+			return true
+		}
+	}
+	return false
 }
 
 func composeAddress(line1, line2, city, state, postal, country string) string {

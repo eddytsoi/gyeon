@@ -29,5 +29,6 @@
   <div class="min-w-0">
     <p class="text-sm font-medium text-ink-900">{m.secure_payment_title_pre()}<StripeWordmark class="inline-block h-3.5 w-auto align-[-0.2em]" />{m.secure_payment_title_post()}</p>
     <p class="text-xs text-ink-500 mt-0.5">{m.secure_payment_subtitle()}</p>
+    <p class="text-xs text-ink-500 mt-1">{m.secure_payment_link_note()}</p>
   </div>
 </div>
