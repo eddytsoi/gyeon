@@ -1810,6 +1810,8 @@
   "admin_settings_payment_webhook_hint_pre": "於 Stripe Dashboard 註冊端點 ",
   "admin_settings_payment_webhook_hint_mid": "，然後在此貼上 ",
   "admin_settings_payment_webhook_hint_post": "。",
+  "admin_settings_payment_save_cards_heading": "儲存客戶信用卡",
+  "admin_settings_payment_save_cards_subtitle": "允許客戶於結帳時儲存信用卡，方便日後更快完成付款。",
   "admin_settings_bank_transfer_heading": "銀行轉賬",
   "admin_settings_bank_transfer_subtitle": "向施工店客戶顯示的離線付款方式，該類客戶只能使用銀行轉賬。一般客戶及訪客一律使用 Stripe 付款。",
   "admin_settings_bank_transfer_account_name": "名稱",
