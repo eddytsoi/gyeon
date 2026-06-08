@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { loginCustomer, requestPasswordReset } from '$lib/api';
+import { loginCustomer, requestPasswordReset, ApiError } from '$lib/api';
+import * as m from '$lib/paraglide/messages';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
@@ -8,7 +9,7 @@ export const actions: Actions = {
     const email = form.get('email')?.toString() ?? '';
     const password = form.get('password')?.toString() ?? '';
 
-    if (!email || !password) return fail(400, { error: 'Email and password are required' });
+    if (!email || !password) return fail(400, { error: m.account_login_error_required(), email });
 
     try {
       const { token, expires_in } = await loginCustomer(email, password);
@@ -18,8 +19,12 @@ export const actions: Actions = {
         sameSite: 'lax',
         maxAge: expires_in ?? 60 * 60 * 24 * 30
       });
-    } catch {
-      return fail(401, { error: 'Invalid email or password' });
+    } catch (e) {
+      // `legacy` marks a real account that has no password yet (WooCommerce
+      // import) so the page can show the "old customer — reset password"
+      // guidance. Unknown emails and wrong passwords leave it unset.
+      const legacy = e instanceof ApiError && e.code === 'password_not_set';
+      return fail(401, { error: m.account_login_error_invalid(), email, legacy });
     }
 
     throw redirect(303, '/account/orders');

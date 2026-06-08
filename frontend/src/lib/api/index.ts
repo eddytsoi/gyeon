@@ -61,12 +61,17 @@ export class ApiError extends Error {
   readonly status: number;
   readonly path: string;
   readonly serverMessage: string | null;
-  constructor(status: number, path: string, serverMessage: string | null) {
+  // Optional machine-readable `code` from the backend error body, used to
+  // branch on a specific failure (e.g. login's "password_not_set") without
+  // matching on the human-facing message.
+  readonly code: string | null;
+  constructor(status: number, path: string, serverMessage: string | null, code: string | null = null) {
     super(serverMessage ? `API ${status}: ${serverMessage}` : `API ${status}: ${path}`);
     this.name = 'ApiError';
     this.status = status;
     this.path = path;
     this.serverMessage = serverMessage;
+    this.code = code;
   }
 }
 
@@ -77,13 +82,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let serverMessage: string | null = null;
+    let code: string | null = null;
     try {
       const body = await res.json();
       if (body && typeof body.error === 'string') serverMessage = body.error;
+      if (body && typeof body.code === 'string') code = body.code;
     } catch {
       // body was not JSON — leave serverMessage null
     }
-    throw new ApiError(res.status, path, serverMessage);
+    throw new ApiError(res.status, path, serverMessage, code);
   }
   return res.json() as Promise<T>;
 }

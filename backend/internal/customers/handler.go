@@ -207,6 +207,16 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}
+	if errors.Is(err, ErrPasswordNotSet) {
+		// Active account with no password (WooCommerce import). Keep the human
+		// message generic, but tag a `code` so the storefront can surface the
+		// "old customer — reset your password" guidance for this case only.
+		respond.JSON(w, http.StatusUnauthorized, map[string]string{
+			"error": "invalid email or password",
+			"code":  "password_not_set",
+		})
+		return
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return

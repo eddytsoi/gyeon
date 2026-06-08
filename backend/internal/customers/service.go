@@ -19,6 +19,13 @@ import (
 var ErrNotFound = errors.New("customer not found")
 var ErrEmailTaken = errors.New("email already registered")
 var ErrInvalidCredentials = errors.New("invalid email or password")
+// ErrPasswordNotSet flags a real, active account that has no password yet —
+// WooCommerce imports (or guest-checkout rows) whose password_hash IS NULL.
+// The login handler maps this to a distinct response so the storefront can
+// nudge these "old customers" toward the password-reset flow. Unknown emails
+// and genuine wrong passwords still collapse into ErrInvalidCredentials, so we
+// only ever reveal that a *passwordless* account exists, never a normal one.
+var ErrPasswordNotSet = errors.New("password not set")
 var ErrInvalidToken = errors.New("invalid or expired token")
 var ErrPasswordTooShort = errors.New("password must be at least 8 characters")
 
@@ -182,11 +189,12 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*Customer, error
 		return nil, err
 	}
 	// Customers imported from WooCommerce (or guest-checkout rows that never
-	// finished setup) have password_hash IS NULL. Treat that the same as a
-	// wrong-password attempt so we don't leak whether a row exists, and the
-	// customer gets pushed toward the "Forgot password?" link.
+	// finished setup) have password_hash IS NULL. Surface this as a distinct
+	// error so the storefront can guide these "old customers" to set a password
+	// via the reset flow. Only passwordless accounts are revealed this way; a
+	// normal account with a wrong password stays ErrInvalidCredentials below.
 	if !hash.Valid || hash.String == "" {
-		return nil, ErrInvalidCredentials
+		return nil, ErrPasswordNotSet
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash.String), []byte(req.Password)) != nil {
 		return nil, ErrInvalidCredentials

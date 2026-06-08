@@ -22,11 +22,19 @@
   let forgotOpen = $state(false);
   let forgotSending = $state(false);
   let forgotEmail = $state('');
+  // When the dialog is opened from the "old customer" guidance it acts as a
+  // password *reset* (title 重設密碼); from the password field's link it stays
+  // the usual *forgot password* (title 忘記密碼).
+  let forgotIsReset = $state(false);
 
   const forgotResult = $derived(form && 'forgot' in form ? form.forgot : null);
+  const loginEmail = $derived(form && 'email' in form ? (form.email ?? '') : '');
+  // Set only for an active account with no password yet (WooCommerce import).
+  const isLegacy = $derived(form && 'legacy' in form ? form.legacy === true : false);
 
-  function openForgot() {
-    forgotEmail = '';
+  function openForgot(email = '', isReset = false) {
+    forgotEmail = email;
+    forgotIsReset = isReset;
     forgotOpen = true;
   }
 
@@ -62,7 +70,19 @@
 
     {#if form?.error}
       <div class="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
-        {form.error}
+        <p>{form.error}</p>
+        {#if isLegacy}
+          <p class="mt-2 text-xs text-gray-600">
+            {m.account_login_reset_hint()}
+            <button
+              type="button"
+              onclick={() => openForgot(loginEmail, true)}
+              class="text-gray-900 font-medium hover:underline"
+            >
+              {m.account_login_reset_cta()}
+            </button>
+          </p>
+        {/if}
       </div>
     {/if}
 
@@ -84,7 +104,7 @@
       <div>
         <label for="email" class="block text-sm font-medium text-gray-700 mb-1">{m.account_login_email_label()}</label>
         <input
-          id="email" name="email" type="email" required autocomplete="email"
+          id="email" name="email" type="email" required autocomplete="email" value={loginEmail}
           class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
         />
       </div>
@@ -93,7 +113,7 @@
           <label for="password" class="block text-sm font-medium text-gray-700">{m.account_login_password_label()}</label>
           <button
             type="button"
-            onclick={openForgot}
+            onclick={() => openForgot(loginEmail)}
             class="text-xs font-medium text-gray-600 hover:text-gray-900 hover:underline"
           >
             {m.account_login_forgot_link()}
@@ -133,7 +153,7 @@
       tabindex="-1"
       use:focusTrap
     >
-      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{m.account_forgot_heading()}</h3>
+      <h3 id="forgot-pw-title" class="font-semibold text-gray-900 mb-2">{forgotIsReset ? m.password_reset_heading() : m.account_forgot_heading()}</h3>
       <p class="text-sm text-gray-600 mb-4">
         {m.account_forgot_body()}
       </p>
