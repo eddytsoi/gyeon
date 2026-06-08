@@ -34,6 +34,7 @@ import (
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
+	"gyeon/backend/internal/printnode"
 	"gyeon/backend/internal/queue"
 	"gyeon/backend/internal/ratelimit"
 	"gyeon/backend/internal/recaptcha"
@@ -407,6 +408,13 @@ func main() {
 	receiptBatchStore := receipt.NewBatchStore(conn)
 	receiptHandler := receipt.NewHandler(receiptSvc, receiptCache, queueSvc, receiptBatchStore)
 	orderSvc.SetReceiptCache(receiptCache)
+
+	// PrintNode remote-print: client reads its config (api key, printer,
+	// enabled toggle) from site_settings per call. The admin handler exposes
+	// printer-list / test-print / manual-reprint; the queue handler does the
+	// actual POST off the request path.
+	printNodeClient := printnode.NewClient(settingsSvc)
+	printNodeHandler := printnode.NewHandler(printNodeClient, queueSvc, orderSvc)
 
 	// Contact forms (CF7-style) + reCAPTCHA v3 verifier
 	recaptchaVerifier := recaptcha.New(settingsSvc)
@@ -784,6 +792,9 @@ func main() {
 				// ShipAny admin: test connection, create shipment, request pickup
 				r.Mount("/admin/shipany", shipanyHandler.AdminRoutes())
 
+				// PrintNode admin: list printers, test print, manual receipt reprint
+				r.Mount("/admin/printnode", printNodeHandler.AdminRoutes())
+
 				// Pricing: campaigns and coupons
 				r.Mount("/admin/pricing", pricingHandler.AdminRoutes())
 
@@ -857,6 +868,40 @@ func main() {
 	receiptQueueHandler := receipt.NewQueueHandler(receiptSvc, receiptCache, adminHub)
 	worker.Register(queue.JobTypeGenerateReceiptCache, receiptQueueHandler.Handle)
 	worker.SetTimeout(queue.JobTypeGenerateReceiptCache, 2*time.Minute)
+
+	// PrintNode remote-print job. Reads the cached receipt PDF (falling back to
+	// a fresh render) and POSTs it to PrintNode. The PDF provider keeps the
+	// printnode package decoupled from the receipt package.
+	pdfProvider := printnode.PDFProviderFunc(func(ctx context.Context, orderID, locale string) ([]byte, error) {
+		if pdf, err := receiptCache.Get(orderID, locale); err == nil {
+			return pdf, nil
+		}
+		o, err := orderSvc.GetByID(ctx, orderID)
+		if err != nil {
+			return nil, err
+		}
+		pdf, err := receiptSvc.GenerateForOrder(ctx, o, locale)
+		if err != nil {
+			return nil, err
+		}
+		_ = receiptCache.Put(orderID, locale, pdf)
+		return pdf, nil
+	})
+	printQueueHandler := printnode.NewQueueHandler(printNodeClient, pdfProvider, orderSvc)
+	worker.Register(queue.JobTypePrintReceipt, printQueueHandler.Handle)
+	worker.SetTimeout(queue.JobTypePrintReceipt, 1*time.Minute)
+	// Auto-print on paid: once the receipt PDF is cached, enqueue a print job
+	// (gated by printnode_enabled). Enqueued from the cache hook so the print
+	// path is guaranteed a ready file.
+	receiptQueueHandler.SetOnCached(func(ctx context.Context, orderID, locale string) {
+		if !printNodeClient.Enabled(ctx) {
+			return
+		}
+		payload, _ := json.Marshal(printnode.PrintReceiptJob{OrderID: orderID, Locale: locale})
+		if _, err := queueSvc.Enqueue(ctx, queue.JobTypePrintReceipt, payload); err != nil {
+			log.Printf("queue: enqueue print receipt for order %s: %v", orderID, err)
+		}
+	})
 	// Batch receipt ZIP — packs many per-order receipts into one download.
 	// Generous timeout: a 200-order batch with cold renders dominates runtime.
 	receiptBatchQueueHandler := receipt.NewBatchQueueHandler(receiptSvc, receiptCache, receiptBatchStore, adminHub)

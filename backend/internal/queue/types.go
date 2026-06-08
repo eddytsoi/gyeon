@@ -19,6 +19,7 @@ const (
 	JobTypeCreateShipanyShipment = "create_shipany_shipment"
 	JobTypeGenerateReceiptCache  = "generate_receipt_cache"
 	JobTypeGenerateReceiptBatch  = "generate_receipt_batch"
+	JobTypePrintReceipt          = "print_receipt"
 )
 
 // HandlerFunc processes one job payload. Returning nil marks the job
