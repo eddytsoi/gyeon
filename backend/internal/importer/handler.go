@@ -2,6 +2,7 @@ package importer
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"gyeon/backend/internal/auth"
@@ -124,6 +125,11 @@ func (h *Handler) StartCustomers(w http.ResponseWriter, r *http.Request) {
 	}
 	actorID, _ := auth.AdminIDFromContext(r.Context())
 	pos, queued := h.svc.EnqueueCustomers(req, actorID)
+	// DIAGNOSTIC: surface exactly what the admin UI submitted and whether the
+	// enqueue was accepted or silently deduped (queued=false). Lets us tell a
+	// dropped single-customer request apart from a wrong customer_id at the wire.
+	log.Printf("import/customers: StartCustomers received customer_id=%d limit=%d setup_email_mode=%q -> queued=%v position=%d",
+		req.CustomerID, req.Limit, req.SetupEmailMode, queued, pos)
 	respond.JSON(w, http.StatusAccepted, map[string]any{"queued": queued, "position": pos})
 }
 

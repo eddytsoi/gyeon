@@ -82,6 +82,12 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 	wc := newWCClient(req.WCURL, req.WCKey, req.WCSecret)
 	p := CustomersProgressUpdate{Errors: []string{}}
 
+	// DIAGNOSTIC: which request the worker actually dequeued. If this disagrees
+	// with the customer_id the handler logged at enqueue time, the queue ran a
+	// different (e.g. earlier) request than the one just submitted.
+	log.Printf("import/customers: RunCustomersStreaming start customer_id=%d limit=%d setup_email_mode=%q",
+		req.CustomerID, req.Limit, req.SetupEmailMode)
+
 	if req.CustomerID > 0 {
 		// Single-customer run: denominator is always 1, no count call.
 		p.TotalCustomers = 1
@@ -212,6 +218,10 @@ func (s *Service) RunCustomersStreaming(ctx context.Context, req CustomersImport
 		if err != nil {
 			p.Errors = append(p.Errors, fmt.Sprintf("fetch customer %d: %v", req.CustomerID, err))
 		} else {
+			// DIAGNOSTIC: confirm the WC customer actually returned for the
+			// requested id (id + email the setup mail would target).
+			log.Printf("import/customers: single fetch requested customer_id=%d -> wc.id=%d email=%s",
+				req.CustomerID, cust.ID, cust.Email)
 			processOne(cust)
 		}
 	} else {
