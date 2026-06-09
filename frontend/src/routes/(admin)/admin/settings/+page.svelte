@@ -1328,6 +1328,20 @@
       </div>
     </div>
 
+    <!-- Site Description (SEO meta-description fallback) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-0.5">
+        <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_site_description()}</p>
+        <p class="text-xs text-gray-400">{m.admin_settings_desc_site_description()}</p>
+      </div>
+      <div class="mt-5 flex flex-col gap-1.5">
+        <textarea id="site_description" name="site_description" rows="4"
+                  value={settingValue('site_description') || ''}
+                  class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                         focus:outline-none focus:ring-2 focus:ring-gray-900"></textarea>
+      </div>
+    </div>
+
     <!-- Favicon -->
     {#if faviconSetting}
       <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { page } from '$app/state';
+  import { siteDescription } from '$lib/seo';
+
   interface SeoProps {
     title: string;
     description?: string;
@@ -11,12 +14,18 @@
   }
 
   let { title, description, canonical, image, type = 'website', siteName = 'GYEON', jsonLd }: SeoProps = $props();
+
+  // Fall back to the site-wide 網站描述 (site_description setting) when the page
+  // sets no description of its own. Safe when publicSettings is absent (yields '').
+  const finalDescription = $derived(
+    description?.trim() || siteDescription(page.data?.publicSettings) || undefined
+  );
 </script>
 
 <svelte:head>
   <title>{title}</title>
-  {#if description}
-    <meta name="description" content={description} />
+  {#if finalDescription}
+    <meta name="description" content={finalDescription} />
   {/if}
   {#if canonical}
     <link rel="canonical" href={canonical} />
@@ -25,8 +34,8 @@
   <!-- Open Graph -->
   <meta property="og:type" content={type} />
   <meta property="og:title" content={title} />
-  {#if description}
-    <meta property="og:description" content={description} />
+  {#if finalDescription}
+    <meta property="og:description" content={finalDescription} />
   {/if}
   {#if canonical}
     <meta property="og:url" content={canonical} />
@@ -39,8 +48,8 @@
   <!-- Twitter -->
   <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
   <meta name="twitter:title" content={title} />
-  {#if description}
-    <meta name="twitter:description" content={description} />
+  {#if finalDescription}
+    <meta name="twitter:description" content={finalDescription} />
   {/if}
   {#if image}
     <meta name="twitter:image" content={image} />
