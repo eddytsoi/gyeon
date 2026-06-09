@@ -688,6 +688,8 @@ func countryAlpha3(alpha2 string) string {
 	switch strings.ToUpper(alpha2) {
 	case "HK":
 		return "HKG"
+	case "MO":
+		return "MAC"
 	case "TW":
 		return "TWN"
 	case "TH":
@@ -719,6 +721,8 @@ func phoneCountryCode(alpha2 string) string {
 	switch strings.ToUpper(alpha2) {
 	case "HK":
 		return "852"
+	case "MO":
+		return "853"
 	case "TW":
 		return "886"
 	case "TH":
