@@ -100,6 +100,47 @@ export const adminGetProducts = (
   return request<PagedResponse<AdminProductRow>>(`/admin/inventory/?${qs.toString()}`, token);
 };
 
+// ── Stock Velocity (庫存速率) ─────────────────────────────────────────────────
+// Per-variant sales rate + remaining runway over a trailing window. Only
+// variants with ≥1 sale in the window are returned (server-side INNER join).
+export interface StockVelocityRow {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  variation: string;
+  stock_qty: number;
+  in_stock: boolean;
+  gross_sales: number;
+  gross_sold: number;
+  daily_gross_sold: number;
+  days_left?: number | null;
+}
+export interface StockVelocityResult {
+  items: StockVelocityRow[];
+  total: number;
+  days: number;
+  capped: boolean;
+}
+export type StockVelocitySort =
+  | 'gross_sales_desc' | 'gross_sales_asc'
+  | 'gross_sold_desc' | 'gross_sold_asc'
+  | 'daily_gross_sold_desc' | 'daily_gross_sold_asc'
+  | 'days_left_asc' | 'days_left_desc'
+  | 'stock_desc' | 'stock_asc'
+  | 'variation_asc' | 'variation_desc';
+
+export const adminGetStockVelocity = (
+  token: string,
+  opts: { days?: number; sort?: StockVelocitySort } = {}
+) => {
+  const qs = new URLSearchParams();
+  if (opts.days) qs.set('days', String(opts.days));
+  if (opts.sort) qs.set('sort', opts.sort);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request<StockVelocityResult>(`/admin/stock-velocity/${suffix}`, token);
+};
+
 export const adminCreateProduct = (token: string, body: Partial<Product>) =>
   request<Product>('/admin/products', token, { method: 'POST', body: JSON.stringify(body) });
 

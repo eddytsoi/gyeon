@@ -161,6 +161,7 @@
             { href: '/admin/products/category-roles',  label: m.admin_nav_products_category_roles(), minRole: 'admin' },
             { href: '/admin/stock-mutations',          label: m.admin_nav_stock_mutations(), minRole: 'admin' },
             { href: '/admin/stock-history',            label: m.admin_nav_stock_history() },
+            { href: '/admin/stock-velocity',           label: m.admin_nav_stock_velocity(), minRole: 'admin' },
           ]
         },
         {
@@ -655,6 +656,7 @@
           {:else if $page.url.pathname.includes('audit-log')}{m.admin_top_audit_log()}
           {:else if $page.url.pathname.includes('stock-mutations')}{m.admin_top_stock_mutations()}
           {:else if $page.url.pathname.includes('stock-history')}{m.admin_top_stock_history()}
+          {:else if $page.url.pathname.includes('stock-velocity')}{m.admin_top_stock_velocity()}
           {:else if $page.url.pathname.includes('email-templates')}{m.admin_top_email_templates()}
           {:else if $page.url.pathname.includes('discounts')}{m.admin_top_discounts()}
           {:else if $page.url.pathname.includes('import')}{m.admin_top_import()}
