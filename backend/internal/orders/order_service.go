@@ -306,6 +306,7 @@ type EmailSender interface {
 	SendPaymentLink(ctx context.Context, p email.PaymentLinkParams) error
 	SendBankTransferOnHold(ctx context.Context, p email.BankTransferOnHoldParams) error
 	SendOrderConfirmation(ctx context.Context, p email.OrderEmailParams) error
+	SendNewOrderAlert(ctx context.Context, p email.OrderEmailParams) error
 	SendOrderShipped(ctx context.Context, p email.ShippedEmailParams) error
 	SendOrderRefunded(ctx context.Context, p email.RefundEmailParams) error
 	SendLowStockAlert(ctx context.Context, p email.LowStockParams) error
@@ -1838,6 +1839,82 @@ func (s *OrderService) sendConfirmationEmail(ctx context.Context, order *Order) 
 	if err != nil {
 		log.Printf("send order confirmation email for order %s: %v", order.ID, err)
 	}
+
+	// Notify the admin alert recipient about the new order, alongside the
+	// customer's confirmation. Silently skipped when admin_alert_email is unset.
+	s.sendNewOrderAlert(ctx, order)
+}
+
+// sendNewOrderAlert emails the configured admin alert recipient an internal
+// "new order received" notification, reusing the order's frozen data the same
+// way the customer confirmation does (minus the customer-only setup link). The
+// recipient is resolved by the email layer (admin_alert_email); when unset the
+// send is a silent no-op. Best-effort — a failure must never affect checkout.
+func (s *OrderService) sendNewOrderAlert(ctx context.Context, order *Order) {
+	if s.emailSvc == nil {
+		return
+	}
+
+	var line1, line2, city, state, postal, country string
+	s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(ship_line1,''), COALESCE(ship_line2,''), COALESCE(ship_city,''),
+		        COALESCE(ship_state,''), COALESCE(ship_postal_code,''), COALESCE(ship_country,'')
+		 FROM orders WHERE id=$1`, order.ID).
+		Scan(&line1, &line2, &city, &state, &postal, &country)
+
+	name := ""
+	if order.CustomerName != nil {
+		name = *order.CustomerName
+	}
+	customerEmail := ""
+	if order.CustomerEmail != nil {
+		customerEmail = *order.CustomerEmail
+	}
+
+	taxLabel := ""
+	if s.taxSvc != nil {
+		taxLabel = s.taxSvc.Calculate(ctx, 0).Label
+	}
+
+	emailPromos := make([]email.EmailPromotion, 0, len(order.AppliedPromotions))
+	for _, p := range order.AppliedPromotions {
+		desc := ""
+		if p.Description != nil {
+			desc = *p.Description
+		}
+		emailPromos = append(emailPromos, email.EmailPromotion{Name: p.Name, Description: desc})
+	}
+
+	adminOrderURL := ""
+	if base := s.emailSvc.PublicBaseURL(ctx); base != "" {
+		adminOrderURL = fmt.Sprintf("%s/admin/orders/%s", base, order.ID)
+	}
+
+	err := s.emailSvc.SendNewOrderAlert(ctx, email.OrderEmailParams{
+		OrderID:           order.ID,
+		OrderNumber:       order.OrderNumber,
+		CustomerName:      name,
+		CustomerEmail:     customerEmail,
+		Items:             buildOrderEmailItems(order.Items),
+		Subtotal:          order.Subtotal,
+		ShippingFee:       order.ShippingFee,
+		ShippingLabel:     ShippingLabel(order, "zh-Hant"),
+		DiscountAmount:    order.DiscountAmount,
+		AppliedPromotions: emailPromos,
+		TaxAmount:         order.TaxAmount,
+		TaxLabel:          taxLabel,
+		Total:             order.Total,
+		Currency:          "HKD",
+		ShippingLine1:     line1,
+		ShippingLine2:     line2,
+		ShippingCity:      city,
+		ShippingPostal:    postal,
+		ShippingCountry:   country,
+		AdminOrderURL:     adminOrderURL,
+	})
+	if err != nil {
+		log.Printf("send new-order admin alert for order %s: %v", order.ID, err)
+	}
 }
 
 // sendBankTransferOnHoldEmail emails an installer the bank-transfer instructions
@@ -1891,6 +1968,10 @@ func (s *OrderService) sendBankTransferOnHoldEmail(ctx context.Context, order *O
 	if err != nil {
 		log.Printf("send bank-transfer on-hold email for order %s: %v", order.ID, err)
 	}
+
+	// Alert the admin recipient about the new (on-hold) order. Silently skipped
+	// when admin_alert_email is unset.
+	s.sendNewOrderAlert(ctx, order)
 }
 
 type bankTransferDetails struct {

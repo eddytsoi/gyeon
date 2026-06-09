@@ -251,12 +251,15 @@ func errParseFailure(field string, err error) *ParseError {
 // the Send Test endpoint and the admin preview button.
 func SampleParamsFor(key string) any {
 	switch key {
-	case "order_confirmation":
+	case "order_confirmation", "new_order_alert":
 		return OrderEmailParams{
 			OrderID: "00000000-0000-0000-0000-000000000001", OrderNumber: "ORD-0001",
 			CustomerName: "Sample Customer", CustomerEmail: "sample@example.com",
 			Currency: "HKD",
 			Subtotal: 389, ShippingFee: 30, DiscountAmount: 50, Total: 369,
+			ShippingLabel: "順豐速運（免運費）",
+			ShippingLine1: "中環皇后大道中 1 號", ShippingCity: "香港", ShippingCountry: "香港",
+			AdminOrderURL: "https://example.com/admin/orders/00000000-0000-0000-0000-000000000001",
 			AppliedPromotions: []EmailPromotion{
 				{Name: "夏季優惠", Description: "全單滿 $300 即減 $50"},
 			},
@@ -380,6 +383,11 @@ func variablesForKey(key string) []string {
 	case "order_confirmation":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".Currency",
 			".Subtotal", ".ShippingFee", ".DiscountAmount", ".AppliedPromotions", ".Total", ".Items"}
+	case "new_order_alert":
+		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail", ".Currency",
+			".Subtotal", ".ShippingFee", ".DiscountAmount", ".AppliedPromotions", ".TaxAmount", ".TaxLabel",
+			".Total", ".Items", ".ShippingLabel", ".ShippingLine1", ".ShippingLine2", ".ShippingCity",
+			".ShippingPostal", ".ShippingCountry", ".AdminOrderURL"}
 	case "order_shipped":
 		return []string{".OrderNumber", ".CustomerName", ".CustomerEmail",
 			".Carrier", ".Service", ".TrackingNumber", ".TrackingURL"}
@@ -412,7 +420,7 @@ func variablesForKey(key string) []string {
 // AllKeys returns every supported template key in display order.
 func AllKeys() []string {
 	return []string{
-		"order_confirmation", "order_shipped", "order_refunded", "order_cancelled_unpaid",
+		"order_confirmation", "new_order_alert", "order_shipped", "order_refunded", "order_cancelled_unpaid",
 		"payment_link", "bank_transfer_on_hold", "password_reset", "account_setup", "admin_message",
 		"abandoned_cart", "low_stock_alert",
 	}
@@ -423,6 +431,8 @@ func DisplayName(key string) string {
 	switch key {
 	case "order_confirmation":
 		return "Order confirmation"
+	case "new_order_alert":
+		return "New order alert (admin)"
 	case "order_shipped":
 		return "Order shipped"
 	case "order_refunded":
