@@ -562,10 +562,17 @@ func snapshotOrderAddress(ctx context.Context, tx *sql.Tx, customerID *string, o
 		country = "HK"
 	}
 
+	// WC shipping addresses usually carry no phone (no such field by default), so
+	// fall back to the billing phone — that's the number the courier waybill needs.
+	phone := src.Phone
+	if strings.TrimSpace(phone) == "" {
+		phone = o.Billing.Phone
+	}
+
 	fields := customers.AddressFields{
 		FirstName:  first,
 		LastName:   last,
-		Phone:      nullableString(src.Phone),
+		Phone:      nullableString(phone),
 		Line1:      strings.TrimSpace(src.Address1),
 		Line2:      nullableString(src.Address2),
 		City:       strings.TrimSpace(src.City),
