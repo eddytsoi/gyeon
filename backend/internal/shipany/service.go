@@ -378,9 +378,18 @@ func sfExpressTrackingURL(trackingNumber string) string {
 // original create emitted (notably the HK convention of mirroring city into
 // district). Caller must ensure order.ShippingAddress is non-nil.
 func destAddressFromOrder(order *orders.Order) Address {
+	// WooCommerce-imported orders (and any order whose shipping snapshot lacks a
+	// phone) freeze an empty ship_phone — WC's shipping address has no phone field,
+	// so the contact number only lives on customer_phone (carried over from
+	// billing). Fall back to it so the waybill always has a recipient phone for
+	// the courier; ShipAny rejects a shipment with no rcvr_ctc number.
+	phone := ptrToString(order.ShippingAddress.Phone)
+	if strings.TrimSpace(phone) == "" {
+		phone = ptrToString(order.CustomerPhone)
+	}
 	return Address{
 		Name:       strings.TrimSpace(order.ShippingAddress.FirstName + " " + order.ShippingAddress.LastName),
-		Phone:      ptrToString(order.ShippingAddress.Phone),
+		Phone:      phone,
 		Line1:      order.ShippingAddress.Line1,
 		Line2:      ptrToString(order.ShippingAddress.Line2),
 		District:   order.ShippingAddress.City, // HK uses district in the city field

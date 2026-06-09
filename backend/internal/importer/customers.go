@@ -527,13 +527,16 @@ func (s *Service) upsertCustomer(ctx context.Context, wc wcCustomer, p *Customer
 	// Addresses are only inserted on first import. Re-runs leave the
 	// existing rows alone so admin-edited billing details stick.
 	if hasAddress(wc.Billing) {
-		if err := insertAddress(ctx, tx, customerID, wc.Billing, true); err != nil {
+		if err := insertAddress(ctx, tx, customerID, wc.Billing, true, ""); err != nil {
 			return "", fmt.Errorf("insert billing address: %w", err)
 		}
 		p.ImportedAddresses++
 	}
 	if hasAddress(wc.Shipping) && !sameAddress(wc.Billing, wc.Shipping) {
-		if err := insertAddress(ctx, tx, customerID, wc.Shipping, !hasAddress(wc.Billing)); err != nil {
+		// WC shipping addresses usually carry no phone — fall back to the billing
+		// phone so the saved shipping address (and any order snapshot taken from
+		// it) has a number for the courier waybill.
+		if err := insertAddress(ctx, tx, customerID, wc.Shipping, !hasAddress(wc.Billing), wc.Billing.Phone); err != nil {
 			return "", fmt.Errorf("insert shipping address: %w", err)
 		}
 		p.ImportedAddresses++
@@ -586,7 +589,9 @@ func sameAddress(a, b wcCustomerAddress) bool {
 // insertAddress inserts a billing / shipping row from a WC address payload.
 // Uses the customer's first/last name as a fallback when the address itself
 // has none (some WC stores collect the name only at the customer level).
-func insertAddress(ctx context.Context, tx *sql.Tx, customerID string, a wcCustomerAddress, isDefault bool) error {
+// fallbackPhone supplies a phone when the address payload carries none (WC
+// shipping addresses have no phone field) — pass "" for none.
+func insertAddress(ctx context.Context, tx *sql.Tx, customerID string, a wcCustomerAddress, isDefault bool, fallbackPhone string) error {
 	first := strings.TrimSpace(a.FirstName)
 	last := strings.TrimSpace(a.LastName)
 	if first == "" && last == "" {
@@ -601,10 +606,15 @@ func insertAddress(ctx context.Context, tx *sql.Tx, customerID string, a wcCusto
 		country = "HK"
 	}
 
+	phone := a.Phone
+	if strings.TrimSpace(phone) == "" {
+		phone = fallbackPhone
+	}
+
 	_, err := customers.FindOrCreateAddress(ctx, tx, &customerID, customers.AddressFields{
 		FirstName:  first,
 		LastName:   last,
-		Phone:      nullableString(a.Phone),
+		Phone:      nullableString(phone),
 		Line1:      strings.TrimSpace(a.Address1),
 		Line2:      nullableString(a.Address2),
 		City:       strings.TrimSpace(a.City),
