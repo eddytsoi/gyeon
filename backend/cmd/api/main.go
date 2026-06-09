@@ -368,6 +368,7 @@ func main() {
 	)
 	statsHandler := admin.NewStatsHandler(conn)
 	analyticsHandler := admin.NewAnalyticsHandler(conn)
+	stockVelocityHandler := admin.NewStockVelocityHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
 	postCatHandler := cms.NewPostCategoryHandler(postCatSvc)
@@ -768,6 +769,9 @@ func main() {
 
 				// Stock Management — batch mutation documents (draft → executed).
 				r.Mount("/admin/stock-mutations", stockHandler.AdminRoutes())
+
+				// Stock Velocity report (庫存速率) — per-variant sales rate + runway.
+				r.Mount("/admin/stock-velocity", stockVelocityHandler.Routes())
 
 				// Settings admin
 				r.Mount("/admin/settings", settingsHandler.AdminRoutes())
