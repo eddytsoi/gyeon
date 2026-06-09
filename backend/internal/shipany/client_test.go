@@ -231,6 +231,57 @@ func TestBuildOrderPayloadCreateMode(t *testing.T) {
 	}
 }
 
+// TestBuildCreatePayload pins the create-only fields layered on by
+// buildCreatePayload — notably that cour_type is emitted only when set
+// (cross-border) and omitted for domestic, and that incoterms is never sent.
+func TestBuildCreatePayload(t *testing.T) {
+	base := CreateShipmentRequest{
+		OrderRef:    "ORD-1042",
+		ExtOrderID:  "uuid-1042",
+		Origin:      Address{Name: "Origin Co", Country: "HK", Line1: "1 Origin St", Phone: "23456789"},
+		Destination: Address{Name: "Jane Doe", Country: "HK", Line1: "2 Dest St", Phone: "98765432"},
+		Parcel:      Parcel{WeightGrams: 500, ValueHKD: 199},
+	}
+
+	// Domestic (no CourType / no QuotUID): cour_type and incoterms must be absent.
+	dom := buildCreatePayload("mch-uid", base)
+	if _, ok := dom["cour_type"]; ok {
+		t.Fatalf("domestic payload should omit cour_type: %v", dom["cour_type"])
+	}
+	if _, ok := dom["incoterms"]; ok {
+		t.Fatalf("payload must never set incoterms: %v", dom["incoterms"])
+	}
+	if _, ok := dom["quot_uid"]; ok {
+		t.Fatalf("domestic payload should omit quot_uid: %v", dom["quot_uid"])
+	}
+	if dom["ext_order_ref"] != "ORD-1042" || dom["ext_order_id"] != "uuid-1042" {
+		t.Fatalf("ext order fields wrong: %+v", dom)
+	}
+
+	// Cross-border (Macau): CourType + QuotUID carried; still no incoterms.
+	cb := base
+	cb.Destination = Address{Name: "Dean TANG", Country: "MO", Line1: "祐漢看台街樂智樓11/AC", City: "澳門", Phone: "85366107926"}
+	cb.CourType = "SfExpressV2"
+	cb.QuotUID = "quot-123"
+	cb.FeeHKD = 44
+	p := buildCreatePayload("mch-uid", cb)
+	if p["cour_type"] != "SfExpressV2" {
+		t.Fatalf("cross-border cour_type = %v, want SfExpressV2", p["cour_type"])
+	}
+	if p["quot_uid"] != "quot-123" {
+		t.Fatalf("cross-border quot_uid = %v, want quot-123", p["quot_uid"])
+	}
+	if _, ok := p["incoterms"]; ok {
+		t.Fatalf("cross-border payload must not set incoterms: %v", p["incoterms"])
+	}
+	// Receiver country maps to ShipAny alpha-3.
+	rcvr := p["rcvr_ctc"].(map[string]any)
+	addr := rcvr["addr"].(map[string]any)
+	if addr["cnty"] != "MAC" {
+		t.Fatalf("rcvr cnty = %v, want MAC", addr["cnty"])
+	}
+}
+
 // TestBuildAddressPatchOps pins the JSON-Patch ops emitted when an admin edits
 // an existing shipment's address. Every op must be an "add" (upsert) targeting
 // the right /rcvr_ctc/* path with the same values create-mode would have sent.

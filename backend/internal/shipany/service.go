@@ -257,6 +257,7 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 	// this entirely and ship with the stored default + no quot_uid (unchanged).
 	storedCarrier, storedService := carrier, service
 	quotUID := ""
+	courType := ""
 	feeHKD := 0.0
 	if !strings.EqualFold(strings.TrimSpace(dest.Country), "HK") {
 		opts, qerr := s.client.Quote(ctx, QuoteRequest{
@@ -271,12 +272,13 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 		if opt == nil {
 			return nil, fmt.Errorf("shipany: no service available to %s for order %s", dest.Country, orderID)
 		}
-		carrier, service, quotUID, feeHKD = opt.Carrier, opt.Service, opt.QuotUID, opt.FeeHKD
+		carrier, service, quotUID, courType, feeHKD = opt.Carrier, opt.Service, opt.QuotUID, opt.CourType, opt.FeeHKD
 	}
 
 	created, err := s.client.CreateShipment(ctx, CreateShipmentRequest{
 		Carrier:        carrier,
 		Service:        service,
+		CourType:       courType,
 		QuotUID:        quotUID,
 		FeeHKD:         feeHKD,
 		OrderRef:       order.OrderNumber,
