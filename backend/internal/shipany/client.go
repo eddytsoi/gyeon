@@ -135,6 +135,7 @@ type RateOption struct {
 	CarrierName         string  `json:"carrier_name"` // human label
 	Service             string  `json:"service"`      // cour_svc_pl
 	ServiceName         string  `json:"service_name"`
+	CourType            string  `json:"cour_type,omitempty"` // courier connector id (e.g. "SfExpressV2"); required on cross-border create
 	FeeHKD              float64 `json:"fee_hkd"`
 	ETADays             string  `json:"eta_days,omitempty"`
 	RequiresPickupPoint bool    `json:"requires_pickup_point"`
@@ -165,6 +166,7 @@ type CourierSvcPl struct {
 type CreateShipmentRequest struct {
 	Carrier        string  // cour_uid
 	Service        string  // cour_svc_pl (optional)
+	CourType       string  // cour_type (courier connector id, e.g. "SfExpressV2"); required on cross-border create
 	QuotUID        string  // optional: lock the quoted price
 	OrderRef       string  // ext_order_ref (human label, e.g. ORD-1042)
 	ExtOrderID     string  // ext_order_id (stable external id, usually the UUID)
@@ -247,6 +249,7 @@ func (c *HTTPClient) Quote(ctx context.Context, req QuoteRequest) ([]RateOption,
 			CarrierName:         coalesce(q.CourName, q.CourUID),
 			Service:             q.CourSvcPl,
 			ServiceName:         q.CourSvcPl,
+			CourType:            q.CourType,
 			FeeHKD:              q.CourTtlCost.Val,
 			RequiresPickupPoint: q.RequiresPickupPoint,
 		})
@@ -299,40 +302,7 @@ func (c *HTTPClient) CreateShipment(ctx context.Context, req CreateShipmentReque
 	if err != nil {
 		return nil, err
 	}
-	qreq := QuoteRequest{Origin: req.Origin, Destination: req.Destination, Parcel: req.Parcel}
-	payload := buildOrderPayload(mchUID, qreq, "create", req.Carrier, req.Service, req.QuotUID, req.FeeHKD, req.PaidByReceiver)
-	if req.OrderRef != "" {
-		payload["ext_order_ref"] = req.OrderRef
-	}
-	if req.ExtOrderID != "" {
-		payload["ext_order_id"] = req.ExtOrderID
-	}
-	if req.PickupPointID != "" {
-		payload["pickup_point_uid"] = req.PickupPointID
-	}
-	if req.CustomerNote != "" {
-		payload["mch_notes"] = []string{req.CustomerNote}
-	}
-
-	// Required-by-doc scalars that buildOrderPayload doesn't emit. Match the
-	// WC plugin's create-mode body shape (see .claude/doc/shipany_api_guid_simple.md §5).
-	payload["self_drop_off"] = false
-	payload["stg"] = "Normal"
-	payload["cod"] = false
-	payload["cod_amount"] = 0
-	payload["woocommerce_default_create"] = false
-	payload["add-ons"] = []any{}
-	payload["pltf_inst_id"] = "00000000-0000-0000-0000-000000000000"
-	// Incoterms only apply to cross-border shipments. Sending "DAP" on a
-	// HK→HK domestic order trips ShipAny's validator with
-	// "Invalid incoterms, input DAP".
-	if !strings.EqualFold(req.Origin.Country, req.Destination.Country) {
-		payload["incoterms"] = "DAP"
-	}
-
-	// Populated items array — buildOrderPayload leaves it empty for the
-	// shared query-rate path. ShipAny's create endpoint expects real rows.
-	payload["items"] = buildItems(req.Items, req.Parcel)
+	payload := buildCreatePayload(mchUID, req)
 
 	var resp envelope[orderObject]
 	status, err := c.do(ctx, http.MethodPost, "orders/", payload, nil, &resp)
@@ -557,6 +527,55 @@ func buildOrderPayload(mchUID string, req QuoteRequest, mode, courUID, courSvcPl
 	if quotUID != "" {
 		payload["quot_uid"] = quotUID
 	}
+	return payload
+}
+
+// buildCreatePayload assembles the full create-mode body for POST orders/.
+// Pure (no I/O) so the wire shape is unit-testable. Starts from the shared
+// query/create builder, then layers on the create-only fields. mchUID is the
+// merchant uid resolved by the caller.
+func buildCreatePayload(mchUID string, req CreateShipmentRequest) map[string]any {
+	qreq := QuoteRequest{Origin: req.Origin, Destination: req.Destination, Parcel: req.Parcel}
+	payload := buildOrderPayload(mchUID, qreq, "create", req.Carrier, req.Service, req.QuotUID, req.FeeHKD, req.PaidByReceiver)
+	if req.OrderRef != "" {
+		payload["ext_order_ref"] = req.OrderRef
+	}
+	if req.ExtOrderID != "" {
+		payload["ext_order_id"] = req.ExtOrderID
+	}
+	if req.PickupPointID != "" {
+		payload["pickup_point_uid"] = req.PickupPointID
+	}
+	if req.CustomerNote != "" {
+		payload["mch_notes"] = []string{req.CustomerNote}
+	}
+
+	// Required-by-doc scalars that buildOrderPayload doesn't emit. Match the
+	// WC plugin's create-mode body shape (see .claude/doc/shipany_api_guid_simple.md §5).
+	payload["self_drop_off"] = false
+	payload["stg"] = "Normal"
+	payload["cod"] = false
+	payload["cod_amount"] = 0
+	payload["woocommerce_default_create"] = false
+	payload["add-ons"] = []any{}
+	payload["pltf_inst_id"] = "00000000-0000-0000-0000-000000000000"
+	// cour_type pins the courier connector (e.g. "SfExpressV2"). The WC plugin
+	// always echoes the quote's cour_type onto the create body; without it
+	// ShipAny resolves SF to its domestic connector and rejects cross-border
+	// lanes ("SF Express does not support shipping from HKG to MAC"). Carried
+	// from the live quote for cross-border; empty (omitted) for domestic.
+	if req.CourType != "" {
+		payload["cour_type"] = req.CourType
+	}
+	// NOTE: we intentionally do NOT set `incoterms`. The WC plugin's canonical
+	// create path (Client::item_info_to_request_data_shipany → create_label)
+	// omits it; incoterms there is a merchant setting gated by a cross-border
+	// map, not a hardcoded "DAP". Forcing "DAP" diverges from the known-working
+	// payload (and HK→HK domestic trips "Invalid incoterms, input DAP").
+
+	// Populated items array — buildOrderPayload leaves it empty for the
+	// shared query-rate path. ShipAny's create endpoint expects real rows.
+	payload["items"] = buildItems(req.Items, req.Parcel)
 	return payload
 }
 
