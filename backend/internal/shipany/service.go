@@ -250,9 +250,35 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 
 	items := s.orderItemsForShipment(ctx, orderID, order)
 
+	// Cross-border (e.g. HK→Macau) needs an SF *international* plan (e.g.
+	// "SF Standard Express - HKMOTW"); the order's stored domestic default
+	// ("SF Express") is rejected by SF for non-HK destinations. Resolve a
+	// valid plan + locked quote price live from ShipAny. Domestic orders skip
+	// this entirely and ship with the stored default + no quot_uid (unchanged).
+	storedCarrier, storedService := carrier, service
+	quotUID := ""
+	feeHKD := 0.0
+	if !strings.EqualFold(strings.TrimSpace(dest.Country), "HK") {
+		opts, qerr := s.client.Quote(ctx, QuoteRequest{
+			Origin:      s.originAddress(ctx),
+			Destination: dest,
+			Parcel:      parcel,
+		})
+		if qerr != nil {
+			return nil, fmt.Errorf("shipany cross-border quote (order %s, dest %s): %w", orderID, dest.Country, qerr)
+		}
+		opt := pickCrossBorderOption(opts, carrier)
+		if opt == nil {
+			return nil, fmt.Errorf("shipany: no service available to %s for order %s", dest.Country, orderID)
+		}
+		carrier, service, quotUID, feeHKD = opt.Carrier, opt.Service, opt.QuotUID, opt.FeeHKD
+	}
+
 	created, err := s.client.CreateShipment(ctx, CreateShipmentRequest{
 		Carrier:        carrier,
 		Service:        service,
+		QuotUID:        quotUID,
+		FeeHKD:         feeHKD,
 		OrderRef:       order.OrderNumber,
 		ExtOrderID:     orderID,
 		Origin:         s.originAddress(ctx),
@@ -283,13 +309,16 @@ func (s *Service) CreateForOrder(ctx context.Context, orderID string, override *
 	}
 
 	// Backfill carrier/service onto the order when the operator supplied an
-	// override for a legacy order — otherwise the page would keep showing
-	// the "no carrier selected" UI even though we already shipped.
-	if override != nil {
+	// override for a legacy order, or when the cross-border quote resolved a
+	// different plan than the stored domestic default — otherwise the order
+	// page would keep showing the "no carrier selected" UI (override case) or
+	// the stale domestic service (cross-border case) even though we shipped on
+	// the resolved plan.
+	if override != nil || carrier != storedCarrier || service != storedService {
 		if _, err := s.db.ExecContext(ctx,
 			`UPDATE orders SET selected_carrier = $1, selected_service = $2 WHERE id = $3`,
 			carrier, service, orderID); err != nil {
-			log.Printf("shipany createForOrder: persist override on %s: %v", orderID, err)
+			log.Printf("shipany createForOrder: persist resolved carrier/service on %s: %v", orderID, err)
 		}
 	}
 
@@ -705,6 +734,33 @@ func coalesceStr(s, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+// pickCrossBorderOption chooses a quoted RateOption for a cross-border shipment:
+// the cheapest plan from the preferred courier (the order's configured carrier),
+// falling back to the cheapest plan overall. ShipAny only returns plans valid for
+// the destination, so any returned option is shippable. Returns nil on empty input.
+func pickCrossBorderOption(opts []RateOption, preferredCarrier string) *RateOption {
+	var best *RateOption
+	for i := range opts {
+		o := &opts[i]
+		if preferredCarrier != "" && o.Carrier != preferredCarrier {
+			continue
+		}
+		if best == nil || o.FeeHKD < best.FeeHKD {
+			best = o
+		}
+	}
+	if best != nil {
+		return best
+	}
+	// No preferred-carrier match — fall back to the cheapest plan overall.
+	for i := range opts {
+		if best == nil || opts[i].FeeHKD < best.FeeHKD {
+			best = &opts[i]
+		}
+	}
+	return best
 }
 
 func getOrderCarrier(ctx context.Context, db *sql.DB, orderID string) (sql.NullString, error) {

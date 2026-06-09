@@ -301,3 +301,71 @@ func TestCanRegenLabel(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildContactMacau pins the receiver contact shape for a HK→Macau
+// cross-border shipment: the country maps to ShipAny's alpha-3 "MAC" and the
+// phone carries Macau's "853" dial code. Both were previously unmapped, which
+// caused SF to reject the waybill.
+func TestBuildContactMacau(t *testing.T) {
+	contact := buildContact(Address{
+		Name:    "Chan Tai Man",
+		Country: "MO",
+		Phone:   "+853 6612 3456",
+		Line1:   "Avenida da Praia Grande 1",
+		City:    "Macau",
+	})
+
+	addr, ok := contact["addr"].(map[string]any)
+	if !ok {
+		t.Fatalf("addr missing or wrong type: %#v", contact["addr"])
+	}
+	if addr["cnty"] != "MAC" {
+		t.Fatalf("addr.cnty = %v, want MAC", addr["cnty"])
+	}
+
+	ctc, ok := contact["ctc"].(map[string]any)
+	if !ok {
+		t.Fatalf("ctc missing or wrong type: %#v", contact["ctc"])
+	}
+	phs, ok := ctc["phs"].([]map[string]any)
+	if !ok || len(phs) == 0 {
+		t.Fatalf("ctc.phs missing or empty: %#v", ctc["phs"])
+	}
+	if phs[0]["cnty_code"] != "853" {
+		t.Fatalf("phone cnty_code = %v, want 853", phs[0]["cnty_code"])
+	}
+	// Dial code is stripped from the local number (carried by cnty_code).
+	if phs[0]["num"] != "66123456" {
+		t.Fatalf("phone num = %v, want 66123456", phs[0]["num"])
+	}
+}
+
+// TestPickCrossBorderOption verifies the cross-border plan selection: prefer the
+// configured courier's cheapest plan, fall back to the cheapest plan overall,
+// and return nil on no options.
+func TestPickCrossBorderOption(t *testing.T) {
+	opts := []RateOption{
+		{Carrier: "sf", Service: "SF Speedy Express - HKMOTW", FeeHKD: 80},
+		{Carrier: "sf", Service: "SF Standard Express - HKMOTW", FeeHKD: 55},
+		{Carrier: "hkpost", Service: "SpeedPost", FeeHKD: 40},
+	}
+
+	// Prefer SF → cheapest SF plan (Standard, 55), not the cheaper HK Post one.
+	if got := pickCrossBorderOption(opts, "sf"); got == nil || got.Service != "SF Standard Express - HKMOTW" {
+		t.Fatalf("preferred-carrier pick = %#v, want SF Standard Express - HKMOTW", got)
+	}
+
+	// Preferred carrier absent → cheapest overall (HK Post, 40).
+	if got := pickCrossBorderOption(opts, "dhl"); got == nil || got.Carrier != "hkpost" {
+		t.Fatalf("fallback pick = %#v, want hkpost (cheapest overall)", got)
+	}
+
+	// No preference → cheapest overall.
+	if got := pickCrossBorderOption(opts, ""); got == nil || got.Carrier != "hkpost" {
+		t.Fatalf("no-preference pick = %#v, want hkpost (cheapest overall)", got)
+	}
+
+	if got := pickCrossBorderOption(nil, "sf"); got != nil {
+		t.Fatalf("empty input pick = %#v, want nil", got)
+	}
+}
