@@ -177,9 +177,10 @@
          class="absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0 flex items-center"
          aria-label={m.header_logo()}>
         {#if companyLogoUrl}
+          <!-- Below lg (1024px) the logo is fixed at 30px; at lg+ it uses the configured height. -->
           <img src={companyLogoUrl} alt={m.header_logo()}
-               style="height: {companyLogoHeight}px; width: auto;"
-               class="object-contain" />
+               style="--logo-h: {companyLogoHeight}px;"
+               class="object-contain w-auto h-[30px] lg:h-[length:var(--logo-h)]" />
         {:else}
           <span class="font-display text-xl lg:text-2xl font-bold tracking-[0.18em] uppercase text-navy-500">
             {m.header_logo()}
