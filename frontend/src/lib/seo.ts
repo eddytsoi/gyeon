@@ -12,6 +12,15 @@ export function siteName(settings: PublicSetting[] | null | undefined, fallback 
   return v || fallback;
 }
 
+/**
+ * Returns the site-wide default SEO description (admin 網站描述). Used as the
+ * fallback meta description on pages that set no description of their own.
+ */
+export function siteDescription(settings: PublicSetting[] | null | undefined, fallback = ''): string {
+  const v = settings?.find((s) => s.key === 'site_description')?.value?.trim();
+  return v || fallback;
+}
+
 /** Strip basic markdown / HTML and trim to a meta-description-length string. */
 export function snippet(input: string | null | undefined, maxLen = 160): string {
   if (!input) return '';

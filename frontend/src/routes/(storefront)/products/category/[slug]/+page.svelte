@@ -4,7 +4,7 @@
   import ProductCardSkeleton from '$lib/components/shop/ProductCardSkeleton.svelte';
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import * as m from '$lib/paraglide/messages';
-  import { siteName } from '$lib/seo';
+  import { siteName, siteDescription } from '$lib/seo';
   import { getProductsFiltered, type ProductListFilters } from '$lib/api';
   import type { Product, ProductImage, Variant } from '$lib/types';
 
@@ -107,6 +107,10 @@
 
 <svelte:head>
   <title>{m.products_category_title({ name: data.category.name, brand: siteName(data.publicSettings) })}</title>
+  {#if data.category.description?.trim() || siteDescription(data.publicSettings)}
+    <meta name="description"
+          content={data.category.description?.trim() || siteDescription(data.publicSettings)} />
+  {/if}
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

@@ -30,6 +30,7 @@
 
   let fName = $state('');
   let fSlug = $state('');
+  let fDescription = $state('');
   let fDesktopBanner = $state('');
   let fMobileBanner = $state('');
 
@@ -37,6 +38,7 @@
     editing = null;
     fName = '';
     fSlug = '';
+    fDescription = '';
     fDesktopBanner = '';
     fMobileBanner = '';
     showForm = true;
@@ -46,6 +48,7 @@
     editing = cat;
     fName = cat.name;
     fSlug = cat.slug;
+    fDescription = cat.description ?? '';
     fDesktopBanner = cat.desktop_banner_url ?? '';
     fMobileBanner = cat.mobile_banner_url ?? '';
     showForm = true;
@@ -208,6 +211,15 @@
                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
                         text-gray-900 placeholder-gray-400 font-mono focus:outline-none
                         focus:ring-2 focus:ring-gray-900 focus:border-transparent transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{m.admin_categories_label_description()}</label>
+          <textarea name="description" bind:value={fDescription} rows="4"
+                    placeholder={m.admin_categories_description_placeholder()}
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm
+                           text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2
+                           focus:ring-gray-900 focus:border-transparent transition resize-none"></textarea>
         </div>
 
         <div>

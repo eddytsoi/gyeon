@@ -1,15 +1,17 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import MarkdownContent from '$lib/components/MarkdownContent.svelte';
-  import { siteName } from '$lib/seo';
+  import { siteName, siteDescription } from '$lib/seo';
 
   let { data }: { data: PageData } = $props();
   const { page } = data;
+  // Page's own meta description, else the site-wide 網站描述 fallback.
+  const metaDescription = $derived(page.meta_desc?.trim() || siteDescription(data.publicSettings));
 </script>
 
 <svelte:head>
   <title>{page.meta_title ?? page.title} — {siteName(data.publicSettings)}</title>
-  {#if page.meta_desc}<meta name="description" content={page.meta_desc} />{/if}
+  {#if metaDescription}<meta name="description" content={metaDescription} />{/if}
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 lg:px-8 {page.content_padded === false ? '' : 'py-12 sm:py-16'}">

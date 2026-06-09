@@ -35,6 +35,7 @@ export const actions: Actions = {
       await adminCreateCategory(token, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
+        description: (data.get('description') as string | null)?.trim() || undefined,
         ...bannerFields(data),
         sort_order: existing.length + 1,
         is_active: true,
@@ -56,6 +57,7 @@ export const actions: Actions = {
       await adminUpdateCategory(token, id, {
         slug: (data.get('slug') as string).trim(),
         name: (data.get('name') as string).trim(),
+        description: (data.get('description') as string | null)?.trim() || undefined,
         ...bannerFields(data),
         sort_order: current?.sort_order ?? 0,
         is_active: true,
