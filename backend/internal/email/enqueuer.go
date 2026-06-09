@@ -119,6 +119,19 @@ func (e *QueueEnqueuer) SendOrderConfirmation(ctx context.Context, p OrderEmailP
 	return e.enqueueTemplated(ctx, "order_confirmation", p.CustomerEmail, p, "order.paid", "order", p.OrderID)
 }
 
+// SendNewOrderAlert queues the internal "new order received" notification to the
+// admin_alert_email recipient. Opt-in: when that setting is empty it silently
+// no-ops (no from-email fallback) so routine orders don't email the store's own
+// sender address. The recipient is resolved here so the smtp_log row records who
+// the alert actually went to.
+func (e *QueueEnqueuer) SendNewOrderAlert(ctx context.Context, p OrderEmailParams) error {
+	to := strings.TrimSpace(e.svc.read(ctx, "admin_alert_email"))
+	if to == "" {
+		return nil
+	}
+	return e.enqueueTemplated(ctx, "new_order_alert", to, p, "order.new", "order", p.OrderID)
+}
+
 func (e *QueueEnqueuer) SendOrderShipped(ctx context.Context, p ShippedEmailParams) error {
 	return e.enqueueTemplated(ctx, "order_shipped", p.CustomerEmail, p, "order.shipped", "order", p.OrderID)
 }
@@ -692,7 +705,7 @@ func (e *QueueEnqueuer) sendAndLog(ctx context.Context, a sendArgs) error {
 
 func decodeParams(key string, raw json.RawMessage) (any, error) {
 	switch key {
-	case "order_confirmation":
+	case "order_confirmation", "new_order_alert":
 		var p OrderEmailParams
 		if err := json.Unmarshal(raw, &p); err != nil {
 			return nil, err

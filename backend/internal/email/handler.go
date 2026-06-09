@@ -220,6 +220,8 @@ func defaultsFor(key string) defaults {
 	switch key {
 	case "order_confirmation":
 		return defaults{subject: orderConfirmationSubject, html: orderConfirmationHTML, text: orderConfirmationText}
+	case "new_order_alert":
+		return defaults{subject: newOrderAlertSubject, html: newOrderAlertHTML, text: newOrderAlertText}
 	case "order_shipped":
 		return defaults{subject: orderShippedSubject, html: orderShippedHTML, text: orderShippedText}
 	case "order_refunded":

@@ -199,6 +199,12 @@ type OrderEmailParams struct {
 	ShippingPostal    string
 	ShippingCountry   string
 	SetupURL          string // empty unless guest
+	// AdminOrderURL deep-links to the admin order page. Set only for the
+	// new_order_alert admin notification (empty for the customer confirmation).
+	// Precomputed into a field — like BankTransferOnHoldParams.OrderURL — so the
+	// compiled-in default renders the link without the BaseURL render-globals,
+	// which are only merged on the DB-override path.
+	AdminOrderURL string
 }
 
 type PaymentLinkParams struct {
@@ -440,6 +446,31 @@ func (s *Service) SendOrderConfirmation(ctx context.Context, p OrderEmailParams)
 	return s.send(cfg, p.CustomerEmail, subject, text, html)
 }
 
+// SendNewOrderAlert notifies the configured admin alert recipient that a new
+// order came in, reusing the order's confirmation data from a store-staff
+// perspective. Opt-in: when admin_alert_email is unset it silently returns nil
+// (no from-email fallback) so every order doesn't email the store's own
+// sender address. Best-effort — callers ignore the result.
+func (s *Service) SendNewOrderAlert(ctx context.Context, p OrderEmailParams) error {
+	to := strings.TrimSpace(s.read(ctx, "admin_alert_email"))
+	if to == "" {
+		return nil
+	}
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return err
+	}
+	if p.Currency == "" {
+		p.Currency = "HKD"
+	}
+	subject, html, text := s.applyTemplate(ctx, "new_order_alert", p, func() (string, string, string) {
+		return renderDefault("subject:new_order_alert", newOrderAlertSubject, p),
+			renderDefault("html:new_order_alert", newOrderAlertHTML, p),
+			renderDefault("text:new_order_alert", newOrderAlertText, p)
+	})
+	return s.send(cfg, to, subject, text, html)
+}
+
 // SendBankTransferOnHold sends the "order received — please complete your bank
 // transfer" email for an offline (installer) order placed on hold.
 func (s *Service) SendBankTransferOnHold(ctx context.Context, p BankTransferOnHoldParams) error {
@@ -595,6 +626,20 @@ func (s *Service) RenderTemplate(ctx context.Context, key string, params any) (s
 			return renderDefault("subject:order_confirmation", orderConfirmationSubject, p),
 				renderDefault("html:order_confirmation", orderConfirmationHTML, p),
 				renderDefault("text:order_confirmation", orderConfirmationText, p)
+		})
+		return subject, text, html, nil
+	case "new_order_alert":
+		p, ok := params.(OrderEmailParams)
+		if !ok {
+			return "", "", "", fmt.Errorf("email: render new_order_alert: bad params type %T", params)
+		}
+		if p.Currency == "" {
+			p.Currency = "HKD"
+		}
+		subject, html, text = s.applyTemplate(ctx, "new_order_alert", p, func() (string, string, string) {
+			return renderDefault("subject:new_order_alert", newOrderAlertSubject, p),
+				renderDefault("html:new_order_alert", newOrderAlertHTML, p),
+				renderDefault("text:new_order_alert", newOrderAlertText, p)
 		})
 		return subject, text, html, nil
 	case "bank_transfer_on_hold":
@@ -1407,6 +1452,77 @@ const orderConfirmationHTML = `<!doctype html>
 </div>{{end}}
     </div>
     <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">如有疑問，歡迎回覆此電郵 — Gyeon</p>
+  </div>
+</body></html>`
+
+// new_order_alert ──────────────────────────────────────────────────────────
+// Internal store-staff notification mirroring order_confirmation, but from the
+// admin's perspective: customer contact block + a deep link to the admin order
+// page instead of the customer "finish signup" block. Sent to admin_alert_email
+// alongside the customer's confirmation on both the paid and bank-transfer
+// on-hold paths.
+const newOrderAlertSubject = `收到新訂單 — {{orderref .OrderNumber .OrderID}}`
+
+const newOrderAlertText = `🔔 收到新訂單：{{orderref .OrderNumber .OrderID}}
+
+客戶：{{.CustomerName}}
+電郵：{{.CustomerEmail}}
+
+──────── 訂單明細 ────────
+{{range .Items}}{{.Name}} × {{.Quantity}}   {{$.Currency}} {{money .LineTotal}}
+{{if .Subtitle}}  {{.Subtitle}}
+{{end}}{{range .Children}}  ↳ {{.Name}} × {{.Quantity}}
+{{end}}{{end}}
+小計：     {{.Currency}} {{money .Subtotal}}
+{{if gt .DiscountAmount 0.0}}折扣：    -{{.Currency}} {{money .DiscountAmount}}
+{{range .AppliedPromotions}}　　{{.Name}}{{if .Description}} — {{.Description}}{{end}}
+{{end}}{{end}}{{if gt .TaxAmount 0.0}}{{if .TaxLabel}}{{.TaxLabel}}{{else}}稅金{{end}}：     {{.Currency}} {{money .TaxAmount}}
+{{end}}運費：     {{.ShippingLabel}}
+總額：     {{.Currency}} {{money .Total}}
+
+{{if .ShippingLine1}}──────── 送貨地址 ────────
+{{.ShippingLine1}}
+{{if .ShippingLine2}}{{.ShippingLine2}}
+{{end}}{{.ShippingCity}} {{.ShippingPostal}}
+{{.ShippingCountry}}
+
+{{end}}在後台查看訂單：{{.AdminOrderURL}}
+
+— GYEON 系統通知`
+
+const newOrderAlertHTML = `<!doctype html>
+<html lang="zh-HK"><head><meta charset="utf-8"><title>收到新訂單</title></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="background:#fff;border-radius:16px;padding:32px;border:1px solid #e5e7eb">
+      <h1 style="margin:0 0 4px;font-size:22px">🔔 收到新訂單</h1>
+      <p style="margin:0 0 24px;color:#6b7280;font-size:14px">訂單編號 <strong style="color:#111827">{{orderref .OrderNumber .OrderID | esc}}</strong></p>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">客戶資料</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.8">
+        <tr><td style="color:#6b7280;width:56px">姓名</td><td style="color:#111827;font-weight:500">{{.CustomerName | esc}}</td></tr>
+        <tr><td style="color:#6b7280">電郵</td><td><a href="mailto:{{.CustomerEmail | esc}}" style="color:#111827;font-weight:500">{{.CustomerEmail | esc}}</a></td></tr>
+      </table>
+
+      <h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">訂單明細</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">{{range .Items}}<tr><td style="padding:8px 0;">{{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span>{{if .Subtitle}}<div style="color:#6b7280;font-size:13px">{{.Subtitle | esc}}</div>{{end}}</td><td style="padding:8px 0;text-align:right;font-variant-numeric:tabular-nums">{{$.Currency}} {{money .LineTotal}}</td></tr>{{range .Children}}<tr><td style="padding:2px 0 2px 24px;color:#6b7280;font-size:13px">↳ {{.Name | esc}} <span style="color:#9ca3af">× {{.Quantity}}</span></td><td></td></tr>{{end}}{{end}}</table>
+
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <tr><td style="padding:4px 0;color:#6b7280">小計</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .Subtotal}}</td></tr>
+        {{if gt .DiscountAmount 0.0}}<tr><td style="padding:4px 0;color:#059669">折扣</td><td style="padding:4px 0;text-align:right;color:#059669">-{{.Currency}} {{money .DiscountAmount}}</td></tr>{{range .AppliedPromotions}}<tr><td colspan="2" style="padding:0 0 4px;color:#9ca3af;font-size:12px">{{.Name | esc}}{{if .Description}} — {{.Description | esc}}{{end}}</td></tr>{{end}}{{end}}
+        {{if gt .TaxAmount 0.0}}<tr><td style="padding:4px 0;color:#6b7280">{{if .TaxLabel}}{{.TaxLabel | esc}}{{else}}稅金{{end}}</td><td style="padding:4px 0;text-align:right">{{.Currency}} {{money .TaxAmount}}</td></tr>{{end}}
+        <tr><td style="padding:4px 0;color:#6b7280">運費</td><td style="padding:4px 0;text-align:right">{{.ShippingLabel}}</td></tr>
+        <tr><td style="padding:8px 0 0;font-weight:600;border-top:1px solid #e5e7eb">總額</td><td style="padding:8px 0 0;text-align:right;font-weight:600;border-top:1px solid #e5e7eb">{{.Currency}} {{money .Total}}</td></tr>
+      </table>
+
+      {{if .ShippingLine1}}<h3 style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 8px">送貨地址</h3>
+      <p style="margin:0;color:#374151;line-height:1.6">{{.ShippingLine1 | esc}}{{if .ShippingLine2}}<br>{{.ShippingLine2 | esc}}{{end}}<br>{{.ShippingCity | esc}} {{.ShippingPostal | esc}}<br>{{.ShippingCountry | esc}}</p>{{end}}
+
+      {{if .AdminOrderURL}}<div style="margin-top:32px">
+        <a href="{{.AdminOrderURL}}" style="display:inline-block;padding:10px 20px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500">在後台查看訂單</a>
+      </div>{{end}}
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin:24px 0 0">GYEON 系統自動通知</p>
   </div>
 </body></html>`
 
