@@ -21,6 +21,19 @@ export function siteDescription(settings: PublicSetting[] | null | undefined, fa
   return v || fallback;
 }
 
+/** Site-wide default social-share image (admin 網站橫幅, og:image fallback). */
+export function siteBanner(settings: PublicSetting[] | null | undefined, fallback = ''): string {
+  const v = settings?.find((s) => s.key === 'site_banner')?.value?.trim();
+  return v || fallback;
+}
+
+/** Resolve an image URL to absolute for og:image (already-absolute URLs pass through). */
+export function absoluteImageUrl(url: string | null | undefined, origin: string): string | undefined {
+  const v = url?.trim();
+  if (!v) return undefined;
+  return v.startsWith('http') ? v : `${origin}${v.startsWith('/') ? '' : '/'}${v}`;
+}
+
 /** Strip basic markdown / HTML and trim to a meta-description-length string. */
 export function snippet(input: string | null | undefined, maxLen = 160): string {
   if (!input) return '';
