@@ -2065,6 +2065,8 @@
   "admin_settings_desc_site_name": "Display name of the site",
   "admin_settings_label_site_description": "Site description",
   "admin_settings_desc_site_description": "Default SEO description applied automatically when a page has no description of its own.",
+  "admin_settings_label_site_banner": "Site banner",
+  "admin_settings_desc_site_banner": "Default share image (og:image) used when a page has no image of its own. Paste an absolute image URL — recommended 1200×630.",
   "admin_settings_desc_cache_ttl_shop": "Product & category cache TTL in seconds (default: 300)",
   "admin_settings_desc_cache_ttl_cms": "CMS pages & posts cache TTL in seconds (default: 300)",
   "admin_settings_desc_cache_ttl_nav": "Navigation cache TTL in seconds (default: 900)",

@@ -66,6 +66,7 @@ var publicSettingKeys = []string{
 	"website_slogan",                            // storefront footer slogan text; empty falls back to the localized m.footer_tagline() message
 	"site_name",                                 // storefront page-title brand suffix (admin General → 網站名稱); empty falls back to "GYEON"
 	"site_description",                          // storefront SEO meta-description fallback (admin General → 網站描述); used when a page sets no description of its own
+	"site_banner",                               // storefront default social-share image (og:image fallback); admin General → 網站橫幅
 	"pdp_show_specs_strip",                      // storefront PDP toggle: dark-blue 4-points specs strip
 	"pdp_show_complete_set",                     // storefront PDP toggle: "相關產品" related-products BundleComposer
 	"pdp_complete_set_kicker",                   // storefront PDP override for the related-products kicker; empty falls back to i18n

@@ -254,7 +254,7 @@
   const LOYALTY_KEYS = new Set(['loyalty_enabled', 'loyalty_points_per_hkd', 'loyalty_redeem_rate_hkd']);
   const ABANDONED_KEYS = new Set(['abandoned_cart_enabled', 'abandoned_cart_threshold_hours']);
   const PENDING_EXPIRY_KEYS = new Set(['pending_order_expiry_hours', 'pending_order_expiry_bank_transfer_hours']);
-  const ORPHAN_KEYS = new Set(['timezone', 'site_description', 'contact_email']);
+  const ORPHAN_KEYS = new Set(['timezone', 'site_description', 'contact_email', 'site_banner']);
   const PAYMENT_KEYS = new Set([
     'stripe_mode',
     'stripe_country',
@@ -1339,6 +1339,21 @@
                   value={settingValue('site_description') || ''}
                   class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
                          focus:outline-none focus:ring-2 focus:ring-gray-900"></textarea>
+      </div>
+    </div>
+
+    <!-- Site Banner (default social-share / og:image URL) -->
+    <div class="bg-white rounded-2xl border border-gray-100 p-6 mb-4">
+      <div class="flex flex-col gap-0.5">
+        <p class="text-sm font-semibold text-gray-900">{m.admin_settings_label_site_banner()}</p>
+        <p class="text-xs text-gray-400">{m.admin_settings_desc_site_banner()}</p>
+      </div>
+      <div class="mt-5 flex flex-col gap-1.5">
+        <input id="site_banner" name="site_banner" type="text"
+               value={settingValue('site_banner') || ''}
+               placeholder="https://…"
+               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white
+                      focus:outline-none focus:ring-2 focus:ring-gray-900" />
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { siteDescription } from '$lib/seo';
+  import { siteDescription, siteBanner, siteOrigin, absoluteImageUrl } from '$lib/seo';
 
   interface SeoProps {
     title: string;
@@ -19,6 +19,15 @@
   // sets no description of its own. Safe when publicSettings is absent (yields '').
   const finalDescription = $derived(
     description?.trim() || siteDescription(page.data?.publicSettings) || undefined
+  );
+
+  // Fall back to the site-wide 網站橫幅 (site_banner setting) for the share image
+  // when the page passes none, and resolve to an absolute URL for og:image.
+  const finalImage = $derived(
+    absoluteImageUrl(
+      image?.trim() || siteBanner(page.data?.publicSettings),
+      siteOrigin(page.data?.publicSettings)
+    )
   );
 </script>
 
@@ -40,19 +49,20 @@
   {#if canonical}
     <meta property="og:url" content={canonical} />
   {/if}
-  {#if image}
-    <meta property="og:image" content={image} />
+  {#if finalImage}
+    <meta property="og:image" content={finalImage} />
+    <meta property="og:image:alt" content={title} />
   {/if}
   <meta property="og:site_name" content={siteName} />
 
   <!-- Twitter -->
-  <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+  <meta name="twitter:card" content={finalImage ? 'summary_large_image' : 'summary'} />
   <meta name="twitter:title" content={title} />
   {#if finalDescription}
     <meta name="twitter:description" content={finalDescription} />
   {/if}
-  {#if image}
-    <meta name="twitter:image" content={image} />
+  {#if finalImage}
+    <meta name="twitter:image" content={finalImage} />
   {/if}
 
   {#if jsonLd}
