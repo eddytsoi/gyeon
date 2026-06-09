@@ -457,11 +457,11 @@
                  class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer" />
         </th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
+        <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_orders_col_customer()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_phone()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_items()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_orders_col_date()}</th>
-        <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_total()}</th>
         <th class="px-5 py-3"></th>
       </tr>
@@ -494,6 +494,12 @@
               {/if}
             </span>
           </td>
+          <td class="px-5 py-3">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                         {statusColour[order.status] ?? 'bg-gray-100 text-gray-500'}">
+              {orderStatusLabel(order.status)}
+            </span>
+          </td>
           <td class="px-5 py-3 text-gray-700 hidden md:table-cell">
             <span class="inline-flex items-center gap-1.5">
               {order.customer_name || '—'}
@@ -511,13 +517,7 @@
             {order.items_count ?? '—'}
           </td>
           <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">
-            {new Date(order.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Hong_Kong', hour12: false })}
-          </td>
-          <td class="px-5 py-3">
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                         {statusColour[order.status] ?? 'bg-gray-100 text-gray-500'}">
-              {orderStatusLabel(order.status)}
-            </span>
+            {new Date(order.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Hong_Kong', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
           </td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">
             <span class="inline-flex items-center gap-1.5 justify-end">
