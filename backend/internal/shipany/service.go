@@ -672,8 +672,13 @@ func (s *Service) originAddress(ctx context.Context) Address {
 
 // orderItemsForShipment builds the per-line shipany items slice from the
 // order's items, attaching per-variant weight/dimensions when available.
-// Bundle component rows (parent_item_id != null) are skipped to avoid
-// double-counting — the parent line already represents the saleable unit.
+// Bundle component rows (parent_item_id != null) are emitted as nested rows
+// beneath their parent so the ShipAny packing slip lists what's physically
+// inside each bundle (items + quantities), mirroring the order detail page.
+// The bundle parent line carries the value/qty; each component is a follow-up
+// row with a "套裝內含" descr and zero unit price (included in the bundle).
+// ShipAny does not validate items[] totals against the authoritative
+// parcel-level weight/value, so these extra rows are display-only.
 func (s *Service) orderItemsForShipment(ctx context.Context, orderID string, order *orders.Order) []ShipanyItem {
 	type dims struct{ w, l, wd, h int } // weight_g + length/width/height_mm
 	dimMap := map[string]dims{}
@@ -700,15 +705,14 @@ func (s *Service) orderItemsForShipment(ctx context.Context, orderID string, ord
 	}
 
 	fallback := s.defaultWeight(ctx)
-	out := make([]ShipanyItem, 0, len(order.Items))
-	for _, it := range order.Items {
-		if it.ParentItemID != nil && *it.ParentItemID != "" {
-			continue // bundle child — skip
-		}
-		w := fallback
-		var l, wd, h float64
-		if it.VariantID != nil {
-			if d, ok := dimMap[*it.VariantID]; ok {
+
+	// dimsFor resolves a variant's weight (g) and dimensions (cm), falling back
+	// to the default weight when the variant carries none. Shared by parent and
+	// component rows.
+	dimsFor := func(variantID *string) (w int, l, wd, h float64) {
+		w = fallback
+		if variantID != nil {
+			if d, ok := dimMap[*variantID]; ok {
 				if d.w > 0 {
 					w = d.w
 				}
@@ -717,7 +721,26 @@ func (s *Service) orderItemsForShipment(ctx context.Context, orderID string, ord
 				h = float64(d.h) / 10
 			}
 		}
-		out = append(out, ShipanyItem{
+		return
+	}
+
+	// Group bundle component rows under their parent and collect top-level rows
+	// in order — independent of how GetByID happens to sort the items.
+	childrenByParent := map[string][]orders.OrderItem{}
+	topLevel := make([]orders.OrderItem, 0, len(order.Items))
+	for _, it := range order.Items {
+		if it.ParentItemID != nil && *it.ParentItemID != "" {
+			childrenByParent[*it.ParentItemID] = append(childrenByParent[*it.ParentItemID], it)
+			continue
+		}
+		topLevel = append(topLevel, it)
+	}
+
+	out := make([]ShipanyItem, 0, len(order.Items))
+	for _, it := range topLevel {
+		w, l, wd, h := dimsFor(it.VariantID)
+		children := childrenByParent[it.ID]
+		parent := ShipanyItem{
 			SKU:          coalesceStr(it.VariantSKU, "ITEM"),
 			Name:         coalesceStr(it.ProductName, "Item"),
 			UnitPriceHKD: it.UnitPrice,
@@ -726,7 +749,28 @@ func (s *Service) orderItemsForShipment(ctx context.Context, orderID string, ord
 			LengthCM:     l,
 			WidthCM:      wd,
 			HeightCM:     h,
-		})
+		}
+		if len(children) > 0 {
+			parent.Descr = "套裝" // bundle header
+		}
+		out = append(out, parent)
+
+		// Nest each bundle component beneath the bundle line so the packing
+		// slip shows its contents. Quantity is already scaled by the bundle
+		// quantity at checkout; price is zeroed (included in the bundle).
+		for _, child := range children {
+			cw, cl, cwd, ch := dimsFor(child.VariantID)
+			out = append(out, ShipanyItem{
+				SKU:         coalesceStr(child.VariantSKU, "ITEM"),
+				Name:        "└ " + coalesceStr(child.ProductName, "Item"),
+				Descr:       "套裝內含",
+				Quantity:    child.Quantity,
+				WeightGrams: cw,
+				LengthCM:    cl,
+				WidthCM:     cwd,
+				HeightCM:    ch,
+			})
+		}
 	}
 	return out
 }
