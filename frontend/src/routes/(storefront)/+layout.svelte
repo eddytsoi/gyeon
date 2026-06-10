@@ -4,6 +4,7 @@
   import Footer from '$lib/components/Footer.svelte';
   import AnnouncementStrip from '$lib/components/shop/AnnouncementStrip.svelte';
   import ShippingNoticeStrip from '$lib/components/shop/ShippingNoticeStrip.svelte';
+  import FloatingWhatsApp from '$lib/components/FloatingWhatsApp.svelte';
   import { cartStore } from '$lib/stores/cart.svelte';
   import { wishlistStore } from '$lib/stores/wishlist.svelte';
   import { registerStorefrontTools } from '$lib/webmcp';
@@ -118,6 +119,8 @@
     slogan={websiteSlogan}
   />
 </div>
+
+<FloatingWhatsApp />
 
 {#if cartStore.error}
   <div

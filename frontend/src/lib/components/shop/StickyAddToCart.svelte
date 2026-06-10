@@ -8,6 +8,7 @@
   import ResponsiveImage from '$lib/components/ResponsiveImage.svelte';
   import { isVideo } from '$lib/media';
   import { formatHKD } from '$lib/money';
+  import { stickyAddToCartBar } from '$lib/stores/stickyAddToCart.svelte';
 
   let {
     ctaEl,
@@ -43,11 +44,17 @@
         // Bar shows once the in-flow CTA is no longer visible (scrolled past).
         const e = entries[0];
         visible = !e.isIntersecting;
+        // Let the floating WhatsApp button lift above this bar on mobile.
+        stickyAddToCartBar.visible = visible;
       },
       { rootMargin: '0px 0px -20px 0px', threshold: 0 }
     );
     io.observe(ctaEl);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      // Leaving the PDP (SPA nav) must clear the flag so the FAB drops back.
+      stickyAddToCartBar.visible = false;
+    };
   });
 </script>
 
