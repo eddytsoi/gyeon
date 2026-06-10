@@ -5,6 +5,10 @@ export default {
     'bg-violet-500', 'bg-blue-500', 'bg-amber-500', 'bg-emerald-500',
     'bg-violet-50',  'bg-blue-50',  'bg-amber-50',  'bg-emerald-50',
     'text-violet-600','text-blue-600','text-amber-600','text-emerald-600',
+    // CMS shortcode `class` attrs (e.g. [banner class="sm:my-6"]) are stored in
+    // the DB, so the JIT scanner never sees them. Safelist the margin/padding
+    // spacing scale + responsive variants so authors can apply them from CMS.
+    { pattern: /^-?(m|p)(t|r|b|l|x|y)?-(\d+(\.5)?|px|auto)$/, variants: ['sm', 'md', 'lg'] },
   ],
   theme: {
     extend: {
