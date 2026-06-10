@@ -36,9 +36,21 @@ func (h *PageHandler) AdminRoutes() chi.Router {
 // PublicRoutes returns routes accessible without auth.
 func (h *PageHandler) PublicRoutes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/", h.listPublished)
 	r.Get("/by-slug/{slug}", h.getBySlug)
 	r.Get("/by-id/{id}", h.getPublishedByID)
 	return r
+}
+
+// listPublished returns a slim list of every published page (id/slug/updated_at)
+// for the storefront sitemap. Public, unpaginated — page counts are small.
+func (h *PageHandler) listPublished(w http.ResponseWriter, r *http.Request) {
+	pages, err := h.svc.ListPublished(r.Context())
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, pages)
 }
 
 func (h *PageHandler) list(w http.ResponseWriter, r *http.Request) {

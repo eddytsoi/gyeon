@@ -194,6 +194,44 @@ func (s *PageService) List(ctx context.Context, locale, search string, limit, of
 	return pages, total, nil
 }
 
+// PublishedPageRef is the slim shape used by the public sitemap listing —
+// just enough to build <url> entries without shipping every page's full HTML.
+type PublishedPageRef struct {
+	ID        string `json:"id"`
+	Slug      string `json:"slug"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// ListPublished returns every published page's id + slug + updated_at (base
+// locale), for sitemap generation. Cached under pagePrefix, so the existing
+// DeleteByPrefix(pagePrefix) on create/update/delete already invalidates it.
+func (s *PageService) ListPublished(ctx context.Context) ([]PublishedPageRef, error) {
+	const key = pagePrefix + "published:list"
+	if v, ok := s.cache.Get(key); ok {
+		return v.([]PublishedPageRef), nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, slug, updated_at FROM cms_pages
+		 WHERE is_published = TRUE ORDER BY slug ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]PublishedPageRef, 0)
+	for rows.Next() {
+		var p PublishedPageRef
+		if err := rows.Scan(&p.ID, &p.Slug, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.cache.Set(key, out, s.ttl(ctx))
+	return out, nil
+}
+
 // GetBySlug fetches a published page; locale may be empty for base content.
 func (s *PageService) GetBySlug(ctx context.Context, slug, locale string) (*Page, error) {
 	key := fmt.Sprintf("cms:pages:slug:%s:%s", slug, locale)
