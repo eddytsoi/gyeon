@@ -186,6 +186,7 @@ type CreateShipmentRequest struct {
 type ShipanyItem struct {
 	SKU          string
 	Name         string
+	Descr        string // optional per-line description shown on the packing slip
 	UnitPriceHKD float64
 	Quantity     int
 	WeightGrams  int
@@ -609,7 +610,7 @@ func buildItems(items []ShipanyItem, parcel Parcel) []any {
 		out = append(out, map[string]any{
 			"sku":       it.SKU,
 			"name":      it.Name,
-			"descr":     "",
+			"descr":     it.Descr,
 			"unt_price": map[string]any{"val": it.UnitPriceHKD, "ccy": "HKD"},
 			"qty":       it.Quantity,
 			"wt":        map[string]any{"val": wKG, "unt": "kg"},

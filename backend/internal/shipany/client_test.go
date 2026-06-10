@@ -60,7 +60,7 @@ func TestCourierEnvelopeDecode(t *testing.T) {
 func TestBuildItems(t *testing.T) {
 	parcel := Parcel{WeightGrams: 1200, LengthCM: 30, WidthCM: 20, HeightCM: 10}
 	items := []ShipanyItem{
-		{SKU: "SKU-A", Name: "Widget", UnitPriceHKD: 99.5, Quantity: 2, WeightGrams: 300, LengthCM: 5, WidthCM: 4, HeightCM: 3},
+		{SKU: "SKU-A", Name: "Widget", Descr: "藍色", UnitPriceHKD: 99.5, Quantity: 2, WeightGrams: 300, LengthCM: 5, WidthCM: 4, HeightCM: 3},
 		{SKU: "SKU-B", Name: "Gadget", UnitPriceHKD: 12, Quantity: 1}, // falls back to parcel
 	}
 	out := buildItems(items, parcel)
@@ -70,6 +70,9 @@ func TestBuildItems(t *testing.T) {
 	a := out[0].(map[string]any)
 	if a["sku"] != "SKU-A" || a["name"] != "Widget" || a["qty"] != 2 {
 		t.Fatalf("item[0] header wrong: %+v", a)
+	}
+	if a["descr"] != "藍色" {
+		t.Fatalf("item[0] descr should pass through, got %v", a["descr"])
 	}
 	if a["unt_price"].(map[string]any)["val"].(float64) != 99.5 {
 		t.Fatalf("item[0] price wrong: %+v", a["unt_price"])
@@ -82,6 +85,9 @@ func TestBuildItems(t *testing.T) {
 	}
 
 	b := out[1].(map[string]any)
+	if b["descr"] != "" {
+		t.Fatalf("item[1] descr should be empty, got %v", b["descr"])
+	}
 	// Per-line weight missing → falls back to parcel total (1.2 kg).
 	if b["wt"].(map[string]any)["val"].(float64) != 1.2 {
 		t.Fatalf("item[1] weight should fall back to 1.2 kg, got %+v", b["wt"])
@@ -90,6 +96,45 @@ func TestBuildItems(t *testing.T) {
 	dim := b["dim"].(map[string]any)
 	if dim["len"].(float64) != 30 || dim["wid"].(float64) != 20 || dim["hgt"].(float64) != 10 {
 		t.Fatalf("item[1] dim fallback wrong: %+v", dim)
+	}
+}
+
+// TestBuildItemsBundleNesting pins the wire shape orderItemsForShipment emits
+// for a bundle: one parent header row (descr "套裝", carrying the bundle price)
+// followed by component rows whose name is "└ "-prefixed, descr "套裝內含", and
+// unit price zeroed (included in the bundle). The packing slip renders these so
+// warehouse staff see the bundle's contents + quantities.
+func TestBuildItemsBundleNesting(t *testing.T) {
+	parcel := Parcel{WeightGrams: 800, LengthCM: 20, WidthCM: 15, HeightCM: 10}
+	items := []ShipanyItem{
+		{SKU: "BUNDLE-001", Name: "護理套裝", Descr: "套裝", UnitPriceHKD: 880, Quantity: 1, WeightGrams: 200},
+		{SKU: "SKU-A", Name: "└ 鍍膜劑 50ml", Descr: "套裝內含", UnitPriceHKD: 0, Quantity: 1, WeightGrams: 120},
+		{SKU: "SKU-B", Name: "└ 海綿", Descr: "套裝內含", UnitPriceHKD: 0, Quantity: 2, WeightGrams: 30},
+	}
+	out := buildItems(items, parcel)
+	if len(out) != 3 {
+		t.Fatalf("want 3 items, got %d", len(out))
+	}
+
+	header := out[0].(map[string]any)
+	if header["sku"] != "BUNDLE-001" || header["descr"] != "套裝" {
+		t.Fatalf("bundle header wrong: %+v", header)
+	}
+	if header["unt_price"].(map[string]any)["val"].(float64) != 880 {
+		t.Fatalf("bundle header should carry the bundle price, got %+v", header["unt_price"])
+	}
+
+	for i, want := range []struct {
+		name string
+		qty  int
+	}{{"└ 鍍膜劑 50ml", 1}, {"└ 海綿", 2}} {
+		c := out[i+1].(map[string]any)
+		if c["name"] != want.name || c["descr"] != "套裝內含" || c["qty"] != want.qty {
+			t.Fatalf("component[%d] wrong: %+v", i, c)
+		}
+		if c["unt_price"].(map[string]any)["val"].(float64) != 0 {
+			t.Fatalf("component[%d] price should be 0 (included), got %+v", i, c["unt_price"])
+		}
 	}
 }
 
@@ -307,9 +352,9 @@ func TestBuildAddressPatchOps(t *testing.T) {
 	want := map[string]string{
 		"/rcvr_ctc/addr/ln":    "2 Dest St",
 		"/rcvr_ctc/addr/ln2":   "Flat A",
-		"/rcvr_ctc/addr/distr": "Central",            // district falls back to city
-		"/rcvr_ctc/addr/cnty":  "HKG",                // alpha-2 → alpha-3
-		"/rcvr_ctc/addr/city":  "Hong Kong S.A.R.",   // HK city override
+		"/rcvr_ctc/addr/distr": "Central",          // district falls back to city
+		"/rcvr_ctc/addr/cnty":  "HKG",              // alpha-2 → alpha-3
+		"/rcvr_ctc/addr/city":  "Hong Kong S.A.R.", // HK city override
 		"/rcvr_ctc/ctc/f_name": "Jane",
 		"/rcvr_ctc/ctc/l_name": "Doe",
 	}
