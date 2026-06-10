@@ -345,10 +345,19 @@ export const adminUpdateOrderStatus = (token: string, id: string, status: string
 export const adminDeleteOrder = (token: string, id: string) =>
   request(`/admin/orders/${id}`, token, { method: 'DELETE' });
 
-export const adminIssueRefund = (token: string, id: string, amountCents: number, reason: string) =>
+export const adminIssueRefund = (
+  token: string,
+  id: string,
+  amountCents: number,
+  reason: string,
+  restockItems?: { order_item_id: string; quantity: number }[]
+) =>
   request<Order>(`/admin/orders/${id}/refund`, token, {
     method: 'POST',
-    body: JSON.stringify({ amount_cents: amountCents, reason })
+    // Omit restock_items when undefined so legacy/non-UI callers keep the old
+    // "auto-restock everything on full refund" backend behaviour. The admin UI
+    // always passes an array (possibly empty = restock nothing).
+    body: JSON.stringify({ amount_cents: amountCents, reason, restock_items: restockItems })
   });
 
 // Batch receipt download. One order that couldn't be included (unpaid, render
