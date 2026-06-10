@@ -38,6 +38,17 @@ func wcAPIHash(consumerKey string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// ckPrefix returns a short, non-sensitive prefix of a consumer key for logs.
+// WC consumer keys start with a "ck_" prefix followed by 40 hex chars; the
+// first few are plenty to correlate against the ShipAny portal without
+// logging anything reusable.
+func ckPrefix(ck string) string {
+	if len(ck) <= 10 {
+		return ck
+	}
+	return ck[:10]
+}
+
 type apiKeyRow struct {
 	KeyID          int64
 	ConsumerSecret string
@@ -117,18 +128,28 @@ func BasicAuthMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ck, cs, ok := extractCreds(r)
 			if !ok {
+				// Previously silent — a 401 here showed only as a bare status
+				// code in the access log, with no way to tell auth failures
+				// apart. Log it so missing-credential pushes are diagnosable.
+				log.Printf("wcshim auth: missing consumer credentials method=%s path=%s from=%s",
+					r.Method, r.URL.Path, r.RemoteAddr)
 				respond.Error(w, http.StatusUnauthorized, "Consumer key/secret missing.")
 				return
 			}
 			row, err := authenticate(r.Context(), db, ck, cs)
 			if err != nil {
-				if !errors.Is(err, errBadCreds) {
+				if errors.Is(err, errBadCreds) {
+					log.Printf("wcshim auth: invalid credentials ck=%s… method=%s from=%s",
+						ckPrefix(ck), r.Method, r.RemoteAddr)
+				} else {
 					log.Printf("wcshim: auth lookup: %v", err)
 				}
 				respond.Error(w, http.StatusUnauthorized, "Consumer key/secret invalid.")
 				return
 			}
 			if r.Method != http.MethodGet && !hasWritePerm(row.Permissions) {
+				log.Printf("wcshim auth: key %d lacks write permission (have %q) method=%s from=%s",
+					row.KeyID, row.Permissions, r.Method, r.RemoteAddr)
 				respond.Error(w, http.StatusForbidden, "The API key provided does not have write permissions.")
 				return
 			}

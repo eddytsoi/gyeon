@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -45,35 +46,58 @@ type shipanyTrackingMeta struct {
 	LabelURL       string `json:"label_url"`
 }
 
-// mapStatus translates ShipAny's status string into our internal order
-// status enum. Returns "" (no advance) for anything we don't recognise
-// — the caller still echoes a 200 so ShipAny doesn't retry, but the
-// order stays where it is.
+// normalizeStatus canonicalises a ShipAny status string so matching is
+// robust to formatting drift. ShipAny's real vocabulary is space-separated
+// Title Case — "Collected By Courier", "Order Delivered" — see the plugin's
+// ShipanyHelper::get_all_order_status(). The previous implementation matched
+// underscore_case ("collected_by_courier"), which never matched the spaced
+// form ShipAny actually sends, so every status fell through to "unmapped"
+// and no order ever advanced. We now lowercase and collapse every run of
+// underscores/whitespace to a single space, so spaced, underscored and
+// odd-cased variants all match.
+func normalizeStatus(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	b.Grow(len(s))
+	pendingSep := false
+	for _, r := range s {
+		if r == '_' || unicode.IsSpace(r) {
+			pendingSep = b.Len() > 0
+			continue
+		}
+		if pendingSep {
+			b.WriteByte(' ')
+			pendingSep = false
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// mapStatus translates ShipAny's shipment status into our internal order
+// status enum. Returns "" (no advance) for anything we don't recognise —
+// the caller still echoes a 200 so ShipAny doesn't retry, but the order
+// stays where it is. Unrecognised non-empty statuses are logged "unmapped".
 //
-// The full official ShipAny status vocabulary has ~80 entries; we only
-// translate the milestones that drive Gyeon order state. The rest are
-// logged as "unmapped" so we can decide later whether they're worth
-// surfacing. Most are carrier scan noise that the customer order
-// timeline doesn't need.
-//
-// Mappings used:
-//   - Collected_By_Courier                → shipped
-//   - Order_Delivered, Order_Completed    → delivered
-//
-// Order_Created is intentionally NOT mapped here. The paid → processing
-// transition is already handled synchronously by shipany.QueueHandler
-// the moment Gyeon successfully creates the ShipAny shipment (see
-// queue_handler.go ~line 98). Mapping Order_Created → processing would
-// duplicate that advance and emit a "cannot transition from processing
-// to processing" log on every Order_Created callback.
-//
-// Comparison is case-insensitive in case ShipAny normalises differently
-// between events.
+// Gyeon's transition graph is paid→processing→shipped→delivered
+// (orders.allowedTransitions). The paid→processing advance is handled when
+// the shipment is created (shipany.QueueHandler), so here we only map the
+// in-transit milestones (→ shipped) and the terminal ones (→ delivered).
+// Several ShipAny statuses collapse onto each milestone; the first to
+// arrive advances the order and any later one logs a benign "cannot
+// transition" and is ignored. Pre-pickup states (e.g. "Order Created",
+// "Pickup Request Sent") are intentionally left unmapped.
 func mapStatus(s string) orders.OrderStatus {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "collected_by_courier":
+	switch normalizeStatus(s) {
+	case "collected by courier",
+		"in transit", "shipping",
+		"arrived transit point", "departed transit point",
+		"delivery in progress", "ready for delivery",
+		"out for delivery", "delivering to convenience store":
 		return orders.StatusShipped
-	case "order_delivered", "order_completed":
+	case "order delivered", "order completed",
+		"collected by customer",
+		"delivered to locker", "delivered to service point":
 		return orders.StatusDelivered
 	}
 	return ""
@@ -85,27 +109,45 @@ func noteForStatus(s string, target orders.OrderStatus) string {
 	return "ShipAny: " + s + " (→ " + string(target) + ")"
 }
 
-// resolveOrderID accepts either a Gyeon UUID (native orders) or a
-// WooCommerce numeric ID (imported orders). Returns Gyeon's internal
-// UUID, or an empty string + ErrOrderNotFound if no row matches.
+// resolveOrderID maps the {id} in ShipAny's callback path to Gyeon's
+// internal order UUID. ShipAny echoes whatever external reference it stored
+// at shipment-create time. Gyeon sends it both ext_order_id (the UUID) and
+// ext_order_ref (the human order number, e.g. "ORD-5117"), and legacy
+// imports also carry a numeric WooCommerce id — so we accept all three:
+//
+//  1. a Gyeon UUID            → orders.id
+//  2. a numeric WC order id   → orders.wc_order_id
+//  3. the human order number  → orders.order_number   (ext_order_ref)
+//
+// Returns ErrOrderNotFound if nothing matches.
 func resolveOrderID(ctx context.Context, db *sql.DB, pathID string) (string, error) {
 	if _, err := uuid.Parse(pathID); err == nil {
-		// Probably a native Gyeon UUID — confirm it exists.
 		var id string
 		err := db.QueryRowContext(ctx, `SELECT id FROM orders WHERE id = $1`, pathID).Scan(&id)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", orders.ErrOrderNotFound
+		if err == nil {
+			return id, nil
 		}
-		return id, err
+		if !errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
+		// A well-formed UUID that isn't an order id — fall through.
 	}
-	// Try numeric WC order id (legacy imports).
-	wcID, convErr := strconv.Atoi(pathID)
-	if convErr != nil {
-		return "", orders.ErrOrderNotFound
+	if wcID, convErr := strconv.Atoi(pathID); convErr == nil {
+		var id string
+		err := db.QueryRowContext(ctx,
+			`SELECT id FROM orders WHERE wc_order_id = $1`, wcID).Scan(&id)
+		if err == nil {
+			return id, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
 	}
+	// Final fallback: ShipAny may echo ext_order_ref, which Gyeon set to the
+	// human order number.
 	var id string
 	err := db.QueryRowContext(ctx,
-		`SELECT id FROM orders WHERE wc_order_id = $1`, wcID).Scan(&id)
+		`SELECT id FROM orders WHERE order_number = $1`, pathID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", orders.ErrOrderNotFound
 	}
@@ -188,6 +230,13 @@ func (h *Handler) updateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TEMP diagnostic: ShipAny's notification payload shape is not documented
+	// in the plugin source (its server builds the PUT). Log the raw body so we
+	// can confirm where ShipAny actually puts the shipment status. Downgrade to
+	// debug / remove once the status-update path is confirmed working in prod.
+	log.Printf("wcshim: inbound PUT order=%s from=%s body=%s",
+		pathID, r.RemoteAddr, truncate(string(raw), 2048))
+
 	var body wcOrderUpdate
 	if err := json.Unmarshal(raw, &body); err != nil {
 		log.Printf("wcshim: decode body for order %s: %v body=%q",
@@ -195,6 +244,14 @@ func (h *Handler) updateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		respond.JSON(w, http.StatusOK, map[string]any{"id": pathID})
 		return
 	}
+
+	// TEMP diagnostic: show what we parsed out of the WC schema so a mismatch
+	// (empty status, or the status sitting in an unexpected meta key) is obvious.
+	metaKeys := make([]string, 0, len(body.MetaData))
+	for _, m := range body.MetaData {
+		metaKeys = append(metaKeys, m.Key)
+	}
+	log.Printf("wcshim: parsed order=%s status=%q meta_keys=%v", pathID, body.Status, metaKeys)
 
 	orderID, err := resolveOrderID(r.Context(), h.db, pathID)
 	if err != nil {
