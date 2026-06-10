@@ -1,5 +1,12 @@
 import type { RequestHandler } from './$types';
-import { getPublicSettings, getProducts, getCategories, getBlogPosts, getCmsPageBySlug } from '$lib/api';
+import {
+  getPublicSettings,
+  getProducts,
+  getCategories,
+  getBlogPosts,
+  getBlogCategories,
+  getPublishedCmsPages
+} from '$lib/api';
 import { siteOrigin } from '$lib/seo';
 
 interface Url {
@@ -8,6 +15,33 @@ interface Url {
   changefreq?: 'daily' | 'weekly' | 'monthly';
   priority?: string;
 }
+
+// Backend public list endpoints clamp limit to 100; page through until a
+// short page signals the end. MAX_URLS is a per-content-type safety cap.
+const PAGE = 100;
+const MAX_URLS = 5000;
+
+async function fetchAll<T>(fn: (limit: number, offset: number) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; out.length < MAX_URLS; offset += PAGE) {
+    const batch = await fn(PAGE, offset).catch(() => []);
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
+// Slugs owned by static SvelteKit routes — never emit them as CMS `/{slug}`
+// pages (would duplicate / shadow the real route).
+const RESERVED_SLUGS = new Set([
+  'products',
+  'blog',
+  'cart',
+  'checkout',
+  'account',
+  'pages',
+  'wishlist'
+]);
 
 function escapeXml(s: string): string {
   return s
@@ -22,11 +56,14 @@ export const GET: RequestHandler = async ({ setHeaders }) => {
   const settings = await getPublicSettings().catch(() => []);
   const origin = siteOrigin(settings);
   const blogEnabled = settings.find((s) => s.key === 'blog_enabled')?.value !== 'false';
+  const homepageId = settings.find((s) => s.key === 'homepage_page_id')?.value || '';
 
-  const [products, categories, posts] = await Promise.all([
-    getProducts(500, 0).catch(() => []),
+  const [products, categories, posts, blogCats, pages] = await Promise.all([
+    fetchAll((l, o) => getProducts(l, o)),
     getCategories().catch(() => []),
-    blogEnabled ? getBlogPosts(500, 0).catch(() => []) : Promise.resolve([])
+    blogEnabled ? fetchAll((l, o) => getBlogPosts(l, o)) : Promise.resolve([]),
+    blogEnabled ? getBlogCategories().catch(() => []) : Promise.resolve([]),
+    getPublishedCmsPages().catch(() => [])
   ]);
 
   const urls: Url[] = [
@@ -69,17 +106,25 @@ export const GET: RequestHandler = async ({ setHeaders }) => {
     }
   }
 
-  // Best-effort: include 'about' / 'contact' if those CMS pages exist.
-  for (const slug of ['about', 'contact', 'privacy', 'terms']) {
-    const p = await getCmsPageBySlug(slug).catch(() => null);
-    if (p && p.is_published) {
-      urls.push({
-        loc: `${origin}/${slug}`,
-        lastmod: p.updated_at?.slice(0, 10),
-        changefreq: 'monthly',
-        priority: '0.4'
-      });
-    }
+  for (const c of blogCats) {
+    urls.push({
+      loc: `${origin}/blog/category/${c.slug}`,
+      changefreq: 'weekly',
+      priority: '0.5'
+    });
+  }
+
+  // All published CMS pages render at root `/{slug}`. Skip the homepage page
+  // (already listed as `/`) and any slug owned by a static route.
+  for (const p of pages) {
+    if (p.id === homepageId) continue;
+    if (RESERVED_SLUGS.has(p.slug)) continue;
+    urls.push({
+      loc: `${origin}/${p.slug}`,
+      lastmod: p.updated_at?.slice(0, 10),
+      changefreq: 'monthly',
+      priority: '0.4'
+    });
   }
 
   const body =

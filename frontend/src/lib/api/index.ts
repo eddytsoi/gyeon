@@ -448,6 +448,16 @@ export const getCmsPageBySlug = (slug: string) =>
 export const getCmsPageByID = (id: string) =>
   request<CmsPage>(`/cms/pages/by-id/${id}`);
 
+// Slim list of every published CMS page (id/slug/updated_at) — backs the
+// sitemap's enumeration of root `/{slug}` pages. Avoids shipping page bodies.
+export const getPublishedCmsPages = () =>
+  request<{ id: string; slug: string; updated_at: string }[]>('/cms/pages');
+
+// Blog post categories list (the storefront has /blog/category/[slug] pages).
+// Mirrors getBlogCategoryBySlug but returns the full set for the sitemap.
+export const getBlogCategories = () =>
+  request<{ id: string; slug: string; name: string }[]>('/cms/post-categories');
+
 // Resolve a batch of media_files.original_name values to their canonical
 // /uploads/... URLs. Backs the [photo-grid] shortcode's server-side
 // resolve step. Unknown names are simply absent from the returned map;
