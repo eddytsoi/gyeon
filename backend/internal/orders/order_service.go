@@ -185,6 +185,7 @@ type OrderItem struct {
 	UnitPrice       float64                `json:"unit_price"`
 	Quantity        int                    `json:"quantity"`
 	LineTotal       float64                `json:"line_total"`
+	RestockedQty    int                    `json:"restocked_qty"` // units already returned to stock by prior refunds
 }
 
 type CustomerInfo struct {
@@ -487,6 +488,84 @@ func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orde
 			`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id, note)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			it.variantID, it.quantity, before, after, reason, actorIDArg, orderID, noteArg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// restockSpecificItemsTx restocks only the named order lines, each by the given
+// number of units, inside the caller's transaction. Used by the admin refund
+// flow so the operator can return some lines to stock (sellable returns) while
+// leaving others out (damaged goods) — and restock partial quantities of a
+// line. Decoupled from the full/partial refund state: it restocks exactly what
+// it's told. Each unit goes back at most once: order_items.restocked_qty caps
+// the per-line amount and is bumped here, so repeated/partial refunds never
+// double-count. Writes one inventory_history row per restocked line. Lines with
+// a NULLed variant_id (variant deleted) or nothing left to restock are skipped.
+func (s *OrderService) restockSpecificItemsTx(ctx context.Context, tx *sql.Tx, orderID string, items []RestockItem, reason string, note *string) error {
+	var actorIDArg any
+	if id, ok := auth.AdminIDFromContext(ctx); ok {
+		actorIDArg = id
+	}
+	var noteArg any
+	if note != nil && *note != "" {
+		noteArg = *note
+	}
+
+	for _, it := range items {
+		if it.Quantity <= 0 {
+			continue
+		}
+		// Lock the order line and confirm it belongs to this order. variantID is
+		// NULL when the variant was deleted after the order was placed — nothing
+		// to restock then.
+		var variantID sql.NullString
+		var ordered, restocked int
+		err := tx.QueryRowContext(ctx,
+			`SELECT variant_id, quantity, restocked_qty FROM order_items WHERE id = $1 AND order_id = $2 FOR UPDATE`,
+			it.OrderItemID, orderID).Scan(&variantID, &ordered, &restocked)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // not a line of this order — ignore
+		}
+		if err != nil {
+			return err
+		}
+		if !variantID.Valid {
+			continue // variant deleted — can't restock
+		}
+		remaining := ordered - restocked
+		if remaining <= 0 {
+			continue // already fully restocked
+		}
+		qty := it.Quantity
+		if qty > remaining {
+			qty = remaining // clamp to what's left
+		}
+
+		var before int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT stock_qty FROM product_variants WHERE id = $1 FOR UPDATE`, variantID.String).Scan(&before); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue // variant row gone — skip
+			}
+			return err
+		}
+		after := before + qty
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE product_variants SET stock_qty = $1, updated_at = NOW() WHERE id = $2`,
+			after, variantID.String); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO inventory_history (variant_id, delta, before_qty, after_qty, reason, actor_user_id, order_id, note)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			variantID.String, qty, before, after, reason, actorIDArg, orderID, noteArg); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE order_items SET restocked_qty = restocked_qty + $1 WHERE id = $2`,
+			qty, it.OrderItemID); err != nil {
 			return err
 		}
 	}
@@ -2090,10 +2169,24 @@ func (s *OrderService) checkLowStockCrossings(ctx context.Context, decs []lowSto
 	}
 }
 
+// RestockItem names one order line and how many of its units to return to
+// sellable stock as part of a refund.
+type RestockItem struct {
+	OrderItemID string `json:"order_item_id"`
+	Quantity    int    `json:"quantity"`
+}
+
 // RefundRequest is the admin payload for issuing a refund.
+//
+// RestockItems is a pointer so we can tell "caller did not specify" (nil — e.g.
+// Stripe webhook / legacy callers, which keep the old "auto-restock everything
+// on full refund" behaviour) apart from "caller specified an explicit, possibly
+// empty, selection" (admin UI — restock exactly these lines/quantities, nothing
+// else). A non-nil empty slice therefore means "refund but restock nothing".
 type RefundRequest struct {
-	AmountCents int64  `json:"amount_cents"`
-	Reason      string `json:"reason"`
+	AmountCents  int64          `json:"amount_cents"`
+	Reason       string         `json:"reason"`
+	RestockItems *[]RestockItem `json:"restock_items,omitempty"`
 }
 
 var ErrRefundExceedsTotal = errors.New("refund amount exceeds remaining refundable total")
@@ -2187,9 +2280,18 @@ func (s *OrderService) IssueRefund(ctx context.Context, orderID string, req Refu
 	statusForNotice := newStatus
 	_ = CreateSystemNoticeTx(ctx, tx, orderID, &statusForNotice, noteText)
 
-	// On full refund, restock every order_items line and write one
-	// inventory_history row per variant inside the same tx.
-	if newStatus == StatusRefunded && order.Status != StatusRefunded && order.Status != StatusCancelled {
+	// Restock inside the same tx. When the admin sends an explicit selection
+	// (RestockItems != nil) we restock exactly those lines/quantities, decoupled
+	// from whether this refund is partial or full — so damaged goods can be left
+	// out and good returns can be restocked even on a partial refund. When no
+	// selection is given (nil — Stripe webhook / legacy callers) we keep the old
+	// behaviour: restock every line once, only when the order becomes fully
+	// refunded.
+	if req.RestockItems != nil {
+		if err := s.restockSpecificItemsTx(ctx, tx, orderID, *req.RestockItems, "order.refund", reasonPtr); err != nil {
+			return nil, err
+		}
+	} else if newStatus == StatusRefunded && order.Status != StatusRefunded && order.Status != StatusCancelled {
 		if err := s.restockOrderItemsTx(ctx, tx, orderID, "order.refund", reasonPtr); err != nil {
 			return nil, err
 		}
@@ -2517,7 +2619,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	order.AppliedPromotions = scanAppliedPromotions(appliedPromosRaw)
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, order_id, variant_id, parent_item_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total
+		`SELECT id, order_id, variant_id, parent_item_id, product_name, product_subtitle, variant_sku, unit_price, quantity, line_total, restocked_qty
 		 FROM order_items WHERE order_id = $1
 		 ORDER BY parent_item_id NULLS FIRST, id`, id)
 	if err != nil {
@@ -2527,7 +2629,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	for rows.Next() {
 		var item OrderItem
 		rows.Scan(&item.ID, &item.OrderID, &item.VariantID, &item.ParentItemID, &item.ProductName, &item.ProductSubtitle,
-			&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal)
+			&item.VariantSKU, &item.UnitPrice, &item.Quantity, &item.LineTotal, &item.RestockedQty)
 		order.Items = append(order.Items, item)
 	}
 

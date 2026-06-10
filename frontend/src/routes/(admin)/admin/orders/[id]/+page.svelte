@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import type { ActionData, PageData } from './$types';
+  import type { OrderItem } from '$lib/types';
   import SaveButton from '$lib/components/admin/SaveButton.svelte';
   import * as m from '$lib/paraglide/messages';
   import { orderStatusLabel } from '$lib/orderStatus';
@@ -117,9 +118,50 @@
     ['paid', 'processing', 'shipped', 'delivered'].includes(data.order.status)
   );
 
+  // Per-line restock selection for the refund modal. Keyed by order_item id →
+  // units to return to stock. Defaults to all-0 (nothing restocked); the admin
+  // opts items in. Only lines with a live variant and remaining unrestocked
+  // units are pickable — damaged goods are simply left at 0.
+  let restockQty = $state<Record<string, number>>({});
+  const restockRemaining = (it: { quantity?: number; restocked_qty?: number }) =>
+    (it.quantity ?? 0) - (it.restocked_qty ?? 0);
+  const isRestockable = (it: { variant_id?: string | null; quantity?: number; restocked_qty?: number }) =>
+    !!it.variant_id && restockRemaining(it) > 0;
+  const restockableItems = $derived((data.order.items ?? []).filter(isRestockable));
+  const restockedTotal = $derived(
+    (data.order.items ?? []).reduce((n, it) => n + (it.restocked_qty ?? 0), 0)
+  );
+  // Serialised {order_item_id, quantity} pairs (qty > 0) for the hidden field.
+  const restockPayload = $derived(
+    JSON.stringify(
+      Object.entries(restockQty)
+        .map(([order_item_id, quantity]) => ({ order_item_id, quantity: Number(quantity) || 0 }))
+        .filter((x) => x.quantity > 0)
+    )
+  );
+
+  function setRestockQty(id: string, val: number, max: number) {
+    let n = Math.floor(val);
+    if (!Number.isFinite(n) || n < 0) n = 0;
+    if (n > max) n = max;
+    restockQty[id] = n;
+  }
+  function bumpRestock(id: string, delta: number, max: number) {
+    setRestockQty(id, (restockQty[id] ?? 0) + delta, max);
+  }
+  function restockAll() {
+    const next: Record<string, number> = {};
+    for (const it of restockableItems) next[it.id] = restockRemaining(it);
+    restockQty = next;
+  }
+  function restockClear() {
+    restockQty = {};
+  }
+
   function openRefundModal() {
     refundAmount = refundableRemaining.toFixed(2);
     refundReason = '';
+    restockQty = {}; // default: restock nothing — admin opts items in
     showRefundModal = true;
   }
   let internalNoteBody = $state('');
@@ -852,6 +894,9 @@
           {#if data.order.refund_reason}
             <p class="text-xs text-gray-400 mb-3">{m.admin_order_refund_label_reason()}: {data.order.refund_reason}</p>
           {/if}
+          {#if restockedTotal > 0}
+            <p class="text-xs text-gray-400 mb-3">{m.admin_order_refund_label_restocked({ n: restockedTotal })}</p>
+          {/if}
         {/if}
         {#if canRefund}
           <button type="button" onclick={openRefundModal}
@@ -871,7 +916,7 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
          onclick={() => (showRefundModal = false)} role="button" tabindex="-1"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
       <h3 class="text-base font-bold text-gray-900 mb-1">{m.admin_order_refund_modal_title()}</h3>
       <p class="text-sm text-gray-500 mb-4">{m.admin_order_refund_modal_warning()}</p>
 
@@ -908,6 +953,46 @@
                     class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm resize-none
                            focus:outline-none focus:ring-2 focus:ring-gray-900"></textarea>
         </div>
+
+        <!-- Restock selection — independent of the refund amount. Only ticked
+             quantities go back to sellable stock; damaged goods stay at 0. -->
+        <div class="border-t border-gray-100 pt-4">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {m.admin_order_refund_modal_restock_heading()}
+            </span>
+            <div class="flex gap-2">
+              <button type="button" onclick={restockAll} disabled={restockableItems.length === 0}
+                      class="text-xs font-medium text-gray-600 hover:text-gray-900 disabled:opacity-40 disabled:hover:text-gray-600">
+                {m.admin_order_refund_modal_restock_all()}
+              </button>
+              <span class="text-gray-200">|</span>
+              <button type="button" onclick={restockClear}
+                      class="text-xs font-medium text-gray-600 hover:text-gray-900">
+                {m.admin_order_refund_modal_restock_clear()}
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mb-2">{m.admin_order_refund_modal_restock_help()}</p>
+          <div class="max-h-60 overflow-y-auto rounded-xl border border-gray-100 divide-y divide-gray-50">
+            {#each parentItems as item}
+              {#if (childrenByParent[item.id] ?? []).length > 0}
+                <div class="px-3 py-2 bg-gray-50/60">
+                  <p class="text-sm font-medium text-gray-700">{item.product_name}</p>
+                </div>
+                {#each childrenByParent[item.id] ?? [] as child}
+                  {@render restockRow(child, true)}
+                {/each}
+              {:else}
+                {@render restockRow(item, false)}
+              {/if}
+            {:else}
+              <p class="px-3 py-4 text-center text-xs text-gray-400">{m.admin_order_items_empty()}</p>
+            {/each}
+          </div>
+        </div>
+        <input type="hidden" name="restock" value={restockPayload} />
+
         <div class="flex gap-3 pt-2">
           <button type="button" onclick={() => (showRefundModal = false)}
                   class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium
@@ -924,3 +1009,38 @@
     </div>
   </div>
 {/if}
+
+{#snippet restockRow(item: OrderItem, indented: boolean)}
+  {@const remaining = restockRemaining(item)}
+  <div class="flex items-center gap-3 px-3 py-2 {indented ? 'pl-8' : ''}">
+    <div class="min-w-0 flex-1">
+      <p class="text-sm text-gray-800 truncate">{indented ? '↳ ' : ''}{item.product_name}</p>
+      <p class="text-xs text-gray-400">{m.admin_order_items_sku({ sku: item.variant_sku })}</p>
+    </div>
+    {#if !item.variant_id}
+      <span class="text-xs text-gray-400 whitespace-nowrap">{m.admin_order_refund_modal_restock_deleted()}</span>
+    {:else if remaining <= 0}
+      <span class="text-xs text-emerald-600 whitespace-nowrap">{m.admin_order_refund_modal_restock_done()}</span>
+    {:else}
+      <div class="flex items-center gap-2">
+        {#if (item.restocked_qty ?? 0) > 0}
+          <span class="text-xs text-gray-400 whitespace-nowrap">{m.admin_order_refund_modal_restock_already({ n: item.restocked_qty ?? 0, total: item.quantity })}</span>
+        {/if}
+        <div class="flex items-center">
+          <button type="button" onclick={() => bumpRestock(item.id, -1, remaining)}
+                  class="h-8 w-8 rounded-l-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                  disabled={(restockQty[item.id] ?? 0) <= 0} aria-label="−">−</button>
+          <input type="number" min="0" max={remaining} value={restockQty[item.id] ?? 0}
+                 oninput={(e) => setRestockQty(item.id, e.currentTarget.valueAsNumber, remaining)}
+                 class="h-8 w-12 border-y border-gray-200 text-center text-sm font-mono
+                        focus:outline-none focus:ring-2 focus:ring-gray-900 [appearance:textfield]
+                        [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+          <button type="button" onclick={() => bumpRestock(item.id, 1, remaining)}
+                  class="h-8 w-8 rounded-r-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                  disabled={(restockQty[item.id] ?? 0) >= remaining} aria-label="+">+</button>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap">{m.admin_order_refund_modal_restock_of({ total: remaining })}</span>
+      </div>
+    {/if}
+  </div>
+{/snippet}

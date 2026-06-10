@@ -237,6 +237,7 @@ export interface OrderItem {
   unit_price: number;
   quantity: number;
   line_total: number;
+  restocked_qty?: number;
 }
 
 export interface ShippingAddress {

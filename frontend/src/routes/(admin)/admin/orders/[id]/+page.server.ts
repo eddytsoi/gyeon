@@ -70,8 +70,27 @@ export const actions: Actions = {
     const reason = form.get('reason')?.toString() ?? '';
     const amountCents = Math.round(amount * 100);
 
+    // Per-line restock selection: the modal serialises {order_item_id, quantity}
+    // pairs (qty > 0) into a hidden `restock` JSON field. Always send an array
+    // (possibly empty = restock nothing) so the backend uses the explicit path
+    // rather than legacy auto-restock. A malformed value falls back to "none".
+    let restockItems: { order_item_id: string; quantity: number }[] = [];
     try {
-      await adminIssueRefund(token, id, amountCents, reason);
+      const raw = form.get('restock')?.toString();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          restockItems = parsed
+            .map((it) => ({ order_item_id: String(it.order_item_id), quantity: Number(it.quantity) }))
+            .filter((it) => it.order_item_id && Number.isFinite(it.quantity) && it.quantity > 0);
+        }
+      }
+    } catch {
+      restockItems = [];
+    }
+
+    try {
+      await adminIssueRefund(token, id, amountCents, reason, restockItems);
     } catch (e: unknown) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed to issue refund' });
     }
