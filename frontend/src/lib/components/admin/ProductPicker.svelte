@@ -26,13 +26,17 @@
   // cross-sell editors set it false (associations have no quantity).
   // excludeProductIds drops those products from the search results (e.g. the
   // product being edited, to prevent a self-reference).
-  let { token, onAdd, mode = 'order', kind = '', showQuantity = true, excludeProductIds = [] }: {
+  // includeInactive (default false) surfaces deactivated variants (and badges
+  // inactive products) in the picker — opt-in for the Stock Management (進出單)
+  // flow, which must adjust stock on variants that are temporarily disabled.
+  let { token, onAdd, mode = 'order', kind = '', showQuantity = true, excludeProductIds = [], includeInactive = false }: {
     token: string;
     onAdd: (payload: ProductPickerAddPayload) => void;
     mode?: 'order' | 'variant-only';
     kind?: string;
     showQuantity?: boolean;
     excludeProductIds?: string[];
+    includeInactive?: boolean;
   } = $props();
 
   let query = $state('');
@@ -85,9 +89,12 @@
     loadingDetail = true;
     try {
       variants = await adminGetVariants(token, p.id);
-      // Prefer the product's default variant; fall back to the first active variant.
+      // Prefer the product's default variant; fall back to the first active
+      // variant. With includeInactive (進出單), fall back further to the first
+      // variant of any state so an all-inactive product still has a preselect.
       const active = variants.filter((v) => v.is_active);
-      const preferred = active.find((v) => v.id === p.default_variant_id) ?? active[0] ?? null;
+      const pool = includeInactive ? variants : active;
+      const preferred = active.find((v) => v.id === p.default_variant_id) ?? active[0] ?? pool[0] ?? null;
       selectedVariantId = preferred?.id ?? null;
 
       if (p.kind === 'bundle') {
@@ -142,6 +149,12 @@
   const selectedVariant = $derived(
     variants.find((v) => v.id === selectedVariantId) ?? null
   );
+
+  // Variants offered in the chip picker. Inactive variants are hidden by
+  // default; includeInactive (進出單) keeps them so stock can be adjusted.
+  const pickerVariants = $derived(
+    includeInactive ? variants : variants.filter((v) => v.is_active)
+  );
 </script>
 
 <!-- Search input -->
@@ -189,6 +202,11 @@
                   {#if p.kind === 'bundle'}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700">
                       {m.admin_order_create_items_bundle_badge()}
+                    </span>
+                  {/if}
+                  {#if includeInactive && p.status === 'inactive'}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500">
+                      {m.admin_products_status_inactive()}
                     </span>
                   {/if}
                 </p>
@@ -269,11 +287,11 @@
            SKU and admins lose track of which size/colour they're adding).
            Bundles never show the chip: their "variant" is a wrapper around
            the real stocked components, picked implicitly. -->
-      {#if selectedProduct.kind !== 'bundle' && variants.filter((v) => v.is_active).length >= 1}
+      {#if selectedProduct.kind !== 'bundle' && pickerVariants.length >= 1}
         <div class="mb-3">
           <p class="text-xs font-medium text-gray-600 mb-1.5">{m.admin_order_create_items_select_variant()}</p>
           <div class="flex flex-wrap gap-1.5">
-            {#each variants.filter((v) => v.is_active) as v (v.id)}
+            {#each pickerVariants as v (v.id)}
               {@const oos = v.stock_qty <= 0}
               {@const disableOOS = oos && mode === 'order'}
               <button type="button"
@@ -285,6 +303,11 @@
                                : 'border-gray-200 text-gray-700 hover:border-gray-400'}
                              {disableOOS ? 'opacity-50 cursor-not-allowed line-through' : ''}">
                 {v.name || v.sku}
+                {#if !v.is_active}
+                  <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 align-middle">
+                    {m.admin_products_status_inactive()}
+                  </span>
+                {/if}
                 {#if mode === 'variant-only'}
                   <span class="ml-1 text-[10px] opacity-70">({v.stock_qty})</span>
                 {/if}
