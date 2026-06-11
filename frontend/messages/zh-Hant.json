@@ -875,7 +875,7 @@
   "order_status_pending": "待付款",
   "order_status_paid": "已付款",
   "order_status_processing": "處理中",
-  "order_status_prepared": "已預備",
+  "order_status_prepared": "已準備發貨",
   "order_status_shipped": "已發貨",
   "order_status_delivered": "已送達",
   "order_status_cancelled": "已取消",

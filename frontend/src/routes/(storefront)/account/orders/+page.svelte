@@ -18,6 +18,7 @@
     pending:    'bg-yellow-50 text-yellow-700',
     paid:       'bg-blue-50 text-blue-700',
     processing: 'bg-blue-50 text-blue-700',
+    prepared:   'bg-cyan-50 text-cyan-700',
     shipped:    'bg-indigo-50 text-indigo-700',
     delivered:  'bg-green-50 text-green-700',
     cancelled:  'bg-gray-100 text-gray-500',
@@ -25,7 +26,7 @@
   };
 
   // Status filter chips — order matches $lib/orderStatus.
-  const STATUSES = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+  const STATUSES = ['pending', 'paid', 'processing', 'prepared', 'shipped', 'delivered', 'cancelled', 'refunded'];
 
   // Build an /account/orders URL preserving the active status + search unless
   // overridden; offset resets to 0 by default so changing a filter/search

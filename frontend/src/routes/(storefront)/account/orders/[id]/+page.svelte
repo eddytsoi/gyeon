@@ -34,9 +34,9 @@
   // not receiptable).
   let receiptReady = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
-  const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+  const receiptStatuses = ['paid', 'processing', 'prepared', 'shipped', 'delivered'];
   // Reorder is offered once an order is paid, through to delivery.
-  const reorderStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+  const reorderStatuses = ['paid', 'processing', 'prepared', 'shipped', 'delivered'];
 
   async function checkReceiptCache(orderId: string): Promise<boolean> {
     try {
@@ -156,13 +156,14 @@
     pending:    'bg-yellow-50 text-yellow-700 border-yellow-100',
     paid:       'bg-blue-50 text-blue-700 border-blue-100',
     processing: 'bg-blue-50 text-blue-700 border-blue-100',
+    prepared:   'bg-cyan-50 text-cyan-700 border-cyan-100',
     shipped:    'bg-indigo-50 text-indigo-700 border-indigo-100',
     delivered:  'bg-green-50 text-green-700 border-green-100',
     cancelled:  'bg-gray-100 text-gray-500 border-gray-200',
     refunded:   'bg-red-50 text-red-600 border-red-100'
   };
 
-  const statusSteps = ['pending', 'paid', 'processing', 'shipped', 'delivered'];
+  const statusSteps = ['pending', 'paid', 'processing', 'prepared', 'shipped', 'delivered'];
   const currentStep = $derived(statusSteps.indexOf(order.status));
 
   function fmtNoticeTime(iso: string): string {
@@ -261,27 +262,49 @@
       </div>
     </div>
 
-    <!-- Progress bar (for non-terminal statuses) -->
+    <!-- Progress flow (for non-terminal statuses) -->
     {#if currentStep >= 0}
       <div class="mt-6">
-        <div class="flex items-center gap-0">
-          {#each statusSteps as step, i}
-            <div class="flex items-center {i < statusSteps.length - 1 ? 'flex-1' : ''}">
-              <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0
-                          {i <= currentStep ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}">
-                {i < currentStep ? '✓' : i + 1}
+        <!-- Desktop: horizontal stepper -->
+        <div class="hidden md:block">
+          <div class="flex items-center gap-0">
+            {#each statusSteps as step, i}
+              <div class="flex items-center {i < statusSteps.length - 1 ? 'flex-1' : ''}">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0
+                            {i <= currentStep ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}">
+                  {i < currentStep ? '✓' : i + 1}
+                </div>
+                {#if i < statusSteps.length - 1}
+                  <div class="flex-1 h-0.5 mx-1 {i < currentStep ? 'bg-gray-900' : 'bg-gray-100'}"></div>
+                {/if}
               </div>
-              {#if i < statusSteps.length - 1}
-                <div class="flex-1 h-0.5 mx-1 {i < currentStep ? 'bg-gray-900' : 'bg-gray-100'}"></div>
-              {/if}
-            </div>
-          {/each}
+            {/each}
+          </div>
+          <div class="flex justify-between mt-2">
+            {#each statusSteps as step}
+              <span class="text-xs text-gray-400" style="width: {100 / statusSteps.length}%; text-align: center">{orderStatusLabel(step)}</span>
+            {/each}
+          </div>
         </div>
-        <div class="flex justify-between mt-2">
-          {#each statusSteps as step}
-            <span class="text-xs text-gray-400" style="width: 20%; text-align: center">{orderStatusLabel(step)}</span>
+        <!-- Mobile: vertical timeline -->
+        <ol class="md:hidden flex flex-col">
+          {#each statusSteps as step, i}
+            <li class="flex gap-3">
+              <div class="flex flex-col items-center">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0
+                            {i <= currentStep ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}">
+                  {i < currentStep ? '✓' : i + 1}
+                </div>
+                {#if i < statusSteps.length - 1}
+                  <div class="w-0.5 flex-1 my-1 {i < currentStep ? 'bg-gray-900' : 'bg-gray-100'}"></div>
+                {/if}
+              </div>
+              <div class="pt-1 {i < statusSteps.length - 1 ? 'pb-6' : ''}">
+                <span class="text-sm {i <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400'}">{orderStatusLabel(step)}</span>
+              </div>
+            </li>
           {/each}
-        </div>
+        </ol>
       </div>
     {/if}
   </div>
