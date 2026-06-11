@@ -147,8 +147,8 @@
               {r.product_name}
             </a>
             {#if hasName || r.wc_sku}
-              <p class="text-xs text-gray-400 whitespace-nowrap">
-                {#if hasName}<span class="text-gray-500">{r.variation}</span>{/if}{#if hasName && r.wc_sku} · {/if}{#if r.wc_sku}<span class="font-mono">{r.wc_sku}</span>{/if}
+              <p class="text-xs text-gray-400">
+                {#if hasName}<span class="text-gray-500 whitespace-nowrap">{r.variation}</span>{/if}{#if hasName && r.wc_sku}{' '}{/if}{#if r.wc_sku}<span class="font-mono">{r.wc_sku}</span>{/if}
               </p>
             {/if}
           </td>
