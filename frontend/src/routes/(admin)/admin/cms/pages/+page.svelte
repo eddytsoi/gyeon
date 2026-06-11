@@ -112,7 +112,7 @@
                 <p class="text-xs text-gray-400 font-mono mt-0.5">PG-{page.number}</p>
               </td>
               <td class="px-6 py-4 text-gray-500 font-mono text-xs">/{page.slug}</td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                              {page.is_published ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
                   {page.is_published ? m.admin_cms_pages_status_published() : m.admin_cms_pages_status_draft()}

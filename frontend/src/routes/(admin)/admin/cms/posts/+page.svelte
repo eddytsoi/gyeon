@@ -145,7 +145,7 @@
               <td class="px-6 py-4 text-gray-500 max-w-xs">
                 <p class="truncate">{post.excerpt ?? m.admin_cms_posts_dash()}</p>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                              {post.is_published ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
                   {post.is_published ? m.admin_cms_posts_status_published() : m.admin_cms_posts_status_draft()}

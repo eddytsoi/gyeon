@@ -84,13 +84,13 @@
               <p class="text-xs text-gray-400 sm:hidden">{user.email}</p>
             </td>
             <td class="px-5 py-3 text-gray-500 hidden sm:table-cell">{user.email}</td>
-            <td class="px-5 py-3">
+            <td class="px-5 py-3 whitespace-nowrap">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                            {roleBadge[user.role] ?? 'bg-gray-100 text-gray-600'}">
                 {roleLabel[user.role] ?? user.role}
               </span>
             </td>
-            <td class="px-5 py-3 hidden md:table-cell">
+            <td class="px-5 py-3 hidden md:table-cell whitespace-nowrap">
               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                            {user.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
                 {user.is_active ? m.admin_users_status_active() : m.admin_users_status_inactive()}
