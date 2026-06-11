@@ -922,6 +922,7 @@
   "admin_order_shipment_download_waybill": "Download Waybill PDF",
   "admin_order_shipment_request_pickup": "Request Pickup",
   "admin_order_shipment_pickup_already": "Pickup already requested",
+  "admin_order_shipment_sync_status": "Sync ShipAny status",
   "admin_order_shipment_legacy_intro": "This order pre-dates ShipAny enablement and has no carrier selected. Pick one to create a shipment.",
   "admin_order_shipment_label_courier": "Courier",
   "admin_order_shipment_label_service_plan": "Service Plan",

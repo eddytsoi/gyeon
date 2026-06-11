@@ -912,6 +912,20 @@ export const adminCreateShipment = (token: string, orderID: string, override?: {
 export const adminRequestShipanyPickup = (token: string, orderID: string) =>
   request<ShipanyShipment>(`/admin/shipany/orders/${orderID}/pickup`, token, { method: 'POST' });
 
+export interface ShipanySyncResult {
+  order_id: string;
+  order_number?: string;
+  remote_state?: string;
+  from: string;
+  to: string;
+  changed: boolean;
+}
+
+// Pull the order's live state from ShipAny and advance the local order to match.
+// Manual fallback for when the push webhook missed an event.
+export const adminSyncShipanyStatus = (token: string, orderID: string) =>
+  request<ShipanySyncResult>(`/admin/shipany/orders/${orderID}/sync-status`, token, { method: 'POST' });
+
 // Overwrite an order's frozen shipping snapshot. The backend re-syncs the
 // ShipAny waybill (if any) and regenerates the label when still pre-pickup.
 export const adminUpdateOrderShippingAddress = (token: string, orderID: string, address: ShippingAddress) =>

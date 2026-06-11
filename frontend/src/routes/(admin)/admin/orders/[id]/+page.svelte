@@ -120,6 +120,7 @@
   let updating = $state(false);
   let creatingShipment = $state(false);
   let requestingPickup = $state(false);
+  let syncingStatus = $state(false);
   let editingAddress = $state(false);
   let savingAddress = $state(false);
   let addingNote = $state(false);
@@ -596,6 +597,20 @@
               {m.admin_order_shipment_download_waybill()}
             </a>
           {/if}
+          <!-- Pull the live ShipAny state and advance the order — manual fallback
+               for when the push webhook missed an event. -->
+          <form method="POST" action="?/syncShipanyStatus"
+                use:enhance={() => {
+                  if (syncingStatus) return;
+                  syncingStatus = true;
+                  return async ({ update }) => { await update(); syncingStatus = false; };
+                }}>
+            <SaveButton loading={syncingStatus}
+                    class="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg
+                           hover:bg-gray-50 transition-colors disabled:opacity-50">
+              {m.admin_order_shipment_sync_status()}
+            </SaveButton>
+          </form>
           <!-- TEMP: 預約取件 button hidden (per request 2026-05-21) -->
           {#if false}
             {#if !pickupRequested}
