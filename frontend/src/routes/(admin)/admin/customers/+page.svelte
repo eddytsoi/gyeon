@@ -108,7 +108,7 @@
               <td class="px-5 py-3 text-gray-400 text-xs hidden md:table-cell">
                 {new Date(customer.created_at).toLocaleDateString('en-HK')}
               </td>
-              <td class="px-5 py-3">
+              <td class="px-5 py-3 whitespace-nowrap">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                              {customer.role === 'installer'
                     ? 'bg-amber-50 text-amber-700'
@@ -118,7 +118,7 @@
                   {customerRoleLabel(customer.role)}
                 </span>
               </td>
-              <td class="px-5 py-3">
+              <td class="px-5 py-3 whitespace-nowrap">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                              {customer.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">
                   {customer.is_active ? m.admin_customers_status_active() : m.admin_customers_status_inactive()}

@@ -12,6 +12,11 @@ export default {
   ],
   theme: {
     extend: {
+      // Admin sidebar full-width threshold (see (admin)/+layout.svelte).
+      // Kept separate from `xl` (1280px) so the storefront is unaffected.
+      screens: {
+        'sidebar': '1200px',
+      },
       // Gyeon design system — see gyeon-project-design-system.md §1.1
       colors: {
         navy: {

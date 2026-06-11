@@ -13,6 +13,7 @@
   } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
   import { getLocale } from '$lib/i18n';
+  import { formatHKD } from '$lib/money';
   import type { Order } from '$lib/types';
   import type { PageData } from './$types';
   import { spotlight } from '$lib/actions/spotlight';
@@ -475,7 +476,7 @@
                    aria-label={m.admin_orders_select_row_aria({ id: order.order_number || `ORD-${order.number}` })}
                    class="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer" />
           </td>
-          <td class="px-5 py-3 font-mono text-xs text-gray-700">
+          <td class="px-5 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
             <span class="inline-flex items-center gap-2">
               <a href="/admin/orders/{order.id}"
                  class="text-gray-700 hover:text-indigo-700 hover:underline underline-offset-2">
@@ -494,7 +495,7 @@
               {/if}
             </span>
           </td>
-          <td class="px-5 py-3">
+          <td class="px-5 py-3 whitespace-nowrap">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                          {statusColour[order.status] ?? 'bg-gray-100 text-gray-500'}">
               {orderStatusLabel(order.status)}
@@ -521,7 +522,7 @@
           </td>
           <td class="px-5 py-3 text-right font-medium text-gray-900">
             <span class="inline-flex items-center gap-1.5 justify-end">
-              HK${order.total.toFixed(2)}
+              {formatHKD(order.total)}
               {#if order.refunded_at}
                 <span title={m.admin_orders_refund_tooltip({ amount: (order.refund_amount ?? 0).toFixed(2) })}
                       class="text-red-500 text-[11px]" aria-hidden="true">↩</span>
@@ -530,16 +531,6 @@
           </td>
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-1">
-              <a href="/admin/orders/{order.id}"
-                 title={m.admin_orders_action_details()}
-                 aria-label={m.admin_orders_aria_details()}
-                 class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                </svg>
-              </a>
               <button onclick={() => deleteTarget = order}
                       disabled={order.status !== 'cancelled' && order.status !== 'refunded'}
                       title={order.status === 'cancelled' || order.status === 'refunded' ? m.admin_orders_action_delete() : m.admin_orders_delete_disabled_hint()}
