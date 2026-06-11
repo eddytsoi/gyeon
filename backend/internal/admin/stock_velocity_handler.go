@@ -65,6 +65,7 @@ type velocityRow struct {
 	ProductID      string  `json:"product_id"`
 	ProductName    string  `json:"product_name"`
 	SKU            string  `json:"sku"`
+	WCSku          *string `json:"wc_sku,omitempty"`
 	Variation      string  `json:"variation"`
 	StockQty       int     `json:"stock_qty"`
 	InStock        bool    `json:"in_stock"`
@@ -125,7 +126,7 @@ WITH sales AS (
        AND o.created_at >= NOW() - make_interval(days => $1)
      GROUP BY oi.variant_id
 )
-SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku,
+SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku, pv.wc_sku,
        COALESCE(NULLIF(pv.name, ''), pv.sku) AS variation,
        pv.stock_qty,
        (pv.stock_qty > 0) AS in_stock,
@@ -150,12 +151,17 @@ SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku,
 	for rows.Next() {
 		var row velocityRow
 		var daysLeft sql.NullInt64
+		var wcSku sql.NullString
 		if err := rows.Scan(
-			&row.VariantID, &row.ProductID, &row.ProductName, &row.SKU,
+			&row.VariantID, &row.ProductID, &row.ProductName, &row.SKU, &wcSku,
 			&row.Variation, &row.StockQty, &row.InStock,
 			&row.GrossSales, &row.GrossSold, &row.DailyGrossSold, &daysLeft,
 		); err != nil {
 			return nil, err
+		}
+		if wcSku.Valid {
+			s := wcSku.String
+			row.WCSku = &s
 		}
 		if daysLeft.Valid {
 			n := int(daysLeft.Int64)
