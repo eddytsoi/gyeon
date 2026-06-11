@@ -691,6 +691,15 @@
   <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
     <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">{m.admin_order_notices_heading()}</h3>
 
+    {#if data.order.notes}
+      <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-700 mb-1">
+          💬 {m.admin_order_checkout_remark_label()}
+        </p>
+        <p class="text-sm text-amber-900 whitespace-pre-wrap break-words">{data.order.notes}</p>
+      </div>
+    {/if}
+
     {#if (data.notices?.length ?? 0) === 0}
       <p class="text-sm text-gray-400 italic">{m.admin_order_notices_empty()}</p>
     {:else}

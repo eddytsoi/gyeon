@@ -460,7 +460,6 @@
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_id()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_status()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden md:table-cell">{m.admin_orders_col_customer()}</th>
-        <th class="text-left px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_phone()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500 hidden lg:table-cell">{m.admin_orders_col_items()}</th>
         <th class="text-left px-5 py-3 font-medium text-gray-500 hidden sm:table-cell">{m.admin_orders_col_date()}</th>
         <th class="text-right px-5 py-3 font-medium text-gray-500">{m.admin_orders_col_total()}</th>
@@ -501,18 +500,20 @@
               {orderStatusLabel(order.status)}
             </span>
           </td>
-          <td class="px-5 py-3 text-gray-700 hidden md:table-cell">
-            <span class="inline-flex items-center gap-1.5">
-              {order.customer_name || '—'}
-              {#if order.customer_role && order.customer_role !== 'customer'}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {roleColour[order.customer_role] ?? roleColour.installer}">
-                  {roleLabel(order.customer_role)}
-                </span>
+          <td class="px-5 py-3 hidden md:table-cell">
+            <div class="flex flex-col leading-tight">
+              <span class="inline-flex items-center gap-1.5 text-gray-700">
+                {order.customer_name || '—'}
+                {#if order.customer_role && order.customer_role !== 'customer'}
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium {roleColour[order.customer_role] ?? roleColour.installer}">
+                    {roleLabel(order.customer_role)}
+                  </span>
+                {/if}
+              </span>
+              {#if order.customer_phone}
+                <span class="text-gray-400 font-mono text-xs mt-0.5">{order.customer_phone}</span>
               {/if}
-            </span>
-          </td>
-          <td class="px-5 py-3 text-gray-500 hidden lg:table-cell font-mono text-xs">
-            {order.customer_phone || '—'}
+            </div>
           </td>
           <td class="px-5 py-3 text-right text-gray-700 hidden lg:table-cell tabular-nums">
             {order.items_count ?? '—'}
@@ -546,7 +547,7 @@
         </tr>
       {:else}
         <tr>
-          <td colspan="9" class="px-5 py-10 text-center text-gray-400">
+          <td colspan="8" class="px-5 py-10 text-center text-gray-400">
             {#if hasFilters}
               <p class="font-medium text-gray-700 mb-1">{m.admin_orders_empty_no_match()}</p>
               <p class="text-xs">{m.admin_orders_empty_no_match_hint()}</p>
