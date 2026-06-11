@@ -164,7 +164,7 @@
   <!-- Items -->
   <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
     <h2 class="text-sm font-medium text-gray-900">{m.admin_stock_mutations_section_items()}</h2>
-    <ProductPicker {token} mode="variant-only" onAdd={addItem} />
+    <ProductPicker {token} mode="variant-only" includeInactive onAdd={addItem} />
     <MutationItemsTable {items} {type} onChangeQty={changeQty} onRemove={removeRow} />
   </section>
 
