@@ -119,7 +119,7 @@
       <tr>
         {#each COLS as col}
           <th
-            class="px-5 py-3 font-medium text-gray-500 {col.align === 'right' ? 'text-right' : 'text-left'}"
+            class="px-5 py-3 font-medium text-gray-500 whitespace-nowrap {col.align === 'right' ? 'text-right' : 'text-left'}"
             aria-sort={ariaSort(col.key)}>
             <button
               type="button"
@@ -138,6 +138,7 @@
     </thead>
     <tbody class="divide-y divide-gray-50">
       {#each data.rows as r}
+        {@const hasName = r.variation !== r.sku}
         <tr class="transition-colors hover:bg-gray-50/60">
           <td class="px-5 py-3">
             <a
@@ -145,14 +146,16 @@
               class="font-medium text-gray-900 hover:text-indigo-700 hover:underline underline-offset-2">
               {r.product_name}
             </a>
-            <p class="text-xs text-gray-400">
-              {#if r.variation !== r.sku}<span class="text-gray-500">{r.variation}</span> · {/if}<span class="font-mono">{r.sku}</span>
-            </p>
+            {#if hasName || r.wc_sku}
+              <p class="text-xs text-gray-400">
+                {#if hasName}<span class="text-gray-500">{r.variation}</span>{/if}{#if hasName && r.wc_sku} · {/if}{#if r.wc_sku}<span class="font-mono">{r.wc_sku}</span>{/if}
+              </p>
+            {/if}
           </td>
           <td class="px-5 py-3 text-right">
             <div class="tabular-nums text-gray-900">{r.stock_qty}</div>
             <span
-              class="inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium
+              class="inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap
                      {r.in_stock ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
               {r.in_stock ? m.admin_stock_velocity_in_stock() : m.admin_stock_velocity_out_of_stock()}
             </span>

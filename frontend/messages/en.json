@@ -2458,7 +2458,7 @@
   "admin_stock_velocity_window_label": "Window",
   "admin_stock_velocity_window_days": "Last {n} days",
   "admin_stock_velocity_export_csv": "Export CSV",
-  "admin_stock_velocity_col_variation": "Variation",
+  "admin_stock_velocity_col_variation": "Product",
   "admin_stock_velocity_col_stock": "Stock",
   "admin_stock_velocity_col_gross_sales": "Gross Sales",
   "admin_stock_velocity_col_gross_sold": "Gross Sold",

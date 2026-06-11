@@ -108,6 +108,7 @@ export interface StockVelocityRow {
   product_id: string;
   product_name: string;
   sku: string;
+  wc_sku?: string | null;
   variation: string;
   stock_qty: number;
   in_stock: boolean;
