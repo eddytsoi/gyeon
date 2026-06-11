@@ -930,6 +930,7 @@
   "admin_order_shipment_uid_placeholder": "cour_uid (UUID)",
   "admin_order_shipment_customer_chose": "Customer chose: ",
   "admin_order_shipment_create": "Create Shipment",
+  "admin_order_checkout_remark_label": "Checkout remark",
   "admin_order_notices_heading": "Notices",
   "admin_order_notices_empty": "No notices yet.",
   "admin_order_notices_system_badge": "System",

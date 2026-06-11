@@ -930,6 +930,7 @@
   "admin_order_shipment_uid_placeholder": "cour_uid（UUID）",
   "admin_order_shipment_customer_chose": "顧客選擇：",
   "admin_order_shipment_create": "建立出貨",
+  "admin_order_checkout_remark_label": "客戶備註",
   "admin_order_notices_heading": "通知",
   "admin_order_notices_empty": "暫無通知。",
   "admin_order_notices_system_badge": "系統",
