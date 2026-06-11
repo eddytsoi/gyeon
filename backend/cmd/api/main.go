@@ -368,6 +368,7 @@ func main() {
 	)
 	statsHandler := admin.NewStatsHandler(conn)
 	analyticsHandler := admin.NewAnalyticsHandler(conn)
+	dashboardPrefsHandler := admin.NewDashboardPrefsHandler(admin.NewDashboardPrefsService(conn))
 	stockVelocityHandler := admin.NewStockVelocityHandler(conn)
 	pageHandler := cms.NewPageHandler(pageSvc)
 	postHandler := cms.NewPostHandler(postSvc)
@@ -732,6 +733,12 @@ func main() {
 			// Sign out everywhere — bumps the calling admin's token_version,
 			// killing every existing JWT for that user.
 			r.Post("/admin/me/sign-out-everywhere", adminUserHandler.SignOutEverywhere)
+
+			// Per-admin dashboard customisation (layout presets + compare mode).
+			// Registered directly (not Mount) since /admin/me already hosts a
+			// sibling leaf route above.
+			r.Get("/admin/me/dashboard", dashboardPrefsHandler.Get)
+			r.Put("/admin/me/dashboard", dashboardPrefsHandler.Put)
 
 			// Analytics (P2 #16): time-series + top-N + breakdowns
 			r.Mount("/admin/analytics", analyticsHandler.Routes())

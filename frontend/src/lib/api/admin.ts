@@ -1467,6 +1467,56 @@ export const adminGetRevenueBreakdown = (
 export const adminGetLowStock = (token: string, threshold?: number) =>
   request<Variant[]>(`/admin/inventory/low-stock${threshold ? `?threshold=${threshold}` : ''}`, token);
 
+// ── Consolidated dashboard (KPIs + period comparison + sparklines + hero) ─────
+
+export interface DashMetricValue {
+  current: number | null;
+  previous: number | null;
+  delta_pct: number | null;
+  disabled?: boolean;
+}
+export interface DashSeriesPoint {
+  date: string;
+  value: number;
+}
+export interface DashHeroPeriod {
+  label: string;
+  total: number;
+  daily: { day: number; value: number }[];
+}
+export interface DashboardResponse {
+  range: { from: string; to: string; compare: string; compare_from: string; compare_to: string };
+  metrics: Record<string, DashMetricValue>;
+  series: Record<string, DashSeriesPoint[]>;
+  hero: { current: DashHeroPeriod; previous: DashHeroPeriod };
+}
+
+export type DashCompareMode = 'prev_month' | 'prev_period' | 'prev_year' | 'none';
+
+export const adminGetDashboard = (token: string, f: DashFilters = {}, compare: DashCompareMode = 'prev_month') =>
+  request<DashboardResponse>(`/admin/analytics/dashboard${filtersQs(f, { compare })}`, token);
+
+// Per-admin dashboard customisation: named layout presets + active selection +
+// the global compare mode. `layout` is the opaque DashLayout JSON the dashboard
+// component owns (sections → widgets → visible/order).
+export interface DashboardPreset {
+  id: string;
+  name: string;
+  is_default: boolean;
+  layout: unknown;
+}
+export interface DashboardPrefs {
+  presets: DashboardPreset[];
+  active_preset_id: string | null;
+  compare_mode: string;
+}
+
+export const adminGetDashboardPrefs = (token: string) =>
+  request<DashboardPrefs>('/admin/me/dashboard', token);
+
+export const adminSaveDashboardPrefs = (token: string, prefs: DashboardPrefs) =>
+  request<void>('/admin/me/dashboard', token, { method: 'PUT', body: JSON.stringify(prefs) });
+
 // ── Forms (CF7-style contact forms) ──────────────────────────────────────────
 
 export interface AdminForm {
