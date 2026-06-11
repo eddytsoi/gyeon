@@ -81,6 +81,7 @@ func (h *OrderHandler) AdminRoutes() chi.Router {
 	r.Post("/", h.adminCreate)
 	r.Post("/items/csv-resolve", h.adminResolveCSVItems)
 	r.Get("/{id}", h.get)
+	r.Get("/{id}/status-history", h.statusHistory)
 	r.Post("/{id}/status", h.updateStatus)
 	r.Patch("/{id}/shipping-address", h.updateShippingAddress)
 	r.Delete("/{id}", h.delete)
@@ -340,7 +341,7 @@ func (h *OrderHandler) listCarriers(w http.ResponseWriter, r *http.Request) {
 
 func isKnownStatus(s string) bool {
 	switch OrderStatus(s) {
-	case StatusPending, StatusPaid, StatusProcessing, StatusShipped,
+	case StatusPending, StatusPaid, StatusProcessing, StatusPrepared, StatusShipped,
 		StatusDelivered, StatusCancelled, StatusRefunded:
 		return true
 	}
@@ -459,6 +460,20 @@ func (h *OrderHandler) adminCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, order)
+}
+
+// statusHistory backs GET /admin/orders/{id}/status-history — the audit log of
+// every status change (with operator + note) for the admin order-detail
+// 狀態變更記錄 section. Admin-only (mounted under AdminRoutes), so it returns
+// the true status, including the internal "prepared".
+func (h *OrderHandler) statusHistory(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	entries, err := h.svc.ListStatusHistory(r.Context(), id)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, entries)
 }
 
 func (h *OrderHandler) updateStatus(w http.ResponseWriter, r *http.Request) {

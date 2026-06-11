@@ -342,6 +342,18 @@ export const adminUpdateOrderStatus = (token: string, id: string, status: string
     body: JSON.stringify({ status, note })
   });
 
+// One row of an order's status-change audit log (狀態變更記錄). actor_email is
+// the admin operator; null = a system/automation actor (rendered 系統).
+export interface OrderStatusHistoryEntry {
+  status: string;
+  note?: string | null;
+  actor_email?: string | null;
+  created_at: string;
+}
+
+export const adminListOrderStatusHistory = (token: string, id: string) =>
+  request<OrderStatusHistoryEntry[]>(`/admin/orders/${id}/status-history`, token);
+
 export const adminDeleteOrder = (token: string, id: string) =>
   request(`/admin/orders/${id}`, token, { method: 'DELETE' });
 

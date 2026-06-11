@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminUpdateOrderShippingAddress, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminUpdateOrderShippingAddress, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminListOrderStatusHistory, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -10,18 +10,19 @@ export const load: PageServerLoad = async ({ parent, params }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
   const id = await resolve(token, params.id);
-  const [order, shipment, settings, couriers, notices] = await Promise.all([
+  const [order, shipment, settings, couriers, notices, statusHistory] = await Promise.all([
     adminGetOrder(token, id),
     adminGetShipment(token, id).catch(() => null),
     adminGetSettings(token).catch(() => []),
     adminListShipanyCouriers(token).catch(() => []),
-    adminListOrderNotices(token, id).catch(() => [])
+    adminListOrderNotices(token, id).catch(() => []),
+    adminListOrderStatusHistory(token, id).catch(() => [])
   ]);
   // Fire-and-forget: viewing the page clears the customer-message unread badge.
   adminMarkOrderNoticesRead(token, id).catch(() => {});
   const defaultCarrier = settings.find((s) => s.key === 'shipany_default_courier')?.value ?? '';
   const defaultService = settings.find((s) => s.key === 'shipany_default_service')?.value ?? '';
-  return { order, shipment, defaultCarrier, defaultService, couriers, notices };
+  return { order, shipment, defaultCarrier, defaultService, couriers, notices, statusHistory };
 };
 
 export const actions: Actions = {

@@ -839,7 +839,10 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	args := []any{customerID}
 	if status != "" {
 		args = append(args, status)
-		where += fmt.Sprintf(" AND o.status = $%d", len(args))
+		// Customers see the internal "prepared" status as "processing", so the
+		// "processing" filter must also surface prepared orders (otherwise a
+		// prepared order silently drops out of the customer's 處理中 filter).
+		where += fmt.Sprintf(" AND (o.status = $%d OR ($%d = 'processing' AND o.status = 'prepared'))", len(args), len(args))
 	}
 	if search != "" {
 		args = append(args, search)
@@ -854,7 +857,11 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	}
 
 	listArgs := append(append([]any{}, args...), limit, offset)
-	query := fmt.Sprintf(`SELECT o.id, o.number, o.status, o.total, o.created_at,
+	// Remap the internal "prepared" status to "processing" so the customer never
+	// sees 已預備 — keeps the storefront's original 5-status flow.
+	query := fmt.Sprintf(`SELECT o.id, o.number,
+	        CASE WHEN o.status = 'prepared' THEN 'processing' ELSE o.status::text END AS status,
+	        o.total, o.created_at,
 	        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
 	   FROM orders o
 	   LEFT JOIN order_items oi
@@ -942,7 +949,7 @@ JOIN orders o                 ON o.id = oi.order_id
 LEFT JOIN product_variants pv ON pv.id = oi.variant_id
 LEFT JOIN order_items parent  ON parent.id = oi.parent_item_id
 WHERE o.customer_id = $1
-  AND o.status IN ('paid', 'processing', 'shipped', 'delivered')
+  AND o.status IN ('paid', 'processing', 'prepared', 'shipped', 'delivered')
 GROUP BY COALESCE(pv.product_id::text, 'name:' || lower(oi.product_name))
 ORDER BY MAX(o.created_at) DESC`
 

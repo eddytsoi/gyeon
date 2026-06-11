@@ -37,6 +37,7 @@ var ErrNotReceiptable = errors.New("order is not in a receiptable status")
 var receiptableStatuses = map[orders.OrderStatus]bool{
 	orders.StatusPaid:       true,
 	orders.StatusProcessing: true,
+	orders.StatusPrepared:   true,
 	orders.StatusShipped:    true,
 	orders.StatusDelivered:  true,
 }
