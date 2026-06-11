@@ -922,6 +922,7 @@
   "admin_order_shipment_download_waybill": "下載運單 PDF",
   "admin_order_shipment_request_pickup": "預約取件",
   "admin_order_shipment_pickup_already": "已預約取件",
+  "admin_order_shipment_sync_status": "同步 ShipAny 狀態",
   "admin_order_shipment_legacy_intro": "此訂單早於 ShipAny 啟用，未選擇速遞商。請選擇速遞商以建立出貨。",
   "admin_order_shipment_label_courier": "速遞商",
   "admin_order_shipment_label_service_plan": "服務計劃",

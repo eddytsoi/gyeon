@@ -571,6 +571,116 @@ func (s *Service) GetByOrderID(ctx context.Context, orderID string) (*DBShipment
 	return &sh, nil
 }
 
+// ── Status sync (pull) ─────────────────────────────────────────────────
+
+// SyncResult summarises one order's pull-based status reconciliation.
+type SyncResult struct {
+	OrderID     string `json:"order_id"`
+	OrderNumber string `json:"order_number,omitempty"`
+	RemoteState string `json:"remote_state,omitempty"`
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Changed     bool   `json:"changed"`
+}
+
+// SyncOrderStatus pulls the order's shipment state from ShipAny (cur_stat via
+// FetchOrder) and advances the local order to match — the pull complement to the
+// wcshim push webhook. Used to reconcile orders whose push update was missed,
+// and exposed to admins as a manual "refresh status" action. Refreshes the
+// tracking columns from the remote too. No status change (Changed=false) when
+// the order has no shipment / remote id, or the remote state maps to no advance
+// (e.g. still "Order Created").
+func (s *Service) SyncOrderStatus(ctx context.Context, orderID string) (*SyncResult, error) {
+	if !s.Configured(ctx) {
+		return nil, ErrNotConfigured
+	}
+	sh, err := s.GetByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	res := &SyncResult{OrderID: orderID}
+	if sh == nil || sh.ShipanyShipmentID == "" {
+		return res, nil
+	}
+
+	remote, err := s.client.FetchOrder(ctx, sh.ShipanyShipmentID)
+	if err != nil {
+		return nil, err
+	}
+	res.RemoteState = remote.Status
+
+	// Refresh tracking columns from the remote (best-effort; non-empty only).
+	if remote.TrackingNumber != "" || remote.TrackingURL != "" || remote.LabelURL != "" {
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE shipments SET
+			   tracking_number = COALESCE(NULLIF($2,''), tracking_number),
+			   tracking_url    = COALESCE(NULLIF($3,''), tracking_url),
+			   label_url       = COALESCE(NULLIF($4,''), label_url),
+			   updated_at      = now()
+			 WHERE id = $1`,
+			sh.ID, remote.TrackingNumber, remote.TrackingURL, remote.LabelURL); err != nil {
+			log.Printf("shipany sync: refresh tracking for order %s: %v", orderID, err)
+		}
+	}
+
+	if ord, err := s.orderSvc.GetByID(ctx, orderID); err == nil {
+		res.From = string(ord.Status)
+		res.OrderNumber = ord.OrderNumber
+	}
+
+	if target := MapOrderState(remote.Status); target != "" {
+		AdvanceOrderTo(ctx, s.orderSvc, orderID, remote.Status, target)
+	}
+
+	res.To = res.From
+	if ord, err := s.orderSvc.GetByID(ctx, orderID); err == nil {
+		res.To = string(ord.Status)
+	}
+	res.Changed = res.To != res.From
+	return res, nil
+}
+
+// SyncAllStatuses reconciles every order that has a ShipAny shipment and is not
+// yet terminally delivered — the one-shot batch used to clear a backlog of
+// missed push updates. Per-order failures are logged and skipped; the returned
+// slice lists every order touched.
+func (s *Service) SyncAllStatuses(ctx context.Context) ([]SyncResult, error) {
+	if !s.Configured(ctx) {
+		return nil, ErrNotConfigured
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT DISTINCT o.id
+		   FROM orders o
+		   JOIN shipments sh ON sh.order_id = o.id
+		  WHERE COALESCE(sh.shipany_shipment_id,'') <> ''
+		    AND o.status IN ('processing','prepared','shipped')`)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	results := make([]SyncResult, 0, len(ids))
+	for _, id := range ids {
+		res, err := s.SyncOrderStatus(ctx, id)
+		if err != nil {
+			log.Printf("shipany sync-all: order %s: %v", id, err)
+			continue
+		}
+		if res != nil {
+			results = append(results, *res)
+		}
+	}
+	return results, nil
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 
 func (s *Service) read(ctx context.Context, key string) string {

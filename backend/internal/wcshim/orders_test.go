@@ -1,54 +1,35 @@
 package wcshim
 
 import (
+	"encoding/json"
 	"testing"
-
-	"gyeon/backend/internal/orders"
 )
 
-func TestNormalizeStatus(t *testing.T) {
-	cases := map[string]string{
-		"Collected By Courier":      "collected by courier",
-		"Collected_By_Courier":      "collected by courier",
-		"  collected   by_courier ": "collected by courier",
-		"Order Delivered":           "order delivered",
-		"ORDER_COMPLETED":           "order completed",
-		"":                          "",
-		"   ":                       "",
+// metaOf builds a meta_data slice with a single key/value, marshalling the value
+// the way ShipAny sends it (a JSON scalar string).
+func metaOf(t *testing.T, key, val string) []wcMeta {
+	t.Helper()
+	raw, err := json.Marshal(val)
+	if err != nil {
+		t.Fatalf("marshal %q: %v", val, err)
 	}
-	for in, want := range cases {
-		if got := normalizeStatus(in); got != want {
-			t.Errorf("normalizeStatus(%q) = %q, want %q", in, got, want)
-		}
-	}
+	return []wcMeta{{Key: key, Value: raw}}
 }
 
-func TestMapStatus(t *testing.T) {
-	cases := []struct {
-		in   string
-		want orders.OrderStatus
-	}{
-		// The real bug: ShipAny sends space-separated Title Case. These must
-		// map even though the old underscore-only switch never matched them.
-		{"Collected By Courier", orders.StatusShipped},
-		{"Collected_By_Courier", orders.StatusShipped}, // tolerate underscore drift
-		{"collected by courier", orders.StatusShipped},
-		{"In Transit", orders.StatusShipped},
-		{"Out For Delivery", orders.StatusShipped},
-		{"Order Delivered", orders.StatusDelivered},
-		{"Order Completed", orders.StatusDelivered},
-		{"Collected By Customer", orders.StatusDelivered},
-		{"Delivered To Locker", orders.StatusDelivered},
-
-		// Pre-pickup / noise / empty → no advance.
-		{"Order Created", ""},
-		{"Pickup Request Sent", ""},
-		{"Abnormal", ""},
-		{"", ""},
+func TestExtractShipanyState(t *testing.T) {
+	// The real callback puts the ShipAny state in the order-state meta, NOT the
+	// top-level status — this is the field the fix reads.
+	if got := extractShipanyState(metaOf(t, "_pr_shipment_shipany_order_state", "Order_Delivered")); got != "Order_Delivered" {
+		t.Errorf("extractShipanyState = %q, want %q", got, "Order_Delivered")
 	}
-	for _, c := range cases {
-		if got := mapStatus(c.in); got != c.want {
-			t.Errorf("mapStatus(%q) = %q, want %q", c.in, got, c.want)
-		}
+
+	// Tracking blob present but no order-state meta → "".
+	if got := extractShipanyState(metaOf(t, "_pr_shipment_shipany_label_tracking", `{"shipment_id":"x"}`)); got != "" {
+		t.Errorf("extractShipanyState (other key) = %q, want \"\"", got)
+	}
+
+	// Empty meta → "".
+	if got := extractShipanyState(nil); got != "" {
+		t.Errorf("extractShipanyState(nil) = %q, want \"\"", got)
 	}
 }

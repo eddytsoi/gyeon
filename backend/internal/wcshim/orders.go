@@ -9,14 +9,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
-	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"gyeon/backend/internal/orders"
 	"gyeon/backend/internal/respond"
+	"gyeon/backend/internal/shipany"
 )
 
 // wcOrderUpdate is the minimal slice of the WC Orders REST schema we read.
@@ -44,69 +43,6 @@ type shipanyTrackingMeta struct {
 	TrackingNumber string `json:"tracking_number"`
 	TrackingURL    string `json:"tracking_url"`
 	LabelURL       string `json:"label_url"`
-}
-
-// normalizeStatus canonicalises a ShipAny status string so matching is
-// robust to formatting drift. ShipAny's real vocabulary is space-separated
-// Title Case — "Collected By Courier", "Order Delivered" — see the plugin's
-// ShipanyHelper::get_all_order_status(). The previous implementation matched
-// underscore_case ("collected_by_courier"), which never matched the spaced
-// form ShipAny actually sends, so every status fell through to "unmapped"
-// and no order ever advanced. We now lowercase and collapse every run of
-// underscores/whitespace to a single space, so spaced, underscored and
-// odd-cased variants all match.
-func normalizeStatus(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	var b strings.Builder
-	b.Grow(len(s))
-	pendingSep := false
-	for _, r := range s {
-		if r == '_' || unicode.IsSpace(r) {
-			pendingSep = b.Len() > 0
-			continue
-		}
-		if pendingSep {
-			b.WriteByte(' ')
-			pendingSep = false
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-// mapStatus translates ShipAny's shipment status into our internal order
-// status enum. Returns "" (no advance) for anything we don't recognise —
-// the caller still echoes a 200 so ShipAny doesn't retry, but the order
-// stays where it is. Unrecognised non-empty statuses are logged "unmapped".
-//
-// Gyeon's transition graph is paid→processing→shipped→delivered
-// (orders.allowedTransitions). The paid→processing advance is handled when
-// the shipment is created (shipany.QueueHandler), so here we only map the
-// in-transit milestones (→ shipped) and the terminal ones (→ delivered).
-// Several ShipAny statuses collapse onto each milestone; the first to
-// arrive advances the order and any later one logs a benign "cannot
-// transition" and is ignored. Pre-pickup states (e.g. "Order Created",
-// "Pickup Request Sent") are intentionally left unmapped.
-func mapStatus(s string) orders.OrderStatus {
-	switch normalizeStatus(s) {
-	case "collected by courier",
-		"in transit", "shipping",
-		"arrived transit point", "departed transit point",
-		"delivery in progress", "ready for delivery",
-		"out for delivery", "delivering to convenience store":
-		return orders.StatusShipped
-	case "order delivered", "order completed",
-		"collected by customer",
-		"delivered to locker", "delivered to service point":
-		return orders.StatusDelivered
-	}
-	return ""
-}
-
-// noteForStatus is the human-readable note attached to the status
-// transition. Shows up in the order timeline and order_status_history.
-func noteForStatus(s string, target orders.OrderStatus) string {
-	return "ShipAny: " + s + " (→ " + string(target) + ")"
 }
 
 // resolveOrderID maps the {id} in ShipAny's callback path to Gyeon's
@@ -152,6 +88,27 @@ func resolveOrderID(ctx context.Context, db *sql.DB, pathID string) (string, err
 		return "", orders.ErrOrderNotFound
 	}
 	return id, err
+}
+
+// extractShipanyState pulls ShipAny's shipment state out of meta_data[]. The
+// real state lives under `_pr_shipment_shipany_order_state` as a scalar string
+// (e.g. "Order_Delivered", "Collected_By_Courier") — distinct from the WC
+// `status` word ("completed", "processing") the callback also carries in its
+// top-level field. Mapping the WC word never advanced the order because our
+// table speaks ShipAny's vocabulary, not WC's; this is the value to map.
+// Returns "" when the key is absent or unparseable.
+func extractShipanyState(meta []wcMeta) string {
+	for _, m := range meta {
+		if m.Key != "_pr_shipment_shipany_order_state" {
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(m.Value, &s); err == nil {
+			return s
+		}
+		return ""
+	}
+	return ""
 }
 
 // extractTracking walks meta_data[] for the WC plugin's tracking blob.
@@ -245,33 +202,39 @@ func (h *Handler) updateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ShipAny carries its real shipment state in the order-state meta; the
+	// top-level `status` is only the WC status word ("completed"), which our
+	// mapper doesn't speak. Prefer the meta; fall back to the WC word so a
+	// payload missing the meta still has a chance to map ("completed"→delivered).
+	state := extractShipanyState(body.MetaData)
+
 	// TEMP diagnostic: show what we parsed out of the WC schema so a mismatch
-	// (empty status, or the status sitting in an unexpected meta key) is obvious.
+	// (empty state, or the status sitting in an unexpected meta key) is obvious.
 	metaKeys := make([]string, 0, len(body.MetaData))
 	for _, m := range body.MetaData {
 		metaKeys = append(metaKeys, m.Key)
 	}
-	log.Printf("wcshim: parsed order=%s status=%q meta_keys=%v", pathID, body.Status, metaKeys)
+	log.Printf("wcshim: parsed order=%s status=%q state=%q meta_keys=%v", pathID, body.Status, state, metaKeys)
+
+	if state == "" {
+		state = body.Status
+	}
 
 	orderID, err := resolveOrderID(r.Context(), h.db, pathID)
 	if err != nil {
-		log.Printf("wcshim: unknown order %q (status=%q)", pathID, body.Status)
+		log.Printf("wcshim: unknown order %q (state=%q)", pathID, state)
 		respond.JSON(w, http.StatusOK, map[string]any{"id": pathID})
 		return
 	}
 
-	// 1. Advance order status if mapped.
-	if target := mapStatus(body.Status); target != "" {
-		note := noteForStatus(body.Status, target)
-		if _, err := h.orderSvc.UpdateStatus(r.Context(), orderID,
-			orders.UpdateStatusRequest{Status: target, Note: &note}); err != nil {
-			// Most likely an invalid forward transition (e.g. delivered
-			// while still pending because we missed an event). Log only —
-			// the shipment row is the source of truth for ops.
-			log.Printf("wcshim: advance order %s to %s: %v", orderID, target, err)
-		}
-	} else if body.Status != "" {
-		log.Printf("wcshim: unmapped ShipAny status %q for order %s", body.Status, orderID)
+	// 1. Advance order status if the state maps to a milestone. AdvanceOrderTo
+	//    walks any skipped intermediate milestone (e.g. delivered while still
+	//    prepared) so a missed event doesn't strand the order. Unmapped non-empty
+	//    states are logged but still 200 so ShipAny doesn't retry.
+	if target := shipany.MapOrderState(state); target != "" {
+		shipany.AdvanceOrderTo(r.Context(), h.orderSvc, orderID, state, target)
+	} else if state != "" {
+		log.Printf("wcshim: unmapped ShipAny status %q for order %s", state, orderID)
 	}
 
 	// 2. Refresh shipment tracking columns when ShipAny sent the meta.

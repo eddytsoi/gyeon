@@ -1,4 +1,4 @@
-import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminUpdateOrderShippingAddress, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminListOrderStatusHistory, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
+import { adminGetOrder, adminGetShipment, adminUpdateOrderStatus, adminCreateShipment, adminRequestShipanyPickup, adminSyncShipanyStatus, adminUpdateOrderShippingAddress, adminGetSettings, adminListShipanyCouriers, adminListOrderNotices, adminListOrderStatusHistory, adminCreateOrderNotice, adminMarkOrderNoticesRead, adminIssueRefund } from '$lib/api/admin';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { resolveAdminId } from '$lib/admin/resolveId';
@@ -107,6 +107,19 @@ export const actions: Actions = {
       await adminRequestShipanyPickup(token, id);
     } catch (e: unknown) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed to request pickup' });
+    }
+    return { success: true };
+  },
+
+  syncShipanyStatus: async ({ cookies, params }) => {
+    const token = cookies.get('admin_token');
+    if (!token) return fail(401, { error: 'Unauthorized' });
+    const id = await resolve(token, params.id);
+
+    try {
+      await adminSyncShipanyStatus(token, id);
+    } catch (e: unknown) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed to sync ShipAny status' });
     }
     return { success: true };
   },

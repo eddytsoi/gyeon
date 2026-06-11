@@ -44,8 +44,10 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/orders/{id}/shipment", h.getShipment)
 	r.Post("/orders/{id}/shipment", h.createShipment)
 	r.Post("/orders/{id}/pickup", h.requestPickup)
-	// Static segment matched ahead of the /orders/{id}/... params above.
+	r.Post("/orders/{id}/sync-status", h.syncOrderStatus)
+	// Static segments matched ahead of the /orders/{id}/... params above.
 	r.Post("/waybills/batch", h.batchWaybills)
+	r.Post("/sync-statuses", h.syncAllStatuses)
 	return r
 }
 
@@ -262,6 +264,50 @@ func (h *Handler) requestPickup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, sh)
+}
+
+// syncOrderStatus pulls one order's live state from ShipAny and advances the
+// local order to match — the manual "refresh status" fallback for when the push
+// webhook missed an event.
+func (h *Handler) syncOrderStatus(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "id")
+	res, err := h.svc.SyncOrderStatus(r.Context(), orderID)
+	if errors.Is(err, ErrNotConfigured) {
+		respond.Error(w, http.StatusServiceUnavailable, "ShipAny is not configured")
+		return
+	}
+	if err != nil {
+		log.Printf("shipany syncOrderStatus: %v", err)
+		respond.Error(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, res)
+}
+
+// syncAllStatuses reconciles every non-delivered order that has a ShipAny
+// shipment. One-shot backlog clear (also useful after fixing a mapping bug).
+func (h *Handler) syncAllStatuses(w http.ResponseWriter, r *http.Request) {
+	results, err := h.svc.SyncAllStatuses(r.Context())
+	if errors.Is(err, ErrNotConfigured) {
+		respond.Error(w, http.StatusServiceUnavailable, "ShipAny is not configured")
+		return
+	}
+	if err != nil {
+		log.Printf("shipany syncAllStatuses: %v", err)
+		respond.InternalError(w)
+		return
+	}
+	changed := 0
+	for _, res := range results {
+		if res.Changed {
+			changed++
+		}
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"synced":  len(results),
+		"changed": changed,
+		"results": results,
+	})
 }
 
 // maxWaybillBatch caps one batch so the synchronous download+merge stays
