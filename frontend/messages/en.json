@@ -875,7 +875,7 @@
   "order_status_pending": "Pending",
   "order_status_paid": "Paid",
   "order_status_processing": "Processing",
-  "order_status_prepared": "Prepared",
+  "order_status_prepared": "Ready to Ship",
   "order_status_shipped": "Shipped",
   "order_status_delivered": "Delivered",
   "order_status_cancelled": "Cancelled",

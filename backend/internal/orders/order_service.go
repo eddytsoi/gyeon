@@ -37,19 +37,6 @@ const (
 	StatusRefunded   OrderStatus = "refunded"
 )
 
-// customerFacingStatus maps the internal, admin-only "prepared" (已預備)
-// status back to "processing" (處理中) for every non-admin audience
-// (storefront / customer / installer / installer_v2 / guest). The DB always
-// stores the true status; only admin reads see "prepared". Apply this at every
-// customer-facing read boundary so the storefront keeps the original 5-status
-// flow and never receives the "prepared" string.
-func customerFacingStatus(s OrderStatus) OrderStatus {
-	if s == StatusPrepared {
-		return StatusProcessing
-	}
-	return s
-}
-
 // Bank-transfer payment constants. Bank transfer is the offline method offered
 // only to installer / installer_v2 customers: no Stripe PaymentIntent is
 // created, the order sits on hold until an admin confirms the wire, and the
@@ -2573,9 +2560,6 @@ func (s *OrderService) GetByIDForCustomer(ctx context.Context, orderID, customer
 	if order.CustomerID == nil || *order.CustomerID != customerID {
 		return nil, ErrOrderNotFound
 	}
-	// Non-admin boundary: hide the internal "prepared" status (show it as
-	// "processing"). GetByID returns a freshly-scanned struct, so mutating is safe.
-	order.Status = customerFacingStatus(order.Status)
 	return order, nil
 }
 
@@ -2602,8 +2586,6 @@ func (s *OrderService) GetByIDForPaymentIntent(ctx context.Context, orderID, pay
 	safe.ShippingAddressID = nil
 	safe.ShippingAddress = nil
 	safe.Notes = nil
-	// Non-admin boundary (public checkout-success page): never expose "prepared".
-	safe.Status = customerFacingStatus(safe.Status)
 	return &safe, nil
 }
 

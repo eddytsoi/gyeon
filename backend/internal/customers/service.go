@@ -839,10 +839,7 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	args := []any{customerID}
 	if status != "" {
 		args = append(args, status)
-		// Customers see the internal "prepared" status as "processing", so the
-		// "processing" filter must also surface prepared orders (otherwise a
-		// prepared order silently drops out of the customer's 處理中 filter).
-		where += fmt.Sprintf(" AND (o.status = $%d OR ($%d = 'processing' AND o.status = 'prepared'))", len(args), len(args))
+		where += fmt.Sprintf(" AND o.status = $%d", len(args))
 	}
 	if search != "" {
 		args = append(args, search)
@@ -857,10 +854,8 @@ func (s *Service) ListOrders(ctx context.Context, customerID string, limit, offs
 	}
 
 	listArgs := append(append([]any{}, args...), limit, offset)
-	// Remap the internal "prepared" status to "processing" so the customer never
-	// sees 已預備 — keeps the storefront's original 5-status flow.
 	query := fmt.Sprintf(`SELECT o.id, o.number,
-	        CASE WHEN o.status = 'prepared' THEN 'processing' ELSE o.status::text END AS status,
+	        o.status::text AS status,
 	        o.total, o.created_at,
 	        COALESCE(SUM(oi.quantity), 0)::bigint AS items_count
 	   FROM orders o
