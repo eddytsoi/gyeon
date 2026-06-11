@@ -12,7 +12,7 @@
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
-  const receiptStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+  const receiptStatuses = ['paid', 'processing', 'prepared', 'shipped', 'delivered'];
   const receiptReady = $derived(receiptCache.isReady(data.order.id));
   let regenerating = $state(false);
   let printing = $state(false);
@@ -84,21 +84,38 @@
     pending:    'bg-amber-50 text-amber-700',
     paid:       'bg-blue-50 text-blue-700',
     processing: 'bg-indigo-50 text-indigo-700',
+    prepared:   'bg-cyan-50 text-cyan-700',
     shipped:    'bg-violet-50 text-violet-700',
     delivered:  'bg-green-50 text-green-700',
     cancelled:  'bg-gray-100 text-gray-500',
     refunded:   'bg-red-50 text-red-700',
   };
 
+  // "prepared" (已預備) is an optional admin packing step; processing can still
+  // go straight to shipped (e.g. ShipAny automation), so it offers both.
   const nextStatuses: Record<string, string[]> = {
     pending:    ['paid', 'cancelled'],
     paid:       ['processing', 'refunded'],
-    processing: ['shipped', 'cancelled'],
+    processing: ['prepared', 'shipped', 'cancelled'],
+    prepared:   ['shipped', 'cancelled'],
     shipped:    ['delivered'],
     delivered:  ['refunded'],
     cancelled:  [],
     refunded:   [],
   };
+
+  // Status-change audit log (狀態變更記錄), newest-first. The "from" of each
+  // change is the chronologically previous entry's status (null for the first,
+  // i.e. the order's initial status). data.statusHistory arrives oldest-first.
+  const statusChanges = $derived(
+    (data.statusHistory ?? []).map((h, i, arr) => ({
+      from: i > 0 ? arr[i - 1].status : null,
+      to: h.status,
+      at: h.created_at,
+      operator: h.actor_email,
+      note: h.note
+    })).reverse()
+  );
 
   let updating = $state(false);
   let creatingShipment = $state(false);
@@ -888,6 +905,51 @@
       </div>
     </form>
   {/if}
+
+  <!-- Status Change Log (狀態變更記錄) — sits directly below Order Management
+       so the status control and its audit trail read together. -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="hidden md:block"></div>
+    <div class="bg-white rounded-2xl border border-gray-100 p-5">
+      <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
+        {m.admin_order_status_history_heading()}
+      </h3>
+      {#if statusChanges.length === 0}
+        <p class="text-sm text-gray-400">{m.admin_order_status_history_empty()}</p>
+      {:else}
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-xs font-medium text-gray-500 border-b border-gray-100">
+                <th class="text-left font-medium py-2 pr-3">{m.admin_order_status_history_col_change()}</th>
+                <th class="text-left font-medium py-2 pr-3 whitespace-nowrap">{m.admin_order_status_history_col_time()}</th>
+                <th class="text-left font-medium py-2 pr-3">{m.admin_order_status_history_col_operator()}</th>
+                <th class="text-left font-medium py-2">{m.admin_order_status_history_col_note()}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each statusChanges as c}
+                <tr class="border-b border-gray-50 last:border-0 align-top">
+                  <td class="py-2 pr-3">
+                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
+                      {#if c.from}
+                        <span class="px-2 py-0.5 rounded-md text-xs font-medium {statusColour[c.from] ?? 'bg-gray-100 text-gray-500'}">{orderStatusLabel(c.from)}</span>
+                        <span class="text-gray-300">→</span>
+                      {/if}
+                      <span class="px-2 py-0.5 rounded-md text-xs font-medium {statusColour[c.to] ?? 'bg-gray-100 text-gray-500'}">{orderStatusLabel(c.to)}</span>
+                    </span>
+                  </td>
+                  <td class="py-2 pr-3 text-gray-500 whitespace-nowrap">{fmtNoticeTime(c.at)}</td>
+                  <td class="py-2 pr-3 text-gray-700">{c.operator ?? m.admin_order_status_history_system()}</td>
+                  <td class="py-2 text-gray-700">{c.note ?? '—'}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
+  </div>
 
   <!-- Refund section -->
   {#if refundedAmount > 0 || canRefund}

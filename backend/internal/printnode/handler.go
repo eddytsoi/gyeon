@@ -25,6 +25,7 @@ type Enqueuer interface {
 var receiptableStatuses = map[orders.OrderStatus]bool{
 	orders.StatusPaid:       true,
 	orders.StatusProcessing: true,
+	orders.StatusPrepared:   true,
 	orders.StatusShipped:    true,
 	orders.StatusDelivered:  true,
 }

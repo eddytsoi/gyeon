@@ -30,11 +30,25 @@ const (
 	StatusPending    OrderStatus = "pending"
 	StatusPaid       OrderStatus = "paid"
 	StatusProcessing OrderStatus = "processing"
+	StatusPrepared   OrderStatus = "prepared"
 	StatusShipped    OrderStatus = "shipped"
 	StatusDelivered  OrderStatus = "delivered"
 	StatusCancelled  OrderStatus = "cancelled"
 	StatusRefunded   OrderStatus = "refunded"
 )
+
+// customerFacingStatus maps the internal, admin-only "prepared" (已預備)
+// status back to "processing" (處理中) for every non-admin audience
+// (storefront / customer / installer / installer_v2 / guest). The DB always
+// stores the true status; only admin reads see "prepared". Apply this at every
+// customer-facing read boundary so the storefront keeps the original 5-status
+// flow and never receives the "prepared" string.
+func customerFacingStatus(s OrderStatus) OrderStatus {
+	if s == StatusPrepared {
+		return StatusProcessing
+	}
+	return s
+}
 
 // Bank-transfer payment constants. Bank transfer is the offline method offered
 // only to installer / installer_v2 customers: no Stripe PaymentIntent is
@@ -276,9 +290,13 @@ var ErrOrderNotDeletable = errors.New("order not deletable")
 
 // valid forward transitions
 var allowedTransitions = map[OrderStatus][]OrderStatus{
-	StatusPending:    {StatusPaid, StatusCancelled},
-	StatusPaid:       {StatusProcessing, StatusRefunded},
-	StatusProcessing: {StatusShipped, StatusCancelled},
+	StatusPending: {StatusPaid, StatusCancelled},
+	StatusPaid:    {StatusProcessing, StatusRefunded},
+	// "prepared" (已預備) is an OPTIONAL admin packing step. processing→shipped
+	// is intentionally kept so the ShipAny status webhook (which can drive an
+	// order straight to shipped without an admin marking it prepared) still works.
+	StatusProcessing: {StatusPrepared, StatusShipped, StatusCancelled},
+	StatusPrepared:   {StatusShipped, StatusCancelled},
 	StatusShipped:    {StatusDelivered},
 	StatusDelivered:  {StatusRefunded},
 	StatusCancelled:  {},
@@ -2555,6 +2573,9 @@ func (s *OrderService) GetByIDForCustomer(ctx context.Context, orderID, customer
 	if order.CustomerID == nil || *order.CustomerID != customerID {
 		return nil, ErrOrderNotFound
 	}
+	// Non-admin boundary: hide the internal "prepared" status (show it as
+	// "processing"). GetByID returns a freshly-scanned struct, so mutating is safe.
+	order.Status = customerFacingStatus(order.Status)
 	return order, nil
 }
 
@@ -2581,7 +2602,46 @@ func (s *OrderService) GetByIDForPaymentIntent(ctx context.Context, orderID, pay
 	safe.ShippingAddressID = nil
 	safe.ShippingAddress = nil
 	safe.Notes = nil
+	// Non-admin boundary (public checkout-success page): never expose "prepared".
+	safe.Status = customerFacingStatus(safe.Status)
 	return &safe, nil
+}
+
+// StatusHistoryEntry is one row of an order's status-change audit log, powering
+// the admin order-detail 狀態變更記錄 section. ActorEmail is the admin operator
+// who made the change; nil means a system/automation actor (ShipAny webhook,
+// auto-shipment job, customer checkout) — rendered as 系統 in the UI.
+type StatusHistoryEntry struct {
+	Status     OrderStatus `json:"status"`
+	Note       *string     `json:"note,omitempty"`
+	ActorEmail *string     `json:"actor_email,omitempty"`
+	CreatedAt  string      `json:"created_at"`
+}
+
+// ListStatusHistory returns the order's status changes oldest-first, each with
+// the admin operator's email (nil = system/automation). Admin-only: the true
+// status is exposed (no customerFacingStatus remap). The caller derives the
+// from→to direction by pairing each row with the previous one.
+func (s *OrderService) ListStatusHistory(ctx context.Context, orderID string) ([]StatusHistoryEntry, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT h.status, h.note, u.email, h.created_at::text
+		   FROM order_status_history h
+		   LEFT JOIN admin_users u ON u.id = h.actor_user_id
+		  WHERE h.order_id = $1
+		  ORDER BY h.created_at ASC, h.id ASC`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]StatusHistoryEntry, 0)
+	for rows.Next() {
+		var e StatusHistoryEntry
+		if err := rows.Scan(&e.Status, &e.Note, &e.ActorEmail, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
@@ -2918,9 +2978,15 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 		return nil, err
 	}
 
+	// Capture the admin operator (NULL for ShipAny webhook / auto-shipment job /
+	// any non-admin caller — rendered as 系統 in the 狀態變更記錄 section).
+	var actorIDArg any
+	if aid, ok := auth.AdminIDFromContext(ctx); ok {
+		actorIDArg = aid
+	}
 	tx.ExecContext(ctx,
-		`INSERT INTO order_status_history (order_id, status, note) VALUES ($1, $2, $3)`,
-		id, req.Status, req.Note)
+		`INSERT INTO order_status_history (order_id, status, note, actor_user_id) VALUES ($1, $2, $3, $4)`,
+		id, req.Status, req.Note, actorIDArg)
 
 	// Mirror the status change as a system notice so it shows up in the user-
 	// visible timeline alongside admin/customer messages. Use the supplied
@@ -2951,11 +3017,13 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id string, req UpdateSt
 		return nil, err
 	}
 
-	// Notify the customer only on the 處理中 → 已發貨 transition: send the
+	// Notify the customer whenever the order ENTERS 已發貨 (shipped): send the
 	// shipped email and post the SF Express tracking notice (via onShipped).
-	// Both are best-effort and fire once, since the state machine only reaches
-	// shipped from processing.
-	if current == StatusProcessing && req.Status == StatusShipped {
+	// Fires on both 處理中→已發貨 (ShipAny webhook / admin skipping the prepared
+	// step) and 已預備→已發貨 (admin marked it prepared first). Single-fire: the
+	// state machine has no path that re-enters shipped, so `current` is never
+	// already shipped here. Both side effects are best-effort.
+	if current != StatusShipped && req.Status == StatusShipped {
 		go s.sendShippedEmail(context.Background(), id)
 		if s.onShipped != nil {
 			go s.onShipped(context.Background(), &order)

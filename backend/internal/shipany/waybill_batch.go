@@ -60,7 +60,10 @@ func (s *Service) BuildWaybillBatch(ctx context.Context, orderIDs []string) ([]b
 		if ref == "" {
 			ref = fmt.Sprintf("%d", order.Number)
 		}
-		if order.Status != orders.StatusProcessing {
+		// "prepared" (已預備) is the admin-only packing step that follows
+		// processing — a prepared order is packed and most in need of its
+		// waybill, so include it alongside processing.
+		if order.Status != orders.StatusProcessing && order.Status != orders.StatusPrepared {
 			report.Errors = append(report.Errors, WaybillBatchSkip{OrderID: id, OrderNumber: ref, Reason: skipNotProcessing})
 			continue
 		}

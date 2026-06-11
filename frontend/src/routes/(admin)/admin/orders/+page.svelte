@@ -181,10 +181,12 @@
   }
 
   const STATUSES = [
-    'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
+    'pending', 'paid', 'processing', 'prepared', 'shipped', 'delivered', 'cancelled', 'refunded'
   ] as const;
 
-  const NEEDS_ACTION = ['pending', 'paid', 'processing'] as const;
+  // "prepared" (已預備) is packed-and-ready but not yet shipped, so it still
+  // needs an admin to dispatch it — include it in the needs-action shortcut.
+  const NEEDS_ACTION = ['pending', 'paid', 'processing', 'prepared'] as const;
 
   const ROLES = ['customer', 'installer', 'installer_v2'] as const;
 
@@ -192,6 +194,7 @@
     pending:    'bg-amber-50 text-amber-700',
     paid:       'bg-blue-50 text-blue-700',
     processing: 'bg-indigo-50 text-indigo-700',
+    prepared:   'bg-cyan-50 text-cyan-700',
     shipped:    'bg-violet-50 text-violet-700',
     delivered:  'bg-green-50 text-green-700',
     cancelled:  'bg-gray-100 text-gray-500',

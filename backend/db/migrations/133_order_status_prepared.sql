@@ -1,0 +1,11 @@
+-- Add the admin-only "已預備" (prepared) order status, sitting between
+-- 處理中 (processing) and 已發貨 (shipped). It is visible ONLY in the admin
+-- backend; every non-admin surface (storefront / customer / installer /
+-- installer_v2 / guest) remaps it back to 'processing' at the read boundary,
+-- so the storefront keeps the original 5-status flow.
+--
+-- ALTER TYPE ... ADD VALUE must commit before any statement references the new
+-- value, so this migration does NOTHING ELSE. The history operator column that
+-- powers the 狀態變更記錄 section lives in 134_order_status_history_operator.sql,
+-- applied as a separate transaction.
+ALTER TYPE order_status ADD VALUE IF NOT EXISTS 'prepared' AFTER 'processing';
