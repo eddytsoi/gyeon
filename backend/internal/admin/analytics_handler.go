@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -28,6 +29,7 @@ func NewAnalyticsHandler(db *sql.DB) *AnalyticsHandler {
 
 func (h *AnalyticsHandler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/dashboard", h.dashboard)
 	r.Get("/revenue", h.revenue)
 	r.Get("/top-products", h.topProducts)
 	r.Get("/top-customers", h.topCustomers)
@@ -568,4 +570,543 @@ func (h *AnalyticsHandler) revenueBreakdown(w http.ResponseWriter, r *http.Reque
 		out = append(out, b)
 	}
 	respond.JSON(w, http.StatusOK, out)
+}
+
+// ── Consolidated dashboard (KPIs + period comparison + sparklines + hero) ─────
+//
+// GET /admin/analytics/dashboard collapses the dashboard's scalar KPIs into a
+// single response so the frontend doesn't fan out one HTTP call per metric, and
+// so the period-over-period comparison is computed in one place. Each in-period
+// metric is computed twice — once for the primary [from,to) window and once for
+// the comparison window derived from the `compare` param — and the delta is the
+// fractional change. All-time segments (customer counts, LTV) carry no
+// comparison. Net profit / margin are emitted as disabled placeholders until a
+// product-cost source exists.
+
+type metricValue struct {
+	Current  *float64 `json:"current"`
+	Previous *float64 `json:"previous"`
+	DeltaPct *float64 `json:"delta_pct"`
+	Disabled bool     `json:"disabled,omitempty"`
+}
+
+type seriesPoint struct {
+	Date  string  `json:"date"` // YYYY-MM-DD
+	Value float64 `json:"value"`
+}
+
+type heroDayPoint struct {
+	Day   int     `json:"day"` // day-of-month (1..31), used to overlay two months
+	Value float64 `json:"value"`
+}
+
+type heroPeriod struct {
+	Label string         `json:"label"` // YYYY-MM
+	Total float64        `json:"total"`
+	Daily []heroDayPoint `json:"daily"`
+}
+
+type dashboardResp struct {
+	Range struct {
+		From        string `json:"from"`
+		To          string `json:"to"`
+		Compare     string `json:"compare"`
+		CompareFrom string `json:"compare_from"`
+		CompareTo   string `json:"compare_to"`
+	} `json:"range"`
+	Metrics map[string]metricValue   `json:"metrics"`
+	Series  map[string][]seriesPoint `json:"series"`
+	Hero    struct {
+		Current  heroPeriod `json:"current"`
+		Previous heroPeriod `json:"previous"`
+	} `json:"hero"`
+}
+
+// comparisonWindow derives the comparison [from,to) window for a primary window
+// and compare mode. ok=false means "no comparison" (mode == "none"), in which
+// case every previous / delta is null.
+func comparisonWindow(from, to time.Time, mode string) (cFrom, cTo time.Time, ok bool) {
+	switch mode {
+	case "prev_period":
+		d := to.Sub(from)
+		return from.Add(-d), from, true
+	case "prev_year":
+		return from.AddDate(-1, 0, 0), to.AddDate(-1, 0, 0), true
+	case "prev_month":
+		return from.AddDate(0, -1, 0), to.AddDate(0, -1, 0), true
+	default:
+		return time.Time{}, time.Time{}, false
+	}
+}
+
+// dashScalars holds the raw in-period aggregates for one window.
+type dashScalars struct {
+	netRevenue     float64
+	orders         int
+	itemsSold      int
+	refundedAmount float64
+	refundsCount   int
+	failedOrders   int
+	newCustomers   int
+	cartsStarted   int
+	cartsAbandoned int
+}
+
+type allTimeMetrics struct {
+	total     int
+	single    int
+	repeat    int
+	ltv       float64
+	avgOrders float64
+}
+
+func (h *AnalyticsHandler) dashboard(w http.ResponseWriter, r *http.Request) {
+	f, err := parseFilters(r)
+	if err != nil {
+		respond.BadRequest(w, err.Error())
+		return
+	}
+	mode := r.URL.Query().Get("compare")
+	switch mode {
+	case "prev_month", "prev_period", "prev_year", "none":
+	default:
+		mode = "prev_month"
+	}
+	ctx := r.Context()
+
+	cur, err := h.computeScalars(ctx, f)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	var prev dashScalars
+	cFrom, cTo, hasCompare := comparisonWindow(f.From, f.To, mode)
+	if hasCompare {
+		cf := dashFilters{From: cFrom, To: cTo, Roles: f.Roles, CategorySlug: f.CategorySlug}
+		if prev, err = h.computeScalars(ctx, cf); err != nil {
+			respond.InternalError(w)
+			return
+		}
+	}
+
+	at, err := h.computeAllTime(ctx)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	series, err := h.computeSeries(ctx, f)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	heroCur, heroPrev, err := h.computeHero(ctx, f)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	m := map[string]metricValue{
+		"net_revenue":     mvCompare(cur.netRevenue, prev.netRevenue, hasCompare),
+		"orders":          mvCompare(float64(cur.orders), float64(prev.orders), hasCompare),
+		"items_sold":      mvCompare(float64(cur.itemsSold), float64(prev.itemsSold), hasCompare),
+		"refunded_amount": mvCompare(cur.refundedAmount, prev.refundedAmount, hasCompare),
+		"refunds_count":   mvCompare(float64(cur.refundsCount), float64(prev.refundsCount), hasCompare),
+		"failed_orders":   mvCompare(float64(cur.failedOrders), float64(prev.failedOrders), hasCompare),
+		"new_customers":   mvCompare(float64(cur.newCustomers), float64(prev.newCustomers), hasCompare),
+		"carts_started":   mvCompare(float64(cur.cartsStarted), float64(prev.cartsStarted), hasCompare),
+		"carts_abandoned": mvCompare(float64(cur.cartsAbandoned), float64(prev.cartsAbandoned), hasCompare),
+
+		"avg_order_net":     mvCompare(safeDiv(cur.netRevenue, cur.orders), safeDiv(prev.netRevenue, prev.orders), hasCompare),
+		"avg_order_items":   mvCompare(safeDiv(float64(cur.itemsSold), cur.orders), safeDiv(float64(prev.itemsSold), prev.orders), hasCompare),
+		"cart_placed_rate":  mvCompare(placedRate(cur), placedRate(prev), hasCompare),
+		"cart_abandon_rate": mvCompare(abandonRate(cur), abandonRate(prev), hasCompare),
+
+		"customers_total":     mvSingle(float64(at.total)),
+		"customers_single":    mvSingle(float64(at.single)),
+		"customers_repeat":    mvSingle(float64(at.repeat)),
+		"avg_customer_ltv":    mvSingle(at.ltv),
+		"avg_customer_orders": mvSingle(at.avgOrders),
+
+		// No product-cost source yet — surfaced as disabled placeholders.
+		"net_profit":    {Disabled: true},
+		"profit_margin": {Disabled: true},
+	}
+
+	var resp dashboardResp
+	resp.Range.From = f.From.Format("2006-01-02")
+	resp.Range.To = f.To.Add(-time.Second).Format("2006-01-02")
+	resp.Range.Compare = mode
+	if hasCompare {
+		resp.Range.CompareFrom = cFrom.Format("2006-01-02")
+		resp.Range.CompareTo = cTo.Add(-time.Second).Format("2006-01-02")
+	}
+	resp.Metrics = m
+	resp.Series = series
+	resp.Hero.Current = heroCur
+	resp.Hero.Previous = heroPrev
+	respond.JSON(w, http.StatusOK, resp)
+}
+
+// computeScalars runs the in-period aggregates for one window, reusing the
+// shared scope helpers so role / category filters apply identically to the
+// primary and comparison runs. Carts ignore role/category (a cart has no clean
+// role/category dimension); customer registrations honour role but not category.
+func (h *AnalyticsHandler) computeScalars(ctx context.Context, f dashFilters) (dashScalars, error) {
+	var s dashScalars
+
+	// Net revenue + order count.
+	custJoin, catJoin, rev, cnt, where, args := f.scopeRevenue("o.status NOT IN ('cancelled', 'refunded')")
+	if err := h.db.QueryRowContext(ctx,
+		`SELECT `+rev+`, `+cnt+` FROM orders o`+custJoin+catJoin+where, args...).
+		Scan(&s.netRevenue, &s.orders); err != nil {
+		return s, err
+	}
+
+	// Items sold (line-item quantity).
+	{
+		iArgs := []any{f.From, f.To}
+		iConds := []string{"o.created_at >= $1", "o.created_at < $2", "o.status NOT IN ('cancelled', 'refunded')"}
+		iJoin := ""
+		if len(f.Roles) > 0 {
+			iJoin = " LEFT JOIN customers c ON c.id = o.customer_id"
+			iConds = append(iConds, fmt.Sprintf("c.role::text = ANY($%d::text[])", len(iArgs)+1))
+			iArgs = append(iArgs, pq.Array(f.Roles))
+		}
+		catJoin := ""
+		if f.CategorySlug != "" {
+			catJoin = ` JOIN product_variants pv ON pv.id = oi.variant_id
+			            JOIN product_category_links pcl ON pcl.product_id = pv.product_id
+			            JOIN categories cat ON cat.id = pcl.category_id`
+			iConds = append(iConds, fmt.Sprintf("cat.slug = $%d", len(iArgs)+1))
+			iArgs = append(iArgs, f.CategorySlug)
+		}
+		if err := h.db.QueryRowContext(ctx,
+			`SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi JOIN orders o ON o.id = oi.order_id`+
+				iJoin+catJoin+` WHERE `+strings.Join(iConds, " AND "), iArgs...).
+			Scan(&s.itemsSold); err != nil {
+			return s, err
+		}
+	}
+
+	// Refunded amount + count, scoped on refunded_at (the period the refund issued).
+	{
+		rArgs := []any{f.From, f.To}
+		rConds := []string{"o.refunded_at IS NOT NULL", "o.refunded_at >= $1", "o.refunded_at < $2"}
+		rJoin := ""
+		if len(f.Roles) > 0 {
+			rJoin = " LEFT JOIN customers c ON c.id = o.customer_id"
+			rConds = append(rConds, fmt.Sprintf("c.role::text = ANY($%d::text[])", len(rArgs)+1))
+			rArgs = append(rArgs, pq.Array(f.Roles))
+		}
+		if f.CategorySlug != "" {
+			rConds = append(rConds, fmt.Sprintf(
+				`EXISTS (SELECT 1 FROM order_items oi
+				           JOIN product_variants pv ON pv.id = oi.variant_id
+				           JOIN product_category_links pcl ON pcl.product_id = pv.product_id
+				           JOIN categories cat ON cat.id = pcl.category_id
+				          WHERE oi.order_id = o.id AND cat.slug = $%d)`, len(rArgs)+1))
+			rArgs = append(rArgs, f.CategorySlug)
+		}
+		if err := h.db.QueryRowContext(ctx,
+			`SELECT COALESCE(SUM(o.refund_amount), 0), COUNT(*) FROM orders o`+rJoin+` WHERE `+strings.Join(rConds, " AND "),
+			rArgs...).Scan(&s.refundedAmount, &s.refundsCount); err != nil {
+			return s, err
+		}
+	}
+
+	// Failed / cancelled orders (no 'failed' status exists; 'cancelled' is the closest).
+	{
+		cj, where, args := f.scopeOrders("o.status = 'cancelled'")
+		if err := h.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM orders o`+cj+where, args...).Scan(&s.failedOrders); err != nil {
+			return s, err
+		}
+	}
+
+	// New customers registered in the window (role applies, category does not).
+	{
+		ncArgs := []any{f.From, f.To}
+		ncConds := []string{"created_at >= $1", "created_at < $2"}
+		if len(f.Roles) > 0 {
+			ncConds = append(ncConds, fmt.Sprintf("role::text = ANY($%d::text[])", len(ncArgs)+1))
+			ncArgs = append(ncArgs, pq.Array(f.Roles))
+		}
+		if err := h.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM customers WHERE `+strings.Join(ncConds, " AND "), ncArgs...).
+			Scan(&s.newCustomers); err != nil {
+			return s, err
+		}
+	}
+
+	// Carts started in the window (carts carry no role/category dimension).
+	if err := h.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM carts WHERE created_at >= $1 AND created_at < $2`,
+		f.From, f.To).Scan(&s.cartsStarted); err != nil {
+		return s, err
+	}
+
+	// Carts abandoned: created in the window, has items, never converted to a
+	// paid+ order. (Range-scoped analytics view of abandoned/service.go's
+	// operational definition — the email-sent / idle-cutoff conditions there are
+	// for the recovery emailer, not for counting.)
+	if err := h.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM carts c
+		WHERE c.created_at >= $1 AND c.created_at < $2
+		  AND EXISTS (SELECT 1 FROM cart_items ci WHERE ci.cart_id = c.id)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM orders o
+		      WHERE o.cart_id = c.id
+		        AND o.status IN ('paid','processing','prepared','shipped','delivered','refunded'))`,
+		f.From, f.To).Scan(&s.cartsAbandoned); err != nil {
+		return s, err
+	}
+
+	return s, nil
+}
+
+// computeAllTime returns the lifetime customer segments — independent of the
+// date range and filters (these are the reference's "ALL-TIME" cards).
+func (h *AnalyticsHandler) computeAllTime(ctx context.Context) (allTimeMetrics, error) {
+	var a allTimeMetrics
+	if err := h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM customers`).Scan(&a.total); err != nil {
+		return a, err
+	}
+	if err := h.db.QueryRowContext(ctx, `
+		WITH oc AS (
+		    SELECT o.customer_id, COUNT(*) AS n FROM orders o
+		    WHERE o.status NOT IN ('cancelled') AND o.customer_id IS NOT NULL
+		    GROUP BY o.customer_id)
+		SELECT COUNT(*) FILTER (WHERE n = 1), COUNT(*) FILTER (WHERE n >= 2) FROM oc`).
+		Scan(&a.single, &a.repeat); err != nil {
+		return a, err
+	}
+	if err := h.db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(o.total) / NULLIF(COUNT(DISTINCT o.customer_id), 0), 0)
+		FROM orders o WHERE o.status NOT IN ('cancelled', 'refunded') AND o.customer_id IS NOT NULL`).
+		Scan(&a.ltv); err != nil {
+		return a, err
+	}
+	if err := h.db.QueryRowContext(ctx, `
+		SELECT COALESCE(COUNT(*)::float / NULLIF(COUNT(DISTINCT o.customer_id), 0), 0)
+		FROM orders o WHERE o.status NOT IN ('cancelled') AND o.customer_id IS NOT NULL`).
+		Scan(&a.avgOrders); err != nil {
+		return a, err
+	}
+	return a, nil
+}
+
+// computeSeries returns daily sparkline series for the primary window.
+func (h *AnalyticsHandler) computeSeries(ctx context.Context, f dashFilters) (map[string][]seriesPoint, error) {
+	out := map[string][]seriesPoint{}
+
+	// Net revenue + orders share the revenue scope.
+	{
+		custJoin, catJoin, rev, cnt, where, args := f.scopeRevenue("o.status NOT IN ('cancelled', 'refunded')")
+		q := `SELECT TO_CHAR(DATE_TRUNC('day', o.created_at), 'YYYY-MM-DD') AS d, ` + rev + ` AS rev, ` + cnt + `::float AS n
+		        FROM orders o` + custJoin + catJoin + where + ` GROUP BY 1 ORDER BY 1`
+		rows, err := h.db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return nil, err
+		}
+		revSeries := []seriesPoint{}
+		ordSeries := []seriesPoint{}
+		for rows.Next() {
+			var d string
+			var rv, n float64
+			if err := rows.Scan(&d, &rv, &n); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			revSeries = append(revSeries, seriesPoint{Date: d, Value: rv})
+			ordSeries = append(ordSeries, seriesPoint{Date: d, Value: n})
+		}
+		rows.Close()
+		out["net_revenue"] = revSeries
+		out["orders"] = ordSeries
+	}
+
+	// Items sold per day.
+	{
+		iArgs := []any{f.From, f.To}
+		iConds := []string{"o.created_at >= $1", "o.created_at < $2", "o.status NOT IN ('cancelled', 'refunded')"}
+		iJoin := ""
+		if len(f.Roles) > 0 {
+			iJoin = " LEFT JOIN customers c ON c.id = o.customer_id"
+			iConds = append(iConds, fmt.Sprintf("c.role::text = ANY($%d::text[])", len(iArgs)+1))
+			iArgs = append(iArgs, pq.Array(f.Roles))
+		}
+		catJoin := ""
+		if f.CategorySlug != "" {
+			catJoin = ` JOIN product_variants pv ON pv.id = oi.variant_id
+			            JOIN product_category_links pcl ON pcl.product_id = pv.product_id
+			            JOIN categories cat ON cat.id = pcl.category_id`
+			iConds = append(iConds, fmt.Sprintf("cat.slug = $%d", len(iArgs)+1))
+			iArgs = append(iArgs, f.CategorySlug)
+		}
+		s, err := h.daySeries(ctx,
+			`SELECT TO_CHAR(DATE_TRUNC('day', o.created_at), 'YYYY-MM-DD') AS d, COALESCE(SUM(oi.quantity), 0)::float AS v
+			   FROM order_items oi JOIN orders o ON o.id = oi.order_id`+iJoin+catJoin+
+				` WHERE `+strings.Join(iConds, " AND ")+` GROUP BY 1 ORDER BY 1`, iArgs...)
+		if err != nil {
+			return nil, err
+		}
+		out["items_sold"] = s
+	}
+
+	// New customers per day (role applies, category does not).
+	{
+		ncArgs := []any{f.From, f.To}
+		ncConds := []string{"created_at >= $1", "created_at < $2"}
+		if len(f.Roles) > 0 {
+			ncConds = append(ncConds, fmt.Sprintf("role::text = ANY($%d::text[])", len(ncArgs)+1))
+			ncArgs = append(ncArgs, pq.Array(f.Roles))
+		}
+		s, err := h.daySeries(ctx,
+			`SELECT TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') AS d, COUNT(*)::float AS v
+			   FROM customers WHERE `+strings.Join(ncConds, " AND ")+` GROUP BY 1 ORDER BY 1`, ncArgs...)
+		if err != nil {
+			return nil, err
+		}
+		out["new_customers"] = s
+	}
+
+	// Carts started per day.
+	{
+		s, err := h.daySeries(ctx,
+			`SELECT TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') AS d, COUNT(*)::float AS v
+			   FROM carts WHERE created_at >= $1 AND created_at < $2 GROUP BY 1 ORDER BY 1`, f.From, f.To)
+		if err != nil {
+			return nil, err
+		}
+		out["carts_started"] = s
+	}
+
+	// Carts abandoned per day.
+	{
+		s, err := h.daySeries(ctx, `
+			SELECT TO_CHAR(DATE_TRUNC('day', c.created_at), 'YYYY-MM-DD') AS d, COUNT(*)::float AS v
+			  FROM carts c
+			 WHERE c.created_at >= $1 AND c.created_at < $2
+			   AND EXISTS (SELECT 1 FROM cart_items ci WHERE ci.cart_id = c.id)
+			   AND NOT EXISTS (
+			       SELECT 1 FROM orders o
+			       WHERE o.cart_id = c.id
+			         AND o.status IN ('paid','processing','prepared','shipped','delivered','refunded'))
+			 GROUP BY 1 ORDER BY 1`, f.From, f.To)
+		if err != nil {
+			return nil, err
+		}
+		out["carts_abandoned"] = s
+	}
+
+	return out, nil
+}
+
+// daySeries runs a two-column (date, value) grouped query into seriesPoints.
+func (h *AnalyticsHandler) daySeries(ctx context.Context, q string, args ...any) ([]seriesPoint, error) {
+	rows, err := h.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []seriesPoint{}
+	for rows.Next() {
+		var p seriesPoint
+		if err := rows.Scan(&p.Date, &p.Value); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// computeHero builds the current-month-to-date vs same-period-last-month net
+// revenue series, keyed by day-of-month so the two months overlay even when the
+// previous month is shorter. Always month-over-month regardless of the global
+// date filter; honours role/category for consistency with the rest of the page.
+func (h *AnalyticsHandler) computeHero(ctx context.Context, f dashFilters) (cur, prev heroPeriod, err error) {
+	now := time.Now()
+	day := now.Day()
+	firstThis := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	firstPrev := firstThis.AddDate(0, -1, 0)
+
+	prevTo := firstPrev.AddDate(0, 0, day)
+	if prevTo.After(firstThis) {
+		prevTo = firstThis // previous month shorter than today's day-of-month
+	}
+
+	if cur, err = h.heroPeriod(ctx, f, firstThis, firstThis.AddDate(0, 0, day), firstThis.Format("2006-01")); err != nil {
+		return
+	}
+	prev, err = h.heroPeriod(ctx, f, firstPrev, prevTo, firstPrev.Format("2006-01"))
+	return
+}
+
+func (h *AnalyticsHandler) heroPeriod(ctx context.Context, f dashFilters, from, to time.Time, label string) (heroPeriod, error) {
+	hf := dashFilters{From: from, To: to, Roles: f.Roles, CategorySlug: f.CategorySlug}
+	custJoin, catJoin, rev, _, where, args := hf.scopeRevenue("o.status NOT IN ('cancelled', 'refunded')")
+	q := `SELECT EXTRACT(DAY FROM o.created_at)::int AS d, ` + rev + ` AS v
+	        FROM orders o` + custJoin + catJoin + where + ` GROUP BY 1 ORDER BY 1`
+	rows, err := h.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return heroPeriod{}, err
+	}
+	defer rows.Close()
+	hp := heroPeriod{Label: label, Daily: []heroDayPoint{}}
+	for rows.Next() {
+		var p heroDayPoint
+		if err := rows.Scan(&p.Day, &p.Value); err != nil {
+			return heroPeriod{}, err
+		}
+		hp.Daily = append(hp.Daily, p)
+		hp.Total += p.Value
+	}
+	return hp, rows.Err()
+}
+
+// ── metric helpers ────────────────────────────────────────────────────────────
+
+// mvCompare builds a metric with an optional period-over-period delta. The delta
+// is null when there is no comparison or the previous value is zero (no sane
+// percentage from a zero base).
+func mvCompare(current, previous float64, hasCompare bool) metricValue {
+	c := current
+	out := metricValue{Current: &c}
+	if hasCompare {
+		p := previous
+		out.Previous = &p
+		if previous != 0 {
+			d := (current - previous) / previous
+			out.DeltaPct = &d
+		}
+	}
+	return out
+}
+
+// mvSingle builds an all-time metric (value only, no comparison).
+func mvSingle(current float64) metricValue {
+	c := current
+	return metricValue{Current: &c}
+}
+
+func safeDiv(a float64, b int) float64 {
+	if b == 0 {
+		return 0
+	}
+	return a / float64(b)
+}
+
+func placedRate(s dashScalars) float64 {
+	if s.cartsStarted == 0 {
+		return 0
+	}
+	return float64(s.cartsStarted-s.cartsAbandoned) / float64(s.cartsStarted)
+}
+
+func abandonRate(s dashScalars) float64 {
+	if s.cartsStarted == 0 {
+		return 0
+	}
+	return float64(s.cartsAbandoned) / float64(s.cartsStarted)
 }

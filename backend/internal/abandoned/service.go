@@ -84,7 +84,7 @@ func (s *Service) ListCandidates(ctx context.Context) ([]Candidate, error) {
 		  AND NOT EXISTS (
 		      SELECT 1 FROM orders o
 		      WHERE o.cart_id = c.id
-		        AND o.status IN ('paid','processing','shipped','delivered','refunded')
+		        AND o.status IN ('paid','processing','prepared','shipped','delivered','refunded')
 		  )
 		ORDER BY c.updated_at ASC`, cutoff)
 	if err != nil {

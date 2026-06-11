@@ -3,16 +3,24 @@
   import * as m from '$lib/paraglide/messages';
   import LineChart from '$lib/components/admin/charts/LineChart.svelte';
   import BarChart from '$lib/components/admin/charts/BarChart.svelte';
+  import HeroBand from '$lib/components/admin/dashboard/HeroBand.svelte';
+  import DashboardGrid from '$lib/components/admin/dashboard/DashboardGrid.svelte';
+  import {
+    buildDefaultLayout,
+    mergeLayout,
+    fmtHK,
+    type DashLayout,
+    type SectionKey
+  } from '$lib/components/admin/dashboard/widgets';
+  import { adminSaveDashboardPrefs, type DashboardPreset } from '$lib/api/admin';
   import { orderStatusLabel } from '$lib/orderStatus';
   import { customerRoleLabel } from '$lib/types';
   import { productDisplayName } from '$lib/variant';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+
   let { data }: { data: PageData } = $props();
 
-  function fmtHK(n: number): string {
-    return `HK$${n.toLocaleString('en-HK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  }
   function fmtPct(n: number): string {
     return `${(n * 100).toFixed(1)}%`;
   }
@@ -66,8 +74,6 @@
     setRangeDates(localISO(new Date(y, 0, 1)), localISO(new Date(y, 11, 31)));
   }
   function presetAll() {
-    // Lower bound well before any data (earliest orders are 2023) so the range
-    // captures all migrated WooCommerce history — where 訪客 orders live.
     setRangeDates('2000-01-01', localISO(new Date()));
   }
   function toggleRole(role: string) {
@@ -79,6 +85,9 @@
   }
   function setCategory(slug: string) {
     pushParams((p) => (slug ? p.set('category', slug) : p.delete('category')));
+  }
+  function setCompare(mode: string) {
+    pushParams((p) => p.set('compare', mode));
   }
   function setSortBy(by: 'qty' | 'revenue') {
     pushParams((p) => p.set('by', by));
@@ -99,42 +108,169 @@
     return m.dashboard_role_guest();
   }
 
-  function dayLabel(iso: string): string {
-    return iso.slice(5); // MM-DD
+  // ── Customise / per-admin layout presets (persisted server-side) ──────────────
+  let editing = $state(false);
+  let saving = $state(false);
+  let savedTick = $state(0);
+
+  // Client mirror of the saved presets + active selection. Compare mode is
+  // URL-driven (SSR refetches on change); we persist it as the per-admin default.
+  let presets = $state<DashboardPreset[]>(
+    (data.prefs?.presets ?? []).map((p) => ({ id: p.id, name: p.name, is_default: p.is_default, layout: p.layout }))
+  );
+  let activePresetId = $state<string | null>(data.prefs?.active_preset_id ?? null);
+  // Compare mode is URL-driven (SSR refetches the metrics on change); track it
+  // reactively so saves carry the current value, and persist it as the per-admin
+  // default whenever it diverges from what was last saved.
+  const compareMode = $derived(data.compare);
+  let savedCompare = data.prefs?.compare_mode ?? 'prev_month';
+
+  function activePreset(): DashboardPreset | undefined {
+    return presets.find((p) => p.id === activePresetId);
   }
+  function initialLayout(): DashLayout {
+    return mergeLayout((activePreset()?.layout as DashLayout) ?? null);
+  }
+  let layoutState = $state<DashLayout>(initialLayout());
+
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleSave() {
+    if (!data.token) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 600);
+  }
+  // Fold the current editable layout back into the active preset (creating an
+  // implicit "Default" the first time an admin customises anything).
+  function syncActiveLayout() {
+    let ap = activePreset();
+    if (!ap) {
+      ap = { id: crypto.randomUUID(), name: m.dashboard_preset_default(), is_default: true, layout: {} };
+      presets = [ap, ...presets];
+      activePresetId = ap.id;
+    }
+    ap.layout = $state.snapshot(layoutState);
+  }
+  async function doSave() {
+    if (!data.token) return;
+    syncActiveLayout();
+    saving = true;
+    try {
+      await adminSaveDashboardPrefs(data.token, {
+        presets: $state.snapshot(presets),
+        active_preset_id: activePresetId,
+        compare_mode: compareMode
+      });
+      savedTick = Date.now();
+    } catch (e) {
+      console.error('dashboard prefs save failed', e);
+    } finally {
+      saving = false;
+    }
+  }
+
+  // Persist the compare mode as the per-admin default whenever it changes
+  // (covers both a same-route navigation from the selector and an SSR load that
+  // arrived with a ?compare= param differing from what was saved).
+  $effect(() => {
+    if (data.token && data.compare !== savedCompare) {
+      savedCompare = data.compare;
+      scheduleSave();
+    }
+  });
+
+  function toggleCollapse(section: SectionKey) {
+    const s = layoutState.sections.find((x) => x.key === section);
+    if (s) {
+      s.collapsed = !s.collapsed;
+      scheduleSave();
+    }
+  }
+  function toggleVisible(section: SectionKey, widget: string) {
+    const w = layoutState.sections.find((x) => x.key === section)?.widgets.find((y) => y.key === widget);
+    if (w) {
+      w.visible = !w.visible;
+      scheduleSave();
+    }
+  }
+  function move(section: SectionKey, widget: string, dir: -1 | 1) {
+    const s = layoutState.sections.find((x) => x.key === section);
+    if (!s) return;
+    const i = s.widgets.findIndex((y) => y.key === widget);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= s.widgets.length) return;
+    [s.widgets[i], s.widgets[j]] = [s.widgets[j], s.widgets[i]];
+    scheduleSave();
+  }
+  function resetLayout() {
+    layoutState = buildDefaultLayout();
+    scheduleSave();
+  }
+
+  // ── Preset management ─────────────────────────────────────────────────────────
+  function selectPreset(id: string) {
+    activePresetId = id;
+    layoutState = mergeLayout((activePreset()?.layout as DashLayout) ?? null);
+    scheduleSave();
+  }
+  function newPreset() {
+    const name = (prompt(m.dashboard_preset_name_prompt()) ?? '').trim();
+    if (!name) return;
+    const p: DashboardPreset = { id: crypto.randomUUID(), name, is_default: false, layout: $state.snapshot(buildDefaultLayout()) };
+    presets = [...presets, p];
+    activePresetId = p.id;
+    layoutState = buildDefaultLayout();
+    scheduleSave();
+  }
+  function duplicatePreset() {
+    const cur = activePreset();
+    const name = (prompt(m.dashboard_preset_name_prompt(), `${cur?.name ?? ''} copy`) ?? '').trim();
+    if (!name) return;
+    const p: DashboardPreset = { id: crypto.randomUUID(), name, is_default: false, layout: $state.snapshot(layoutState) };
+    presets = [...presets, p];
+    activePresetId = p.id;
+    scheduleSave();
+  }
+  function renamePreset() {
+    const cur = activePreset();
+    if (!cur) return;
+    const name = (prompt(m.dashboard_preset_name_prompt(), cur.name) ?? '').trim();
+    if (!name) return;
+    cur.name = name;
+    scheduleSave();
+  }
+  function deletePreset() {
+    const cur = activePreset();
+    if (!cur || presets.length <= 1) return;
+    presets = presets.filter((p) => p.id !== cur.id);
+    activePresetId = presets[0]?.id ?? null;
+    layoutState = mergeLayout((activePreset()?.layout as DashLayout) ?? null);
+    scheduleSave();
+  }
+
+  // ── Derived data for the hero + detail panels ────────────────────────────────
+  const dash = $derived(data.dashboard);
   const revenueSeries = $derived(
-    (data.revenue ?? []).map((p) => ({ x: dayLabel(p.date), y: p.revenue }))
+    (dash?.series?.net_revenue ?? []).map((p) => ({ x: p.date.slice(5), y: p.value }))
   );
   const statusBars = $derived(
     (data.statusBreakdown ?? []).map((s) => ({ label: orderStatusLabel(s.status), value: s.count }))
   );
-
-  // Cumulative conversion funnel derived from the status breakdown (no extra
-  // query): an order that reached a later stage also passed the earlier ones.
   const statusMap = $derived(
-    Object.fromEntries((data.statusBreakdown ?? []).map((s) => [s.status, s.count])) as Record<
-      string,
-      number
-    >
+    Object.fromEntries((data.statusBreakdown ?? []).map((s) => [s.status, s.count])) as Record<string, number>
   );
   const g = (k: string) => statusMap[k] ?? 0;
   const funnelBars = $derived([
     { label: m.dashboard_funnel_pending(), value: g('pending') },
-    { label: m.dashboard_funnel_paid(), value: g('paid') + g('processing') + g('shipped') + g('delivered') },
+    { label: m.dashboard_funnel_paid(), value: g('paid') + g('processing') + g('prepared') + g('shipped') + g('delivered') },
     { label: m.dashboard_funnel_shipped(), value: g('shipped') + g('delivered') },
     { label: m.dashboard_funnel_delivered(), value: g('delivered') }
   ]);
 
-  // Orders with no recorded shipping method come back with an empty label and
-  // render as the localized 沒有記錄 / No record bucket. Any non-empty label is
-  // a method title (passed through) or a ShipAny courier uid resolved to its
-  // human-readable name as a defensive fallback.
   const courierNameByUid = $derived(new Map((data.couriers ?? []).map((c) => [c.uid, c.name])));
   function carrierLabel(l: string): string {
     if (!l) return m.dashboard_carrier_no_record();
     return courierNameByUid.get(l) ?? l;
   }
-
   const categoryBars = $derived((data.byCategory ?? []).map((r) => ({ label: r.label, value: r.value })));
   const roleBars = $derived((data.byRole ?? []).map((r) => ({ label: roleLabel(r.label), value: r.value })));
   const carrierBars = $derived((data.byCarrier ?? []).map((r) => ({ label: carrierLabel(r.label), value: r.value })));
@@ -142,17 +278,44 @@
 
 <svelte:head><title>{m.dashboard_title()}</title></svelte:head>
 
-<div class="max-w-7xl space-y-8">
+<div class="max-w-7xl space-y-6">
 
-  <!-- Greeting -->
-  <div>
-    <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
-    <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">{m.dashboard_greeting()}</h2>
+      <p class="text-sm text-gray-500 mt-1">{m.dashboard_greeting_sub()}</p>
+    </div>
+    <div class="shrink-0 flex items-center gap-2">
+      {#if saving}
+        <span class="text-[11px] text-gray-400">{m.dashboard_saving()}</span>
+      {:else if savedTick}
+        <span class="text-[11px] text-emerald-600">{m.dashboard_saved()}</span>
+      {/if}
+      {#if presets.length > 0}
+        <select value={activePresetId} onchange={(e) => selectPreset(e.currentTarget.value)}
+                class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 focus:border-gray-400 focus:outline-none">
+          {#each presets as p}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
+      {/if}
+      <button
+        onclick={() => (editing = !editing)}
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
+               {editing ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456c.516-.194 1.094.014 1.37.49l1.296 2.247c.275.476.165 1.083-.26 1.43l-1.004.827c-.292.241-.437.613-.43.992a7.723 7.723 0 0 1 0 .255c-.007.378.138.75.43.991l1.004.828c.424.347.534.954.26 1.43l-1.297 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.397-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.991l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.077-.124.072-.044.146-.086.22-.128.331-.183.581-.495.644-.869l.213-1.281Z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+        </svg>
+        {editing ? m.dashboard_customise_done() : m.dashboard_customise()}
+      </button>
+    </div>
   </div>
 
   <!-- Filter bar -->
   <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
-    <!-- Date range + presets -->
     <div class="flex flex-wrap items-end gap-3">
       <label class="flex flex-col gap-1">
         <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_date_from()}</span>
@@ -163,6 +326,16 @@
         <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_date_to()}</span>
         <input type="date" value={data.toISO} onchange={(e) => setDate('to', e.currentTarget.value)}
                class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none" />
+      </label>
+      <label class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-gray-400">{m.dashboard_compare_label()}</span>
+        <select value={data.compare} onchange={(e) => setCompare(e.currentTarget.value)}
+                class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none">
+          <option value="prev_month">{m.dashboard_compare_prev_month()}</option>
+          <option value="prev_period">{m.dashboard_compare_prev_period()}</option>
+          <option value="prev_year">{m.dashboard_compare_prev_year()}</option>
+          <option value="none">{m.dashboard_compare_none()}</option>
+        </select>
       </label>
       <div class="flex flex-wrap gap-1.5">
         <button onclick={presetToday} class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">{m.dashboard_filter_preset_today()}</button>
@@ -177,7 +350,6 @@
       </div>
     </div>
 
-    <!-- Role + category -->
     <div class="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1 border-t border-gray-50">
       <div class="flex items-center gap-2">
         <span class="text-xs font-medium text-gray-400">{m.dashboard_filter_role_label()}</span>
@@ -205,92 +377,35 @@
     </div>
   </div>
 
-  {#if data.stats}
-    <!-- Stats grid — static class names so Tailwind includes them -->
-    <div class="grid grid-cols-2 xl:grid-cols-5 gap-4">
+  {#if dash}
+    <!-- Hero: this-month-vs-last-month net revenue + must-use cards -->
+    <HeroBand hero={dash.hero} metrics={dash.metrics} series={dash.series} />
 
-      <!-- Total Products (snapshot) -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="w-10 h-10 rounded-xl bg-violet-500 flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
-          </svg>
+    {#if editing}
+      <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2">
+        <span class="text-amber-700">{m.dashboard_customise_hint()}</span>
+        <div class="ml-auto flex items-center gap-1.5">
+          <button onclick={newPreset} class="px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">{m.dashboard_preset_new()}</button>
+          <button onclick={renamePreset} disabled={!activePreset()} class="px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40">{m.dashboard_preset_rename()}</button>
+          <button onclick={duplicatePreset} class="px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">{m.dashboard_preset_duplicate()}</button>
+          <button onclick={deletePreset} disabled={presets.length <= 1} class="px-2 py-1 rounded-md bg-white border border-gray-200 text-red-600 hover:bg-red-50 disabled:opacity-40">{m.dashboard_preset_delete()}</button>
+          <button onclick={resetLayout} class="px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">{m.dashboard_customise_reset()}</button>
         </div>
-        <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.total_products}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_products()}</p>
-        <p class="text-[10px] text-gray-300 mt-0.5">{m.dashboard_snapshot_hint()}</p>
       </div>
+    {/if}
 
-      <!-- Total Orders -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
-          </svg>
-        </div>
-        <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.total_orders}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_orders()}</p>
-      </div>
+    <!-- Customisable KPI grid: Sales / Customers / Carts -->
+    <DashboardGrid
+      layout={layoutState}
+      metrics={dash.metrics}
+      series={dash.series}
+      {editing}
+      onToggleCollapse={toggleCollapse}
+      onToggleVisible={toggleVisible}
+      onMove={move}
+    />
 
-      <!-- Pending Orders -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-          </svg>
-        </div>
-        <p class="mt-4 text-3xl font-bold text-gray-900 tabular-nums">{data.stats.pending_orders}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_pending_orders()}</p>
-      </div>
-
-      <!-- Total Revenue -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-          </svg>
-        </div>
-        <p class="mt-4 text-2xl font-bold text-gray-900 tabular-nums">
-          HK${data.stats.total_revenue.toLocaleString('en-HK', { minimumFractionDigits: 0 })}
-        </p>
-        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_total_revenue()}</p>
-      </div>
-
-      <!-- Total Refunds -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shadow-sm">
-          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
-          </svg>
-        </div>
-        <p class="mt-4 text-2xl font-bold text-gray-900 tabular-nums">{fmtHK(data.refundTotal ?? 0)}</p>
-        <p class="text-xs text-gray-400 font-medium mt-1">{m.dashboard_stats_refunds()}</p>
-      </div>
-
-    </div>
-
-    <!-- Secondary KPIs: AOV, new customers, repeat ratio, refund rate -->
-    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <p class="text-xs text-gray-400 font-medium">{m.dashboard_aov()}</p>
-        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtHK(data.summary?.aov ?? 0)}</p>
-      </div>
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <p class="text-xs text-gray-400 font-medium">{m.dashboard_new_customers()}</p>
-        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{data.summary?.new_customers ?? 0}</p>
-      </div>
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <p class="text-xs text-gray-400 font-medium">{m.dashboard_repeat_ratio()}</p>
-        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtPct(data.summary?.repeat_ratio ?? 0)}</p>
-      </div>
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <p class="text-xs text-gray-400 font-medium">{m.dashboard_refund_rate()}</p>
-        <p class="mt-2 text-2xl font-bold text-gray-900 tabular-nums">{fmtPct(data.refund?.refund_order_rate ?? 0)}</p>
-        <p class="text-[11px] text-gray-400 mt-0.5">{m.dashboard_refund_rate_sub({ pct: fmtPct(data.refund?.refund_amount_rate ?? 0) })}</p>
-      </div>
-    </div>
-
-    <!-- Revenue trend -->
+    <!-- Revenue trend (selected range) -->
     <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_revenue_trend_heading()}</h3>
@@ -408,7 +523,6 @@
 
     <!-- Recent orders + low stock -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- Recent orders -->
       <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
         <h3 class="text-sm font-semibold text-gray-900 mb-4">{m.dashboard_recent_orders_heading()}</h3>
         {#if (data.recentOrders ?? []).length === 0}
@@ -440,7 +554,6 @@
         {/if}
       </div>
 
-      <!-- Low stock (snapshot) -->
       <div class="bg-white rounded-2xl border border-gray-100 px-6 py-5">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-semibold text-gray-900">{m.dashboard_low_stock_heading()}</h3>
@@ -468,56 +581,6 @@
             </tbody>
           </table>
         {/if}
-      </div>
-    </div>
-
-    <!-- Quick actions -->
-    <div>
-      <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">{m.dashboard_quick_actions()}</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-        <a href="/admin/products"
-           class="group bg-white rounded-2xl border border-gray-100 p-5 shadow-sm
-                  hover:shadow-md hover:border-gray-200 transition-all flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-gray-900
-                      flex items-center justify-center transition-colors flex-shrink-0">
-            <svg class="w-5 h-5 text-gray-500 group-hover:text-white transition-colors"
-                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
-            </svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-gray-900 text-sm">{m.dashboard_qa_manage_products()}</p>
-            <p class="text-xs text-gray-400 mt-0.5">{m.dashboard_qa_manage_products_desc()}</p>
-          </div>
-          <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-600 group-hover:translate-x-0.5
-                      transition-all flex-shrink-0"
-               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
-          </svg>
-        </a>
-
-        <a href="/admin/orders"
-           class="group bg-white rounded-2xl border border-gray-100 p-5 shadow-sm
-                  hover:shadow-md hover:border-gray-200 transition-all flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-gray-900
-                      flex items-center justify-center transition-colors flex-shrink-0">
-            <svg class="w-5 h-5 text-gray-500 group-hover:text-white transition-colors"
-                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
-            </svg>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-gray-900 text-sm">{m.dashboard_qa_view_orders()}</p>
-            <p class="text-xs text-gray-400 mt-0.5">{m.dashboard_qa_view_orders_desc()}</p>
-          </div>
-          <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-600 group-hover:translate-x-0.5
-                      transition-all flex-shrink-0"
-               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
-          </svg>
-        </a>
-
       </div>
     </div>
 

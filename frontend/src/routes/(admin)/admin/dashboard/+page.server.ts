@@ -1,28 +1,27 @@
 import {
-  getStats,
-  adminGetRevenueTrend,
+  adminGetDashboard,
+  adminGetDashboardPrefs,
   adminGetTopProducts,
   adminGetTopCustomers,
   adminGetOrderStatusBreakdown,
-  adminGetRefundSummary,
-  adminGetDashboardSummary,
   adminGetRevenueBreakdown,
   adminGetLowStock,
   adminGetCategories,
   adminGetOrders,
   adminListShipanyCouriers,
   type DashFilters,
-  type RevenuePoint,
+  type DashCompareMode,
   type TopProduct,
   type TopCustomer,
   type StatusBreakdownPoint,
   type RevenueBreakdownRow,
-  type RefundSummary,
-  type DashboardSummary
+  type DashboardResponse,
+  type DashboardPrefs
 } from '$lib/api/admin';
 import type { PageServerLoad } from './$types';
 
 const VALID_ROLES = ['customer', 'installer', 'installer_v2'];
+const VALID_COMPARE = ['prev_month', 'prev_period', 'prev_year', 'none'];
 
 function localISO(d: Date): string {
   const y = d.getFullYear();
@@ -34,9 +33,10 @@ function localISO(d: Date): string {
 export const load: PageServerLoad = async ({ parent, url }) => {
   const { token } = await parent();
 
-  // Date range — default to the last 30 days when not provided.
+  // Default range is the current month-to-date — the owner's most-used view, and
+  // it lines the KPI cards up with the always-month-over-month hero band.
   const today = new Date();
-  const fromISO = url.searchParams.get('from') || localISO(new Date(today.getTime() - 29 * 86_400_000));
+  const fromISO = url.searchParams.get('from') || localISO(new Date(today.getFullYear(), today.getMonth(), 1));
   const toISO = url.searchParams.get('to') || localISO(today);
 
   const roles = (url.searchParams.get('role') ?? '')
@@ -46,21 +46,37 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const category = url.searchParams.get('category') ?? '';
   const sortBy = (url.searchParams.get('by') === 'revenue' ? 'revenue' : 'qty') as 'qty' | 'revenue';
 
-  // Filter-bar state is always returned so the bar renders even when stats fail.
-  const filterEcho = { fromISO, toISO, roles, category, sortBy, categories: [] as Awaited<ReturnType<typeof adminGetCategories>> };
+  // Filter-bar state is always returned so the bar renders even when data fails.
+  const filterEcho = {
+    fromISO,
+    toISO,
+    roles,
+    category,
+    sortBy,
+    compare: 'prev_month' as DashCompareMode,
+    prefs: null as DashboardPrefs | null,
+    categories: [] as Awaited<ReturnType<typeof adminGetCategories>>
+  };
 
-  if (!token) return { stats: null, ...filterEcho };
+  if (!token) return { dashboard: null, ...filterEcho };
+
+  // Per-admin prefs first so the compare-mode default and saved layout are known
+  // before the (heavier) consolidated metrics call — prefs is a tiny query.
+  const prefs = await adminGetDashboardPrefs(token).catch(() => null);
+  const urlCompare = url.searchParams.get('compare');
+  const compare = (VALID_COMPARE.includes(urlCompare ?? '')
+    ? urlCompare
+    : prefs?.compare_mode && VALID_COMPARE.includes(prefs.compare_mode)
+      ? prefs.compare_mode
+      : 'prev_month') as DashCompareMode;
 
   const f: DashFilters = { from: fromISO, to: toISO, roles, category: category || undefined };
 
   const [
-    stats,
-    summary,
-    revenue,
+    dashboard,
     topProducts,
     topCustomers,
     statusBreakdown,
-    refund,
     byCategory,
     byRole,
     byCarrier,
@@ -69,13 +85,10 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     categories,
     couriers
   ] = await Promise.all([
-    getStats(token, f).catch(() => null),
-    adminGetDashboardSummary(token, f).catch(() => null),
-    adminGetRevenueTrend(token, f).catch(() => [] as RevenuePoint[]),
+    adminGetDashboard(token, f, compare).catch(() => null as DashboardResponse | null),
     adminGetTopProducts(token, f, sortBy).catch(() => [] as TopProduct[]),
     adminGetTopCustomers(token, f).catch(() => [] as TopCustomer[]),
     adminGetOrderStatusBreakdown(token, f).catch(() => [] as StatusBreakdownPoint[]),
-    adminGetRefundSummary(token, f).catch(() => null as RefundSummary | null),
     adminGetRevenueBreakdown(token, 'category', f).catch(() => [] as RevenueBreakdownRow[]),
     adminGetRevenueBreakdown(token, 'role', f).catch(() => [] as RevenueBreakdownRow[]),
     adminGetRevenueBreakdown(token, 'carrier', f).catch(() => [] as RevenueBreakdownRow[]),
@@ -86,14 +99,12 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   ]);
 
   return {
-    stats,
-    summary,
-    revenue,
+    dashboard,
+    prefs,
+    compare,
     topProducts,
     topCustomers,
     statusBreakdown,
-    refund,
-    refundTotal: refund?.refunds ?? 0,
     byCategory,
     byRole,
     byCarrier,
@@ -101,7 +112,6 @@ export const load: PageServerLoad = async ({ parent, url }) => {
     recentOrders: recentOrders.items ?? [],
     lowStock,
     categories,
-    // Echo the active filters so the filter bar can render its state.
     fromISO,
     toISO,
     roles,
