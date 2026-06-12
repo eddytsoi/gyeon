@@ -104,9 +104,24 @@
       "additionalProperties": false,
       "required": ["needsReview", "confidence", "sources"],
       "properties": {
-        "needsReview": { "type": "array", "items": { "type": "string" }, "description": "Inferred/generated fields a human should verify" },
-        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
-        "sources": { "type": "array", "items": { "type": "string" } }
+        "needsReview": { "type": "array", "items": { "type": "string" }, "description": "Unresolved fields; empty once reviewed (residue = could not verify)" },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "Overall = lowest field confidence in `reviewed`" },
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "reviewed": {
+          "type": "object",
+          "description": "Per-field review audit: field name → review result",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["confidence", "basis"],
+            "properties": {
+              "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+              "basis": { "type": "string", "enum": ["official", "not-applicable", "editorial", "source-derived", "consistency-check", "mechanical-check"] },
+              "source": { "type": "string", "description": "URL when basis = official" },
+              "note": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

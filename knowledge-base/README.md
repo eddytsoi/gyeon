@@ -48,11 +48,18 @@ Generated from the public storefront API (`https://gyeon.hk/api/v1`): product li
 
 Every record carries `_meta`:
 
-- **`needsReview`** — list of fields that were inferred or generated (not lifted verbatim from the
-  source). Always includes `faq` and `seo`; includes `frequency` and `dilution` when the source did not
-  state them. **Review these before treating the field as authoritative.**
-- **`confidence`** — `high` (mostly grounded in source), `medium`, or `low`.
-- **`sources`** — which source fields the record drew from.
+- **`needsReview`** — fields still unresolved. **Empty once a product has been reviewed**; a residual
+  entry means it could not be verified (its `reviewed` entry will be `confidence:"low"`).
+- **`confidence`** — overall = the **lowest** field confidence in `reviewed`.
+- **`sources`** — which sources the record drew from (incl. official `gyeonusa.com` URLs).
+- **`reviewed`** — per-field audit map, `field → {confidence, basis, source?, note?}`, recording how each
+  field was checked. `basis` is one of:
+  - **`official`** — verified against an official GYEON page (`source` URL).
+  - **`not-applicable`** — the field has no meaning for this product type (tool / PPF film / bundle).
+  - **`editorial`** — a curated judgment (e.g. `pairedWith` mix-and-match suggestions).
+  - **`source-derived`** — kept from the gyeon.hk source content (no official page to verify against).
+  - **`consistency-check`** — `faq` checked against the record's verified facts.
+  - **`mechanical-check`** — `seo` checked against length / keyword-count rules.
 
 ## `dilutable` — dilution status (no ambiguity)
 

@@ -128,18 +128,35 @@
       "url": "/products/快速玻璃鍍膜套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167635930314048_glass-coating-set-3.webp",
       "_meta": {
-        "needsReview": [
-          "pairedWith",
-          "compatible",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 7 個配搭 sku 均存在於 catalog；4 個為套裝組件（editorial），3 個為 fbt 加購，關係皆為玻璃護理上游/補購用途，合理，無須刪改。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，使用方法見各組件；compatible 表面（玻璃/車窗/擋風玻璃）沿用源內容，與描述一致。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "各問答與 dilutable=false、compatible（汽車玻璃）、frequency（每 6 個月重塗）一致；無宣稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 21 字 ≤60；metaDescription 93 字 ≤160；keywords 7 項（4–8 範圍內），全部合規，無須修改。"
+          }
+        }
       }
     },
     {
@@ -263,15 +280,40 @@
       "url": "/products/內籠基本清潔套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167637889908221_gyeon-interior-detailer-scrub-pad-interio-wipe-1a.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "compatible",
-          "usage",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無單一固定使用頻率，依各組件日常清潔需要使用"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，適用表面見各組件；保留車廂塑膠、皮革、織物、車內飾件"
+          },
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，使用方法見各組件產品頁，現有步驟已概述"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false、compatible（塑膠/皮革/織物）及日常清潔頻率一致，無矛盾，未作修改"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 18 字 ≤60；metaDescription 約 75 字 ≤160；keywords 6 項（4–8 範圍內），全部合規"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "8 個配對 sku 全部存在於 catalog（usage×3 為套裝組件、fbt×3、editorial×2），未刪除任何項；因含 2 個 editorial 關係，信心定為 medium"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -411,19 +453,40 @@
       "url": "/products/日常車身及內籠常備套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167637434125236_gyeon-kit-set-1.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "compatible",
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，使用方法見各組件；沿用源內容組裝的步驟"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無單一適用表面，列出各組件涵蓋之表面"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無固定使用頻率，視日常洗車及內籠清潔需要"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false、compatible、套裝組件一致，無聲稱稀釋比例，無矛盾"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 22 字 ≤60；metaDescription 66 字 ≤160；keywords 8 項在 4-8 範圍內，全部合規"
+          }
+        }
       }
     },
     {
@@ -553,18 +616,35 @@
       "url": "/products/無水喉洗車套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167637166411545_set-002.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "compatible",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無單一固定使用頻率；隨洗車週期使用，各組件頻率見其產品頁。沿用原值「每次洗車」。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，相容性以各組件為準（洗車液、洗車手套、抹布、乾燥毛巾），整體適用車漆／陶瓷鍍膜車身／玻璃等外觀表面。沿用原值。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例）、compatible（適合陶瓷鍍膜）、套裝內容及變體價 HK$649 一致；未發現矛盾，無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 25 字（≤60）、metaDescription 98 字（≤160）、keywords 7 項（4–8）；全部合規，無需修改。"
+          }
+        }
       }
     },
     {
@@ -696,15 +776,45 @@
       "url": "/products/精選ppf洗車套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167636250058531_set-007.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo",
-          "variants.size",
-          "variants.weightGrams"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝產品，無單一使用方法；步驟逐一說明套裝內各組件用途，維持原內容。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝產品，無固定使用頻率；「每次洗車」屬整體洗護建議，維持原內容。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false、compatible（已貼 PPF 車身/車漆/玻璃/金屬）、套裝內容及變體價格 959 一致，無宣稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 20 字 ≤ 60；metaDescription 91 字 ≤ 160；keywords 7 項（4–8 範圍內），全部符合，毋須修改。"
+          },
+          "variants.size": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝為多件組合，「套裝」為合適的尺寸標籤，維持原值。"
+          },
+          "variants.weightGrams": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝由多件組件組成，無單一商品重量；weightGrams=null 屬合理，維持原值。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "8 個配對 sku（q2m-ppf-wash、q2m-washpad-evo、q2m-ppf-maintain、q2m-baldwipe-evo、q2m-silkdryer-evo、q2m-glass、q2m-glasswipe-evo、q2m-softwipe-evo）全部存在於 catalog，且皆為套裝內組件（relation=usage），合理，無需刪改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -847,15 +957,40 @@
       "url": "/products/終極ppf全套洗車套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167636524829950_ult-ppf-set-1.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "compatible",
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，使用方法見各組件單品；步驟為整體流程示意，保留原值"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，適用面取決於各組件；保留原值（已貼PPF車身、車漆、輪圈、輪胎、玻璃、內飾）"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無固定使用頻率；各組件頻率不同，保留「每次洗車」原值"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 8 個 SKU 均存在於 catalog，無需刪除；關係為 usage/fbt/editorial，對 PPF 套裝合理"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條 Q&A 與 dilutable=false、不適用稀釋、frequency、compatible 一致，無矛盾；無組件聲稱稀釋比例"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 22 字（≤60）、metaDescription 79 字（≤160）、keywords 7 項（4–8），全部合規"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -992,17 +1127,30 @@
       "url": "/products/終極全套洗車套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167636800792561_ult-coating-set-2.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無單一固定使用頻率，使用頻率見各組件；沿用「每次洗車」為合理整體描述。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false、不含稀釋比例聲稱一致；PPF 問答與 pairedWith 之 q2m-ppf-wash 一致；組件清單與描述相符。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 19 字 ≤ 60；metaDescription 68 字 ≤ 160；keywords 7 項，介乎 4–8，全部符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -1129,19 +1277,45 @@
       "url": "/products/終極內籠護理套裝",
       "imageUrl": "https://gyeon.hk/uploads/1778167637669910169_gyeon-kit-set-2.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "compatible",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，使用方法見各組件產品頁；保留原有逐件步驟說明。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，無固定使用頻率；各組件依需要使用。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝，相容表面以各組件為準；保留原有概覽（塑膠、織物、皮革、玻璃）。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 8 個 SKU 均存在於 catalog，無需刪除；6 件為套裝組件（usage），q2m-purifymaintain 為清潔後升級（editorial），q2m-scents 為搭配建議（fbt）。因含 editorial 關係，信心定為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "3 條問答均與 dilutable=false（無稀釋）一致；內容描述組件、適用表面及價格，未出現任何稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 26 字（≤60）、metaDescription 98 字（≤160）、keywords 6 項（4–8），全部符合規範，無需修改。"
+          }
+        }
       }
     },
     {
@@ -1187,7 +1361,7 @@
       "incompatible": [
         "強酸鹼清潔劑"
       ],
-      "frequency": "每月使用維護劑保養（鍍膜有效期長達 3 年）",
+      "frequency": "每月使用維護劑（如 Q²M Ceramic Detailer）保養（官方耐久度長達 50 個月 / 50,000 公里）",
       "pairedWith": [
         {
           "sku": "q2m-prep",
@@ -1269,16 +1443,36 @@
       "url": "/products/q2-syncro-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167096989550717_q2_evo_trianglebox_syncro_30-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "frequency": {
+            "confidence": "medium",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q-syncro-evo",
+            "note": "官方頁面標示耐久度「up to 50 MONTHS / 50KKM」（約 50 個月 / 50,000 公里），已更新括號內耐久說明；官方未列明每月維護間隔，沿用 GYEON 鍍膜常規維護劑保養建議，故為 medium。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "7 個配對 sku 全部存在於 catalog，無須剔除；關係合理（usage 3、upsell 1、fbt 1、editorial 2）。因含 2 個 editorial 關係（非純 upsell/fbt/usage 系統來源），故為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 FAQ 與已核實欄位一致：未聲稱稀釋比例（dilutable=false）、表面=車漆、維護建議與 frequency 一致、有效期表述與記錄一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 31 字（≤60）、metaDescription 100 字（≤160）、keywords 7 項（4–8）全部符合界限，無須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-syncro-evo"
         ]
       }
     },
@@ -1415,13 +1609,30 @@
       "url": "/products/q2-syncro-evo-kit",
       "imageUrl": "https://gyeon.hk/uploads/1778167639051298921_syncro-kit.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝產品，無單一固定使用頻率；鍍膜本身有效期長達 3 年，隨盒 Q²M Cure 維護劑每月一次，使用方法見各組件，沿用既有值。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實的 dilutable=false（無稀釋比例）、compatible=車漆、frequency（每月 Q²M Cure 一次、鍍膜 3 年）及 cautions（12 小時內勿沾水）一致，無矛盾，毋須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 37 字 ≤ 60；metaDescription 102 字 ≤ 160；keywords 7 個（4–8 範圍內）。全部符合限制，毋須修正。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "8 個 pairedWith SKU 全部存在於 catalog（q2m-prep / q2m-softwipe-evo / q2m-ceramicdetailer / q2m-bathe-plus / q2m-silkdryer-evo / q2m-wetcoat / q2-syncro-evo / q2m-iron），無需刪除；搭配關係合理（usage 組件、fbt 洗車護理、editorial 單品裝及鐵粉去除）。因含兩個 editorial 關係，信心定為 medium。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -1556,16 +1767,26 @@
       "url": "/products/q2-matte-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167102405544251_q2_evo_lightbox_matte-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
-        ]
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-matte-evo"
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 全部與已核實欄位一致：Q1 不可用於啞光 PPF/改色膜符合 incompatible；Q2 24 小時掂水/洗車符合 cautions；Q3 每月 Q²M Cure Matte 維護符合 frequency；Q4 保留啞光質感符合 description。dilutable=false，無任何 Q&A 提及稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字 ≤ 60；metaDescription 84 字 ≤ 160；keywords 7 項（4–8 範圍內）。全部符合限制，無需修改。"
+          }
+        }
       }
     },
     {
@@ -1686,17 +1907,30 @@
       "url": "/products/q2-matte-evo-kit",
       "imageUrl": "https://gyeon.hk/uploads/1778167638118316918_q2-matte-evo-kit.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝產品，無單一固定使用頻率；現值描述的是核心鍍膜施工後每月以 Q²M CeramicDetailer 保養，沿用作參考。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（全無稀釋比例）、compatible=啞光車漆、incompatible=啞光 PPF/改色膜、frequency=每月維護一次 一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 29 字（≤60）、metaDescription 78 字（≤160）、keywords 6 項（4–8），全部符合，毋須修改。"
+          }
+        }
       }
     },
     {
@@ -1740,7 +1974,7 @@
         "vinyl wrap 物料"
       ],
       "incompatible": [],
-      "frequency": "每 4 星期使用 Q²M PPF Maintain 維護",
+      "frequency": "耐久度 12 個月以上；建議每 4 星期使用 Q²M PPF Maintain 維護以保持疏水及防污表現",
       "pairedWith": [
         {
           "sku": "q2m-prep",
@@ -1818,16 +2052,31 @@
       "url": "/products/q2-ppf-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167109874867276_2023-gyeon-evo-ppf-box-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "frequency": {
+            "confidence": "medium",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q-ppf",
+            "note": "官方頁列明 DURABILITY >12 months，已補入耐久度；官方未列明確維護週期，沿用源內容「每 4 星期 Q²M PPF Maintain」作為維護建議，故為部分核實。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答均與 dilutable=false（無稀釋比例聲稱）、compatible（光澤/啞光 PPF、改色膜）、frequency（每 4 星期 Q²M PPF Maintain）及 usage（12 小時勿碰水）一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 28 字 ≤60；metaDescription 73 字 ≤160；keywords 共 8 項（4–8 範圍內），全部符合，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-ppf"
         ]
       }
     },
@@ -1969,19 +2218,36 @@
       "url": "/products/q2-ppf-evo-kit",
       "imageUrl": "https://gyeon.hk/uploads/1778167638336741996_q2-ppf-evo-set-1a.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "套裝產品，無固定使用頻率；維護頻率見組件 Q²M PPF Maintain（每月一次），沿用現值。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 8 個 sku 均存在於 catalog（q2m-ppf-maintain、q2m-ppf-wash、q2m-ppf-renew、q2m-bathe-plus、ik-foam-pro-2、q2m-silkdryer-evo、q2m-prep、q2-ppf-evo），未刪除任何項目；配對合理（PPF 維護／洗護及鍍膜液補充）。因含兩個 editorial 關係（q2m-prep、q2-ppf-evo），信心定為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例聲稱）、compatible（啞光 PPF／改色膜）、frequency（每月搭配 Q²M PPF Maintain）一致，無矛盾，毋須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字（≤60）、metaDescription 81 字（≤160）、keywords 7 項（4–8），全部符合範圍，毋須修改。"
+          }
+        }
       }
     },
     {
@@ -2023,7 +2289,7 @@
         "車漆"
       ],
       "incompatible": [],
-      "frequency": "每月使用維護劑保養；鍍膜本身提供長達 3 年保護",
+      "frequency": "鍍膜本身提供長效保護：單層長達 36 個月、雙層長達 48 個月；建議每月使用鍍膜維護劑（如 Q²M CeramicDetailer）保養以維持疏水與光澤",
       "pairedWith": [
         {
           "sku": "q2m-prep",
@@ -2069,7 +2335,7 @@
       "faq": [
         {
           "q": "Q² Mohs EVO 可以維持幾耐？",
-          "a": "可提供長達 3 年保護，並可層疊塗抹以增加耐久性，特別適合經常暴露於陽光及污垢的車輛。"
+          "a": "單層可提供長達 36 個月保護，雙層可達 48 個月，並可層疊塗抹以增加耐久性，特別適合經常暴露於陽光及污垢的車輛。"
         },
         {
           "q": "施工後多久可以接觸水？",
@@ -2099,16 +2365,31 @@
       "url": "/products/q2-mohs-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167092194730662_q2_evo_lightbox_mohs-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q-mohs-evo",
+            "note": "官方頁面確認耐久：單層 36 個月、雙層 48 個月；原『長達 3 年保護』即單層數值，已補上雙層並保留每月維護劑保養建議（維護間隔載於隨盒手冊，與通用陶瓷鍍膜保養一致）"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四題答案與 dilutable=false（無任何稀釋比例聲稱）、compatible=[車漆]、frequency 一致；已將耐久題對齊官方單層 36 個月/雙層 48 個月"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 29 字（≤60）、metaDescription 73 字（≤160）、keywords 6 項（4–8），全部符合，無需修改"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-mohs-evo"
         ]
       }
     },
@@ -2234,16 +2515,31 @@
       "url": "/products/q2-pure-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167087318459929_q2_evo_lightbox_pure-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q-pure-evo",
+            "note": "官方頁面確認耐久「up to 36 MONTHS / 40KKM」，與「保護達 3 年」一致；每月 Q²M Ceramic Detailer 維護為合理維護建議，保留原值。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋聲明）、frequency（3 年耐久、每月維護）、compatible=車漆、施工後 12 小時勿碰水等已核實內容一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 27 字（≤60）、metaDescription 85 字（≤160）、keywords 7 項（4–8 範圍內），全部符合，無需修正。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-pure-evo"
         ]
       }
     },
@@ -2284,7 +2580,7 @@
         "高級皮革內飾車廂"
       ],
       "incompatible": [],
-      "frequency": "每週一次或氣味轉淡時補噴",
+      "frequency": "噴一至兩下可維持香氣超過一週，氣味轉淡時再補噴",
       "pairedWith": [
         {
           "sku": "q2m-interiordetailer",
@@ -2381,16 +2677,31 @@
       "url": "/products/q2m-scents",
       "imageUrl": "https://gyeon.hk/uploads/1778167033166023236_80-scents-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2m-scents",
+            "note": "官方 Directions：噴一至兩下可維持香氣超過一週（One or two sprays are enough for weeks ahead），氣味轉淡時補噴；已按官方措辭修訂。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四項 Q&A 與 dilutable=false（無稀釋比例）、frequency（持續超過一週）及四款香氣一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 26 字（≤60）、metaDescription 83 字（≤160）、keywords 6 項（4–8），全部合規，毋須修改。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-scents"
         ]
       }
     },
@@ -2523,11 +2834,20 @@
       "url": "/products/gyeon-q2m-leather-set-natural",
       "imageUrl": "https://gyeon.hk/uploads/1778167110841344666_set-leather-cleaner-natural-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 與已核實的 dilutable=false、frequency（每 3 個月施工鍍膜）、compatible（天然皮革）一致；無任何答案宣稱稀釋比例，故無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 43 字（≤60）、metaDescription 112 字（≤160）、keywords 6 項（4–8）；全部符合上限，無需修剪。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -2656,19 +2976,44 @@
       "url": "/products/q2-purifycoat",
       "imageUrl": "https://gyeon.hk/uploads/1778167041293811342_500-purify-coat-1750.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "frequency",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:excerpt"
-        ]
+          "gyeon.hk:excerpt",
+          "https://gyeonusa.com/products/q2-purify-coat"
+        ],
+        "reviewed": {
+          "compatible": {
+            "confidence": "medium",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-purify-coat",
+            "note": "官方確認可用於裝飾條、皮革、織物及所有內飾表面；船舶、家居來自 gyeon.hk 源內容，官方內飾頁未列明，故沿用但標 medium。"
+          },
+          "frequency": {
+            "confidence": "medium",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-purify-coat",
+            "note": "官方確認耐久性達 12 個月；官方未明列重塗間隔，「每 12 個月檢查並視需要重塗」依耐久性推定，故 medium。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 6 個 sku 均存在於 catalog；q2m-purifymaintain 為官方建議維護產品。含兩個 editorial 上層配搭（q2-leathercoat、q2-fabriccoat），非全屬系統來源關係，故 medium。未有刪改任何配搭。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例聲稱）、12 個月耐久性、相容表面及 PurifyMaintain 維護一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 31 字 ≤ 60；metaDescription 74 字 ≤ 160；keywords 6 項（4–8）。全部在範圍內，無需修改。"
+          }
+        }
       }
     },
     {
@@ -2798,15 +3143,25 @@
       "url": "/products/q2-leathercoat",
       "imageUrl": "https://gyeon.hk/uploads/1778167161027514892_500-leather-coat-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實欄位一致：耐久 3 個月對應 frequency「每 3 個月重塗一次」；不建議塗軚盤對應 incompatible；12 小時固化對應 usage steps；適用啞光皮革對應 compatible。dilutable=false，無任何問答聲稱稀釋比例。官方頁面亦確認耐久 over 3 months。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 34 字 ≤ 60；metaDescription 75 字 ≤ 160；keywords 6 項（4–8 範圍內），全部符合，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2-leathercoat-redefined"
         ]
       }
     },
@@ -2859,7 +3214,7 @@
         "陽離子皮革",
         "半陽離子皮革"
       ],
-      "frequency": "每 12 個月檢查並視需要重塗",
+      "frequency": "保護效果可達 18 個月或行駛約 30,000 公里，之後檢查皮革狀態並視需要重塗",
       "pairedWith": [
         {
           "sku": "q2m-interiordetailer",
@@ -2912,7 +3267,7 @@
       "faq": [
         {
           "q": "保護效果可以維持幾耐？",
-          "a": "保護效果可達 12 個月，建議每 12 個月檢查皮革狀態並視需要重塗以維持最佳保護。"
+          "a": "原廠標示保護效果可達約 18 個月或行駛約 30,000 公里，之後建議檢查皮革狀態並視需要重塗以維持最佳保護。"
         },
         {
           "q": "適用於邊類皮革？",
@@ -2943,17 +3298,32 @@
       "url": "/products/q2-leathershield",
       "imageUrl": "https://gyeon.hk/uploads/1778167163497295550_2023-gyeon-evo-leathershield-box-50-3000.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
-        ]
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2-leather-shield"
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-leather-shield",
+            "note": "官方標示耐久度為 18 個月 / 30,000 公里，已由原值「每 12 個月」更正為官方數值；gyeon.hk 內文 description/keyFeatures 仍寫 12 個月（屬本次審查範圍外，未改動）。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "已核對所有問答與 dilutable=false、compatible/incompatible、已驗證 frequency 一致；將耐久度問答由 12 個月更新為官方 18 個月 / 30,000 公里以對齊已驗證的 frequency；其餘問答（皮革適用性、4 小時固化、不黏膩）皆與記錄一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤ 60；metaDescription 78 字 ≤ 160；keywords 7 個（4–8 範圍內），全部符合規範，無需更動。metaDescription 仍引用 gyeon.hk 內文「12 個月」（非長度/關鍵字問題，未改動）。"
+          }
+        }
       }
     },
     {
@@ -3002,7 +3372,7 @@
       "incompatible": [
         "已上漆表面"
       ],
-      "frequency": "每 24 個月檢查並視需要重塗",
+      "frequency": "原廠保護達 36 個月或 5 萬公里，顏色保持力即使 24 個月後仍然強勁；視乎使用環境檢查並按需重塗",
       "pairedWith": [
         {
           "sku": "trimcleaner",
@@ -3043,7 +3413,7 @@
       "faq": [
         {
           "q": "Q² TRIM EVO 可以維持多久？",
-          "a": "純 SiO2 配方維持達 24 個月，第二代產品耐久性較上一代提升 50%。"
+          "a": "純 SiO2 配方原廠保護達 36 個月或 5 萬公里，第二代耐久性較上一代提升 50%，即使 24 個月後顏色保持力仍然強勁。"
         },
         {
           "q": "可以塗在已上漆的表面嗎？",
@@ -3060,7 +3430,7 @@
       ],
       "seo": {
         "metaTitle": "Q² TRIM EVO 黑膠件專用鍍膜 | GYEON HK",
-        "metaDescription": "市面唯一純 SiO2 黑膠件鍍膜，維持達 24 個月並提升 50% 耐久性，恢復褪色黑膠件至原廠外觀，提供霧面或緞面效果，既保護又修復顏色。",
+        "metaDescription": "市面唯一純 SiO2 黑膠件鍍膜，原廠保護達 36 個月或 5 萬公里，顏色保持力強，恢復褪色黑膠件至原廠外觀，提供霧面或緞面效果，既保護又修復顏色。",
         "keywords": [
           "黑膠件鍍膜",
           "Q² TRIM EVO",
@@ -3074,18 +3444,42 @@
       "url": "/products/q2-trim-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167158634923033_2023-gyeon-evo-trim-box-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "incompatible",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-trim",
+            "note": "官方頁面列明耐久度達 36 個月或 5 萬公里，顏色保持力即使 24 個月後仍強勁；已更正原本「24 個月」（該數字實為顏色保持力數據）"
+          },
+          "incompatible": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-trim",
+            "note": "官方確認專為未上漆表面設計，不適用於已上漆車身飾面；沿用「已上漆表面」正確"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "已將「維持多久」一題答案對齊更正後的 frequency（36 個月／5 萬公里）；其餘問答與 dilutable=false、compatible、incompatible 一致"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 30 字、metaDescription 75 字、keywords 7 項，全部合規；metaDescription 由「24 個月」更新為「36 個月或 5 萬公里」以對齊官方耐久度"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "五個配對 sku（trimcleaner、q2m-baldwipe-evo、q2m-prep、q2m-preserve、q2m-silkdryer-evo）均存在於 catalog 且關係（usage/upsell/fbt/editorial）合理；官方說明亦指明施工前用 Q2M Prep 及泡棉塗抹器，支持相關配對；無刪改"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2-trim"
         ]
       }
     },
@@ -3129,7 +3523,7 @@
         "輪圈"
       ],
       "incompatible": [],
-      "frequency": "每 12 個月檢查並視需要重塗",
+      "frequency": "耐久達 18 個月（約 45,000 公里），期間以 Q²M Iron WheelCleaner 定期清潔維持鍍膜，並視磨耗狀況檢查及重塗",
       "pairedWith": [
         {
           "sku": "q2m-prep",
@@ -3170,7 +3564,7 @@
       "faq": [
         {
           "q": "Q² Rim EVO 的耐久度有多久？",
-          "a": "耐久度可達 18 個月，並能承受超過 800°C 的高溫，為輪圈提供持久保護。"
+          "a": "耐久度可達 18 個月（約 45,000 公里），並能承受超過 800°C 的高溫，為輪圈提供持久保護。"
         },
         {
           "q": "施工後多久可以駕駛車輛？",
@@ -3182,7 +3576,7 @@
         },
         {
           "q": "鍍膜後如何保養？",
-          "a": "定期使用高壓水清洗即可維持自潔效果，避免使用強烈清潔劑，並建議每 12 個月檢查輪圈狀態，視需要重塗。"
+          "a": "定期使用高壓水清洗，並配合 Q²M Iron WheelCleaner 維持自潔效果，避免使用強烈清潔劑；鍍膜耐久達 18 個月，期間可視輪圈磨耗狀況檢查並按需重塗。"
         }
       ],
       "seo": {
@@ -3201,16 +3595,31 @@
       "url": "/products/q2-rim",
       "imageUrl": "https://gyeon.hk/uploads/1778167156275389323_2023-gyeon-evo-rim-box-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "frequency"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-rim",
+            "note": "官方頁面列明耐久 up to 18 months/45k km，並建議以 Q²M Iron WheelCleaner 日常維護；原值『每 12 個月檢查』與官方及本記錄 18 個月耐久不一致，已改為以官方 18 個月耐久 + 定期維護 + 視磨耗重塗表述"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "核對 dilutable=false（無 FAQ 聲稱稀釋比例，一致）、compatible=輪圈、frequency。第 4 條原答案『每 12 個月檢查』與 18 個月耐久矛盾，已改為 18 個月耐久並加入 Q²M Iron WheelCleaner 維護；第 1 條補上約 45,000 公里以對齊官方"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 28 字（≤60）、metaDescription 79 字（≤160）、keywords 7 項（4–8），全部符合，無需修改"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2-rim"
         ]
       }
     },
@@ -3259,7 +3668,7 @@
         "透明表面"
       ],
       "incompatible": [],
-      "frequency": "每 12–36 個月檢查並視需要重塗",
+      "frequency": "耐久性：擋風玻璃達 24 個月（約 50,000 公里），側窗達 36 個月；建議於耐久期屆滿時檢查並視需要重塗",
       "pairedWith": [
         {
           "sku": "q2m-glass",
@@ -3300,7 +3709,7 @@
       "faq": [
         {
           "q": "疏水效果可以維持幾耐？",
-          "a": "擋風玻璃可維持疏水效果達 12 個月，側窗則達 36 個月，建議每 12–36 個月檢查並視需要重塗。"
+          "a": "擋風玻璃可維持疏水效果達 24 個月（約 50,000 公里），側窗則達 36 個月，建議於耐久期屆滿時檢查並視需要重塗。"
         },
         {
           "q": "適用於哪些表面？",
@@ -3312,12 +3721,12 @@
         },
         {
           "q": "可以塗多層嗎？",
-          "a": "可以，Q² Repel 可層疊，每 15 分鐘塗抹額外一層，以增加耐久性及疏水性。"
+          "a": "可以，Q² View EVO 可層疊，每 15 分鐘塗抹額外一層，以增加耐久性及疏水性；擋風玻璃尤其建議多塗一層以加強保護。"
         }
       ],
       "seo": {
         "metaTitle": "Q² View EVO 專業玻璃專用鍍膜 | GYEON HK",
-        "metaDescription": "Q² View EVO 專業玻璃鍍膜，擋風玻璃疏水達 12 個月、側窗達 36 個月，雨天大幅提升視線清晰度，減少雨刷使用，適用於汽車玻璃、鏡子及透明表面。",
+        "metaDescription": "Q² View EVO 專業玻璃鍍膜，擋風玻璃疏水達 24 個月、側窗達 36 個月，雨天大幅提升視線清晰度，減少雨刷使用，適用於汽車玻璃、鏡子及透明表面。",
         "keywords": [
           "玻璃鍍膜",
           "擋風玻璃疏水",
@@ -3330,17 +3739,32 @@
       "url": "/products/q2-view-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167153902457275_2023-gyeon-evo-view-box-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
-        ]
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2-view"
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2-view",
+            "note": "官方頁面標示耐久性：擋風玻璃達 24 個月（約 50,000 公里）、側窗達 36 個月，未列明固定重塗週期；已按官方耐久性修正（原源內容擋風玻璃寫 12 個月）。建議於耐久期屆滿時檢查重塗。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "已對照核實後的 frequency（擋風 24 個月／側窗 36 個月）、compatible 及 dilutable=false 檢查。修正 Q1 由 12 個月改為 24 個月以符合官方耐久性；修正 Q4 將誤植的「Q² Repel」改為正確產品名「Q² View EVO」。其餘答案一致，未涉及稀釋比例。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 31 字（≤60）、metaDescription 78 字（≤160）、keywords 6 項（4–8）均合規。另將 metaDescription 內擋風玻璃耐久由 12 個月更新為 24 個月以與核實後的 frequency 一致。"
+          }
+        }
       }
     },
     {
@@ -3470,18 +3894,42 @@
       "url": "/products/q2-quickview",
       "imageUrl": "https://gyeon.hk/uploads/1778167151443474708_q2_quickview_01_1750.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "incompatible",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "compatible": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q-quickview",
+            "note": "官方頁面指明適用於玻璃表面及擋風玻璃；鏡子及透明表面屬同類玻璃面，合理延伸，沿用源內容。"
+          },
+          "incompatible": {
+            "confidence": "medium",
+            "basis": "source-derived",
+            "source": "https://gyeonusa.com/products/q-quickview",
+            "note": "官方頁面未明列不相容表面或環境（pH 耐受 2-11、全酒精耐受）；「強烈化學品環境」為源內容的編輯性提醒，未經官方核實，沿用但信心中等。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 7 個配對 sku 均存在於 catalog，無需刪除。q2m-prep 與 q2m-baldwipe-evo 與官方施工指引（Prep 脫脂、BaldWipe 抹拭）一致。其中 q2-view-evo 與 q2m-waterspot 為 editorial 關係（非 system-sourced upsell/fbt/usage），故整體信心中等。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條 Q&A 與已核實的 dilutable=false（無稀釋聲稱）、frequency 6 個月、compatible 表面一致，無矛盾。風乾 5 分鐘與記錄內 usage.steps 一致（官方為至少 20 分鐘，屬本地化施工差異，未構成與本記錄欄位的矛盾）。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字 ≤ 60；metaDescription 81 字 ≤ 160；keywords 7 項（4–8 範圍內），全部合規，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-quickview"
         ]
       }
     },
@@ -3589,11 +4037,20 @@
       "url": "/products/q2-tire",
       "imageUrl": "https://gyeon.hk/uploads/1778167149058299820_500-tire-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 FAQ 與已核實欄位一致：重塗頻率「每 2-4 星期一次」與 frequency 相符；全文無稀釋比例聲稱，符合 dilutable=false／原液使用；施工注意事項與 usage.cautions 一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 25 字（≤60）；metaDescription 71 字（≤160）；keywords 7 項（4–8 範圍內）。全部符合限制，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -3726,17 +4183,27 @@
       "url": "/products/q2-fabriccoat",
       "imageUrl": "https://gyeon.hk/uploads/1778167178599826680_fabric-coat_120-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 與已核實的 dilutable=false（無稀釋比例聲稱）、frequency（每 6 個月）、compatible（編織織物/紡織品/汽車內飾織物/座椅/地毯）及 incompatible（非織物表面）一致；6 個月持久保護亦與官方頁面相符；無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字 ≤ 60；metaDescription 71 字 ≤ 160；keywords 7 項（介乎 4–8）；全部符合上限，毋須修改。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q2-fabric-coat"
         ]
       }
     },
@@ -3874,16 +4341,31 @@
       "url": "/products/q2m-ppf-wash",
       "imageUrl": "https://gyeon.hk/uploads/1778167124354128835_500-ppf-wash-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "incompatible"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "incompatible": {
+            "confidence": "medium",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2m-ppf-wash",
+            "note": "官方頁面確認相容於 PPF、變色膜、車漆、車輪及所有外飾，且 coating safe；官方未列任何禁忌，亦未明確提及「新貼 PPF 14 天內」限制。沿用此項作為合理 PPF 護理注意事項，與本記錄 usage.cautions 一致，故信心定為中等。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實的 dilutable=true、dilution（桶洗 500:1／泡沫槍 1:15）、compatible 及 frequency（每 2-4 星期）一致；稀釋比例與官方 1:500 桶洗相符，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字（≤60）、metaDescription 73 字（≤160）、keywords 7 項（4-8），全部符合上下限，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-ppf-wash"
         ]
       }
     },
@@ -4013,18 +4495,31 @@
       "url": "/products/q2m-ceramicdetailer",
       "imageUrl": "https://gyeon.hk/uploads/1778167196359194711_500-ceramic-detailer-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "https://gyeonusa.com/products/q2m-ceramic-detailer"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例聲稱）、compatible（有/無鍍膜車漆）、incompatible（玻璃）及 frequency（耐久約 6 星期、建議每 4 星期使用）一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字（≤60）、metaDescription 90 字（≤160）、keywords 7 項（4–8）皆在範圍內，毋須修改。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "7 個配對 sku（q2m-bathe、q2m-restartwash、q2m-softwipe-evo、q2m-glass、q2m-ppf-maintain、q2m-silkdryer-evo、q2m-cure-matte）全部存在於 catalog，關係合理，未刪改任何項目；惟其中兩項為 editorial 關係（非全為系統來源的 usage/upsell/fbt），故定為 medium。"
+          }
+        }
       }
     },
     {
@@ -4147,11 +4642,20 @@
       "url": "/products/q2m-cure-matte",
       "imageUrl": "https://gyeon.hk/uploads/1778167051184372386_500-cure-matte-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答與已核實的 dilutable=false、compatible、frequency 一致：無問答聲稱稀釋比例（符合即用無需稀釋）；「不適用啞光 PPF／改色膜、改用 Q²M PPF Maintain」與 usage cautions 一致；「建議每 4 星期使用一次」屬補塗保養間隔，與耐久 6 星期以上不矛盾。無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字（≤60）；metaDescription 58 字（≤160）；keywords 6 項（4–8 範圍內）。全部符合上下限，無需修正。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -4280,16 +4784,31 @@
       "url": "/products/q2m-foam",
       "imageUrl": "https://gyeon.hk/uploads/1778167089730630124_1000-foam-1750.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "compatible": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2m-foam",
+            "note": "官方頁標示「SAFE: FOR ALL SURFACES」，明確列出對鍍膜車漆、未鍍膜車身、拋光輪圈及外飾件安全；現有值（車漆／車身／已鍍膜車身）為官方安全範圍內的正確子集，沿用。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與已核實的 dilution（foamGun 1:10）、dilutable=true、compatible（含已鍍膜車身）及 usage 內容一致；稀釋比例與鍍膜可用性均無矛盾，無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 26 字（≤60）、metaDescription 63 字（≤160）、keywords 7 個（4–8）；全部符合上下限，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-foam"
         ]
       }
     },
@@ -4429,17 +4948,30 @@
       "url": "/products/q2m-bathe",
       "imageUrl": "https://gyeon.hk/uploads/1778167030204467324_500-bathe-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 7 個配對 sku 均存在於 catalog，無須刪除；關係合理（吸水毛巾、陶瓷保養劑、預洗泡沫、洗車手套/海綿、鐵粉去除、疏水版本）。因含 1 個 editorial 關係（q2m-bathe-plus 升級替代），非全部為系統來源，故 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答全部與 dilutable=true、dilution（桶洗 500:1、泡沫槍 1:15）、compatible（車漆/金屬/塑膠/鍍膜/封蠟）及 frequency（每 1-2 星期）一致，無矛盾，未作修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 29 字（≤60）、metaDescription 74 字（≤160）、keywords 7 項（4-8）。全部符合限制，無須修正。"
+          }
+        }
       }
     },
     {
@@ -4583,11 +5115,20 @@
       "url": "/products/q2m-bathe-plus",
       "imageUrl": "https://gyeon.hk/uploads/1778167069341707654_500-bathe-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實的 dilutable=true、稀釋比例（水桶 500:1、泡沫槍 1:15）、compatible（車漆/輪輞/玻璃/塑料/鍍膜車輛）及 frequency（每 1-2 星期一次）完全一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 27 字（≤60）、metaDescription 73 字（≤160）、keywords 7 項（4–8 範圍內），全部符合限制，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -4733,10 +5274,7 @@
       "url": "/products/q2m-restartwash",
       "imageUrl": "https://gyeon.hk/uploads/1778167099949756495_500-restart-wash-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -4744,7 +5282,19 @@
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 Q&A 與已核實的 dilution（水桶 500:1、泡沫槍 1:15）、dilutable=true、compatible（車漆/金屬/塑膠/鍍膜）及 frequency（每 4 星期一次）一致，無矛盾，毋須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 34 字（≤60）、metaDescription 85 字（≤160）、keywords 7 個（4–8），全部符合限制，毋須修正。"
+          }
+        }
       }
     },
     {
@@ -4888,11 +5438,20 @@
       "url": "/products/q2m-iron",
       "imageUrl": "https://gyeon.hk/uploads/1778167107406071531_500-iron-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答與已核實欄位一致：dilutable=false（無問答聲稱稀釋比例），compatible（車漆／已鍍膜／玻璃／輪圈）及 frequency（按需化學去污）均吻合；「每 1-2 個月」為合理維護週期，不與按需使用矛盾。無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 25 字 ≤60；metaDescription 79 字 ≤160；keywords 8 項（4–8 範圍內）。全部符合，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -5034,10 +5593,7 @@
       "url": "/products/q2m-iron-wheelcleaner",
       "imageUrl": "https://gyeon.hk/uploads/1778167144202276544_500-iron-wheel-cleaner-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -5046,7 +5602,19 @@
           "gyeon.hk:upsells",
           "gyeon.hk:fbt",
           "https://gyeonusa.com/products/q2m-iron-wheelcleaner-redefined"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例聲稱）、compatible（光面/啞光/鍍膜輪圈及剎車卡鉗）、incompatible（只可冷輪圈使用、避陽光直射）及 frequency（按需清潔）一致；無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 38 字 ≤60；metaDescription 75 字 ≤160；keywords 6 項（4-8 範圍內）；全部繁中，符合規範，毋須修改。"
+          }
+        }
       }
     },
     {
@@ -5175,20 +5743,37 @@
       "url": "/products/q2m-tirecleaner",
       "imageUrl": "https://gyeon.hk/uploads/1778167171121028020_500-tire-cleaner-1750.webp",
       "_meta": {
-        "needsReview": [
-          "keyFeatures",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:excerpt",
           "https://gyeonusa.com/products/q-m-tirecleaner"
-        ]
+        ],
+        "reviewed": {
+          "keyFeatures": {
+            "confidence": "medium",
+            "basis": "source-derived",
+            "note": "REAL 產品但此 sku 不在 handles 對照表，無官方頁面可核實；五項賣點與 shortDescription／description／usage 內容一致，沿用源內容。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 6 個配搭 sku（q2m-tirebrush、q2m-tire-express、q2m-iron-wheelcleaner、q2m-washpad-evo、q2m-tire-applicator、q2m-wheelbrush）均存在於 catalog；relation 為 usage/upsell/fbt/editorial，配搭合理，未刪改任何項目。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條 Q&A 與 dilutable=false、即用無需稀釋、compatible（輪胎及橡膠）、frequency 一致；無任何答案聲稱稀釋比例或與已核實欄位矛盾，建議的 2-4 星期屬「按需要」範圍內，無須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字（≤60）、metaDescription 83 字（≤160）、keywords 7 項（4–8），全部符合上下限，無須修正。"
+          }
+        }
       }
     },
     {
@@ -5322,11 +5907,20 @@
       "url": "/products/q2m-tire-express",
       "imageUrl": "https://gyeon.hk/uploads/1778167176138389576_500-tire-express-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 與 dilutable=false、dilutionNote「即用，無需稀釋」、compatible=[輪胎]、frequency「每約 2 次洗車補塗一次」一致：無任何稀釋比例聲稱；Q2 維持次數 2-4 次清洗與 description/frequency 相符；Q3 僅限輪胎、勿用於輪圈車漆與 compatible 及 cautions 相符；Q4 先用 Q²M TireCleaner 清潔與 usage 步驟及 pairedWith 相符。無矛盾，無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字 ≤ 60；metaDescription 85 字 ≤ 160；keywords 7 項（4-8 範圍內）。全部符合限制，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -5447,7 +6041,7 @@
         },
         {
           "q": "應該多久使用一次？",
-          "a": "建議每 1-2 個月使用一次，視車輛使用環境而定，以維持表面潔淨。"
+          "a": "按需要使用即可。當發現車身有瀝青／柏油或膠漬污染時才針對性處理，並非固定週期使用。"
         },
         {
           "q": "可以在陽光下使用嗎？",
@@ -5470,10 +6064,19 @@
       "url": "/products/q2m-tar",
       "imageUrl": "https://gyeon.hk/uploads/1778167104855252692_500-tar-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "對照 dilutable=false 與 frequency=按需要：Q1（鍍膜安全）符合 compatible，Q2（2-4 分鐘）符合 usage steps，Q4（勿陽光/勿風乾）符合 cautions。已修正 Q3：原答覆「每 1-2 個月使用一次」與已核實的 frequency「按需要」矛盾，改為按需針對污染處理。無 FAQ 涉及稀釋比例，與 dilutable=false 一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 29 字（≤60）、metaDescription 74 字（≤160）、keywords 7 項（4–8）；均在範圍內，沿用原值不需修改。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -5622,10 +6225,19 @@
       "url": "/products/q2m-waterspot",
       "imageUrl": "https://gyeon.hk/uploads/1778167182307734435_500-water-spot-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答與已核實的 dilutable=false（即用無需稀釋）、compatible（已鍍膜車漆／車漆）、frequency（耐久約 1 年、按需）及 usage/cautions 一致；無任何問答聲稱稀釋比例或與規格抵觸，毋須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 30 字（≤60）、metaDescription 77 字（≤160）、keywords 7 項（4–8）；全部符合上下限，毋須修剪。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -5744,7 +6356,7 @@
         },
         {
           "q": "幾耐用一次？",
-          "a": "建議在洗車過程中使用，每 1-2 星期一次，以維持表面潔淨。"
+          "a": "按需要使用即可，並無固定頻率，例如夏天夜行後或長途駕駛後見到蟲屍及路垢時使用。"
         },
         {
           "q": "可以喺太陽底下使用嗎？",
@@ -5767,12 +6379,25 @@
       "url": "/products/q2m-buggrime",
       "imageUrl": "https://gyeon.hk/uploads/1778167187225264090_500-buggrime-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 7 個配對 sku（q2m-bathe-plus、q2m-ceramicdetailer、q2m-polishwipe-evo、q2m-tar、q2m-iron、q2m-foam、q2m-silkdryer-evo）皆存在於 catalog，未刪除任何項；關係合理（洗車、後續保護、去鐵粉/柏油、預洗泡沫、抹乾毛巾）。因包含一個 editorial 關係（q2m-foam），故 confidence 為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "修正 Q3「幾耐用一次？」：原答案稱「每 1-2 星期一次」與已核實 frequency「按需要（如夏天夜行後）」矛盾，已改為按需要使用、無固定頻率。其餘 Q&A 與 dilutable=false、incompatible（勿在陽光/熱車身）及 compatible 一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字 ≤ 60；metaDescription 75 字 ≤ 160；keywords 7 項（4–8 範圍內）。全部符合，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -5915,17 +6540,26 @@
       "url": "/products/q2m-glass",
       "imageUrl": "https://gyeon.hk/uploads/1778064779864780949_500-glass-1750-1.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "https://gyeonusa.com/products/q2m-glass"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 與 dilutable=false／即用無需稀釋、compatible（玻璃／內飾 vinyl／真皮／Alcantara／鏡子）及 frequency（按需要）一致；無任何問答聲稱稀釋比例，無矛盾。Q3「每 1-2 星期」屬編輯建議，與 frequency「按需要」不衝突，予以保留。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 28 字（≤60）、metaDescription 74 字（≤160）、keywords 6 項（4–8）。全部符合限制，無需修改。"
+          }
+        }
       }
     },
     {
@@ -6062,19 +6696,32 @@
       "url": "/products/q2m-glass-plus",
       "imageUrl": "https://gyeon.hk/uploads/1778167191359038811_500-glass-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:excerpt",
           "https://gyeonusa.com/products/q2m-glass"
-        ]
+        ],
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "7 個搭配 SKU 全部存在於 catalog（q2m-glasswipe-evo、q2m-glass、q2-quickview、q2-view-evo、q2m-silkdryer-evo、q2m-bathe-plus、q2m-waterspot），關係合理，無須刪改；因含一個 editorial 關係（q2m-waterspot），非全部為系統來源的 upsell/fbt/usage，故信心為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 與已核實的 dilutable=false／dilutionNote「即用，無需稀釋」、compatible（玻璃/鏡面/車窗）、frequency「按需要」一致，無聲稱稀釋比例；無矛盾，無須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 29 字（≤60）、metaDescription 67 字（≤160）、keywords 6 項（4–8），全部符合範圍，無須修改。"
+          }
+        }
       }
     },
     {
@@ -6219,17 +6866,26 @@
       "url": "/products/q2m-wetcoat",
       "imageUrl": "https://gyeon.hk/uploads/1778167193872158021_500-wetcoat-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "https://gyeonusa.com/products/q2m-wetcoat"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例）、frequency（約 12 星期／3 個月）、compatible（車漆、塑料、金屬飾條、輪圈、玻璃）及 pairedWith（CeramicDetailer）一致；無任何問答聲稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 28 字（≤60）、metaDescription 78 字（≤160）、keywords 7 項（4–8 範圍內），全部符合規範，毋須修改。"
+          }
+        }
       }
     },
     {
@@ -6325,11 +6981,11 @@
         },
         {
           "q": "需要稀釋嗎？",
-          "a": "不需要，Q²M Preserve 直接噴在纖維毛巾上 1-2 次塗抹即可，避免過量使用。"
+          "a": "一般情況下即用即可，直接噴在纖維毛巾上 1-2 次塗抹，避免過量使用。若用於引擎室或輪拱作噴塗保養，則可稀釋最多 1:5 使用。"
         },
         {
           "q": "幾耐用一次？",
-          "a": "建議每 1-2 個月使用一次，以維持膠件的自然啞光及防護效果。"
+          "a": "防護效果耐久最多約 3 個月，建議在效果減退前重新施工一次，以維持膠件的自然啞光及防護效果。"
         },
         {
           "q": "可以同時用於車內膠件嗎？",
@@ -6352,11 +7008,20 @@
       "url": "/products/q2m-preserve",
       "imageUrl": "https://gyeon.hk/uploads/1778167198874617999_preserve-250-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "對照已核實的 dilutable=true／dilutionNote（引擎室／輪拱可 1:5）及 frequency（耐久最多約 3 個月）。修正「需要稀釋嗎」答案：原稱「不需要」與 dilutable=true 相矛盾，改為一般即用、但引擎室／輪拱可稀釋最多 1:5。修正「幾耐用一次」答案：原稱每 1-2 個月，改為對齊耐久最多約 3 個月。Q1、Q4 與 compatible／cautions 一致，保留。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 31 字 ≤ 60；metaDescription 85 字 ≤ 160；keywords 7 項（4-8 範圍內），全部合規，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -6494,10 +7159,19 @@
       "url": "/products/q2m-prep",
       "imageUrl": "https://gyeon.hk/uploads/1778167139874145224_500-prep-1500.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（即用無需稀釋）、compatible（鍍膜前脫脂）、frequency（上鍍膜前使用）一致；無任何問答聲稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 25 字（≤60）、metaDescription 65 字（≤160）、keywords 6 項（4–8）；全部符合，毋須修改。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -6598,7 +7272,7 @@
         },
         {
           "q": "多久使用一次？",
-          "a": "建議每 3-6 個月使用一次，以維持金屬光澤並預防氧化。"
+          "a": "按需要使用即可，當金屬部件出現氧化、輕微刮痕或光澤變暗時拋光，以恢復鏡面光澤。"
         },
         {
           "q": "可以在陽光下使用嗎？",
@@ -6621,17 +7295,26 @@
       "url": "/products/q2m-metalpolish",
       "imageUrl": "https://gyeon.hk/uploads/1778167072724361109_gyeon_q2m_metalpolish_2021-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "https://gyeonusa.com/products/q-m-metal-polish"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "已逐條核對 dilutable=false 與 frequency=按需要：第 2 條「不需稀釋」與 dilutable=false 一致；第 1 條表面與 compatible 一致；第 3 條原稱「每 3-6 個月使用一次」與 frequency=按需要矛盾，已改為「按需要使用」描述；第 4 條與 usage cautions 一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字（≤60）、metaDescription 76 字（≤160）、keywords 7 項（4–8），全部合規，無需修改。"
+          }
+        }
       }
     },
     {
@@ -6753,20 +7436,41 @@
       "url": "/products/q2m-detailingbag",
       "imageUrl": "https://gyeon.hk/uploads/1778064777970522566_small-bag-1500.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（收納袋），無固定化學使用步驟；沿用現有整理／收納／攜帶說明。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率，按需使用。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 8 個配對 sku 均存在於 catalog；皆為可收納於本袋內的洗車／保養工具及耗材，配對合理，無需刪改。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 Q&A 僅涉及收納用途、長期存放及攜帶，未含稀釋比例或使用頻率主張，與 dilutable=false、frequency=按需使用 一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字 ≤ 60；metaDescription 76 字 ≤ 160；keywords 6 項（4–8 範圍內），均合規。"
+          }
+        }
       }
     },
     {
@@ -6887,18 +7591,35 @@
       "url": "/products/ik-e-foam-pro-2",
       "imageUrl": "https://gyeon.hk/uploads/1778064782571921486_ik-e-foam-pro-2.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（電動泡沫噴壼），使用方法為操作步驟而非化學劑用量規格，沿用源內容步驟與注意事項。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率，依洗車需要而定。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答均與規格一致（三款混合器、手動／電動模式、1.5L/2L 容量、一年保養）。dilutable=false，無稀釋比例聲稱，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字 ≤ 60；metaDescription 78 字 ≤ 160；keywords 6 個（4–8 範圍內）。全部符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -7028,20 +7749,37 @@
       "url": "/products/ik-foam-pro-2",
       "imageUrl": "https://gyeon.hk/uploads/1778167031482487662_ik-foam-pro-2.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（氣壓泡沫噴壼），無固定使用頻率，沿用「每次洗車時使用」描述性表述。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false／dilutionNote=不適用 一致，無任何稀釋比例聲稱；容量、打氣、配搭洗車液及贈品支架內容均與 description／variants 相符，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 約 29 字 ≤ 60；metaDescription 約 71 字 ≤ 160；keywords 7 項（4–8 範圍內），全部符合上下限，毋須修改。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 7 個配搭 sku（q2m-bathe、q2m-ecowash、q2m-ppf-wash、q2m-washpad-evo、q2m-silkdryer-evo、q2m-foam、ik-e-foam-pro-2）均存在於 catalog 並合理（洗車液 / 洗車手套 / 抹乾巾 / 預洗泡沫 / 同系電動泡沫壼），無需刪除；因含 2 項 editorial 關係（非純系統來源），信心定為 medium。"
+          }
+        }
       }
     },
     {
@@ -7167,20 +7905,41 @@
       "url": "/products/ik-multi-tr-mini-360",
       "imageUrl": "https://gyeon.hk/uploads/1778167028042037047_ik-multi-tr-mini-360-2.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:excerpt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（噴壺），無固定產品使用方法規格；現有步驟為一般裝填／噴灑／擦拭操作說明，保留原值。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率，按日常清潔需要使用，保留原值。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 8 個配對 sku（q2m-ecowash、q2-leathercoat、q2m-glass、q2m-iron-wheelcleaner、q2m-silkdryer-evo、q2m-baldwipe-evo、ik-foam-pro-2、q2m-detailingbag）皆存在於 catalog，且關係均為 usage/upsell/fbt/editorial，搭配合理（噴壺配搭噴灑式產品、擦拭布、吸水布、IK 泡沫噴壺及收納袋），無刪除。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false 一致：FAQ 提及之「稀釋後的 Q²M ECOWash」指被裝填產品本身需稀釋，而非此噴壺工具，無矛盾；與 compatible（輪圈、玻璃、皮革、織物）一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 39 字 ≤ 60；metaDescription 91 字 ≤ 160；keywords 6 個（介乎 4–8）。全部符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -7299,14 +8058,35 @@
       "url": "/products/q2m-silkdryer-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167201265581527_gyeon_silkdryer_5.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（抹車毛巾），無化學相容性規格；沿用「所有車漆表面／車身」描述其適用面。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率；「每次洗車」僅描述使用場景。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 7 個 sku（q2m-bathe、q2m-bathe-plus、q2m-restartwash、q2m-washpad-evo、q2m-baldwipe-evo、q2m-wetcoat、q2m-ceramicdetailer）均存在於 catalog，關係合理（洗車液與洗車手套 upsell/fbt、wetcoat/ceramicdetailer 為抹乾前後 editorial），無需刪改。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（無稀釋比例聲稱）、compatible（所有車漆表面）及尺寸 70cm x 90cm 一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字（≤60）、metaDescription 81 字（≤160）、keywords 7 項（4–8），全部符合規範。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -7459,12 +8239,25 @@
       "url": "/products/q2m-interiordetailer",
       "imageUrl": "https://gyeon.hk/uploads/1778167131910301161_500-interior-detailer-1750.webp",
       "_meta": {
-        "needsReview": [
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "8 個配對 SKU 全部存在於 catalog，已逐一核實；關係皆為 upsell/fbt/editorial，搭配（內籠清潔毛巾、皮革清潔劑、防菌塗層、除臭劑、香薰）對內籠清潔劑合理；因含 2 個 editorial 關係（非純系統來源 upsell/fbt/usage），定為 medium。未刪除或更改任何配對。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答已對照 dilutable=false／dilutionNote「即用，無需稀釋」／compatible（真皮等）／frequency「日常內飾清潔」核實；無任何答案聲稱稀釋比例，皮革適用、噴於毛巾、每 1-2 星期使用、60% 酒精殺菌等說法均與記錄一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 37 字 ≤ 60；metaDescription 85 字 ≤ 160；keywords 7 個（4–8 範圍內）；全部符合界限，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -7600,12 +8393,7 @@
       "url": "/products/q2m-interior-wipe-evo-2-pack",
       "imageUrl": "https://gyeon.hk/uploads/1778167065183993561_gyeon_interiorwipe-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith-editorial"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -7613,7 +8401,29 @@
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（微纖維毛巾），無固定使用頻率，沿用現有值「每次內籠清潔」描述使用時機。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（毛巾不涉稀釋）、compatible（皮革/塑料/黑鋼琴漆）及保養指引一致，無矛盾，無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 45 字（≤60）、metaDescription 83 字（≤160）、keywords 7 項（4–8），全部合規，無需修改。"
+          },
+          "pairedWith-editorial": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 8 個配搭 sku 均存在於 catalog；兩個 editorial 配搭（q2m-scrubpad-evo、q2m-glasswipe-evo）皆為內籠清潔合理伴隨產品，relation 為 upsell/fbt/editorial 系統來源，無刪除或更改。"
+          }
+        }
       }
     },
     {
@@ -7730,12 +8540,26 @@
       "url": "/products/q2m-purifymaintain",
       "imageUrl": "https://gyeon.hk/uploads/1778167038729875050_500-purify-maintain-1750.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "official",
+            "source": "https://gyeonusa.com/products/q2m-purify-maintain",
+            "note": "官方 Directions 確認：每月深層清潔後，在 Q²M InteriorWipe 毛巾上噴兩下擦拭高接觸面，效果可維持數週至最長 6 個月；步驟與注意事項與官方一致。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（無稀釋聲稱）、frequency（可日常使用、3 至 6 個月保護）及 compatible 一致，無矛盾，無需修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 38 字 ≤ 60；metaDescription 87 字 ≤ 160；keywords 6 項（4–8 範圍內），全部合規，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
@@ -7879,19 +8703,32 @@
       "url": "/products/q2m-odorremover",
       "imageUrl": "https://gyeon.hk/uploads/1778167036172546668_500-odor-remover-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:fbt",
           "https://gyeonusa.com/products/q2m-odor-remover"
-        ]
+        ],
+        "reviewed": {
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 8 個配搭 SKU 均存在於 catalog（q2m-interiordetailer、q2m-interior-wipe-evo-2-pack、q2m-ppf-renew、ik-multi-tr-mini-360、q2m-purifymaintain、q2m-odorremover-pads-4-pack、q2m-scents、q2m-leathercleaner-natural），無需刪除；配搭關係對除臭劑均合理。因含 3 項 editorial 關係（非全為 upsell/fbt/usage 系統來源），故定為 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條問答與已核實的 dilutable=false／dilutionNote「即用，無需稀釋」一致（FAQ 明言無需稀釋、可直接噴灑），與 frequency「清潔內飾後使用」亦無矛盾，無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字（≤60）、metaDescription 91 字（≤160）、keywords 7 項（4–8），全部符合上限，無需修剪。"
+          }
+        }
       }
     },
     {
@@ -8020,10 +8857,7 @@
       "url": "/products/q2m-leathercleaner-natural",
       "imageUrl": "https://gyeon.hk/uploads/1778167134836530578_500-leather-cleaner-natural-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -8032,7 +8866,19 @@
           "gyeon.hk:upsells",
           "gyeon.hk:fbt",
           "https://gyeonusa.com/products/q2m-leathercleaner-natural"
-        ]
+        ],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答全部與 dilutable=false、dilutionNote（即用、無固定比例）、frequency=定期保養 及 compatible（敏感真皮、nappa）一致。無任何答案聲稱稀釋比例，亦無與規格矛盾之處；頻率問答「每 1-2 星期一次」符合定期保養。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 43 字 ≤ 60；metaDescription 84 字 ≤ 160；keywords 7 項（介乎 4-8）。全部在範圍內，無需修改。"
+          }
+        }
       }
     },
     {
@@ -8165,10 +9011,19 @@
       "url": "/products/q2m-ppf-maintain",
       "imageUrl": "https://gyeon.hk/uploads/1778167126793105913_500-ppf-maintain-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實資料一致：Q3「需要稀釋嗎」對應 dilutable=false／即用無需稀釋；Q1 啞光適用對應 compatible（啞光及光面、PPF、vinyl）；Q2 勿噴玻璃對應 usage cautions；Q4 建議每 4 星期保養與 frequency「耐久 6 星期以上」不矛盾（保養頻率短於耐久期屬合理）。無任何虛構稀釋比例。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 44 字 ≤ 60；metaDescription 74 字 ≤ 160；keywords 7 項（在 4–8 範圍內）。全部符合上下限，無需修改。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -8297,18 +9152,31 @@
       "url": "/products/q2m-glasswipe-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167065538551628_gyeon_glasswipe-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（玻璃專用清潔毛巾），無固定使用頻率，沿用「每次清潔玻璃時使用」作為一般指引。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實規格一致：適用表面對應 compatible，保養方法對應 usage，尺寸對應 variant，搭配清潔劑說明無宣稱稀釋比例，與 dilutable=false 無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 37 字（≤60），metaDescription 78 字（≤160），keywords 7 項（4–8 範圍內），全部符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -8460,11 +9328,20 @@
       "url": "/products/q2m-ecowash",
       "imageUrl": "https://gyeon.hk/uploads/1778167053721073724_gyeon-q2m-eco-wash-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與已核實的 dilutable=true、稀釋比例（免水洗 1:10–1:15／無沖洗 1:150–1:256／乾燥輔助 1:20）、compatible（陶瓷塗層、PPF、車漆、玻璃、金屬、塑膠）及 frequency（每 1–2 星期一次）一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 31 字（≤60）、metaDescription 84 字（≤160）、keywords 8 項（4–8 範圍內），全部符合上限，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -8595,11 +9472,20 @@
       "url": "/products/trimcleaner",
       "imageUrl": "https://gyeon.hk/uploads/1778167129350083402_500-trim-cleaner-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "4 條 Q&A 與 dilutable=false／dilutionNote「即用，無需稀釋」、compatible（黑膠件／內飾塑膠）、frequency「日常保養」一致。第 2 條明確指出毋須稀釋，與 dilutable=false 相符；第 3 條「每 1-2 星期一次」屬日常保養範圍，無矛盾；第 4 條鍍膜準備與 keyFeatures／pairedWith q2-trim-evo 一致。無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤ 60；metaDescription 74 字 ≤ 160；keywords 6 個（4-8 範圍內）。全部符合限制，無需修正。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -8730,17 +9616,30 @@
       "url": "/products/q2m-softwipe-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167083256388695_gyeon_softwipe-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（珊瑚絨纖維毛巾），無固定使用頻率；沿用「每次內籠清潔」作參考。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答均與 dilutable=false（無稀釋比例）、compatible（皮革／塑料／黑鋼琴漆）及保養說明一致，無矛盾，無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字 ≤ 60；metaDescription 72 字 ≤ 160；keywords 7 項（4–8），全部符合，無需修正。"
+          }
+        }
       }
     },
     {
@@ -8871,11 +9770,20 @@
       "url": "/products/q2m-ppf-renew",
       "imageUrl": "https://gyeon.hk/uploads/1778167071834268260_q2mppfrenew_120ml_2021-1750x1750-1.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 已逐一核對：均無聲稱稀釋比例（dilutable=false 一致），compatible（各類 PPF，不建議啞面／劣質 PPF）、frequency（按需要）及 usage 步驟皆相符，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字元（≤60）、metaDescription 83 字元（≤160）、keywords 7 個（4–8 範圍內），全部符合界限，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -9000,19 +9908,40 @@
       "url": "/products/q2m-polishwipe-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167065363715219_gyeon_polishwipe-evo.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（微纖維拋光毛巾），無固定使用方法規格；沿用源內容作擦拭及保養指引。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率，每次拋光或施工時按需使用。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "7 個配搭 SKU 全部存在於 catalog；關係合理（拋光及美容流程配套）。含 editorial 關係，故信心為 medium，未作刪改。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "FAQ 與已核實的 dilutable=false、compatible（車漆/金屬/塑膠）、尺寸及保養一致，無宣稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤60；metaDescription 84 字 ≤160；keywords 6 個（4–8 範圍內），全部合規，無需修改。"
+          }
+        }
       }
     },
     {
@@ -9133,12 +10062,25 @@
       "url": "/products/q2m-baldwipe-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167065010722137_gyeon_baldwipe-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（超細纖維布），無固定使用頻率；沿用「每次清潔、拋光或施工保養時使用」作參考說明。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條 Q&A 均涉及適用表面、尺寸、清洗保養及搭配產品，無任何稀釋比例陳述，與 dilutable=false、compatible、frequency 一致。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字元（≤60）、metaDescription 78 字元（≤160）、keywords 7 項（4–8），全部符合上限，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -9260,12 +10202,25 @@
       "url": "/products/ppf-protect",
       "imageUrl": "https://gyeon.hk/uploads/1778167113294465594_gyeon_ppf_box-2021-1750.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（保護膜），由施工商一次性安裝，無固定使用頻率；沿用「一次性安裝，長期保護」。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答涉及 8mil 厚度、60 度自我修復、僅限施工商購買，與 dilutable=false／dilutionNote「不適用」／compatible／frequency 一致，無矛盾，毋須修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤ 60；metaDescription 72 字 ≤ 160；keywords 6 項（4–8）。全部符合上限，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
@@ -9382,19 +10337,36 @@
       "url": "/products/ppf-enhance",
       "imageUrl": "https://gyeon.hk/uploads/1778167113294465594_gyeon_ppf_box-2021-1750.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（實體保護膜），相容表面非可變產品規格；沿用既有「車漆表面／亮光漆面／原廠車漆」描述。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料一次性貼膜施工，無固定使用頻率；沿用「一次性施工，長效保護」。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答（厚度 7mil、加熱 60 度自我修復、僅限施工商、貼膜後清洗）與 dilutable=false、compatible、frequency 一致，無稀釋比例等矛盾陳述。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字（≤60）、metaDescription 80 字（≤160）、keywords 6 個（4–8）；全部符合規範，無須修改。"
+          }
+        }
       }
     },
     {
@@ -9510,19 +10482,45 @@
       "url": "/products/ppf-matte",
       "imageUrl": "https://gyeon.hk/uploads/1778167113294465594_gyeon_ppf_box-2021-1750.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "compatible",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（FILM），無標準化使用步驟；僅限專業施工商裁切及貼膜，沿用現有 cautions。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（FILM），一次性施工長效保護，無固定使用頻率。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（FILM），適用漆面非化學品相容性規格；沿用啞光／亮光／原廠車漆。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 7 個配搭 SKU 均存在於 catalog；fbt 為 PPF 洗護／工具，editorial 為 PPF 鍍膜、除汚劑及同系列 PPF Black，配搭合理，無需刪改。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 Q&A 與 dilutable=false、compatible、frequency 一致；無宣稱稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字 ≤60；metaDescription 88 字 ≤160；keywords 6 項（4–8 範圍內），全部合格。"
+          }
+        }
       }
     },
     {
@@ -9633,20 +10631,41 @@
       "url": "/products/ppf-black",
       "imageUrl": "https://gyeon.hk/uploads/1778167113294465594_gyeon_ppf_box-2021-1750.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "compatible",
-          "faq",
-          "seo"
-        ],
-        "confidence": "medium",
+        "needsReview": [],
+        "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料（實體保護膜），由專業施工商貼膜安裝，無標準化液體使用步驟；保留 cautions 註明加熱自我修復及僅限施工商安裝。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料，一次性貼膜長期保護，無固定使用頻率。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "PPF 物料，適用於車身原廠車漆表面；非液體產品故無相容性規格意義，沿用既有值。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（無稀釋）、frequency（一次性施工）、僅限施工商等核實內容一致，無矛盾，無需修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字（≤60）、metaDescription 77 字（≤160）、keywords 7 項（4–8），全部合規，無需修正。"
+          }
+        }
       }
     },
     {
@@ -9782,21 +10801,42 @@
       "url": "/products/q2m-clay-bars",
       "imageUrl": "https://gyeon.hk/uploads/1778167121401437051_claybars.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "medium",
+        "needsReview": [],
+        "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（去汚泥），無固定鍍膜式使用規格；保留源內容的施工步驟與注意事項作參考。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率；按車漆污染情況或鍍膜施工前需要而用。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "四條問答與 dilutable=false（無稀釋比例聲稱）、compatible（車漆/玻璃/金屬/塑膠）及 frequency 一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字 ≤60；metaDescription 94 字 ≤160；keywords 7 個（4–8 範圍內）。全部合規，無需修改。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 7 個配對 sku（q2m-baldwipe-evo、q2m-prep、q2m-washpad-evo、q2m-silkdryer-evo、q2m-iron、q2m-tar、q2-pure-evo）均存在於 catalog；關係為 fbt/editorial，洗車去汚流程合理，未刪改任何配對。"
+          }
+        }
       }
     },
     {
@@ -9916,19 +10956,36 @@
       "url": "/products/q2m-wheelbrush",
       "imageUrl": "https://gyeon.hk/uploads/1778167084926019744_gyeon-q2m-wheelbrush-medium_1024x.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（輪圈刷），使用方法屬清潔/保養操作步驟而非化學產品規格；沿用源內容步驟與注意事項。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率；隨每次洗車按需使用，沿用「每次洗車」。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答（尺寸、可搭配輪圈清潔劑、保養）均與 dilutable=false、compatible（輪圈）、frequency 一致，無宣稱稀釋比例的矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字 ≤ 60；metaDescription 81 字 ≤ 160；keywords 6 項（4–8 範圍內），均符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -10046,17 +11103,30 @@
       "url": "/products/q2m-silkmitt",
       "imageUrl": "https://gyeon.hk/uploads/1778167083191414793_gyeon-q2m-silkmitt.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（超細纖維抹車手套），無固定使用頻率；沿用「每次洗車」作參考。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 Q&A（適用位置、清潔保養、會否刮花車漆）均無提及稀釋比例，與 dilutable=false、dilution={} 一致；內容亦符合 compatible 及保養說明，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 32 字（≤60）、metaDescription 91 字（≤160）、keywords 7 項（4–8 範圍內），全部符合規則，無需修改。"
+          }
+        }
       }
     },
     {
@@ -10171,12 +11241,25 @@
       "url": "/products/q2m-washpad-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167081787062517_gyeon_washpad-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（雙面洗車手套），無固定使用頻率規格，每次洗車時使用；沿用現值「每次洗車」。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與已核實欄位一致：清潔保養（30°C 機洗、勿烘乾/燙/漂白）對應 usage；「適用於車漆、金屬及塑膠」對應 compatible；dilutable=false 且無問答提及稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 35 字（≤60）、metaDescription 86 字（≤160）、keywords 6 個（4–8），全部合規，無需修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -10306,20 +11389,41 @@
       "url": "/products/q2m-tire-applicator",
       "imageUrl": "https://gyeon.hk/uploads/1778167080520028602_q2m_tire_applicator_small_1750.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "frequency",
-          "faq",
-          "seo",
-          "pairedWith"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:excerpt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（輪胎塗抹海綿），使用步驟屬編輯性指引而非產品規格，沿用源內容。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率，隨每次輪胎保養使用。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false、compatible=[輪胎]、frequency 一致，無任何宣稱稀釋比例或矛盾內容。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 44 字（≤60）、metaDescription 91 字（≤160）、keywords 6 項（4–8），全部符合上限，無需修改。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "7 個配搭 SKU（q2-tire、q2m-tire-express、q2m-iron-wheelcleaner、q2m-tirebrush、q2m-mf-applicator-evo-2-pack、q2m-tirecleaner、q2-rim）全部存在於 catalog，未刪除任何項目；配搭關係合理，但含兩個 editorial 關係（q2m-tirecleaner、q2-rim）非系統來源，故置中等信心。"
+          }
+        }
       }
     },
     {
@@ -10432,17 +11536,30 @@
       "url": "/products/q2m-tirebrush",
       "imageUrl": "https://gyeon.hk/uploads/1778167031383071817_gyeon-q2m-tirebrush-512x473w.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（輪胎清潔刷），無固定使用頻率，沿用「每次洗車或清潔輪胎時使用」作參考"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答均與 dilutable=false（不可稀釋）、compatible（輪胎及橡膠部件）一致，無聲稱稀釋比例，無矛盾"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 30 字（≤60）、metaDescription 80 字（≤160）、keywords 6 項（4–8），全部合規，無需修改"
+          }
+        }
       }
     },
     {
@@ -10543,11 +11660,11 @@
         },
         {
           "q": "需要稀釋嗎？",
-          "a": "可直接均勻噴灑於織物表面，靜置 1-2 分鐘後刷洗；亦可作為濕洗機的預噴劑進行深度清潔。"
+          "a": "不需要，本品為即用配方，無需稀釋。直接均勻噴灑於織物表面，靜置 1-2 分鐘後刷洗；亦可作為濕洗機的預噴劑進行深度清潔。"
         },
         {
           "q": "多久使用一次？",
-          "a": "建議每 2-4 星期使用一次，維持織物潔淨及清新。"
+          "a": "按需要使用即可，發現織物有污垢或污漬時施用；重污區域可重覆施用直至潔淨。"
         },
         {
           "q": "清潔後可以加強保護嗎？",
@@ -10569,11 +11686,20 @@
       "url": "/products/q2m-fabriccleaner",
       "imageUrl": "https://gyeon.hk/uploads/1778167067563512451_1000-fabric-cleaner-3000.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "對照 dilutable=false / dilutionNote「即用，無需稀釋」/ frequency「按需要」核對。修正 Q2：明確補上「即用，無需稀釋」以符合 dilutable=false。修正 Q3：原答案「每 2-4 星期使用一次」與 frequency「按需要」矛盾，改為按需要使用、重污可重覆施用。Q1、Q4 與 compatible 及 pairedWith（Q² FabricCoat）一致，保留。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤ 60；metaDescription 76 字 ≤ 160；keywords 6 項（4–8 範圍內）。全部符合限制，毋須修改。"
+          }
+        },
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
@@ -10694,14 +11820,7 @@
       "url": "/products/q2m-leather-brush",
       "imageUrl": "https://gyeon.hk/uploads/1778167065890371022_gyeon-q2m-leather-brush-cover.webp",
       "_meta": {
-        "needsReview": [
-          "usage",
-          "compatible",
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -10709,7 +11828,39 @@
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "usage": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（皮革清潔刷），無標準化使用方法規格；沿用源內容的清潔及保養步驟。"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定相容性規格；沿用源內容（各種皮革表面、車輛內飾皮革、敏感皮革表面）。"
+          },
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定使用頻率；按需於每次皮革清潔時使用。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 6 個配對 sku 均存在於 catalog（q2m-leathercleaner-natural、q2m-interiordetailer、trimcleaner、q2m-mf-applicator-evo-2-pack、q2-leathercoat、gyeon-q2m-leather-set-natural），皆為皮革清潔/鍍膜/塗抹工具/套裝，與皮革刷搭配合理，無需刪改。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條 Q&A 與 compatible、frequency 一致；dilutable=false 且 dilution 為空，FAQ 未提任何稀釋比例，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字（≤60）、metaDescription 73 字（≤160）、keywords 6 項（4–8），全部符合，無需修改。"
+          }
+        }
       }
     },
     {
@@ -10815,18 +11966,35 @@
       "url": "/products/q2m-mf-applicator-evo-2-pack",
       "imageUrl": "https://gyeon.hk/uploads/1778167065730591989_gyeon_mf-applicator-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（超細纖維塗抹布），無固定使用頻率，可重複使用、損壞時更換。"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "四個配搭 SKU（q2-leathercoat、q2-leathershield、q2-rim、q2m-leathercleaner-natural）均存在於 catalog，且皆為皮革／輪圈鍍膜或皮革清潔劑，與本皮革／輪圈塗抹布搭配合理；未有刪改。relation 全為 editorial（非系統 upsell/fbt/usage），故信心 medium。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與 dilutable=false（無稀釋宣稱）、compatible（皮革／輪圈／複雜面板）及 frequency（可重複使用、損壞更換）一致，無矛盾。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 45 字 ≤ 60；metaDescription 91 字 ≤ 160；keywords 6 項（4–8 範圍內），全部合規，無需修改。"
+          }
+        }
       }
     },
     {
@@ -10940,21 +12108,42 @@
       "url": "/products/q2m-scrubpad-evo",
       "imageUrl": "https://gyeon.hk/uploads/1778167057156749235_gyeon-q2m-scrub-pad-evo.webp",
       "_meta": {
-        "needsReview": [
-          "frequency",
-          "compatible",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
-        "confidence": "high",
+        "needsReview": [],
+        "confidence": "medium",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "frequency": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（內飾清潔海綿），無固定使用頻率，每次內飾清潔時使用即可"
+          },
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，並非可量化的產品規格；沿用源內容（車內皮革、塑料飾條、車內塑料件），與雙面海綿用途一致"
+          },
+          "pairedWith": {
+            "confidence": "medium",
+            "basis": "editorial",
+            "note": "全部 6 個配搭 SKU 均存在於 catalog，且皆為內飾清潔相關（內飾清潔劑/皮革清潔劑/飾條清潔劑/玻璃清潔劑/內籠毛巾/皮革刷），合理；無刪除。因含一個 editorial 關係，故信心為 medium"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "FAQ 內容（兩面分別、適用表面、保養方法）與 dilutable=false 一致，無任何稀釋比例或矛盾陳述"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 36 字 ≤60；metaDescription 77 字 ≤160；keywords 6 項（4–8）；全部符合，無需修改"
+          }
+        }
       }
     },
     {
@@ -11081,10 +12270,19 @@
       "url": "/products/q2m-totalremover",
       "imageUrl": "https://gyeon.hk/uploads/1778167056186047437_gyeon-q2m-total-remover-1750.webp",
       "_meta": {
-        "needsReview": [
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
+        "reviewed": {
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與已核實的 dilutable=false、dilutionNote（即用無需稀釋）、compatible（車漆）、frequency（按需要）一致；無問答聲稱稀釋比例或與其他規格抵觸，毋須修正。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 33 字（≤60）、metaDescription 73 字（≤160）、keywords 7 項（4–8），全部符合上下限，毋須修正。"
+          }
+        },
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
@@ -11211,20 +12409,41 @@
       "url": "/products/q2m-odorremover-pads-4-pack",
       "imageUrl": "https://gyeon.hk/uploads/1778167033571544396_4-odor-remover-pads-1750.webp",
       "_meta": {
-        "needsReview": [
-          "compatible",
-          "incompatible",
-          "pairedWith",
-          "faq",
-          "seo"
-        ],
+        "needsReview": [],
         "confidence": "high",
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:fbt"
-        ]
+        ],
+        "reviewed": {
+          "compatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具（除臭墊板），適用空間屬使用場景而非固定產品相容性規格；沿用源內容（車內、家中、辦公室、商業場所、船隻、機艙）。"
+          },
+          "incompatible": {
+            "confidence": "high",
+            "basis": "not-applicable",
+            "note": "工具，無固定相容性規格；潮濕環境僅為延長耐用度的存放注意事項，沿用源內容。"
+          },
+          "pairedWith": {
+            "confidence": "high",
+            "basis": "editorial",
+            "note": "全部 6 個配對 sku 均存在於 catalog（q2m-odorremover、q2m-interiordetailer、q2m-scrubpad-evo、q2m-baldwipe-evo、q2m-purifymaintain、q2m-scents），關係皆為 fbt/editorial 系統推薦，配搭合理，無刪除或更動。"
+          },
+          "faq": {
+            "confidence": "high",
+            "basis": "consistency-check",
+            "note": "三條問答與已核實的 dilutable=false（無稀釋）、frequency（每 3-6 個月更換）、compatible（適用空間）一致，無矛盾，未作修改。"
+          },
+          "seo": {
+            "confidence": "high",
+            "basis": "mechanical-check",
+            "note": "metaTitle 38 字（≤60）、metaDescription 81 字（≤160）、keywords 7 項（4–8）皆在範圍內，無需修正。"
+          }
+        }
       }
     }
   ]

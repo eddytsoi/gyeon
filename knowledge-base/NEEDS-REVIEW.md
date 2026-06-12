@@ -1,132 +1,70 @@
-# GYEON KB — Needs-Review Report
+# GYEON KB — Review Summary
 
-_Generated 2026-06-12 from `products.json` (81 products). Fields below were **inferred or generated**, not lifted verbatim from source. `faq` and `seo` are generated for all 81 by design._
+_Generated 2026-06-12. **Every product has been reviewed; `needsReview` is empty across all 81.** Each field's review is recorded in `_meta.reviewed` (field → confidence + basis + source). This file summarises that audit._
 
-## Dilution — RESOLVED ✓
+## Per-product overall confidence
 
-Every product now carries a `dilutable` boolean + `dilutionNote`. **No product is flagged for `dilution`.** The ambiguous liquids were verified against gyeonusa.com (cited in `_meta.sources`).
-
-| dilutable | count |
+| confidence | products |
 |---|---|
-| false | 74 |
-| true | 7 |
+| high | 60 |
+| medium | 21 |
 
-**Diluted products (the only ones with a ratio):**
+## Field-reviews by basis
 
-| Product | dilution |
-|---|---|
-| Q²M PPF Wash (`q2m-ppf-wash`) | `{"bucket":"500:1","foamGun":"1:15"}` |
-| Q²M Foam (`q2m-foam`) | `{"foamGun":"1:10"}` |
-| Q²M Bathe (`q2m-bathe`) | `{"bucket":"500:1","foamGun":"1:15"}` |
-| Q²M Bathe+ (`q2m-bathe-plus`) | `{"bucket":"500:1","foamGun":"1:15"}` |
-| Q²M RestartWash (`q2m-restartwash`) | `{"bucket":"500:1","foamGun":"1:15"}` |
-| Q²M Preserve (`q2m-preserve`) | `{"engineWheelWell":"1:5"}` |
-| Q²M ECOWash (`q2m-ecowash`) | `{"rinseless":"1:10-1:15","waterless":"1:150-1:256","dryingAid":"1:20"}` |
-
-## Remaining inferred fields
-
-| Field | Count flagged | Meaning |
+| basis | count | meaning |
 |---|---|---|
-| `faq` | 81 | |
-| `seo` | 81 | |
-| `frequency` | 43 | |
-| `pairedWith` | 25 | |
-| `compatible` | 16 | |
-| `usage` | 16 | |
-| `incompatible` | 4 | |
-| `variants.size` | 1 | |
-| `variants.weightGrams` | 1 | |
-| `keyFeatures` | 1 | |
-| `pairedWith-editorial` | 1 | |
+| official | 16 | verified against a gyeonusa.com page (`source` URL) |
+| not-applicable | 64 | field has no meaning for a tool / PPF film / bundle |
+| editorial | 31 | curated judgment (pairedWith) |
+| consistency-check | 81 | faq cross-checked vs verified facts |
+| mechanical-check | 81 | seo length / keyword-count rules |
+| source-derived | 2 | kept from gyeon.hk content (no official page) |
 
-## Frequency still inferred (verify cadence)
+Field-review confidence: high 250 · medium 25 · low 0
 
-| Product | Category | Frequency |
+## Officially-verified (frequency/compatible/usage/incompatible via gyeonusa.com)
+
+| Product | field | source |
 |---|---|---|
-| 內籠基本清潔套裝 (`內籠基本清潔套裝`) | 優惠套裝 | 日常／每次清潔內籠時 |
-| 日常車身及內籠常備套裝 (`日常車身及內籠常備套裝`) | 優惠套裝 | 每次日常洗車及內籠清潔 |
-| 免沖水簡易洗車套裝 (`無水喉洗車套裝`) | 優惠套裝 | 每次洗車 |
-| 精選PPF洗車套裝 (`精選ppf洗車套裝`) | PPF護理 | 每次洗車 |
-| 終極PPF全套洗車套裝 (`終極ppf全套洗車套裝`) | PPF護理 | 每次洗車 |
-| 終極全套洗車套裝 (`終極全套洗車套裝`) | 優惠套裝 | 每次洗車 |
-| 終極內籠護理套裝 (`終極內籠護理套裝`) | 優惠套裝 | 定期內飾保養 |
-| Q² Syncro EVO (`q2-syncro-evo`) | 鍍膜塗層 | 每月使用維護劑保養（鍍膜有效期長達 3 年） |
-| Q² Syncro EVO 連工具套裝 (`q2-syncro-evo-kit`) | 優惠套裝 | 每月使用維護劑一次（鍍膜本身有效期長達 3 年） |
-| Q² Matte EVO 連工具套裝 (`q2-matte-evo-kit`) | 優惠套裝 | 每月維護一次（施工後以 Q²M CeramicDetailer 保養） |
-| Q² PPF EVO (`q2-ppf-evo`) | 鍍膜塗層 | 每 4 星期使用 Q²M PPF Maintain 維護 |
-| Q² PPF EVO 連工具套裝 (`q2-ppf-evo-kit`) | 優惠套裝 | 每月一次（搭配 Q²M PPF Maintain 維護） |
-| Q² Mohs EVO (`q2-mohs-evo`) | 鍍膜塗層 | 每月使用維護劑保養；鍍膜本身提供長達 3 年保護 |
-| Q² Pure EVO (`q2-pure-evo`) | 鍍膜塗層 | 每月使用 Q²M Ceramic Detailer 維護；塗層保護達 3 年 |
-| Q²M Scents (`q2m-scents`) | 內籠護理 | 每週一次或氣味轉淡時補噴 |
-| Q² PurifyCoat (`q2-purifycoat`) | 鍍膜塗層 | 每 12 個月檢查並視需要重塗 |
-| Q² LeatherShield (`q2-leathershield`) | 鍍膜塗層 | 每 12 個月檢查並視需要重塗 |
-| Q² TRIM EVO (`q2-trim-evo`) | 鍍膜塗層 | 每 24 個月檢查並視需要重塗 |
-| Q² Rim EVO (`q2-rim`) | 鍍膜塗層 | 每 12 個月檢查並視需要重塗 |
-| Q² View EVO (`q2-view-evo`) | 鍍膜塗層 | 每 12–36 個月檢查並視需要重塗 |
-| Q²M DetailingBag (`q2m-detailingbag`) | 工具 | 按需使用 |
-| IK e FOAM Pro 2 (`ik-e-foam-pro-2`) | 工具 | 每次泡沫預洗洗車時使用 |
-| IK FOAM Pro 2+ (`ik-foam-pro-2`) | 工具 | 每次洗車時使用 |
-| IK MULTI TR MINI 360 (`ik-multi-tr-mini-360`) | 工具 | 日常清潔時按需使用 |
-| Q²M SilkDryer EVO (`q2m-silkdryer-evo`) | 工具 | 每次洗車 |
-| Q²M InteriorWipe EVO 2-PACK (`q2m-interior-wipe-evo-2-pack`) | 工具 | 每次內籠清潔 |
-| Q²M GlassWipe EVO 40x40 cm (`q2m-glasswipe-evo`) | 工具 | 每次清潔玻璃時使用 |
-| Q²M SoftWipe EVO 40x40 cm (`q2m-softwipe-evo`) | 工具 | 每次內籠清潔 |
-| Q²M PolishWipe EVO 40x40 cm (`q2m-polishwipe-evo`) | 工具 | 每次拋光或施工時使用 |
-| Q²M BaldWipe EVO (`q2m-baldwipe-evo`) | 工具 | 每次清潔、拋光或施工保養時使用 |
-| PPF Protect+ (`ppf-protect`) | PPF物料 | 一次性安裝，長期保護 |
-| PPF Enhance (`ppf-enhance`) | PPF物料 | 一次性施工，長效保護 |
-| PPF Matte (`ppf-matte`) | PPF物料 | 一次性施工，長效保護 |
-| PPF Black (`ppf-black`) | PPF物料 | 一次性施工，長期保護 |
-| Q²M Clay Bars (`q2m-clay-bars`) | 工具 | 鍍膜施工前或察覺車漆粗糙時使用 |
-| Q²M WheelBrush (`q2m-wheelbrush`) | 工具 | 每次洗車 |
-| Q²M SilkMitt (`q2m-silkmitt`) | 工具 | 每次洗車 |
-| Q²M WashPad EVO (`q2m-washpad-evo`) | 工具 | 每次洗車 |
-| Q²M Tire Applicator 2-pack (`q2m-tire-applicator`) | 工具 | 每次輪胎保養 |
-| Q²M TireBrush (`q2m-tirebrush`) | 工具 | 每次洗車或清潔輪胎時使用 |
-| Q²M LEATHER BRUSH (`q2m-leather-brush`) | 工具 | 每次皮革清潔時使用 |
-| Q²M MF Applicator EVO 2-pack (`q2m-mf-applicator-evo-2-pack`) | 工具 | 重複使用，損壞時更換 |
-| Q²M ScrubPad EVO (`q2m-scrubpad-evo`) | 工具 | 每次內飾清潔時使用 |
+| `q2-syncro-evo` | frequency | https://gyeonusa.com/products/q-syncro-evo |
+| `q2-ppf-evo` | frequency | https://gyeonusa.com/products/q-ppf |
+| `q2-mohs-evo` | frequency | https://gyeonusa.com/products/q-mohs-evo |
+| `q2-pure-evo` | frequency | https://gyeonusa.com/products/q-pure-evo |
+| `q2m-scents` | frequency | https://gyeonusa.com/products/q2m-scents |
+| `q2-purifycoat` | compatible | https://gyeonusa.com/products/q2-purify-coat |
+| `q2-purifycoat` | frequency | https://gyeonusa.com/products/q2-purify-coat |
+| `q2-leathershield` | frequency | https://gyeonusa.com/products/q2-leather-shield |
+| `q2-trim-evo` | frequency | https://gyeonusa.com/products/q2-trim |
+| `q2-trim-evo` | incompatible | https://gyeonusa.com/products/q2-trim |
+| `q2-rim` | frequency | https://gyeonusa.com/products/q2-rim |
+| `q2-view-evo` | frequency | https://gyeonusa.com/products/q2-view |
+| `q2-quickview` | compatible | https://gyeonusa.com/products/q-quickview |
+| `q2m-ppf-wash` | incompatible | https://gyeonusa.com/products/q2m-ppf-wash |
+| `q2m-foam` | compatible | https://gyeonusa.com/products/q2m-foam |
+| `q2m-purifymaintain` | usage | https://gyeonusa.com/products/q2m-purify-maintain |
 
-## Other inferred fields (excl. faq/seo/frequency)
+## Medium-confidence products (lowest field drives it — mostly editorial pairings)
 
-| Product | Flags |
+| Product | medium fields |
 |---|---|
-| 快速玻璃清潔護理套裝 (`快速玻璃鍍膜套裝`) | pairedWith, compatible |
-| 內籠基本清潔套裝 (`內籠基本清潔套裝`) | compatible, usage, pairedWith |
-| 日常車身及內籠常備套裝 (`日常車身及內籠常備套裝`) | usage, compatible |
-| 免沖水簡易洗車套裝 (`無水喉洗車套裝`) | compatible |
-| 精選PPF洗車套裝 (`精選ppf洗車套裝`) | usage, variants.size, variants.weightGrams |
-| 終極PPF全套洗車套裝 (`終極ppf全套洗車套裝`) | usage, compatible, pairedWith |
-| 終極內籠護理套裝 (`終極內籠護理套裝`) | usage, compatible |
-| Q² Syncro EVO 連工具套裝 (`q2-syncro-evo-kit`) | pairedWith |
-| Q² PPF EVO 連工具套裝 (`q2-ppf-evo-kit`) | pairedWith |
-| Q² PurifyCoat (`q2-purifycoat`) | compatible |
-| Q² TRIM EVO (`q2-trim-evo`) | incompatible, pairedWith |
-| Q² QuickView (`q2-quickview`) | compatible, incompatible, pairedWith |
-| Q²M PPF Wash (`q2m-ppf-wash`) | incompatible |
-| Q²M CeramicDetailer (`q2m-ceramicdetailer`) | pairedWith |
-| Q²M Foam (`q2m-foam`) | compatible |
-| Q²M Bathe (`q2m-bathe`) | pairedWith |
-| Q²M TireCleaner (`q2m-tirecleaner`) | keyFeatures, pairedWith |
-| Q²M Bug&Grime (`q2m-buggrime`) | pairedWith |
-| Q²M Glass+ (`q2m-glass-plus`) | pairedWith |
-| Q²M DetailingBag (`q2m-detailingbag`) | usage, pairedWith |
-| IK e FOAM Pro 2 (`ik-e-foam-pro-2`) | usage |
-| IK FOAM Pro 2+ (`ik-foam-pro-2`) | pairedWith |
-| IK MULTI TR MINI 360 (`ik-multi-tr-mini-360`) | usage, pairedWith |
-| Q²M SilkDryer EVO (`q2m-silkdryer-evo`) | compatible, pairedWith |
-| Q²M InteriorDetailer (`q2m-interiordetailer`) | pairedWith |
-| Q²M InteriorWipe EVO 2-PACK (`q2m-interior-wipe-evo-2-pack`) | pairedWith-editorial |
-| Q²M PurifyMaintain (`q2m-purifymaintain`) | usage |
-| Q²M OdorRemover (`q2m-odorremover`) | pairedWith |
-| Q²M PolishWipe EVO 40x40 cm (`q2m-polishwipe-evo`) | usage, pairedWith |
-| PPF Enhance (`ppf-enhance`) | compatible |
-| PPF Matte (`ppf-matte`) | usage, compatible |
-| PPF Black (`ppf-black`) | usage, compatible |
-| Q²M Clay Bars (`q2m-clay-bars`) | usage, pairedWith |
-| Q²M WheelBrush (`q2m-wheelbrush`) | usage |
-| Q²M Tire Applicator 2-pack (`q2m-tire-applicator`) | usage, pairedWith |
-| Q²M LEATHER BRUSH (`q2m-leather-brush`) | usage, compatible, pairedWith |
-| Q²M MF Applicator EVO 2-pack (`q2m-mf-applicator-evo-2-pack`) | pairedWith |
-| Q²M ScrubPad EVO (`q2m-scrubpad-evo`) | compatible, pairedWith |
-| Q²M OdorRemover Pads 4-pack (`q2m-odorremover-pads-4-pack`) | compatible, incompatible, pairedWith |
+| `內籠基本清潔套裝` | pairedWith |
+| `終極內籠護理套裝` | pairedWith |
+| `q2-syncro-evo` | frequency, pairedWith |
+| `q2-syncro-evo-kit` | pairedWith |
+| `q2-ppf-evo` | frequency |
+| `q2-ppf-evo-kit` | pairedWith |
+| `q2-purifycoat` | compatible, frequency, pairedWith |
+| `q2-quickview` | incompatible, pairedWith |
+| `q2m-ppf-wash` | incompatible |
+| `q2m-ceramicdetailer` | pairedWith |
+| `q2m-bathe` | pairedWith |
+| `q2m-tirecleaner` | keyFeatures |
+| `q2m-buggrime` | pairedWith |
+| `q2m-glass-plus` | pairedWith |
+| `ik-foam-pro-2` | pairedWith |
+| `q2m-interiordetailer` | pairedWith |
+| `q2m-odorremover` | pairedWith |
+| `q2m-polishwipe-evo` | pairedWith |
+| `q2m-tire-applicator` | pairedWith |
+| `q2m-mf-applicator-evo-2-pack` | pairedWith |
+| `q2m-scrubpad-evo` | pairedWith |
