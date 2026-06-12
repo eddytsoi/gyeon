@@ -2480,7 +2480,7 @@
   "admin_stock_velocity_col_days_left": "剩餘可售天數",
   "admin_stock_velocity_in_stock": "有貨",
   "admin_stock_velocity_out_of_stock": "缺貨",
-  "admin_stock_velocity_stockout_on": "預計 {date} 售罄",
+  "admin_stock_velocity_stockout_on": "<span class=\"whitespace-nowrap\">預計</span> {date} <span class=\"whitespace-nowrap\">售罄</span>",
   "admin_stock_velocity_empty": "此時間範圍內冇銷售記錄。",
   "admin_stock_velocity_capped": "只顯示前 {n} 個規格，請縮短時間範圍以取得完整資料。",
   "admin_stock_velocity_sort_aria": "按 {column} 排序",

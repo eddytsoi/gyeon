@@ -166,7 +166,7 @@
           <td class="px-5 py-3 text-right">
             <div class="tabular-nums font-medium {daysColour(r.days_left)}">{r.days_left ?? '—'}</div>
             {#if r.days_left != null}
-              <p class="text-xs text-gray-400">{m.admin_stock_velocity_stockout_on({ date: formatDate(r.days_left) })}</p>
+              <p class="text-xs text-gray-400">{@html m.admin_stock_velocity_stockout_on({ date: formatDate(r.days_left) })}</p>
             {/if}
           </td>
         </tr>
