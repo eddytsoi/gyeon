@@ -3,6 +3,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { page } from '$app/state';
   import {
+    adminCombineMutationsIntoOrder,
     adminDeleteStockMutation,
     adminDuplicateStockMutation,
     adminExecuteStockMutation,
@@ -12,6 +13,7 @@
     type StockMutationType
   } from '$lib/api/admin';
   import { notify } from '$lib/stores/notifications.svelte';
+  import CustomerPicker, { type CustomerSelection } from '$lib/components/admin/CustomerPicker.svelte';
   import NewButton from '$lib/components/admin/NewButton.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
@@ -19,6 +21,96 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
+
+  // ── Combine executed out-mutations into one order ─────────────────────────
+  // Only already-executed, not-yet-consumed out-mutations are eligible. The
+  // selected set is rolled into a single accounting-only order (no re-deduction
+  // of stock); the backend locks each source mutation to that order.
+  let selectedIds = $state<string[]>([]);
+  let combineOpen = $state(false);
+  let combineCustomer = $state<CustomerSelection>({ kind: 'none' });
+  let combineAddressId = $state('');
+  let combineStatus = $state<'pending' | 'processing'>('pending');
+  let combineCoupon = $state('');
+  let combineSubmitting = $state(false);
+
+  function isCombinable(row: StockMutationSummary): boolean {
+    return row.type === 'out' && row.status === 'executed' && !row.consumed_by_order_id;
+  }
+
+  const combinableRows = $derived(data.list.items.filter(isCombinable));
+  const allCombinableSelected = $derived(
+    combinableRows.length > 0 && combinableRows.every((r) => selectedIds.includes(r.id))
+  );
+
+  function toggleSelect(id: string) {
+    selectedIds = selectedIds.includes(id)
+      ? selectedIds.filter((x) => x !== id)
+      : [...selectedIds, id];
+  }
+
+  function toggleSelectAll() {
+    selectedIds = allCombinableSelected ? [] : combinableRows.map((r) => r.id);
+  }
+
+  function openCombine() {
+    // Drop any ids that scrolled out of view / changed page so the dialog only
+    // acts on still-visible, still-eligible rows.
+    selectedIds = selectedIds.filter((id) => combinableRows.some((r) => r.id === id));
+    if (selectedIds.length === 0) return;
+    combineCustomer = { kind: 'none' };
+    combineAddressId = '';
+    combineStatus = 'pending';
+    combineCoupon = '';
+    combineOpen = true;
+  }
+
+  // Preselect the customer's default address whenever an existing customer is
+  // picked (combine bills a known customer/installer, so a saved address is the
+  // common case).
+  $effect(() => {
+    if (combineCustomer.kind === 'existing' && combineCustomer.addresses.length > 0) {
+      const def =
+        combineCustomer.addresses.find((a) => a.is_default) ?? combineCustomer.addresses[0];
+      if (!combineAddressId || !combineCustomer.addresses.some((a) => a.id === combineAddressId)) {
+        combineAddressId = def.id;
+      }
+    }
+  });
+
+  const combineReady = $derived(
+    combineCustomer.kind === 'existing' &&
+      combineCustomer.addresses.length > 0 &&
+      combineAddressId !== ''
+  );
+
+  async function submitCombine() {
+    if (!data.token || !combineReady || combineCustomer.kind !== 'existing') return;
+    combineSubmitting = true;
+    try {
+      const order = await adminCombineMutationsIntoOrder(data.token, {
+        mutation_ids: selectedIds,
+        customer_id: combineCustomer.customer.id,
+        shipping_address_id: combineAddressId,
+        initial_status: combineStatus,
+        coupon_code: combineCoupon.trim() ? combineCoupon.trim() : null
+      });
+      notify.success(m.admin_stock_mutations_combine_success({ id: order.order_number }));
+      combineOpen = false;
+      selectedIds = [];
+      await goto(`/admin/orders/${order.id}`);
+    } catch (e) {
+      notify.error(
+        m.admin_stock_mutations_combine_failure(),
+        e instanceof Error ? e.message : m.admin_stock_mutations_unknown_error()
+      );
+      // A 409/422 usually means a row was consumed by a concurrent op — refresh
+      // so its checkbox flips to the disabled "已綜合" state.
+      await invalidateAll();
+    } finally {
+      combineSubmitting = false;
+    }
+  }
 
   let deleteTarget = $state<StockMutationSummary | null>(null);
   let deleting = $state(false);
@@ -405,6 +497,16 @@
       <table class="w-full text-sm">
         <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
+            <th class="px-3 py-2 w-10">
+              <input
+                type="checkbox"
+                class="rounded border-gray-300"
+                checked={allCombinableSelected}
+                disabled={combinableRows.length === 0}
+                onchange={toggleSelectAll}
+                aria-label={m.admin_stock_mutations_combine_select_aria()}
+              />
+            </th>
             <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_number()}</th>
             <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_type()}</th>
             <th class="px-4 py-2 font-medium">{m.admin_stock_mutations_col_status()}</th>
@@ -418,13 +520,30 @@
         <tbody>
           {#if data.list.items.length === 0}
             <tr>
-              <td colspan="8" class="px-4 py-10 text-center text-sm text-gray-400">
+              <td colspan="9" class="px-4 py-10 text-center text-sm text-gray-400">
                 {hasFilters ? m.admin_stock_mutations_empty_with_filters() : m.admin_stock_mutations_empty_no_filters()}
               </td>
             </tr>
           {:else}
             {#each data.list.items as row (row.id)}
               <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="px-3 py-2">
+                  {#if row.consumed_by_order_id}
+                    <a href="/admin/orders/{row.consumed_by_order_id}"
+                       class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 hover:bg-violet-100"
+                       title={m.admin_stock_mutations_combine_consumed_title()}>
+                      {m.admin_stock_mutations_combine_consumed_badge()}
+                    </a>
+                  {:else if isCombinable(row)}
+                    <input
+                      type="checkbox"
+                      class="rounded border-gray-300"
+                      checked={selectedIds.includes(row.id)}
+                      onchange={() => toggleSelect(row.id)}
+                      aria-label={m.admin_stock_mutations_combine_select_aria()}
+                    />
+                  {/if}
+                </td>
                 <td class="px-4 py-2 font-mono text-sm">
                   <a href="/admin/stock-mutations/{row.id}" class="text-gray-900 hover:underline">{row.mutation_number}</a>
                 </td>
@@ -514,6 +633,87 @@
 
   <Pagination total={data.list.total} pageSize={data.pageSize} currentPage={data.page} />
 </div>
+
+<!-- Sticky action bar — appears once at least one out-mutation is selected. -->
+{#if selectedIds.length > 0}
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-gray-900 text-white rounded-full shadow-xl pl-5 pr-2 py-2">
+    <span class="text-sm">{selectedIds.length}</span>
+    <button
+      type="button"
+      onclick={openCombine}
+      class="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full bg-white text-gray-900 hover:bg-gray-100"
+    >
+      {m.admin_stock_mutations_combine_btn({ n: String(selectedIds.length) })}
+    </button>
+    <button
+      type="button"
+      onclick={() => (selectedIds = [])}
+      class="p-1.5 rounded-full text-gray-300 hover:text-white hover:bg-white/10"
+      aria-label={m.admin_stock_mutations_cancel()}
+    >
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+{/if}
+
+{#if combineOpen}
+  <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-lg font-semibold">{m.admin_stock_mutations_combine_modal_title()}</h2>
+      <p class="text-sm text-gray-600">{m.admin_stock_mutations_combine_modal_desc({ n: String(selectedIds.length) })}</p>
+
+      <div class="space-y-1.5">
+        <label class="block text-sm font-medium text-gray-700" for="combine-customer">{m.admin_stock_mutations_combine_customer_label()}</label>
+        {#if data.token}
+          <CustomerPicker token={data.token} bind:value={combineCustomer} />
+        {/if}
+      </div>
+
+      {#if combineCustomer.kind === 'existing'}
+        {#if combineCustomer.addresses.length > 0}
+          <div class="space-y-1.5">
+            <label class="block text-sm font-medium text-gray-700" for="combine-address">{m.admin_stock_mutations_combine_address_label()}</label>
+            <select id="combine-address" bind:value={combineAddressId}
+                    class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+              {#each combineCustomer.addresses as a (a.id)}
+                <option value={a.id}>{a.first_name} {a.last_name} · {a.line1}{a.is_default ? ' ·★' : ''}</option>
+              {/each}
+            </select>
+          </div>
+        {:else}
+          <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">{m.admin_stock_mutations_combine_no_address()}</p>
+        {/if}
+      {/if}
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="block text-sm font-medium text-gray-700" for="combine-status">{m.admin_stock_mutations_combine_status_label()}</label>
+          <select id="combine-status" bind:value={combineStatus}
+                  class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+            <option value="pending">{m.admin_stock_mutations_combine_status_pending()}</option>
+            <option value="processing">{m.admin_stock_mutations_combine_status_processing()}</option>
+          </select>
+        </div>
+        <div class="space-y-1.5">
+          <label class="block text-sm font-medium text-gray-700" for="combine-coupon">{m.admin_stock_mutations_combine_coupon_label()}</label>
+          <input id="combine-coupon" bind:value={combineCoupon} type="text"
+                 class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <button class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+                onclick={() => (combineOpen = false)} disabled={combineSubmitting}>{m.admin_stock_mutations_cancel()}</button>
+        <button class="px-3 py-1.5 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
+                onclick={submitCombine} disabled={!combineReady || combineSubmitting}>
+          {combineSubmitting ? '…' : m.admin_stock_mutations_combine_confirm()}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if deleteTarget}
   <div class="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true">

@@ -202,6 +202,9 @@ type MutationSummary struct {
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 	ExecutedAt       *string        `json:"executed_at,omitempty"`
+	// ConsumedByOrderID is set when this out-mutation has already been combined
+	// into an order; the list UI disables its checkbox to prevent double-billing.
+	ConsumedByOrderID *string `json:"consumed_by_order_id,omitempty"`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -867,7 +870,8 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 		SELECT m.id, m.mutation_number, m.type, m.status, m.note,
 		       cb.email, eb.email,
 		       m.created_at, m.updated_at, m.executed_at,
-		       COALESCE(agg.item_count, 0), COALESCE(agg.total_qty, 0)
+		       COALESCE(agg.item_count, 0), COALESCE(agg.total_qty, 0),
+		       m.consumed_by_order_id
 		  FROM stock_mutations m
 		  LEFT JOIN admin_users cb ON cb.id = m.created_by_admin_id
 		  LEFT JOIN admin_users eb ON eb.id = m.executed_by_admin_id
@@ -895,11 +899,15 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var r MutationSummary
-		var note, cbEmail, ebEmail, executedAt sql.NullString
+		var note, cbEmail, ebEmail, executedAt, consumedBy sql.NullString
 		if err := rows.Scan(&r.ID, &r.MutationNumber, &r.Type, &r.Status, &note,
 			&cbEmail, &ebEmail, &r.CreatedAt, &r.UpdatedAt, &executedAt,
-			&r.ItemCount, &r.TotalQuantity); err != nil {
+			&r.ItemCount, &r.TotalQuantity, &consumedBy); err != nil {
 			return out, err
+		}
+		if consumedBy.Valid {
+			v := consumedBy.String
+			r.ConsumedByOrderID = &v
 		}
 		if note.Valid {
 			v := note.String

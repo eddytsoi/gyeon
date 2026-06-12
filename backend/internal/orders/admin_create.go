@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
+
 	"gyeon/backend/internal/customers"
 	"gyeon/backend/internal/payment"
 	"gyeon/backend/internal/pricing"
@@ -80,10 +82,34 @@ var validInitialStatuses = map[OrderStatus]bool{
 	StatusCancelled:  true,
 }
 
+// adminCreateOptions controls stock + sourcing behaviour for the shared order
+// builder. The zero value is normal admin-create behaviour (deduct stock,
+// stock_managed order, no source mutations).
+type adminCreateOptions struct {
+	// skipStockDeduction leaves product_variants.stock_qty untouched. Used when
+	// the goods already left inventory elsewhere (combined from executed
+	// out-mutations) so the new order is accounting-only.
+	skipStockDeduction bool
+	// stockManaged is written to orders.stock_managed; false marks an order the
+	// cancel/refund restock paths must skip (see restockOrderItemsTx).
+	stockManaged bool
+	// sourceMutationIDs, when non-empty, are atomically claimed inside the create
+	// transaction (consumed_by_order_id) so the same out-mutation can't be billed
+	// into two orders. A shortfall rolls the whole create back.
+	sourceMutationIDs []string
+}
+
 // AdminCreate builds a new order from an admin-provided spec. Reuses the
 // same pricing/tax/free-shipping/stock primitives as the customer-facing
 // Checkout flow so totals are computed identically.
 func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) (*Order, error) {
+	return s.adminCreateOrder(ctx, req, adminCreateOptions{stockManaged: true})
+}
+
+// adminCreateOrder is the shared builder behind AdminCreate and
+// CreateOrderFromMutations. opts toggles stock deduction, the persisted
+// stock_managed flag, and atomic source-mutation locking.
+func (s *OrderService) adminCreateOrder(ctx context.Context, req AdminCreateRequest, opts adminCreateOptions) (*Order, error) {
 	// --- Validate ---------------------------------------------------------
 	if len(req.Items) == 0 {
 		return nil, ErrAdminCreateNoItems
@@ -367,16 +393,22 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		stockDecs = append(stockDecs, stockDec{variantID, qty, before, after})
 		return nil
 	}
-	for _, li := range lines {
-		if li.kind == "bundle" {
-			for _, bc := range li.components {
-				if err := deductOne(bc.variantID, bc.quantity); err != nil {
+	// Accounting-only orders (combined from already-executed out-mutations) skip
+	// stock deduction entirely: the goods left inventory when those mutations
+	// executed, so deducting again would double-count. stockDecs stays empty, so
+	// the post-commit inventory_history + low-stock passes are also no-ops.
+	if !opts.skipStockDeduction {
+		for _, li := range lines {
+			if li.kind == "bundle" {
+				for _, bc := range li.components {
+					if err := deductOne(bc.variantID, bc.quantity); err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				if err := deductOne(li.variantID, li.quantity); err != nil {
 					return nil, err
 				}
-			}
-		} else {
-			if err := deductOne(li.variantID, li.quantity); err != nil {
-				return nil, err
 			}
 		}
 	}
@@ -428,18 +460,18 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		                     customer_email, customer_phone, customer_name, payment_status,
 		                     selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		                     ship_first_name, ship_last_name, ship_phone, ship_line1, ship_line2, ship_city, ship_state, ship_postal_code, ship_country,
-		                     shipping_method)
+		                     shipping_method, stock_managed)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-		         $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+		         $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 		 RETURNING id, number, customer_id, status, shipping_address_id, subtotal, shipping_fee, shipping_free, discount_amount, tax_amount, total, notes,
 		           customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		           selected_carrier, selected_service, pickup_point_id, pickup_point_label,
 		           created_at, updated_at`,
-		append(append([]any{
+		append(append(append([]any{
 			customerID, shippingAddressID, status, subtotal, shippingFee, shippingFree, discountAmount, appliedJSON, taxAmount, total, req.Notes,
 			emailPtr, phonePtr, namePtr, paymentStatus,
 			carrierPtr, servicePtr, nil, nil,
-		}, shipSnap.args()...), nativeShippingMethod(shippingFree))...).
+		}, shipSnap.args()...), nativeShippingMethod(shippingFree)), opts.stockManaged)...).
 		Scan(&order.ID, &order.Number, &order.CustomerID, &order.Status, &order.ShippingAddressID,
 			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &order.TaxAmount, &order.Total,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
@@ -450,6 +482,7 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 		return nil, err
 	}
 	order.AppliedPromotions = appliedPromos
+	order.StockManaged = opts.stockManaged
 
 	order.OrderNumber = fmt.Sprintf("%s-%04d", s.orderNumberPrefix(ctx), order.Number)
 	if _, err := tx.ExecContext(ctx,
@@ -501,6 +534,30 @@ func (s *OrderService) AdminCreate(ctx context.Context, req AdminCreateRequest) 
 	if discountResult.CouponID != nil {
 		if err := pricing.IncrementCouponUsage(ctx, tx, *discountResult.CouponID); err != nil {
 			return nil, err
+		}
+	}
+
+	// Claim the source out-mutations atomically so the same physical shipment
+	// can't be billed into two orders. The conditional WHERE drops any mutation
+	// consumed (or made ineligible) since validation; a shortfall rolls the whole
+	// order back via the deferred tx.Rollback.
+	if len(opts.sourceMutationIDs) > 0 {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE stock_mutations
+			    SET consumed_by_order_id = $1, updated_at = NOW()
+			  WHERE id = ANY($2)
+			    AND type = 'out' AND status = 'executed'
+			    AND consumed_by_order_id IS NULL`,
+			order.ID, pq.Array(opts.sourceMutationIDs))
+		if err != nil {
+			return nil, err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if int(n) != len(opts.sourceMutationIDs) {
+			return nil, ErrMutationNotCombinable
 		}
 	}
 

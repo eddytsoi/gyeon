@@ -155,7 +155,11 @@ type Order struct {
 	PickupPointLabel  *string                 `json:"pickup_point_label,omitempty"`
 	Items             []OrderItem             `json:"items,omitempty"`
 	ItemsCount        *int                    `json:"items_count,omitempty"`
-	CustomerRole      *string                 `json:"customer_role,omitempty"`
+	// StockManaged is false for accounting-only orders combined from already-
+	// executed out-mutations: they never deduct or restock inventory. Lets the
+	// admin UI hide the refund "restock" option for such orders.
+	StockManaged bool    `json:"stock_managed"`
+	CustomerRole *string `json:"customer_role,omitempty"`
 	CreatedAt         string                  `json:"created_at"`
 	UpdatedAt         string                  `json:"updated_at"`
 }
@@ -440,6 +444,18 @@ func (s *OrderService) recordInventoryHistory(ctx context.Context, variantID str
 // deleted after the order was placed). Caller must ensure restock is only
 // invoked once per order to avoid double-counting.
 func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orderID, reason string, note *string) error {
+	// Accounting-only orders (combined from already-executed out-mutations) never
+	// took stock, so cancelling/refunding them must not add any back. Bail before
+	// touching product_variants or inventory_history.
+	var stockManaged bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT stock_managed FROM orders WHERE id = $1`, orderID).Scan(&stockManaged); err != nil {
+		return err
+	}
+	if !stockManaged {
+		return nil
+	}
+
 	rows, err := tx.QueryContext(ctx,
 		`SELECT variant_id, quantity FROM order_items WHERE order_id = $1 AND variant_id IS NOT NULL`, orderID)
 	if err != nil {
@@ -509,6 +525,18 @@ func (s *OrderService) restockOrderItemsTx(ctx context.Context, tx *sql.Tx, orde
 // double-count. Writes one inventory_history row per restocked line. Lines with
 // a NULLed variant_id (variant deleted) or nothing left to restock are skipped.
 func (s *OrderService) restockSpecificItemsTx(ctx context.Context, tx *sql.Tx, orderID string, items []RestockItem, reason string, note *string) error {
+	// Accounting-only orders (stock_managed=false) never deducted stock, so a
+	// refund must not return any to inventory regardless of which lines the
+	// admin picked. Mirrors the guard in restockOrderItemsTx.
+	var stockManaged bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT stock_managed FROM orders WHERE id = $1`, orderID).Scan(&stockManaged); err != nil {
+		return err
+	}
+	if !stockManaged {
+		return nil
+	}
+
 	var actorIDArg any
 	if id, ok := auth.AdminIDFromContext(ctx); ok {
 		actorIDArg = id
@@ -2633,7 +2661,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 	var paidAtCol sql.NullString
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, number, COALESCE(order_number, ''), customer_id, status, shipping_address_id,
-		        subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, notes,
+		        subtotal, shipping_fee, shipping_free, discount_amount, applied_promotions, tax_amount, total, stock_managed, notes,
 		        customer_email, customer_phone, customer_name, payment_intent_id, payment_status, payment_method,
 		        card_brand, card_last4, transaction_id, paid_at,
 		        selected_carrier, selected_service, pickup_point_id, pickup_point_label,
@@ -2643,7 +2671,7 @@ func (s *OrderService) GetByID(ctx context.Context, id string) (*Order, error) {
 		        created_at, updated_at
 		 FROM orders WHERE id = $1`, id).
 		Scan(&order.ID, &order.Number, &order.OrderNumber, &order.CustomerID, &order.Status, &order.ShippingAddressID,
-			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &appliedPromosRaw, &order.TaxAmount, &order.Total,
+			&order.Subtotal, &order.ShippingFee, &order.ShippingFree, &order.DiscountAmount, &appliedPromosRaw, &order.TaxAmount, &order.Total, &order.StockManaged,
 			&order.Notes, &order.CustomerEmail, &order.CustomerPhone, &order.CustomerName,
 			&order.PaymentIntentID, &order.PaymentStatus, &order.PaymentMethod,
 			&order.CardBrand, &order.CardLast4, &order.TransactionID, &paidAtCol,

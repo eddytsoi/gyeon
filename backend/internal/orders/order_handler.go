@@ -79,6 +79,7 @@ func (h *OrderHandler) AdminRoutes() chi.Router {
 	r.Get("/", h.list)
 	r.Get("/carriers", h.listCarriers)
 	r.Post("/", h.adminCreate)
+	r.Post("/from-mutations", h.combineFromMutations)
 	r.Post("/items/csv-resolve", h.adminResolveCSVItems)
 	r.Get("/{id}", h.get)
 	r.Get("/{id}/status-history", h.statusHistory)
@@ -451,6 +452,44 @@ func (h *OrderHandler) adminCreate(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrAdminCreateVariantNotFound):
 			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
 		case errors.Is(err, ErrAdminCreateInsufficientStock):
+			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
+		case errors.Is(err, ErrDefaultCarrierNotConfigured):
+			respond.BadRequest(w, "shipping defaults not configured")
+		default:
+			respond.Error(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	respond.JSON(w, http.StatusCreated, order)
+}
+
+// combineFromMutations backs POST /admin/orders/from-mutations — rolls several
+// already-executed out-mutations (出貨單) into one accounting-only order without
+// touching stock. See orders.CreateOrderFromMutations for the contract.
+func (h *OrderHandler) combineFromMutations(w http.ResponseWriter, r *http.Request) {
+	var req CombineMutationsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	order, err := h.svc.CreateOrderFromMutations(r.Context(), req)
+	if err != nil {
+		var notCombinable *MutationsNotCombinableError
+		switch {
+		case errors.As(err, &notCombinable):
+			respond.JSON(w, http.StatusUnprocessableEntity, map[string]any{
+				"error":    notCombinable.Error(),
+				"problems": notCombinable.Problems,
+			})
+		case errors.Is(err, ErrMutationNotCombinable):
+			respond.Error(w, http.StatusConflict, err.Error())
+		case errors.Is(err, ErrNoMutationsSelected),
+			errors.Is(err, ErrAdminCreateNoItems),
+			errors.Is(err, ErrAdminCreateInvalidStatus),
+			errors.Is(err, ErrCustomerInfoRequired),
+			errors.Is(err, ErrShippingRequired):
+			respond.BadRequest(w, err.Error())
+		case errors.Is(err, ErrAdminCreateVariantNotFound):
 			respond.Error(w, http.StatusUnprocessableEntity, err.Error())
 		case errors.Is(err, ErrDefaultCarrierNotConfigured):
 			respond.BadRequest(w, "shipping defaults not configured")
