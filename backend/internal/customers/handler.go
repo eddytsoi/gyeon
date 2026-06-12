@@ -119,6 +119,7 @@ func (h *Handler) AuthenticatedRoutes() chi.Router { return chi.NewRouter() }
 func (h *Handler) AdminRoutes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.list)
+	r.Post("/", h.adminCreate)
 	r.Get("/{id}", h.getByID)
 	r.Put("/{id}/role", h.adminUpdateRole)
 	r.Get("/{id}/addresses", h.adminListAddresses)
@@ -149,6 +150,38 @@ func (h *Handler) adminUpdateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, customer)
+}
+
+// adminCreate inserts a customer from the admin "new customer" form. The row is
+// created passwordless — the admin UI optionally fires the setup-email flow so
+// the customer chooses their own password. Email is normalised and deduped.
+func (h *Handler) adminCreate(w http.ResponseWriter, r *http.Request) {
+	var req AdminCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respond.BadRequest(w, "invalid request body")
+		return
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	if req.Email == "" || !strings.Contains(req.Email, "@") {
+		respond.BadRequest(w, "a valid email is required")
+		return
+	}
+	if req.FirstName == "" {
+		respond.BadRequest(w, "first_name is required")
+		return
+	}
+	customer, err := h.svc.AdminCreateCustomer(r.Context(), req)
+	if errors.Is(err, ErrEmailTaken) {
+		respond.Error(w, http.StatusConflict, "email already registered")
+		return
+	}
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusCreated, customer)
 }
 
 // adminListAddresses returns a customer's saved addresses for the admin
@@ -731,23 +764,44 @@ func (h *Handler) sendResetPasswordEmail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	token, _, err := h.svc.IssuePasswordResetToken(r.Context(), customer.ID)
+	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
+	if name == "" {
+		name = customer.Email
+	}
+
+	// A passwordless account (admin-created, WooCommerce import, or unfinished
+	// guest checkout) isn't "resetting" a password — it's activating. Send the
+	// account-setup email with a 7-day setup token; accounts that already have a
+	// password get the normal 24-hour reset email. Mirrors deliverPasswordReset.
+	hasPassword, err := h.svc.PasswordIsSet(r.Context(), customer.ID)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+
+	var (
+		token  string
+		expiry int
+		sendFn func(context.Context, email.PasswordResetParams) error
+	)
+	if hasPassword {
+		token, _, err = h.svc.IssuePasswordResetToken(r.Context(), customer.ID)
+		expiry, sendFn = 24, h.emailSvc.SendPasswordResetEmail
+	} else {
+		token, err = h.svc.CreateSetupToken(r.Context(), customer.ID)
+		expiry, sendFn = 7*24, h.emailSvc.SendAccountSetupEmail
+	}
 	if err != nil {
 		respond.InternalError(w)
 		return
 	}
 
 	resetURL := strings.TrimRight(h.emailSvc.PublicBaseURL(r.Context()), "/") + "/account/reset-password?token=" + token
-	name := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
-	if name == "" {
-		name = customer.Email
-	}
-
-	if err := h.emailSvc.SendPasswordResetEmail(r.Context(), email.PasswordResetParams{
+	if err := sendFn(r.Context(), email.PasswordResetParams{
 		CustomerName:  name,
 		CustomerEmail: customer.Email,
 		ResetURL:      resetURL,
-		ExpiryHours:   24,
+		ExpiryHours:   expiry,
 	}); err != nil {
 		if errors.Is(err, email.ErrNotConfigured) {
 			respond.Error(w, http.StatusServiceUnavailable, "email is not configured")

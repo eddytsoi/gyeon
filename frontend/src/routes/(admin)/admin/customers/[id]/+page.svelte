@@ -11,6 +11,8 @@
   let confirmOpen = $state(false);
   let sending = $state(false);
   let successMessage = $state<string | null>(null);
+  // Dismiss state for the one-time "customer created" banner (driven by ?created=1).
+  let createdDismissed = $state(false);
   let savingRole = $state(false);
   // Track the selected role locally so the <select> reflects unsaved edits.
   // Falls back to the loaded customer role; re-syncs after a successful save.
@@ -60,6 +62,15 @@
       {m.admin_customer_not_found_body()}
     </div>
   {:else}
+    {#if data.justCreated && !createdDismissed}
+      <div class="mb-4 px-4 py-3 rounded-xl text-sm flex items-center justify-between border
+                  {data.emailFailed ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-green-50 border-green-100 text-green-700'}">
+        <span>
+          {m.admin_customer_created()}{#if data.emailSent} {m.admin_customer_created_email_sent()}{:else if data.emailFailed} {m.admin_customer_created_email_failed()}{/if}
+        </span>
+        <button class="opacity-60 hover:opacity-100 text-lg leading-none" onclick={() => { createdDismissed = true; }} aria-label={m.admin_customer_aria_dismiss()}>×</button>
+      </div>
+    {/if}
     {#if form?.resetSent || successMessage}
       <div class="mb-4 px-4 py-3 bg-green-50 border border-green-100 rounded-xl text-sm text-green-700 flex items-center justify-between">
         <span>{successMessage ?? m.admin_customer_reset_sent({ email: data.customer.email })}</span>

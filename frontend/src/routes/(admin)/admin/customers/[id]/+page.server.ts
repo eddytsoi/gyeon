@@ -8,7 +8,7 @@ import {
 } from '$lib/api/admin';
 import type { CustomerRole } from '$lib/types';
 
-export const load: PageServerLoad = async ({ parent, params }) => {
+export const load: PageServerLoad = async ({ parent, params, url }) => {
   const { token } = await parent();
   if (!token) throw redirect(303, '/admin/login');
 
@@ -19,7 +19,12 @@ export const load: PageServerLoad = async ({ parent, params }) => {
 
   const orders = ordersRes.items.filter(o => o.customer_id === params.id);
 
-  return { customer, orders };
+  // One-time banner flags set by the create flow's redirect (?created=1…).
+  const justCreated = url.searchParams.get('created') === '1';
+  const emailSent = url.searchParams.get('email_sent') === '1';
+  const emailFailed = url.searchParams.get('email_failed') === '1';
+
+  return { customer, orders, justCreated, emailSent, emailFailed };
 };
 
 export const actions: Actions = {

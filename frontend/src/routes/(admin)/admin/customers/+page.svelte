@@ -5,6 +5,7 @@
   import { spotlight } from '$lib/actions/spotlight';
   import SearchInput from '$lib/components/admin/SearchInput.svelte';
   import Pagination from '$lib/components/admin/Pagination.svelte';
+  import NewButton from '$lib/components/admin/NewButton.svelte';
   import { customerRoleLabel } from '$lib/types';
   import * as m from '$lib/paraglide/messages';
 
@@ -28,13 +29,16 @@
 <div class="max-w-5xl">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-900">{m.admin_customers_heading()}</h1>
-    <span class="text-sm text-gray-400">
-      {#if data.q}
-        {data.total === 1 ? m.admin_customers_count_match_one({ count: data.total }) : m.admin_customers_count_match_many({ count: data.total })}
-      {:else}
-        {m.admin_customers_count_total({ count: data.total })}
-      {/if}
-    </span>
+    <div class="flex items-center gap-4">
+      <span class="text-sm text-gray-400">
+        {#if data.q}
+          {data.total === 1 ? m.admin_customers_count_match_one({ count: data.total }) : m.admin_customers_count_match_many({ count: data.total })}
+        {:else}
+          {m.admin_customers_count_total({ count: data.total })}
+        {/if}
+      </span>
+      <NewButton label={m.admin_customer_new()} href="/admin/customers/new" />
+    </div>
   </div>
 
   <div class="mb-3">
@@ -124,11 +128,18 @@
                   {customer.is_active ? m.admin_customers_status_active() : m.admin_customers_status_inactive()}
                 </span>
               </td>
-              <td class="px-5 py-3 text-right">
-                <a href="/admin/customers/{customer.id}"
-                   class="text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                  {m.admin_customers_view()}
-                </a>
+              <td class="px-5 py-3">
+                <div class="flex items-center justify-end">
+                  <a href="/admin/customers/{customer.id}"
+                     class="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                     title={m.admin_customers_view()} aria-label={m.admin_customers_view()}>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                    </svg>
+                  </a>
+                </div>
               </td>
             </tr>
           {/each}

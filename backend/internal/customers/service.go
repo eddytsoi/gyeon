@@ -90,6 +90,18 @@ type RegisterRequest struct {
 	Phone     *string `json:"phone"`
 }
 
+// AdminCreateRequest is the payload for an admin manually adding a customer.
+// No password — the row is created passwordless (like a WooCommerce import or
+// guest checkout); the customer sets their own password via the reset/setup
+// email flow. Role is optional and normalised; empty defaults to "customer".
+type AdminCreateRequest struct {
+	Email     string  `json:"email"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Phone     *string `json:"phone"`
+	Role      string  `json:"role"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -172,6 +184,31 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*Customer,
 	if err != nil {
 		return nil, err
 	}
+	return &c, nil
+}
+
+// AdminCreateCustomer inserts a customer on an admin's behalf. The row is
+// passwordless (password_hash stays NULL) so the customer activates it through
+// the reset/setup-email flow — the same shape as WooCommerce imports and guest
+// rows. Mirrors Register's email dedup, but takes an explicit role.
+func (s *Service) AdminCreateCustomer(ctx context.Context, req AdminCreateRequest) (*Customer, error) {
+	var exists bool
+	s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM customers WHERE email=$1)`, req.Email).Scan(&exists)
+	if exists {
+		return nil, ErrEmailTaken
+	}
+
+	var c Customer
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO customers (email, first_name, last_name, phone, role)
+		 VALUES ($1, $2, $3, $4, $5::customer_role)
+		 RETURNING id, email, first_name, last_name, phone, is_active, role::text, created_at, updated_at`,
+		req.Email, req.FirstName, req.LastName, req.Phone, NormalizeRole(req.Role)).
+		Scan(&c.ID, &c.Email, &c.FirstName, &c.LastName, &c.Phone, &c.IsActive, &c.Role, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, "customer.create", "customer", c.ID, nil, c)
 	return &c, nil
 }
 
