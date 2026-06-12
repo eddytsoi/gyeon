@@ -38,6 +38,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "玻璃",
         "車窗玻璃",
@@ -170,6 +172,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車廂塑膠表面",
         "皮革",
@@ -260,7 +264,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167637889908221_gyeon-interior-detailer-scrub-pad-interio-wipe-1a.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "compatible",
           "usage",
@@ -312,6 +315,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車身車漆",
         "陶瓷鍍膜車輛",
@@ -452,6 +457,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "陶瓷鍍膜車身",
@@ -547,7 +554,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167637166411545_set-002.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "compatible",
           "faq",
@@ -594,6 +600,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "已貼 PPF 車身",
         "車漆",
@@ -741,6 +749,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "已貼PPF車身",
         "車漆",
@@ -841,7 +851,6 @@
           "usage",
           "compatible",
           "frequency",
-          "dilution",
           "pairedWith",
           "faq",
           "seo"
@@ -890,6 +899,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車身車漆",
         "輪圈",
@@ -982,7 +993,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167636800792561_ult-coating-set-2.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -1028,6 +1038,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車內塑膠件",
         "織物及紡織表面",
@@ -1119,7 +1131,6 @@
       "_meta": {
         "needsReview": [
           "usage",
-          "dilution",
           "frequency",
           "compatible",
           "faq",
@@ -1168,6 +1179,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "車漆"
       ],
@@ -1259,8 +1272,7 @@
         "needsReview": [
           "frequency",
           "faq",
-          "seo",
-          "dilution"
+          "seo"
         ],
         "confidence": "high",
         "sources": [
@@ -1310,6 +1322,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆"
       ],
@@ -1402,7 +1416,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167639051298921_syncro-kit.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo",
@@ -1452,6 +1465,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "啞光車漆"
       ],
@@ -1542,7 +1557,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167102405544251_q2_evo_lightbox_matte-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -1591,6 +1605,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "啞光車漆"
       ],
@@ -1671,7 +1687,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167638118316918_q2-matte-evo-kit.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -1716,6 +1731,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "PPF（光澤 Gloss PPF）",
         "PPF（啞光 Matte PPF）",
@@ -1802,7 +1819,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167109874867276_2023-gyeon-evo-ppf-box-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -1854,6 +1870,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "PPF（車漆保護膜）",
         "改色膜",
@@ -1952,7 +1970,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167638336741996_q2-ppf-evo-set-1a.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo",
@@ -2000,6 +2017,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "車漆"
       ],
@@ -2081,7 +2100,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167092194730662_q2_evo_lightbox_mohs-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -2128,6 +2146,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "車漆"
       ],
@@ -2215,7 +2235,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167087318459929_q2_evo_lightbox_pure-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -2256,6 +2275,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車廂內部空間",
         "地墊",
@@ -2361,7 +2382,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167033166023236_80-scents-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -2411,15 +2431,13 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "套裝；清潔劑即用（可加水增泡）",
       "compatible": [
-        "天然皮革座椅",
-        "皮革內飾",
-        "車內皮革部件"
+        "各類現代汽車真皮（含已鍍膜真皮）"
       ],
-      "incompatible": [
-        "軚盤（為保障駕駛安全不建議塗抹）"
-      ],
-      "frequency": "清潔每 1-2 星期一次；Q² LeatherCoat 鍍膜每 3 個月一次",
+      "incompatible": [],
+      "frequency": "定期保養（一套約處理 2–3 部車）",
       "pairedWith": [
         {
           "sku": "q2m-leathercleaner-natural",
@@ -2506,7 +2524,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167110841344666_set-leather-cleaner-natural-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -2514,7 +2531,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-leatherset-natural"
         ]
       }
     },
@@ -2551,6 +2569,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "裝飾條",
         "皮革",
@@ -2685,6 +2705,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "皮革",
         "汽車內飾皮革",
@@ -2824,6 +2846,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "汽車皮革",
         "皮革座椅",
@@ -2966,6 +2990,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "黑膠件",
         "塑膠部件",
@@ -3049,7 +3075,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167158634923033_2023-gyeon-evo-trim-box-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "incompatible",
           "faq",
@@ -3098,6 +3123,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "輪圈"
       ],
@@ -3222,6 +3249,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "汽車外玻璃表面",
         "擋風玻璃",
@@ -3302,7 +3331,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167153902457275_2023-gyeon-evo-view-box-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -3349,6 +3377,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "汽車玻璃",
         "擋風玻璃",
@@ -3489,6 +3519,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "輪胎",
         "橡膠表面"
@@ -3604,6 +3636,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "原液使用，無需稀釋",
       "compatible": [
         "編織織物",
         "紡織品",
@@ -3693,7 +3727,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167178599826680_fabric-coat_120-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -3747,6 +3780,7 @@
         "bucket": "500:1",
         "foamGun": "1:15"
       },
+      "dilutable": true,
       "compatible": [
         "PPF（車漆保護膜）",
         "變色膜",
@@ -3884,15 +3918,13 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車漆（有鍍膜）",
-        "車漆（無鍍膜）",
-        "陶瓷鍍膜車輛"
+        "所有車身外部表面（已鍍膜或未鍍膜）"
       ],
-      "incompatible": [
-        "玻璃表面"
-      ],
-      "frequency": "每 4 星期一次",
+      "incompatible": [],
+      "frequency": "耐久最多約 6 星期；每約 40–50ml／車",
       "pairedWith": [
         {
           "sku": "q2m-bathe",
@@ -3982,7 +4014,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167196359194711_500-ceramic-detailer-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo",
           "pairedWith"
@@ -3991,7 +4022,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-ceramic-detailer"
         ]
       }
     },
@@ -4028,16 +4060,18 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "啞面車漆",
-        "啞面鍍膜"
+        "啞光／緞面車漆",
+        "PPF（保護膜）",
+        "車身貼膜（vinyl）",
+        "輪圈"
       ],
       "incompatible": [
-        "玻璃表面",
-        "啞光 PPF",
-        "啞光改色膜"
+        "只適用於啞光／緞面表面，勿用於光面"
       ],
-      "frequency": "每 4 星期一次",
+      "frequency": "耐久 6 星期以上；每約 30ml／車",
       "pairedWith": [
         {
           "sku": "q2m-bathe",
@@ -4121,7 +4155,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-cure-matte-redefined"
         ]
       }
     },
@@ -4160,6 +4195,7 @@
       "dilution": {
         "foamGun": "1:10"
       },
+      "dilutable": true,
       "compatible": [
         "車漆",
         "車身",
@@ -4295,6 +4331,7 @@
         "bucket": "500:1",
         "foamGun": "1:15"
       },
+      "dilutable": true,
       "compatible": [
         "車漆",
         "金屬",
@@ -4443,6 +4480,7 @@
         "bucket": "500:1",
         "foamGun": "1:15"
       },
+      "dilutable": true,
       "compatible": [
         "車漆",
         "輪輞",
@@ -4596,6 +4634,7 @@
         "bucket": "500:1",
         "foamGun": "1:15"
       },
+      "dilutable": true,
       "compatible": [
         "已塗鍍膜車身",
         "陶瓷鍍膜",
@@ -4742,14 +4781,19 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
         "車漆",
-        "輪圈",
-        "玻璃",
-        "車身"
+        "已鍍膜表面",
+        "金屬",
+        "嬌嫩物料（pH 中性）"
       ],
-      "incompatible": [],
-      "frequency": "視污染物程度每 1-2 個月一次",
+      "incompatible": [
+        "勿在陽光直射或熱板上使用",
+        "產品極滑，工作時注意安全"
+      ],
+      "frequency": "化學去污程序時使用（按需要）",
       "pairedWith": [
         {
           "sku": "q2m-bathe",
@@ -4845,7 +4889,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167107406071531_500-iron-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -4853,7 +4896,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-iron-redefined"
         ]
       }
     },
@@ -4893,18 +4937,16 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "輪圈",
-        "剎車卡鉗",
-        "光面輪圈",
-        "啞光輪圈",
-        "鍍膜塗層表面"
+        "所有類型輪圈（已鍍膜或未鍍膜）",
+        "剎車卡鉗"
       ],
       "incompatible": [
-        "高溫輪圈",
-        "陽光直射下施工"
+        "只可在冷輪圈使用，避免陽光直射"
       ],
-      "frequency": "每 1-2 星期一次（視髒污程度）",
+      "frequency": "洗車時按需使用",
       "pairedWith": [
         {
           "sku": "q2m-wheelbrush",
@@ -4993,9 +5035,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167144202276544_500-iron-wheel-cleaner-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "compatible",
-          "incompatible",
           "faq",
           "seo"
         ],
@@ -5005,7 +5044,8 @@
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q2m-iron-wheelcleaner-redefined"
         ]
       }
     },
@@ -5044,15 +5084,14 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "輪胎",
-        "橡膠部件"
+        "各類輪胎（包括白邊胎）",
+        "橡膠"
       ],
-      "incompatible": [
-        "陽光直射下的表面",
-        "高溫輪胎"
-      ],
-      "frequency": "每 2-4 星期一次",
+      "incompatible": [],
+      "frequency": "上輪胎保護劑前或按需要",
       "pairedWith": [
         {
           "sku": "q2m-tirebrush",
@@ -5138,8 +5177,6 @@
       "_meta": {
         "needsReview": [
           "keyFeatures",
-          "dilution",
-          "incompatible",
           "pairedWith",
           "faq",
           "seo"
@@ -5149,7 +5186,8 @@
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:excerpt"
+          "gyeon.hk:excerpt",
+          "https://gyeonusa.com/products/q-m-tirecleaner"
         ]
       }
     },
@@ -5189,15 +5227,13 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "輪胎",
-        "橡膠部件"
+        "輪胎"
       ],
-      "incompatible": [
-        "輪圈",
-        "車漆表面"
-      ],
-      "frequency": "每 2-4 次清洗後使用一次",
+      "incompatible": [],
+      "frequency": "每約 2 次洗車補塗一次",
       "pairedWith": [
         {
           "sku": "q2m-tirecleaner",
@@ -5288,8 +5324,7 @@
       "_meta": {
         "needsReview": [
           "faq",
-          "seo",
-          "dilution"
+          "seo"
         ],
         "confidence": "high",
         "sources": [
@@ -5297,7 +5332,8 @@
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q-m-tire-express"
         ]
       }
     },
@@ -5335,15 +5371,19 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "漆面",
+        "車漆",
         "玻璃",
-        "塑料飾條",
-        "鍍膜部件",
-        "陶瓷鍍膜表面"
+        "塑膠飾條（噴漆或未噴漆）",
+        "打磨過的金屬邊"
       ],
-      "incompatible": [],
-      "frequency": "每 1-2 個月一次",
+      "incompatible": [
+        "逐塊處理，勿讓產品乾掉",
+        "使用後建議洗車"
+      ],
+      "frequency": "按需要（發現瀝青／柏油污染時）",
       "pairedWith": [
         {
           "sku": "q2m-baldwipe-evo",
@@ -5431,7 +5471,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167104855252692_500-tar-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -5440,7 +5479,8 @@
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:excerpt"
+          "gyeon.hk:excerpt",
+          "https://gyeonusa.com/products/q-m-tar-redefined"
         ]
       }
     },
@@ -5479,12 +5519,16 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車漆",
-        "鍍膜表面"
+        "已鍍膜車漆"
       ],
-      "incompatible": [],
-      "frequency": "視乎需要，發現水斑時即時處理",
+      "incompatible": [
+        "勿將沾濕產品的毛巾長時間停留於表面，尤其玻璃",
+        "逐塊處理，避免大面積同時噴塗"
+      ],
+      "frequency": "耐久最多約 1 年；按需要",
       "pairedWith": [
         {
           "sku": "q2m-baldwipe-evo",
@@ -5579,8 +5623,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167182307734435_500-water-spot-1750.webp",
       "_meta": {
         "needsReview": [
-          "frequency",
-          "dilution",
           "faq",
           "seo"
         ],
@@ -5588,7 +5630,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-waterspot"
         ]
       }
     },
@@ -5624,14 +5667,18 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車漆",
-        "輪圈",
-        "玻璃",
-        "塑料"
+        "各類車漆",
+        "石英鍍膜",
+        "大部分車蠟"
       ],
-      "incompatible": [],
-      "frequency": "每 1-2 星期一次",
+      "incompatible": [
+        "只可在冷車漆使用，切勿在陽光下或熱車身使用",
+        "勿讓產品乾掉"
+      ],
+      "frequency": "按需要（如夏天夜行後）",
       "pairedWith": [
         {
           "sku": "q2m-bathe-plus",
@@ -5721,7 +5768,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167187225264090_500-buggrime-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo",
           "pairedWith"
@@ -5730,7 +5776,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-bug-grime"
         ]
       }
     },
@@ -5769,14 +5816,18 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "汽車玻璃",
-        "車內玻璃",
-        "車外玻璃",
-        "鏡子"
+        "玻璃",
+        "內飾 vinyl／真皮／纖維",
+        "plexi／PC 膠件",
+        "LCD 螢幕"
       ],
-      "incompatible": [],
-      "frequency": "每 1-2 星期一次",
+      "incompatible": [
+        "噴於短毛纖維布而非直接噴玻璃，效果更佳"
+      ],
+      "frequency": "按需要；每約 40ml／車",
       "pairedWith": [
         {
           "sku": "q2m-glasswipe-evo",
@@ -5865,7 +5916,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778064779864780949_500-glass-1750-1.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -5873,7 +5923,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-glass"
         ]
       }
     },
@@ -5913,13 +5964,17 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車內玻璃",
-        "車外玻璃",
-        "已做玻璃鍍膜的表面"
+        "玻璃",
+        "鏡面",
+        "車窗"
       ],
-      "incompatible": [],
-      "frequency": "每月一次",
+      "incompatible": [
+        "噴於纖維布而非直接噴玻璃，效果更佳"
+      ],
+      "frequency": "按需要",
       "pairedWith": [
         {
           "sku": "q2m-glasswipe-evo",
@@ -6010,7 +6065,6 @@
         "needsReview": [
           "faq",
           "seo",
-          "compatible",
           "pairedWith"
         ],
         "confidence": "high",
@@ -6018,7 +6072,8 @@
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:excerpt"
+          "gyeon.hk:excerpt",
+          "https://gyeonusa.com/products/q2m-glass"
         ]
       }
     },
@@ -6057,18 +6112,20 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
         "車漆",
-        "塑料",
-        "金屬飾條",
+        "玻璃",
+        "飾條",
         "輪圈",
-        "玻璃"
+        "所有車身外部表面"
       ],
       "incompatible": [
-        "高溫表面",
-        "陽光直射下的表面"
+        "只在濕冷表面使用，避免陽光直射或熱板",
+        "噴後立即沖洗，勿等待停留"
       ],
-      "frequency": "每 3 個月一次",
+      "frequency": "耐久最多約 12 星期；可按需補塗",
       "pairedWith": [
         {
           "sku": "q2m-ceramicdetailer",
@@ -6163,7 +6220,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167193872158021_500-wetcoat-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -6171,7 +6227,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-wetcoat"
         ]
       }
     },
@@ -6209,17 +6266,21 @@
           "勿用於玻璃或車漆表面，若不確定請先小面積測試"
         ]
       },
-      "dilution": {},
+      "dilution": {
+        "engineWheelWell": "1:5"
+      },
+      "dilutable": true,
+      "dilutionNote": "一般即用；引擎室／輪拱可稀釋最多 1:5 作噴塗保養劑",
       "compatible": [
-        "黑色塑膠飾條",
-        "外飾黑色膠件",
-        "內飾黑色膠件"
+        "所有塑膠",
+        "橡膠",
+        "車身下飾條",
+        "引擎室塑膠",
+        "內飾塑膠／飾條",
+        "輪拱"
       ],
-      "incompatible": [
-        "玻璃",
-        "車漆"
-      ],
-      "frequency": "每 1-2 個月一次",
+      "incompatible": [],
+      "frequency": "耐久最多約 3 個月",
       "pairedWith": [
         {
           "sku": "trimcleaner",
@@ -6292,7 +6353,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167198874617999_preserve-250-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "faq",
           "seo"
         ],
@@ -6300,7 +6360,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-preserve"
         ]
       }
     },
@@ -6339,12 +6400,13 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車漆",
-        "鍍膜施工前的表面準備"
+        "所有表面（鍍膜前脫脂）"
       ],
       "incompatible": [],
-      "frequency": "每次鍍膜施工前使用一次",
+      "frequency": "上鍍膜／封層前使用",
       "pairedWith": [
         {
           "sku": "q2m-baldwipe-evo",
@@ -6433,8 +6495,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167139874145224_500-prep-1500.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "frequency",
           "faq",
           "seo"
         ],
@@ -6442,7 +6502,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-prep"
         ]
       }
     },
@@ -6479,14 +6540,16 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "膏狀，原液使用",
       "compatible": [
         "金屬",
         "鋁",
         "不銹鋼",
-        "鉻"
+        "鍍鉻部件"
       ],
       "incompatible": [],
-      "frequency": "每 3-6 個月一次",
+      "frequency": "按需要",
       "pairedWith": [
         {
           "sku": "q2m-polishwipe-evo",
@@ -6566,7 +6629,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-metal-polish"
         ]
       }
     },
@@ -6598,6 +6662,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "GYEON 保養及維護產品",
         "洗車及護理工具",
@@ -6737,6 +6803,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車身泡沫預洗",
         "含表面活性劑的洗車化學劑",
@@ -6821,7 +6889,6 @@
       "_meta": {
         "needsReview": [
           "usage",
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -6871,6 +6938,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "GYEON 全線清潔產品",
         "洗車泡沫預洗",
@@ -6960,7 +7029,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167031482487662_ik-foam-pro-2.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo",
@@ -7006,6 +7074,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "輪圈",
         "玻璃",
@@ -7144,6 +7214,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "所有車漆表面",
         "車身"
@@ -7282,18 +7354,18 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "皮革",
-        "塑料",
+        "真皮",
+        "塑膠",
         "Alcantara",
-        "紡織品",
+        "纖維／織物",
         "玻璃",
-        "內飾飾板"
+        "各類內飾飾板"
       ],
-      "incompatible": [
-        "電子螢幕及敏感部件"
-      ],
-      "frequency": "每 1-2 星期一次",
+      "incompatible": [],
+      "frequency": "日常內飾清潔",
       "pairedWith": [
         {
           "sku": "q2m-interior-wipe-evo-2-pack",
@@ -7388,7 +7460,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167131910301161_500-interior-detailer-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "pairedWith",
           "faq",
           "seo"
@@ -7398,7 +7469,8 @@
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:excerpt"
+          "gyeon.hk:excerpt",
+          "https://gyeonusa.com/products/q-m-interior-detailer"
         ]
       }
     },
@@ -7436,6 +7508,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車內皮革",
         "塑料",
@@ -7572,14 +7646,14 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車內儀表板",
-        "車內塑膠件",
-        "最常接觸的內籠表面",
-        "已施 Q² PurifyCoat 的表面"
+        "車廂高接觸面",
+        "居家／辦公室"
       ],
       "incompatible": [],
-      "frequency": "每月深層清潔後使用",
+      "frequency": "可日常使用；抗菌塗層最長約 6 個月",
       "pairedWith": [
         {
           "sku": "q2m-interiordetailer",
@@ -7657,9 +7731,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167038729875050_500-purify-maintain-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "frequency",
-          "compatible",
           "usage",
           "faq",
           "seo"
@@ -7669,7 +7740,8 @@
           "gyeon.hk:description",
           "gyeon.hk:excerpt",
           "gyeon.hk:variants",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q2m-purify-maintain"
         ]
       }
     },
@@ -7709,17 +7781,18 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車內布料",
-        "皮革",
-        "塑料",
-        "家居空間",
-        "車輛、船隻及飛機內部"
+        "車廂",
+        "船",
+        "飛機",
+        "居家異味"
       ],
       "incompatible": [
-        "電子部件"
+        "勿浸濕表面；非織物表面若過噴需抹走"
       ],
-      "frequency": "每 1-2 個月一次（視異味程度而定）",
+      "frequency": "清潔內飾後使用",
       "pairedWith": [
         {
           "sku": "q2m-interiordetailer",
@@ -7807,9 +7880,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167036172546668_500-odor-remover-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "frequency",
-          "incompatible",
           "faq",
           "seo",
           "pairedWith"
@@ -7819,7 +7889,8 @@
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q2m-odor-remover"
         ]
       }
     },
@@ -7859,16 +7930,15 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用；可加水增泡及幫助分佈（無固定比例）",
       "compatible": [
-        "皮革座椅",
-        "皮革內飾",
-        "敏感內飾皮革材質",
-        "已施加皮革鍍膜的表面"
+        "各類現代汽車真皮",
+        "嬌嫩 nappa／半苯染真皮",
+        "上真皮鍍膜前準備"
       ],
-      "incompatible": [
-        "非皮革表面"
-      ],
-      "frequency": "每 1-2 星期一次",
+      "incompatible": [],
+      "frequency": "定期保養",
       "pairedWith": [
         {
           "sku": "q2m-leather-brush",
@@ -7951,8 +8021,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167134836530578_500-leather-cleaner-natural-1750.webp",
       "_meta": {
         "needsReview": [
-          "compatible",
-          "incompatible",
           "faq",
           "seo"
         ],
@@ -7962,7 +8030,8 @@
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q2m-leathercleaner-natural"
         ]
       }
     },
@@ -8004,15 +8073,17 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "PPF（漆面保護膜）",
-        "改色膜",
-        "車漆（光澤或啞光）"
+        "PPF（保護膜）",
+        "車身貼膜 vinyl",
+        "啞光及光面"
       ],
       "incompatible": [
-        "玻璃表面"
+        "勿過量使用"
       ],
-      "frequency": "每 4 星期一次",
+      "frequency": "耐久 6 星期以上；每約 30ml／車",
       "pairedWith": [
         {
           "sku": "q2m-ppf-wash",
@@ -8102,7 +8173,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q2m-ppf-maintain-redefined"
         ]
       }
     },
@@ -8138,6 +8210,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "玻璃",
         "鏡子",
@@ -8224,7 +8298,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167065538551628_gyeon_glasswipe-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -8281,6 +8354,7 @@
         "waterless": "1:150-1:256",
         "dryingAid": "1:20"
       },
+      "dilutable": true,
       "compatible": [
         "車漆",
         "陶瓷塗層",
@@ -8432,13 +8506,15 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "黑膠件",
-        "內飾塑料",
-        "汽車內飾表面"
+        "各類飾條（含已上保護劑的飾條）",
+        "內飾塑膠／vinyl",
+        "外部橡膠／飾條（配刷或 ScrubPad）"
       ],
       "incompatible": [],
-      "frequency": "每 1-2 星期一次",
+      "frequency": "日常保養",
       "pairedWith": [
         {
           "sku": "q2m-baldwipe-evo",
@@ -8529,7 +8605,8 @@
           "gyeon.hk:how_to_use",
           "gyeon.hk:variants",
           "gyeon.hk:upsells",
-          "gyeon.hk:fbt"
+          "gyeon.hk:fbt",
+          "https://gyeonusa.com/products/q-m-trimcleaner"
         ]
       }
     },
@@ -8566,6 +8643,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車內皮革",
         "塑料",
@@ -8652,7 +8731,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167083256388695_gyeon_softwipe-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -8701,18 +8779,15 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "PPF（漆面保護膜）",
-        "改色膜（光澤）",
-        "改色膜（啞光）"
+        "各類 PPF（含自我修復膜）"
       ],
       "incompatible": [
-        "玻璃",
-        "軟質塑膠表面",
-        "啞面 PPF",
-        "劣質 PPF"
+        "拋光時切勿令 PPF 過熱"
       ],
-      "frequency": "視乎膜材磨損情況不定期修正，拋光後配合 Q²M PPF Maintain 每月 1-2 次維護",
+      "frequency": "按需要（去除霧化／氧化）；每約 60ml／車",
       "pairedWith": [
         {
           "sku": "q2m-ppf-wash",
@@ -8797,7 +8872,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167071834268260_q2mppfrenew_120ml_2021-1750x1750-1.webp",
       "_meta": {
         "needsReview": [
-          "frequency",
           "faq",
           "seo"
         ],
@@ -8805,7 +8879,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-ppf-renew"
         ]
       }
     },
@@ -8840,6 +8915,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "金屬",
@@ -8970,6 +9047,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "鍍膜塗層",
@@ -9055,7 +9134,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167065010722137_gyeon_baldwipe-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -9098,6 +9176,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車身原廠車漆",
         "亮光車漆表面"
@@ -9181,7 +9261,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167113294465594_gyeon_ppf_box-2021-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -9219,6 +9298,8 @@
         "cautions": []
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆表面",
         "亮光漆面",
@@ -9344,6 +9425,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "啞光車漆漆面",
         "亮光車漆漆面",
@@ -9470,6 +9553,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車身原廠車漆",
         "亮黑色車漆表面"
@@ -9550,7 +9635,6 @@
       "_meta": {
         "needsReview": [
           "usage",
-          "dilution",
           "frequency",
           "compatible",
           "faq",
@@ -9599,6 +9683,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "玻璃",
@@ -9698,7 +9784,6 @@
       "_meta": {
         "needsReview": [
           "usage",
-          "dilution",
           "frequency",
           "faq",
           "seo",
@@ -9745,6 +9830,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "輪圈",
         "車輪難以觸及的位置"
@@ -9830,7 +9917,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167084926019744_gyeon-q2m-wheelbrush-medium_1024x.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "usage",
           "frequency",
           "faq",
@@ -9877,6 +9963,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "輪圈",
@@ -9959,7 +10047,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167083191414793_gyeon-q2m-silkmitt.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -10004,6 +10091,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車漆",
         "金屬",
@@ -10083,7 +10172,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167081787062517_gyeon_washpad-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -10128,6 +10216,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "輪胎"
       ],
@@ -10218,7 +10308,6 @@
       "_meta": {
         "needsReview": [
           "usage",
-          "dilution",
           "frequency",
           "faq",
           "seo",
@@ -10264,6 +10353,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "輪胎",
         "橡膠部件"
@@ -10342,7 +10433,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167031383071817_gyeon-q2m-tirebrush-512x473w.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "faq",
           "seo"
@@ -10390,16 +10480,15 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋",
       "compatible": [
-        "車內織物",
-        "麂皮",
-        "布料座椅",
-        "地毯"
+        "所有內飾織物",
+        "地毯",
+        "座椅布料"
       ],
-      "incompatible": [
-        "非織物表面"
-      ],
-      "frequency": "每 2-4 星期一次",
+      "incompatible": [],
+      "frequency": "按需要（重污可重覆施用）",
       "pairedWith": [
         {
           "sku": "q2m-leather-brush",
@@ -10481,9 +10570,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167067563512451_1000-fabric-cleaner-3000.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "compatible",
-          "incompatible",
           "faq",
           "seo"
         ],
@@ -10491,7 +10577,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-fabriccleaner"
         ]
       }
     },
@@ -10527,6 +10614,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "各種皮革表面",
         "車輛內飾皮革",
@@ -10656,6 +10745,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "皮革",
         "輪圈",
@@ -10725,7 +10816,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167065730591989_gyeon_mf-applicator-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "pairedWith",
           "faq",
@@ -10770,6 +10860,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車內皮革",
         "塑料飾條",
@@ -10849,7 +10941,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167057156749235_gyeon-q2m-scrub-pad-evo.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
           "frequency",
           "compatible",
           "pairedWith",
@@ -10899,17 +10990,13 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "即用，無需稀釋（噴於濕車漆）",
       "compatible": [
-        "車漆",
-        "啞光車漆",
-        "脆弱基材",
-        "舊鍍膜",
-        "車蠟及密封劑殘留"
+        "車漆（預洗時施用於濕車身）"
       ],
-      "incompatible": [
-        "陽光直射或高溫表面"
-      ],
-      "frequency": "施工前預處理時使用",
+      "incompatible": [],
+      "frequency": "按需要（去除鍍膜／封層或頑固污染時）",
       "pairedWith": [
         {
           "sku": "q2m-baldwipe-evo",
@@ -10995,8 +11082,6 @@
       "imageUrl": "https://gyeon.hk/uploads/1778167056186047437_gyeon-q2m-total-remover-1750.webp",
       "_meta": {
         "needsReview": [
-          "dilution",
-          "frequency",
           "faq",
           "seo"
         ],
@@ -11004,7 +11089,8 @@
         "sources": [
           "gyeon.hk:description",
           "gyeon.hk:how_to_use",
-          "gyeon.hk:variants"
+          "gyeon.hk:variants",
+          "https://gyeonusa.com/products/q-m-total-remover"
         ]
       }
     },
@@ -11039,6 +11125,8 @@
         ]
       },
       "dilution": {},
+      "dilutable": false,
+      "dilutionNote": "不適用",
       "compatible": [
         "車內",
         "家中",

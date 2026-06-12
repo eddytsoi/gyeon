@@ -41,9 +41,11 @@
         },
         "dilution": {
           "type": "object",
-          "description": "Context→ratio map, ONLY from ratios stated in source. Empty = not specified (see _meta.needsReview).",
+          "description": "Context→ratio map, ONLY from ratios stated in source. Empty {} = no dilution needed (see `dilutable`).",
           "additionalProperties": { "type": "string" }
         },
+        "dilutable": { "type": "boolean", "description": "true = diluted before use (ratios in `dilution`); false = ready-to-use / applied neat / not a liquid" },
+        "dilutionNote": { "type": "string", "description": "繁中 note clarifying dilution status (e.g. 即用，無需稀釋 / 原液使用，無需稀釋 / 不適用)" },
         "compatible": { "type": "array", "items": { "type": "string" }, "description": "Surfaces/uses the product is for" },
         "incompatible": { "type": "array", "items": { "type": "string" }, "description": "Surfaces/conditions warned against" },
         "frequency": { "type": "string", "description": "Usage cadence (繁中)" },

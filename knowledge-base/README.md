@@ -36,8 +36,8 @@ Generated from the public storefront API (`https://gyeon.hk/api/v1`): product li
 | `description` | `description` markdown → clean 繁中 text |
 | `keyFeatures` | extracted from `description` |
 | `usage.steps`, `usage.cautions` | parsed from `how_to_use` (使用步驟 / 注意事項) |
-| `dilution` | ratios stated in `description` / `how_to_use` only — **never invented** |
-| `compatible`, `incompatible` | `適用表面` / `適用於…` text and 注意事項 |
+| `dilution`, `dilutable`, `dilutionNote` | ratios stated in source / official GYEON pages only — **never invented**; `dilutable` + note classify every product (see below) |
+| `compatible`, `incompatible` | `適用表面` / `適用於…` text and 注意事項; ambiguous liquids verified against gyeonusa.com |
 | `frequency` | 保養建議 if stated, else inferred (flagged) |
 | `pairedWith` | seeded from `upsells` (`upsell`), `frequently-bought-together` (`fbt`), and products linked inside `how_to_use` (`usage`); plus editorial KB suggestions (`editorial`) |
 | `variants`, `wcSku` | `variants` endpoint (`wc_sku` = barcode; `wcSku` set only when single-variant) |
@@ -54,8 +54,22 @@ Every record carries `_meta`:
 - **`confidence`** — `high` (mostly grounded in source), `medium`, or `low`.
 - **`sources`** — which source fields the record drew from.
 
-> **Safety note:** `dilution` ratios are only present when the official source stated them. An empty
-> `dilution: {}` with `"dilution"` in `needsReview` means "not specified" — do **not** assume a ratio.
+## `dilutable` — dilution status (no ambiguity)
+
+Every product carries a **`dilutable`** boolean + a 繁中 **`dilutionNote`**, so an empty `dilution` is never
+mistaken for missing data:
+
+- **`dilutable: true`** — the product is diluted before use; `dilution` holds the ratio(s)
+  (e.g. `{"bucket":"500:1","foamGun":"1:15"}`). Only the wash shampoos and Q²M Preserve.
+- **`dilutable: false`** — `dilution: {}` with a `dilutionNote` explaining why: `即用，無需稀釋`
+  (ready-to-use liquid), `原液使用，無需稀釋` (coating, applied neat), or `不適用` (tool / film / bundle).
+
+The GYEON Q²M line is overwhelmingly ready-to-use; the ambiguous liquids were each verified against the
+official **gyeonusa.com** product page (added to `_meta.sources`). No product still carries `"dilution"`
+in `needsReview`.
+
+> **Safety note:** dilution ratios are only present when an official source stated them. Empty
+> `dilution: {}` means **no dilution needed** (`dilutable:false`) — do not assume a ratio.
 
 ## How each use case consumes it
 
