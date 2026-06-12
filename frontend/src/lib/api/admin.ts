@@ -338,6 +338,12 @@ export const adminGetOrder = (token: string, id: string) =>
 export const adminCreateOrder = (token: string, body: Record<string, unknown>) =>
   request<Order>('/admin/orders', token, { method: 'POST', body: JSON.stringify(body) });
 
+// Combine several already-executed out-mutations (出貨單) into one accounting-
+// only order (no stock deduction; source mutations are locked to the order).
+// Body mirrors CombineMutationsRequest (orders/combine_mutations.go).
+export const adminCombineMutationsIntoOrder = (token: string, body: Record<string, unknown>) =>
+  request<Order>('/admin/orders/from-mutations', token, { method: 'POST', body: JSON.stringify(body) });
+
 export const adminUpdateOrderStatus = (token: string, id: string, status: string, note?: string) =>
   request<Order>(`/admin/orders/${id}/status`, token, {
     method: 'POST',
@@ -1755,6 +1761,9 @@ export interface StockMutationSummary {
   created_at: string;
   updated_at: string;
   executed_at?: string;
+  // Set when this out-mutation has already been combined into an order; the
+  // list disables its checkbox and links to that order to prevent double-billing.
+  consumed_by_order_id?: string;
 }
 
 export interface StockMutationList {
