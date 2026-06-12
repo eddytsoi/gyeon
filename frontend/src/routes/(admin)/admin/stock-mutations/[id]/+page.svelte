@@ -60,6 +60,10 @@
         primaryImageUrl: p.image_url ?? null,
         quantity: p.quantity,
         currentStock: isBundle ? null : (p.current_stock ?? null),
+        // Executed mutations carry the frozen before/after snapshot; the table
+        // prefers these over live stock. Drafts leave them null → live preview.
+        beforeQty: isBundle ? null : (p.before_qty ?? null),
+        afterQty: isBundle ? null : (p.after_qty ?? null),
         kind: isBundle ? 'bundle' : 'simple',
         components: isBundle
           ? childRows.map((c) => ({
@@ -71,7 +75,9 @@
               // Recover the per-bundle qty (bundle_items.quantity); the
               // child row's stored qty is already perParentQty × parent.qty.
               perParentQuantity: p.quantity > 0 ? Math.round(c.quantity / p.quantity) : c.quantity,
-              currentStock: c.current_stock ?? null
+              currentStock: c.current_stock ?? null,
+              beforeQty: c.before_qty ?? null,
+              afterQty: c.after_qty ?? null
             }))
           : undefined
       };

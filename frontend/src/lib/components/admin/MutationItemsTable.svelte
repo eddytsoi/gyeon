@@ -5,6 +5,10 @@
   //   currentStock / projected are blank on parent rows — stock impact lives
   //   on the children.
   // - kind: 'simple' (default) is a flat single-variant row.
+  // beforeQty / afterQty are the immutable stock snapshot recorded when the
+  // mutation was executed. When present (executed) they're shown verbatim;
+  // when null (draft) the table falls back to live currentStock + projection
+  // so an unsaved edit still previews "what happens if I execute now".
   export type MutationItemComponentRow = {
     variantId: string;
     productName: string;
@@ -13,6 +17,8 @@
     primaryImageUrl?: string | null;
     perParentQuantity: number;   // child qty for one bundle unit
     currentStock?: number | null;
+    beforeQty?: number | null;   // on-hand snapshot at execute time
+    afterQty?: number | null;    // resulting snapshot at execute time
   };
   export type MutationItemRow = {
     key: string;                 // stable id for the keyed each-block
@@ -23,6 +29,8 @@
     primaryImageUrl?: string | null;
     quantity: number;            // always positive; signed by the parent mutation's type
     currentStock?: number | null;
+    beforeQty?: number | null;   // on-hand snapshot at execute time
+    afterQty?: number | null;    // resulting snapshot at execute time
     kind?: 'simple' | 'bundle';
     bundleProductId?: string | null;
     components?: MutationItemComponentRow[];
@@ -91,7 +99,8 @@
       <tbody>
         {#each items as item (item.key)}
           {@const isBundle = item.kind === 'bundle'}
-          {@const after = isBundle ? null : projected(item)}
+          {@const onHand = isBundle ? null : (item.beforeQty ?? item.currentStock ?? null)}
+          {@const after = isBundle ? null : (item.afterQty ?? projected(item))}
           {@const negative = after != null && after < 0}
           <tr class="border-b border-gray-100 last:border-b-0 align-top">
             <td class="px-2 py-3">
@@ -119,7 +128,7 @@
               </div>
             </td>
             <td class="px-2 py-3 text-gray-700 whitespace-nowrap">
-              {isBundle ? '—' : (item.currentStock ?? '—')}
+              {isBundle ? '—' : (onHand ?? '—')}
             </td>
             <td class="px-2 py-3">
               {#if readonly}
@@ -167,7 +176,8 @@
           {#if isBundle && item.components}
             {#each item.components as child, ci (item.key + '-' + ci)}
               {@const cQty = childQty(child, item.quantity)}
-              {@const cAfter = projectedChild(child, item.quantity)}
+              {@const cOnHand = child.beforeQty ?? child.currentStock ?? null}
+              {@const cAfter = child.afterQty ?? projectedChild(child, item.quantity)}
               {@const cNegative = cAfter != null && cAfter < 0}
               <tr class="border-b border-gray-100 last:border-b-0 align-top bg-gray-50/60">
                 <td class="px-2 py-2 pl-10">
@@ -186,7 +196,7 @@
                   </div>
                 </td>
                 <td class="px-2 py-2 text-gray-600 whitespace-nowrap text-xs">
-                  {child.currentStock ?? '—'}
+                  {cOnHand ?? '—'}
                 </td>
                 <td class="px-2 py-2 text-xs">
                   <span class="font-medium {type === 'in' ? 'text-emerald-700' : 'text-red-600'}">

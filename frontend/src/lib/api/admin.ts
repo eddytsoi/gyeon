@@ -698,6 +698,24 @@ export const adminGetCustomers = (
 export const adminGetCustomer = (token: string, id: string) =>
   request<Customer>(`/admin/customers/${id}`, token);
 
+// Create a customer from the admin "new customer" form. The backend creates the
+// row passwordless — the optional setup email (adminSendResetPasswordEmail) lets
+// the customer choose their own password. 409 → email already registered.
+export const adminCreateCustomer = (
+  token: string,
+  body: {
+    first_name: string;
+    last_name?: string;
+    email: string;
+    phone?: string;
+    role?: import('$lib/types').CustomerRole;
+  }
+) =>
+  request<Customer>(`/admin/customers`, token, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+
 // Set a customer's storefront role. The body shape mirrors the backend's
 // PUT /admin/customers/{id}/role — passing an unknown role normalises to
 // "customer" server-side.
