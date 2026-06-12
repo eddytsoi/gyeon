@@ -141,16 +141,31 @@
         {@const hasName = r.variation !== r.sku}
         <tr class="transition-colors hover:bg-gray-50/60">
           <td class="px-5 py-3">
-            <a
-              href="/admin/products/{r.product_id}"
-              class="font-medium text-gray-900 hover:text-indigo-700 hover:underline underline-offset-2">
-              {r.product_name}
-            </a>
-            {#if hasName || r.wc_sku}
-              <p class="text-xs text-gray-400">
-                {#if hasName}<span class="text-gray-500 whitespace-nowrap">{r.variation}</span>{/if}{#if hasName && r.wc_sku}{' '}{/if}{#if r.wc_sku}<span class="font-mono">{r.wc_sku}</span>{/if}
-              </p>
-            {/if}
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                {#if r.primary_image_url}
+                  <img src={r.primary_image_url} alt={r.product_name}
+                       class="w-full h-full object-cover" loading="lazy" />
+                {:else}
+                  <svg class="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                  </svg>
+                {/if}
+              </div>
+              <div class="min-w-0">
+                <a
+                  href="/admin/products/{r.product_id}"
+                  class="font-medium text-gray-900 hover:text-indigo-700 hover:underline underline-offset-2">
+                  {r.product_name}
+                </a>
+                {#if hasName || r.wc_sku}
+                  <p class="text-xs text-gray-400">
+                    {#if hasName}<span class="text-gray-500 whitespace-nowrap">{r.variation}</span>{/if}{#if hasName && r.wc_sku}{' '}{/if}{#if r.wc_sku}<span class="font-mono">{r.wc_sku}</span>{/if}
+                  </p>
+                {/if}
+              </div>
+            </div>
           </td>
           <td class="px-5 py-3 text-right">
             <div class="tabular-nums text-gray-900">{r.stock_qty}</div>

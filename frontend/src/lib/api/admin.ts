@@ -116,6 +116,7 @@ export interface StockVelocityRow {
   gross_sold: number;
   daily_gross_sold: number;
   days_left?: number | null;
+  primary_image_url?: string | null;
 }
 export interface StockVelocityResult {
   items: StockVelocityRow[];
