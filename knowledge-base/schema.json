@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gyeon.hk/knowledge-base/schema.json",
+  "title": "GYEON HK Product Knowledge Base",
+  "description": "Structured source-of-truth for every GYEON HK product. Drives mix-and-match pairings, SEO/GEO structured data, and the internal knowledge base. The `sku` field equals the storefront product slug; `url` = /products/{sku}.",
+  "type": "object",
+  "required": ["version", "source", "currency", "language", "productCount", "products"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "string", "description": "KB schema/content version, e.g. 1.0" },
+    "generatedAt": { "type": "string", "description": "Build date (YYYY-MM-DD)" },
+    "source": { "type": "string", "description": "Authoritative source, e.g. gyeon.hk" },
+    "currency": { "type": "string", "description": "Price currency, e.g. HKD" },
+    "language": { "type": "string", "description": "Content language, e.g. zh-Hant" },
+    "productCount": { "type": "integer", "minimum": 0 },
+    "products": { "type": "array", "items": { "$ref": "#/$defs/product" } }
+  },
+  "$defs": {
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sku", "name", "category", "url", "variants", "_meta"],
+      "properties": {
+        "sku": { "type": "string", "description": "= storefront product slug; the join key" },
+        "productId": { "type": "string", "description": "DB UUID, for storefront/MCP joins" },
+        "number": { "type": "integer", "description": "Storefront display number" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "description": "Primary category name (繁中)" },
+        "categories": { "type": "array", "items": { "type": "string" }, "description": "All category/merchandising tags" },
+        "tagline": { "type": "string", "description": "← product subtitle" },
+        "shortDescription": { "type": "string", "description": "← product excerpt" },
+        "description": { "type": "string", "description": "Clean plain-text 繁中 description" },
+        "keyFeatures": { "type": "array", "items": { "type": "string" } },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "steps": { "type": "array", "items": { "type": "string" } },
+            "cautions": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "dilution": {
+          "type": "object",
+          "description": "Context→ratio map, ONLY from ratios stated in source. Empty = not specified (see _meta.needsReview).",
+          "additionalProperties": { "type": "string" }
+        },
+        "compatible": { "type": "array", "items": { "type": "string" }, "description": "Surfaces/uses the product is for" },
+        "incompatible": { "type": "array", "items": { "type": "string" }, "description": "Surfaces/conditions warned against" },
+        "frequency": { "type": "string", "description": "Usage cadence (繁中)" },
+        "pairedWith": { "type": "array", "items": { "$ref": "#/$defs/pairing" } },
+        "variants": { "type": "array", "items": { "$ref": "#/$defs/variant" } },
+        "wcSku": { "type": ["string", "null"], "description": "Barcode for single-variant products; null if multi-variant" },
+        "faq": { "type": "array", "items": { "$ref": "#/$defs/faqItem" } },
+        "seo": { "$ref": "#/$defs/seo" },
+        "url": { "type": "string", "description": "/products/{sku}" },
+        "imageUrl": { "type": ["string", "null"] },
+        "_meta": { "$ref": "#/$defs/meta" }
+      }
+    },
+    "pairing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sku", "relation"],
+      "properties": {
+        "sku": { "type": "string", "description": "Must resolve to another product's sku" },
+        "relation": { "type": "string", "enum": ["upsell", "fbt", "usage", "editorial"], "description": "upsell=curated; fbt=co-purchase; usage=linked in how-to; editorial=KB suggestion" },
+        "note": { "type": "string", "description": "Why they pair (繁中)" }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sku"],
+      "properties": {
+        "sku": { "type": "string", "description": "Variant SKU" },
+        "wcSku": { "type": ["string", "null"], "description": "WooCommerce/GS1 barcode" },
+        "size": { "type": "string", "description": "e.g. 500ml, 50ml, 40x40cm" },
+        "price": { "type": ["number", "null"], "description": "Price in `currency`" },
+        "weightGrams": { "type": ["number", "null"] }
+      }
+    },
+    "faqItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["q", "a"],
+      "properties": {
+        "q": { "type": "string" },
+        "a": { "type": "string" }
+      }
+    },
+    "seo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "metaTitle": { "type": "string" },
+        "metaDescription": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["needsReview", "confidence", "sources"],
+      "properties": {
+        "needsReview": { "type": "array", "items": { "type": "string" }, "description": "Inferred/generated fields a human should verify" },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "sources": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
