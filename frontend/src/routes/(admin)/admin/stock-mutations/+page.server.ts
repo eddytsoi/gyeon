@@ -1,5 +1,6 @@
 import {
   adminImportStockMutationCSV,
+  adminListStockMutationCreators,
   adminListStockMutations,
   type StockMutationFilters,
   type StockMutationImportResult,
@@ -32,30 +33,37 @@ export const load: PageServerLoad = async ({ parent, url }) => {
   const from = DATE_RE.test(fromParam) ? fromParam : '';
   const to = DATE_RE.test(toParam) ? toParam : '';
   const q = url.searchParams.get('q') ?? '';
+  const createdBy = url.searchParams.get('created_by') ?? '';
 
   const filters: StockMutationFilters = {
     status,
     type,
     from: from || undefined,
     to: to || undefined,
+    created_by: createdBy || undefined,
     q: q || undefined,
     limit: PAGE_SIZE,
     offset
   };
 
-  const list = await adminListStockMutations(token, filters).catch(
-    () => ({ items: [], total: 0 } as StockMutationList)
-  );
+  const [list, creators] = await Promise.all([
+    adminListStockMutations(token, filters).catch(
+      () => ({ items: [], total: 0 } as StockMutationList)
+    ),
+    adminListStockMutationCreators(token).catch(() => [])
+  ]);
 
   return {
     list,
+    creators,
     page: pageNum,
     pageSize: PAGE_SIZE,
     q,
     status,
     type,
     from,
-    to
+    to,
+    createdBy
   };
 };
 

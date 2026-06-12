@@ -27,6 +27,7 @@ func (h *Handler) AdminRoutes() chi.Router {
 	r.Get("/", h.list)
 	r.Post("/", h.create)
 	r.Post("/import", h.importCSV)
+	r.Get("/creators", h.listCreators)
 	r.Get("/inventory.csv", h.exportInventoryCSV)
 	r.Get("/{id}", h.get)
 	r.Put("/{id}", h.update)
@@ -52,15 +53,27 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		offset = (page - 1) * limit
 	}
 	f := ListFilters{
-		Status: q.Get("status"),
-		Type:   q.Get("type"),
-		From:   q.Get("from"),
-		To:     q.Get("to"),
-		Search: q.Get("q"),
-		Limit:  limit,
-		Offset: offset,
+		Status:    q.Get("status"),
+		Type:      q.Get("type"),
+		From:      q.Get("from"),
+		To:        q.Get("to"),
+		CreatedBy: q.Get("created_by"),
+		Search:    q.Get("q"),
+		Limit:     limit,
+		Offset:    offset,
 	}
 	out, err := h.svc.List(r.Context(), f)
+	if err != nil {
+		respond.InternalError(w)
+		return
+	}
+	respond.JSON(w, http.StatusOK, out)
+}
+
+// listCreators returns the distinct admins who have created stock mutations,
+// for the list page's "created by" filter dropdown.
+func (h *Handler) listCreators(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.ListCreators(r.Context())
 	if err != nil {
 		respond.InternalError(w)
 		return

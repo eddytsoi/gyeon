@@ -172,13 +172,14 @@ type UpdateRequest struct {
 }
 
 type ListFilters struct {
-	Status string // "draft" | "executed" | ""
-	Type   string // "in" | "out" | ""
-	From   string
-	To     string
-	Search string // ILIKE on mutation_number / product name / variant sku
-	Limit  int
-	Offset int
+	Status    string // "draft" | "executed" | ""
+	Type      string // "in" | "out" | ""
+	From      string
+	To        string
+	CreatedBy string // admin_users.id of the creator | ""
+	Search    string // ILIKE on mutation_number / product name / variant sku
+	Limit     int
+	Offset    int
 }
 
 type ListResult struct {
@@ -827,7 +828,13 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 		add("m.created_at >= $%d", f.From)
 	}
 	if f.To != "" {
-		add("m.created_at <= $%d", f.To)
+		// Inclusive of the whole `to` day: a date-only value like 2026-06-30
+		// must include rows created any time that day, so compare against the
+		// start of the next day rather than midnight of `to`.
+		add("m.created_at < ($%d::date + INTERVAL '1 day')", f.To)
+	}
+	if f.CreatedBy != "" {
+		add("m.created_by_admin_id = $%d", f.CreatedBy)
 	}
 	if f.Search != "" {
 		args = append(args, "%"+f.Search+"%")
@@ -911,6 +918,37 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 			r.ExecutedAt = &v
 		}
 		out.Items = append(out.Items, r)
+	}
+	return out, rows.Err()
+}
+
+// Creator is a distinct admin who has authored at least one stock mutation —
+// the option set for the list page's "created by" filter.
+type Creator struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+// ListCreators returns the distinct admins who have created any stock mutation,
+// ordered by email. Drives the creator filter dropdown.
+func (s *Service) ListCreators(ctx context.Context) ([]Creator, error) {
+	out := []Creator{}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT au.id, au.email, au.name
+		  FROM stock_mutations m
+		  JOIN admin_users au ON au.id = m.created_by_admin_id
+		 ORDER BY au.email`)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c Creator
+		if err := rows.Scan(&c.ID, &c.Email, &c.Name); err != nil {
+			return out, err
+		}
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

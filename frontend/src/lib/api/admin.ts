@@ -1767,9 +1767,18 @@ export interface StockMutationFilters {
   type?: StockMutationType | '';
   from?: string;
   to?: string;
+  created_by?: string;
   q?: string;
   limit?: number;
   offset?: number;
+}
+
+/** Distinct admin who has authored at least one stock mutation — option set
+ *  for the list page's "created by" filter. */
+export interface StockMutationCreator {
+  id: string;
+  email: string;
+  name: string;
 }
 
 export interface StockMutationItemInput {
@@ -1813,6 +1822,9 @@ function stockMutationQS(f: StockMutationFilters): string {
 
 export const adminListStockMutations = (token: string, f: StockMutationFilters = {}) =>
   request<StockMutationList>(`/admin/stock-mutations${stockMutationQS(f)}`, token);
+
+export const adminListStockMutationCreators = (token: string) =>
+  request<StockMutationCreator[]>('/admin/stock-mutations/creators', token);
 
 export const adminGetStockMutation = (token: string, id: string) =>
   request<StockMutation>(`/admin/stock-mutations/${id}`, token);

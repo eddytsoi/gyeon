@@ -109,12 +109,65 @@
   function setDate(key: 'from' | 'to', value: string) {
     pushParams(p => { value ? p.set(key, value) : p.delete(key); });
   }
+  function setCreator(id: string) {
+    pushParams(p => { id ? p.set('created_by', id) : p.delete('created_by'); });
+  }
   function clearAll() {
     pushParams(p => {
       p.delete('q'); p.delete('status'); p.delete('type');
-      p.delete('from'); p.delete('to');
+      p.delete('from'); p.delete('to'); p.delete('created_by');
     });
   }
+
+  // ── Date-range quick presets ──────────────────────────────────────────────
+  // Presets write into the same from/to params as the manual date inputs, so
+  // the inputs visibly mirror the picked range. Weeks start Monday. Dates are
+  // computed in the browser's local timezone (HKT for our users); ymd avoids
+  // toISOString() which would shift across the UTC day boundary.
+  type DatePreset = 'all' | 'this_week' | 'this_month' | 'last_week' | 'last_month';
+
+  function ymd(d: Date): string {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${da}`;
+  }
+
+  function presetRange(p: Exclude<DatePreset, 'all'>): { from: string; to: string } {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dow = (today.getDay() + 6) % 7; // 0=Mon … 6=Sun
+    if (p === 'this_week' || p === 'last_week') {
+      const mon = new Date(today);
+      mon.setDate(today.getDate() - dow - (p === 'last_week' ? 7 : 0));
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return { from: ymd(mon), to: ymd(sun) };
+    }
+    const monthOffset = p === 'last_month' ? -1 : 0;
+    const first = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    const last = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+    return { from: ymd(first), to: ymd(last) };
+  }
+
+  function applyPreset(p: DatePreset) {
+    const r = p === 'all' ? { from: '', to: '' } : presetRange(p);
+    pushParams(sp => {
+      r.from ? sp.set('from', r.from) : sp.delete('from');
+      r.to ? sp.set('to', r.to) : sp.delete('to');
+    });
+  }
+
+  // Which preset (if any) the current from/to range corresponds to — drives the
+  // active-button highlight. null means a custom (manually-tweaked) range.
+  const activePreset = $derived.by((): DatePreset | null => {
+    if (!data.from && !data.to) return 'all';
+    for (const p of ['this_week', 'this_month', 'last_week', 'last_month'] as const) {
+      const r = presetRange(p);
+      if (r.from === data.from && r.to === data.to) return p;
+    }
+    return null;
+  });
 
   async function confirmDelete() {
     if (!deleteTarget || !data.token) return;
@@ -189,7 +242,7 @@
   }
 
   const hasFilters = $derived(
-    !!data.q || !!data.status || !!data.type || !!data.from || !!data.to
+    !!data.q || !!data.status || !!data.type || !!data.from || !!data.to || !!data.createdBy
   );
 </script>
 
@@ -314,6 +367,24 @@
         <button class="px-3 py-1.5 {data.type === '' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => setType('')}>{m.admin_stock_mutations_filter_all_types()}</button>
         <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'in' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-gray-50'}" onclick={() => setType('in')}>{m.admin_stock_mutations_type_in()}</button>
         <button class="px-3 py-1.5 border-l border-gray-200 {data.type === 'out' ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-gray-50'}" onclick={() => setType('out')}>{m.admin_stock_mutations_type_out()}</button>
+      </div>
+
+      <select value={data.createdBy}
+              onchange={(e) => setCreator((e.currentTarget as HTMLSelectElement).value)}
+              class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white max-w-[200px]"
+              aria-label={m.admin_stock_mutations_filter_creator()}>
+        <option value="">{m.admin_stock_mutations_creator_all()}</option>
+        {#each data.creators as c (c.id)}
+          <option value={c.id}>{c.email}</option>
+        {/each}
+      </select>
+
+      <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+        <button class="px-3 py-1.5 {activePreset === 'all' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => applyPreset('all')}>{m.admin_stock_mutations_date_all()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {activePreset === 'this_week' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => applyPreset('this_week')}>{m.admin_stock_mutations_date_this_week()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {activePreset === 'this_month' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => applyPreset('this_month')}>{m.admin_stock_mutations_date_this_month()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {activePreset === 'last_week' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => applyPreset('last_week')}>{m.admin_stock_mutations_date_last_week()}</button>
+        <button class="px-3 py-1.5 border-l border-gray-200 {activePreset === 'last_month' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}" onclick={() => applyPreset('last_month')}>{m.admin_stock_mutations_date_last_month()}</button>
       </div>
 
       <input type="date" value={data.from} onchange={(e) => setDate('from', (e.currentTarget as HTMLInputElement).value)}
