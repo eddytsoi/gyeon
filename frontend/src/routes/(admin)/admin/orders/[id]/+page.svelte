@@ -248,79 +248,84 @@
 <svelte:head><title>{m.admin_order_detail_title({ number: data.order.order_number || `ORD-${data.order.number}` })}</title></svelte:head>
 
 <div>
-  <div class="flex items-center gap-3 mb-8">
-    <a href="/admin/orders" class="text-gray-400 hover:text-gray-700 transition-colors text-sm">
-      {m.admin_order_back()}
-    </a>
-    <span class="text-gray-300">/</span>
-    <span class="font-mono text-sm text-gray-700">{data.order.order_number || `ORD-${data.order.number}`}</span>
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-8">
+    <div class="flex items-center gap-3">
+      <a href="/admin/orders" class="text-gray-400 hover:text-gray-700 transition-colors text-sm">
+        {m.admin_order_back()}
+      </a>
+      <span class="text-gray-300">/</span>
+      <span class="font-mono text-sm text-gray-700">{data.order.order_number || `ORD-${data.order.number}`}</span>
+    </div>
+    {#if receiptStatuses.includes(data.order.status)}
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="/admin/orders/{data.order.id}/receipt.pdf"
+           target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg
+                  border border-gray-200 text-gray-700
+                  hover:bg-gray-50 transition-colors whitespace-nowrap"
+           title={receiptReady ? m.admin_order_receipt_cached_tooltip() : m.admin_order_receipt_download()}>
+          {#if receiptReady}
+            <!-- ⚡ cache-ready indicator -->
+            <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24"
+                 fill="currentColor" aria-hidden="true">
+              <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>
+            </svg>
+          {/if}
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          {m.admin_order_receipt_download()}
+        </a>
+        <button type="button" onclick={regenerateReceiptCache} disabled={regenerating}
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg
+                       border border-gray-200 text-gray-500
+                       hover:bg-gray-50 hover:text-gray-700 transition-colors
+                       disabled:opacity-50 whitespace-nowrap"
+                title={m.admin_order_receipt_regenerate()}>
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          {regenerating ? m.admin_order_receipt_regenerating() : m.admin_order_receipt_regenerate()}
+        </button>
+        <button type="button" onclick={printReceipt} disabled={printing}
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg
+                       border border-gray-200 text-gray-500
+                       hover:bg-gray-50 hover:text-gray-700 transition-colors
+                       disabled:opacity-50 whitespace-nowrap"
+                title={m.admin_order_receipt_print()}>
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          {printing ? m.admin_order_receipt_printing() : m.admin_order_receipt_print()}
+        </button>
+      </div>
+    {/if}
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-    <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <div class="flex items-start justify-between gap-2">
-        <div>
-          <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_status()}</p>
-          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium
-                       {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
-            {orderStatusLabel(data.order.status)}
-          </span>
-        </div>
-        {#if receiptStatuses.includes(data.order.status)}
-          <div class="flex items-center gap-1.5">
-            <a href="/admin/orders/{data.order.id}/receipt.pdf"
-               target="_blank" rel="noopener"
-               class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
-                      text-gray-700 border border-gray-200 rounded-lg
-                      hover:bg-gray-50 transition-colors whitespace-nowrap"
-               title={receiptReady ? m.admin_order_receipt_cached_tooltip() : m.admin_order_receipt_download()}>
-              {#if receiptReady}
-                <!-- ⚡ cache-ready indicator -->
-                <svg class="w-3.5 h-3.5 text-amber-500" viewBox="0 0 24 24"
-                     fill="currentColor" aria-hidden="true">
-                  <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>
-                </svg>
-              {/if}
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              {m.admin_order_receipt_download()}
-            </a>
-            <button type="button" onclick={regenerateReceiptCache} disabled={regenerating}
-                    class="inline-flex items-center px-2 py-1 text-xs font-medium
-                           text-gray-500 border border-gray-200 rounded-lg
-                           hover:bg-gray-50 hover:text-gray-700 transition-colors
-                           disabled:opacity-50 whitespace-nowrap"
-                    title={m.admin_order_receipt_regenerate()}>
-              {regenerating ? m.admin_order_receipt_regenerating() : m.admin_order_receipt_regenerate()}
-            </button>
-            <button type="button" onclick={printReceipt} disabled={printing}
-                    class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium
-                           text-gray-500 border border-gray-200 rounded-lg
-                           hover:bg-gray-50 hover:text-gray-700 transition-colors
-                           disabled:opacity-50 whitespace-nowrap"
-                    title={m.admin_order_receipt_print()}>
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"/>
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                <rect x="6" y="14" width="12" height="8"/>
-              </svg>
-              {printing ? m.admin_order_receipt_printing() : m.admin_order_receipt_print()}
-            </button>
-          </div>
-        {/if}
-      </div>
+  <div class="bg-white rounded-2xl border border-gray-100 mb-8
+              grid grid-cols-1 sm:grid-cols-3
+              divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+    <div class="p-5">
+      <p class="text-xs text-gray-400 font-medium mb-1.5">{m.admin_order_card_status()}</p>
+      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium whitespace-nowrap
+                   {statusColour[data.order.status] ?? 'bg-gray-100 text-gray-500'}">
+        {orderStatusLabel(data.order.status)}
+      </span>
     </div>
-    <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_total()}</p>
+    <div class="p-5">
+      <p class="text-xs text-gray-400 font-medium mb-1.5">{m.admin_order_card_total()}</p>
       <p class="text-xl font-bold text-gray-900">HK${data.order.total.toFixed(2)}</p>
     </div>
-    <div class="bg-white rounded-2xl border border-gray-100 p-5">
-      <p class="text-xs text-gray-400 font-medium mb-1">{m.admin_order_card_placed()}</p>
+    <div class="p-5">
+      <p class="text-xs text-gray-400 font-medium mb-1.5">{m.admin_order_card_placed()}</p>
       <p class="text-sm font-medium text-gray-900">
         {new Date(data.order.created_at).toLocaleString('en-HK')}
       </p>
