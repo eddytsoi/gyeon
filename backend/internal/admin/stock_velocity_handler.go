@@ -61,18 +61,19 @@ const (
 )
 
 type velocityRow struct {
-	VariantID      string  `json:"variant_id"`
-	ProductID      string  `json:"product_id"`
-	ProductName    string  `json:"product_name"`
-	SKU            string  `json:"sku"`
-	WCSku          *string `json:"wc_sku,omitempty"`
-	Variation      string  `json:"variation"`
-	StockQty       int     `json:"stock_qty"`
-	InStock        bool    `json:"in_stock"`
-	GrossSales     float64 `json:"gross_sales"`
-	GrossSold      int     `json:"gross_sold"`
-	DailyGrossSold float64 `json:"daily_gross_sold"`
-	DaysLeft       *int    `json:"days_left,omitempty"`
+	VariantID       string  `json:"variant_id"`
+	ProductID       string  `json:"product_id"`
+	ProductName     string  `json:"product_name"`
+	SKU             string  `json:"sku"`
+	WCSku           *string `json:"wc_sku,omitempty"`
+	Variation       string  `json:"variation"`
+	StockQty        int     `json:"stock_qty"`
+	InStock         bool    `json:"in_stock"`
+	GrossSales      float64 `json:"gross_sales"`
+	GrossSold       int     `json:"gross_sold"`
+	DailyGrossSold  float64 `json:"daily_gross_sold"`
+	DaysLeft        *int    `json:"days_left,omitempty"`
+	PrimaryImageURL *string `json:"primary_image_url,omitempty"`
 }
 
 type velocityResponse struct {
@@ -133,7 +134,15 @@ SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku, pv.wc_sku,
        s.gross_sales,
        s.gross_sold,
        (s.gross_sold::numeric / $1) AS daily_gross_sold,
-       FLOOR(pv.stock_qty / NULLIF(s.gross_sold::numeric / $1, 0))::int AS days_left
+       FLOOR(pv.stock_qty / NULLIF(s.gross_sold::numeric / $1, 0))::int AS days_left,
+       (SELECT COALESCE(
+            CASE WHEN mf.mime_type LIKE 'video/%' THEN mf.thumbnail_url END,
+            mf.webp_url, mf.url, pi.url)
+        FROM product_images pi
+        LEFT JOIN media_files mf ON mf.id = pi.media_file_id
+        WHERE pi.product_id = pv.product_id
+        ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.created_at ASC
+        LIMIT 1) AS primary_image_url
   FROM sales s
   JOIN product_variants pv ON pv.id = s.variant_id
   JOIN products p          ON p.id = pv.product_id
@@ -152,10 +161,11 @@ SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku, pv.wc_sku,
 		var row velocityRow
 		var daysLeft sql.NullInt64
 		var wcSku sql.NullString
+		var imgURL sql.NullString
 		if err := rows.Scan(
 			&row.VariantID, &row.ProductID, &row.ProductName, &row.SKU, &wcSku,
 			&row.Variation, &row.StockQty, &row.InStock,
-			&row.GrossSales, &row.GrossSold, &row.DailyGrossSold, &daysLeft,
+			&row.GrossSales, &row.GrossSold, &row.DailyGrossSold, &daysLeft, &imgURL,
 		); err != nil {
 			return nil, err
 		}
@@ -166,6 +176,10 @@ SELECT pv.id, pv.product_id, p.name AS product_name, pv.sku, pv.wc_sku,
 		if daysLeft.Valid {
 			n := int(daysLeft.Int64)
 			row.DaysLeft = &n
+		}
+		if imgURL.Valid {
+			s := imgURL.String
+			row.PrimaryImageURL = &s
 		}
 		out = append(out, row)
 	}
