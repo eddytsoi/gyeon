@@ -2591,6 +2591,7 @@
   "admin_stock_mutations_unknown_error": "未知錯誤",
   "admin_stock_mutations_combine_btn": "綜合成訂單 ({n})",
   "admin_stock_mutations_combine_consumed_badge": "已綜合",
+  "admin_stock_mutations_combine_consumed_badge_order": "已綜合成 {order}",
   "admin_stock_mutations_combine_consumed_title": "已綜合成訂單，按此查看",
   "admin_stock_mutations_combine_select_aria": "選擇此出貨單",
   "admin_stock_mutations_combine_modal_title": "綜合出貨單成訂單",

@@ -205,6 +205,9 @@ type MutationSummary struct {
 	// ConsumedByOrderID is set when this out-mutation has already been combined
 	// into an order; the list UI disables its checkbox to prevent double-billing.
 	ConsumedByOrderID *string `json:"consumed_by_order_id,omitempty"`
+	// ConsumedByOrderNumber is the customer-facing number (e.g. ORD-5144) of the
+	// order this mutation was combined into; paired with ConsumedByOrderID.
+	ConsumedByOrderNumber *string `json:"consumed_by_order_number,omitempty"`
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -871,10 +874,11 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 		       cb.email, eb.email,
 		       m.created_at, m.updated_at, m.executed_at,
 		       COALESCE(agg.item_count, 0), COALESCE(agg.total_qty, 0),
-		       m.consumed_by_order_id
+		       m.consumed_by_order_id, NULLIF(co.order_number, '')
 		  FROM stock_mutations m
 		  LEFT JOIN admin_users cb ON cb.id = m.created_by_admin_id
 		  LEFT JOIN admin_users eb ON eb.id = m.executed_by_admin_id
+		  LEFT JOIN orders co ON co.id = m.consumed_by_order_id
 		  LEFT JOIN (
 		      -- Bundle parent rows are display-only; the real stock movement
 		      -- (and so the meaningful count + total qty) lives on the leaves:
@@ -899,15 +903,19 @@ func (s *Service) List(ctx context.Context, f ListFilters) (ListResult, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var r MutationSummary
-		var note, cbEmail, ebEmail, executedAt, consumedBy sql.NullString
+		var note, cbEmail, ebEmail, executedAt, consumedBy, consumedNum sql.NullString
 		if err := rows.Scan(&r.ID, &r.MutationNumber, &r.Type, &r.Status, &note,
 			&cbEmail, &ebEmail, &r.CreatedAt, &r.UpdatedAt, &executedAt,
-			&r.ItemCount, &r.TotalQuantity, &consumedBy); err != nil {
+			&r.ItemCount, &r.TotalQuantity, &consumedBy, &consumedNum); err != nil {
 			return out, err
 		}
 		if consumedBy.Valid {
 			v := consumedBy.String
 			r.ConsumedByOrderID = &v
+		}
+		if consumedNum.Valid {
+			v := consumedNum.String
+			r.ConsumedByOrderNumber = &v
 		}
 		if note.Valid {
 			v := note.String

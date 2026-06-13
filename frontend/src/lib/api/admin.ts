@@ -1764,6 +1764,8 @@ export interface StockMutationSummary {
   // Set when this out-mutation has already been combined into an order; the
   // list disables its checkbox and links to that order to prevent double-billing.
   consumed_by_order_id?: string;
+  // Customer-facing order number (e.g. ORD-5144) of the combined order, for display.
+  consumed_by_order_number?: string;
 }
 
 export interface StockMutationList {
