@@ -2591,6 +2591,7 @@
   "admin_stock_mutations_unknown_error": "unknown error",
   "admin_stock_mutations_combine_btn": "Combine into order ({n})",
   "admin_stock_mutations_combine_consumed_badge": "Combined",
+  "admin_stock_mutations_combine_consumed_badge_order": "Combined → {order}",
   "admin_stock_mutations_combine_consumed_title": "Already combined into an order — click to view",
   "admin_stock_mutations_combine_select_aria": "Select this out-mutation",
   "admin_stock_mutations_combine_modal_title": "Combine out-mutations into an order",

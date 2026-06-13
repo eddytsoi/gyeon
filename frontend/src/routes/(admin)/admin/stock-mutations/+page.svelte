@@ -545,7 +545,11 @@
                       <a href="/admin/orders/{row.consumed_by_order_id}"
                          class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 hover:bg-violet-100"
                          title={m.admin_stock_mutations_combine_consumed_title()}>
-                        {m.admin_stock_mutations_combine_consumed_badge()}
+                        {#if row.consumed_by_order_number}
+                          {m.admin_stock_mutations_combine_consumed_badge_order({ order: row.consumed_by_order_number })}
+                        {:else}
+                          {m.admin_stock_mutations_combine_consumed_badge()}
+                        {/if}
                       </a>
                     </div>
                   {/if}
