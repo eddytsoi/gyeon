@@ -528,13 +528,7 @@
             {#each data.list.items as row (row.id)}
               <tr class="border-t border-gray-100 hover:bg-gray-50">
                 <td class="px-3 py-2">
-                  {#if row.consumed_by_order_id}
-                    <a href="/admin/orders/{row.consumed_by_order_id}"
-                       class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 hover:bg-violet-100"
-                       title={m.admin_stock_mutations_combine_consumed_title()}>
-                      {m.admin_stock_mutations_combine_consumed_badge()}
-                    </a>
-                  {:else if isCombinable(row)}
+                  {#if isCombinable(row)}
                     <input
                       type="checkbox"
                       class="rounded border-gray-300"
@@ -546,6 +540,15 @@
                 </td>
                 <td class="px-4 py-2 font-mono text-sm">
                   <a href="/admin/stock-mutations/{row.id}" class="text-gray-900 hover:underline">{row.mutation_number}</a>
+                  {#if row.consumed_by_order_id}
+                    <div class="mt-0.5">
+                      <a href="/admin/orders/{row.consumed_by_order_id}"
+                         class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 hover:bg-violet-100"
+                         title={m.admin_stock_mutations_combine_consumed_title()}>
+                        {m.admin_stock_mutations_combine_consumed_badge()}
+                      </a>
+                    </div>
+                  {/if}
                 </td>
                 <td class="px-4 py-2">
                   {#if row.type === 'in'}
